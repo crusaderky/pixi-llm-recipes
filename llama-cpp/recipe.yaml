@@ -1,0 +1,39 @@
+context:
+  version: "9204"
+  base_url: https://github.com/ggml-org/llama.cpp/releases/download/b${{ version }}
+
+package:
+  name: llama-cpp
+  version: ${{ version }}
+
+source:
+  # Download and repackage pre-built binaries from
+  # https://github.com/ggml-org/llama.cpp/releases
+  - if: backend == "cpu"
+    then:
+      url: ${{ base_url }}/llama-b${{ version }}-bin-ubuntu-x64.tar.gz
+      sha256: fd98a89cf543daf15f9106809e1428aaf0a22a11fb4f2172edd14f445126c30e
+  - if: backend == "vulkan"
+    then:
+      url: ${{ base_url }}/llama-b${{ version }}-bin-ubuntu-vulkan-x64.tar.gz
+      sha256: ad4d52aac8ff28faa1761fc176d0613606967ca596836de980ccc2bf14be68ed
+  - if: backend == "rocm"
+    then:
+      url: ${{ base_url }}/llama-b${{ version }}-bin-ubuntu-rocm-7.2-x64.tar.gz
+      sha256: ae08664786083587b7ddc545d03eb8027f3768a6d1d19b437d62230c6e11ba39
+
+build:
+  number: 0
+  string: ${{ backend }}_h${{ hash }}_${{ build_number }}
+  script:
+    file: build.sh
+
+requirements:
+  build:
+    - patchelf
+
+about:
+  homepage: https://github.com/ggml-org/llama.cpp
+  license: MIT
+  license_file: LICENSE
+  summary: LLM inference in C/C++ (${{ backend }} build)
