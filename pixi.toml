@@ -5,5 +5,21 @@ platforms = ["linux-64"]
 
 [tasks]
 
-[dependencies]
+[feature.llama-cpp.dependencies]
 llama-cpp = { path = "llama-cpp/vulkan" }
+
+[feature.llama-cpp.tasks]
+serve-qwen = "llama-server -hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ3_S -lv 4 -c 262144 --no-mmap --cache-type-k q4_0 --cache-type-v q4_0 --image-min-tokens 1024 --spec-type draft-mtp --spec-draft-n-max 3 --flash-attn on --no-mmproj --jinja"
+
+[feature.forge.dependencies]
+python = "=3.14"
+
+[feature.forge.pypi-dependencies]
+forge-guardrails = "*"
+
+[feature.forge.tasks]
+forge-proxy = "python -m forge.proxy --backend-url http://localhost:8080 --port 8081"
+
+[environments]
+llama-cpp = ["llama-cpp"]
+forge = ["forge"]

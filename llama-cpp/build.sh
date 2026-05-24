@@ -7,19 +7,18 @@ set -euo pipefail
 mkdir -p "${PREFIX}/bin" "${PREFIX}/opt/llama"
 
 for f in *; do
-    name=$(basename "$f")
     echo "Processing file: $f"
-    case "$name" in
+    case "$f" in
         LICENSE|build_env.sh|conda_build.*)
             ;;
         *.so|*.so.*)
-            mv -v "$f" "${PREFIX}/opt/llama"
+            ln -vf "$f" "${PREFIX}/opt/llama/"
             ;;
         llama*|rpc-server)
-            mv -v "$f" "${PREFIX}/opt/llama/"
+            ln -vf "$f" "${PREFIX}/opt/llama/"
             if [ -f "${PREFIX}/opt/llama/$f" ] && [ -x "${PREFIX}/opt/llama/$f" ]; then
                 pushd "${PREFIX}/bin"
-                ln -sv "../opt/llama/$name"
+                ln -svf "../opt/llama/$f"
                 popd
             fi
             ;;
