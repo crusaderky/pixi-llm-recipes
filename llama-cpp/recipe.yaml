@@ -1,5 +1,5 @@
 context:
-  version: "9204"
+  version: "9305"
   base_url: https://github.com/ggml-org/llama.cpp/releases/download/b${{ version }}
 
 package:
@@ -12,15 +12,15 @@ source:
   - if: backend == "cpu"
     then:
       url: ${{ base_url }}/llama-b${{ version }}-bin-ubuntu-x64.tar.gz
-      sha256: fd98a89cf543daf15f9106809e1428aaf0a22a11fb4f2172edd14f445126c30e
+      sha256: 0a32013a7cca1c51652bba69799d793886372ec922dbc3aa0788a1f45a7059ba
   - if: backend == "vulkan"
     then:
       url: ${{ base_url }}/llama-b${{ version }}-bin-ubuntu-vulkan-x64.tar.gz
-      sha256: ad4d52aac8ff28faa1761fc176d0613606967ca596836de980ccc2bf14be68ed
+      sha256: 98e5edcf2f5d5e3d41aa791af0bc73d1ff8269e40b48558517cbe746982cfa37
   - if: backend == "rocm"
     then:
       url: ${{ base_url }}/llama-b${{ version }}-bin-ubuntu-rocm-7.2-x64.tar.gz
-      sha256: ae08664786083587b7ddc545d03eb8027f3768a6d1d19b437d62230c6e11ba39
+      sha256: 0805b002e8439cc5a95ef360382c2ad83236e9b8acd164af7faf76bbfe0f5076
 
 build:
   number: 0
