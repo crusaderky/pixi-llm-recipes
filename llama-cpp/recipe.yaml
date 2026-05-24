@@ -28,10 +28,6 @@ build:
   script:
     file: build.sh
 
-requirements:
-  build:
-    - patchelf
-
 about:
   homepage: https://github.com/ggml-org/llama.cpp
   license: MIT

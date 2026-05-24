@@ -51,7 +51,7 @@ environments:
     - url: https://prefix.dev/conda-forge/
     packages:
       linux-64:
-      - conda_source: llama-cpp[a3900a8d] @ llama-cpp/vulkan
+      - conda_source: llama-cpp[7617199a] @ llama-cpp/vulkan
 packages:
 - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
   build_number: 20
@@ -195,19 +195,6 @@ packages:
     - libsqlite >=3.53.1,<4.0a0
   size: 954962
   timestamp: 1777986471789
-- conda: https://prefix.dev/conda-forge/linux-64/libstdcxx-15.2.0-h934c35e_19.conda
-  sha256: dff1058c76ec6b8759e41cefa2508162d00e4a5e6721aa68ec3fd10094e702dc
-  md5: 5794b3bdc38177caf969dabd3af08549
-  depends:
-  - __glibc >=2.17,<3.0.a0
-  - libgcc 15.2.0 he0feb66_19
-  constrains:
-  - libstdcxx-ng ==15.2.0=*_19
-  license: GPL-3.0-only WITH GCC-exception-3.1
-  license_family: GPL
-  run_exports: {}
-  size: 5852044
-  timestamp: 1778269036376
 - conda: https://prefix.dev/conda-forge/linux-64/libuuid-2.42.1-h5347b49_0.conda
   sha256: 3f0edf1280e2f6684a986f821eaa3e123d2694a00b31b96ca0d4a4c12c129231
   md5: 7d0a66598195ef00b6efc55aefc7453b
@@ -265,19 +252,6 @@ packages:
     - openssl >=3.6.2,<4.0a0
   size: 3167099
   timestamp: 1775587756857
-- conda: https://prefix.dev/conda-forge/linux-64/patchelf-0.18.0-h3f2d84a_2.conda
-  sha256: 2f1caf273c7816fcff6e8438138c29d08264f8371dc0e23f86e993ccc7e978dc
-  md5: 5a6bde274af5252392b446ead19047d0
-  depends:
-  - __glibc >=2.17,<3.0.a0
-  - libgcc >=13
-  - libstdcxx >=13
-  - libgcc >=13
-  license: GPL-3.0-or-later
-  license_family: GPL
-  run_exports: {}
-  size: 136130
-  timestamp: 1745559387060
 - conda: https://prefix.dev/conda-forge/linux-64/python-3.14.5-habeac84_100_cp314.conda
   build_number: 100
   sha256: 55eed9bf2a3f6e90311276f0834737fe7c2d9ec3e5e2e557507858df4c7521e6
@@ -387,16 +361,10 @@ packages:
   run_exports: {}
   size: 119135
   timestamp: 1767016325805
-- conda_source: llama-cpp[a3900a8d] @ llama-cpp/vulkan
+- conda_source: llama-cpp[7617199a] @ llama-cpp/vulkan
   variants:
     backend: vulkan
     target_platform: linux-64
-  build_packages:
-  - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libgcc-15.2.0-he0feb66_19.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libgomp-15.2.0-he0feb66_19.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libstdcxx-15.2.0-h934c35e_19.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/patchelf-0.18.0-h3f2d84a_2.conda
 - pypi: https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl
   name: h11
   version: 0.16.0
