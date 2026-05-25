@@ -46,7 +46,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/da/42/e921fccf5015463e32a3cf6ee7f980a6ed0f395ceeaa45060b61d86486c2/anyio-4.13.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/dc/9b/47798a6c91d8bdb567fe2698fe81e0c6b7cb7ef4d13da4114b41d239f65d/typing_inspection-0.4.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fd/7b/122376b1fd3c62c1ed9dc80c931ace4844b3c55407b6fb2d199377c9736f/pydantic-2.13.4-py3-none-any.whl
-  llama-cpp:
+  llama:
     channels:
     - url: https://prefix.dev/conda-forge/
     packages:
@@ -107,7 +107,6 @@ packages:
   - libcap >=2.77,<2.78.0a0
   license: LGPL-2.0-or-later
   license_family: LGPL
-  purls: []
   run_exports: {}
   size: 49107
   timestamp: 1776948902197
@@ -133,7 +132,6 @@ packages:
   - libgcc >=14
   license: MIT
   license_family: MIT
-  purls: []
   run_exports:
     weak:
     - c-ares >=1.34.6,<2.0a0
@@ -148,7 +146,6 @@ packages:
   - libstdcxx >=14
   license: MIT
   license_family: MIT
-  purls: []
   run_exports:
     weak:
     - icu >=78.3,<79.0a0
@@ -180,7 +177,6 @@ packages:
   - abseil-cpp =20260107.1
   license: Apache-2.0
   license_family: Apache
-  purls: []
   run_exports:
     weak:
     - libabseil >=20260107.1,<20260108.0a0
@@ -195,7 +191,6 @@ packages:
   - libgcc >=14
   license: MIT
   license_family: MIT
-  purls: []
   run_exports:
     weak:
     - libbrotlicommon >=1.2.0,<1.3.0a0
@@ -210,7 +205,6 @@ packages:
   - libgcc >=14
   license: MIT
   license_family: MIT
-  purls: []
   run_exports:
     weak:
     - libbrotlidec >=1.2.0,<1.3.0a0
@@ -225,7 +219,6 @@ packages:
   - libgcc >=14
   license: MIT
   license_family: MIT
-  purls: []
   run_exports:
     weak:
     - libbrotlienc >=1.2.0,<1.3.0a0
@@ -239,7 +232,6 @@ packages:
   - libgcc >=14
   license: BSD-3-Clause
   license_family: BSD
-  purls: []
   run_exports:
     weak:
     - libcap >=2.77,<2.78.0a0
@@ -252,7 +244,6 @@ packages:
   - libgcc-ng >=12
   license: BSD-2-Clause
   license_family: BSD
-  purls: []
   run_exports:
     weak:
     - libev >=4.33,<4.34.0a0
@@ -308,7 +299,6 @@ packages:
   - libgcc 15.2.0 he0feb66_19
   license: GPL-3.0-only WITH GCC-exception-3.1
   license_family: GPL
-  purls: []
   run_exports:
     strong:
     - libgcc
@@ -368,7 +358,6 @@ packages:
   - openssl >=3.5.5,<4.0a0
   license: MIT
   license_family: MIT
-  purls: []
   run_exports:
     weak:
     - libnghttp2 >=1.68.1,<2.0a0
@@ -398,7 +387,6 @@ packages:
   - libstdcxx-ng ==15.2.0=*_19
   license: GPL-3.0-only WITH GCC-exception-3.1
   license_family: GPL
-  purls: []
   run_exports: {}
   size: 5852044
   timestamp: 1778269036376
@@ -424,7 +412,6 @@ packages:
   - __glibc >=2.17,<3.0.a0
   license: MIT
   license_family: MIT
-  purls: []
   run_exports:
     weak:
     - libuv >=1.52.1,<2.0a0
@@ -480,7 +467,6 @@ packages:
   - openssl >=3.5.6,<4.0a0
   license: MIT
   license_family: MIT
-  purls: []
   run_exports:
     weak:
     - nodejs >=26.2.0,<27.0a0
@@ -508,7 +494,6 @@ packages:
   - nodejs >=20.6.0
   license: MIT
   license_family: MIT
-  purls: []
   run_exports: {}
   size: 13299637
   timestamp: 1779549203193

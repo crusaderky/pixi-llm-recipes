@@ -1,0 +1,22 @@
+{
+  "providers": {
+    "llama-cpp": {
+      // Change to port 8081 to serve through forge-proxy
+      "baseUrl": "http://localhost:8080/v1",
+      "api": "openai-completions",
+      "apiKey": "none",
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false,
+        "thinkingFormat": "qwen-chat-template"
+      },
+      "models": [
+        {
+          "id": "byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ3_S",
+          "name": "qwen36",
+          "reasoning": true
+        }
+      ]
+    }
+  }
+}

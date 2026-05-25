@@ -5,12 +5,12 @@ platforms = ["linux-64"]
 
 [tasks]
 
-[feature.llama-cpp.dependencies]
+[feature.llama.dependencies]
 llama-cpp = { path = "llama-cpp/vulkan" }
 
-[feature.llama-cpp.tasks]
+[feature.llama.tasks]
 list-devices = "llama-server --list-devices"
-serve-qwen = "llama-server -hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ3_S -lv 4 -c 262144 --no-mmap --cache-type-k q4_0 --cache-type-v q4_0 --image-min-tokens 1024 --spec-type draft-mtp --spec-draft-n-max 3 --flash-attn on --no-mmproj --jinja"
+serve-qwen36 = "llama-server -hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ3_S -lv 4 -c 262144 --no-mmap --cache-type-k q4_0 --cache-type-v q4_0 --image-min-tokens 1024 --spec-type draft-mtp --spec-draft-n-max 3 --flash-attn on --no-mmproj --jinja"
 
 [feature.pi.dependencies]
 pi-coding-agent = "*"
@@ -18,6 +18,11 @@ bubblewrap = "*"
 
 [feature.pi.tasks]
 pi = { cmd = "./bwrap-pi.sh {{ root_dir }}", args = ["root_dir"] }
+pi-install = "pi install"
+install-pi-token-speed = { depends-on = [ { task = "pi-install", args = [ "npm:pi-token-speed@0.2.1" ] } ] }
+install-pi-usage-extension = { depends-on = [ { task = "pi-install", args = [ "npm:@tmustier/pi-usage-extension@0.3.2" ] } ] }
+install-pi-web-access = { depends-on = [ { task = "pi-install", args = [ "npm:pi-web-access@0.10.7" ] } ] }
+install-pi-extensions = { depends-on = ["install-pi-token-speed", "install-pi-usage-extension", "install-pi-web-access"] }
 
 [feature.forge.dependencies]
 python = "=3.14"
@@ -29,6 +34,6 @@ forge-guardrails = "*"
 forge-proxy = "python -m forge.proxy --backend-url http://localhost:8080 --port 8081"
 
 [environments]
-llama-cpp = ["llama-cpp"]
+llama = ["llama"]
 pi = ["pi"]
 forge = ["forge"]

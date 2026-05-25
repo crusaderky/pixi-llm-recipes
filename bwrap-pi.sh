@@ -13,6 +13,13 @@ set -o errexit
 set -o nounset
 
 DIR="$(realpath "$1")"
+
+# Typically ~/.pixi
+export PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"
+
+mkdir -p ~/.pi/agent
+cp -pvf models.json ~/.pi/agent/
+
 bwrap \
   --ro-bind / / \
   --dev /dev \
@@ -21,7 +28,7 @@ bwrap \
   --tmpfs /home \
   --tmpfs /root \
   --ro-bind "$CONDA_PREFIX" "$CONDA_PREFIX" \
-  --ro-bind "$HOME/.pixi" "$HOME/.pixi" \
+  --ro-bind "$PIXI_ROOT" "$PIXI_ROOT" \
   --bind "$HOME/.pi" "$HOME/.pi" \
   --bind "$DIR" "$DIR" \
   --chdir "$DIR" \
