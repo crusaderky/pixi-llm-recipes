@@ -12,6 +12,13 @@ llama-cpp = { path = "llama-cpp/vulkan" }
 list-devices = "llama-server --list-devices"
 serve-qwen = "llama-server -hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ3_S -lv 4 -c 262144 --no-mmap --cache-type-k q4_0 --cache-type-v q4_0 --image-min-tokens 1024 --spec-type draft-mtp --spec-draft-n-max 3 --flash-attn on --no-mmproj --jinja"
 
+[feature.pi.dependencies]
+pi-coding-agent = "*"
+bubblewrap = "*"
+
+[feature.pi.tasks]
+pi = { cmd = "./bwrap-pi.sh {{ root_dir }}", args = ["root_dir"] }
+
 [feature.forge.dependencies]
 python = "=3.14"
 
@@ -23,4 +30,5 @@ forge-proxy = "python -m forge.proxy --backend-url http://localhost:8080 --port 
 
 [environments]
 llama-cpp = ["llama-cpp"]
+pi = ["pi"]
 forge = ["forge"]
