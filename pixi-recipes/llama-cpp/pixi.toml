@@ -4,7 +4,7 @@ preview = ["pixi-build"]
 platforms = ["linux-64"]
 
 [workspace.build-variants]
-backend = ["cpu", "vulkan", "rocm"]
+backend = ["cpu", "cuda", "vulkan"]
 
 [package.build.backend]
 name = "pixi-build-rattler-build"

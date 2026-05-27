@@ -1,32 +1,61 @@
 context:
   version: "9371"
-  base_url: https://github.com/ggml-org/llama.cpp/releases/download/b${{ version }}
 
 package:
   name: llama-cpp
   version: ${{ version }}
 
 source:
-  # Download and repackage pre-built binaries from
-  # https://github.com/ggml-org/llama.cpp/releases
-  - if: backend == "cpu"
-    then:
-      url: ${{ base_url }}/llama-b${{ version }}-bin-ubuntu-x64.tar.gz
-      sha256: 7f53f92228a42c74129e58681ed299ed75df82dec2d9c9bbe895e945b2ed7d90
-  - if: backend == "vulkan"
-    then:
-      url: ${{ base_url }}/llama-b${{ version }}-bin-ubuntu-vulkan-x64.tar.gz
-      sha256: 8a014a61280154276a45b19e1361461d32e716d7318d36013f55a20fdb222e0e
-  - if: backend == "rocm"
-    then:
-      url: ${{ base_url }}/llama-b${{ version }}-bin-ubuntu-rocm-7.2-x64.tar.gz
-      sha256: ac28a1940adff7fad4448bc3064113f0c8f0869c3c3728dbcf7de3162ddd8033
+  git: https://github.com/ggml-org/llama.cpp
+  rev: f12cc6d0fa96d6a3c33952f06b7439ac43a3c3fe
 
 build:
   number: 0
   string: ${{ backend }}_${{ build_number }}
   script:
     file: build.sh
+    env:
+      BACKEND: ${{ backend }}
+
+requirements:
+  build:
+    - ${{ compiler('c') }}
+    - ${{ compiler('cxx') }}
+    - cmake
+    - ninja
+    - pkg-config
+    - if: backend == "cuda"
+      then:
+        - cuda-nvcc
+        - cuda-version =12.6
+    - if: backend == "vulkan"
+      then:
+        - shaderc
+  host:
+    - libcurl
+    - openssl
+    - if: backend == "cuda"
+      then:
+        - cuda-version =12.6
+        - cuda-cudart-dev
+        - libcublas-dev
+        - libcurand-dev
+    - if: backend == "vulkan"
+      then:
+        - libvulkan-headers
+        - libvulkan-loader
+        - spirv-headers
+        - spirv-tools
+  run:
+    - libcurl
+    - if: backend == "cuda"
+      then:
+        - cuda-cudart
+        - libcublas
+        - libcurand
+    - if: backend == "vulkan"
+      then:
+        - libvulkan-loader
 
 about:
   homepage: https://github.com/ggml-org/llama.cpp
