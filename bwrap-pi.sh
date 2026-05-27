@@ -5,10 +5,12 @@
 # abi <abi/4.0>,
 # include <tunables/global>
 #
-# profile bwrap /usr/bin/bwrap flags=(unconfined) {
+# profile bwrap /path/to/pixi-llm-recipes/.pixi/envs/pi/bin/bwrap flags=(unconfined) {
 #   userns,
 #   include if exists <local/bwrap>
 # }
+#
+# Then run `sudo systemctl reload apparmor` to load the profile.
 set -o errexit
 set -o nounset
 
