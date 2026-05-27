@@ -1,0 +1,14 @@
+package:
+  name: pi-extensions
+  version: "2026.05.27"
+
+build:
+  number: 0
+  script:
+    file: build.sh
+
+requirements:
+  host:
+    - pi-coding-agent
+  run:
+    - pi-coding-agent
