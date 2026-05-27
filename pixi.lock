@@ -77,10 +77,10 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/libzlib-1.3.2-h25fd6f3_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/nodejs-26.2.0-he4ff34a_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/openssl-3.6.2-h35e630c_0.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.75.5-h5585027_0.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.75.5-h5585027_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
-      - conda_source: pi-extensions[4aaa9ac8] @ pixi-recipes/pi-extensions
+      - conda_source: pi-extensions[50d5a681] @ pixi-recipes/pi-extensions
 packages:
 - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
   build_number: 20
@@ -488,16 +488,15 @@ packages:
     - openssl >=3.6.2,<4.0a0
   size: 3167099
   timestamp: 1775587756857
-- conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.75.5-h5585027_0.conda
-  sha256: f0aaf6b64a129b7b79c2319851c6199a313b9b515b6f3b1c38b168326e54c028
-  md5: 3e18c89a89980ae20b82f674186c183c
+- conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.75.5-h5585027_1.conda
+  sha256: 4f763d3d592249199dcac48f25772d71a4179a977033d2b30ff9551a5ab1c16e
+  md5: 502d6439eb9f0854d97ee84120535b60
   depends:
   - nodejs >=20.6.0
   license: MIT
-  license_family: MIT
   run_exports: {}
-  size: 13299637
-  timestamp: 1779549203193
+  size: 13299784
+  timestamp: 1779883701534
 - conda: https://prefix.dev/conda-forge/linux-64/python-3.14.5-habeac84_100_cp314.conda
   build_number: 100
   sha256: 55eed9bf2a3f6e90311276f0834737fe7c2d9ec3e5e2e557507858df4c7521e6
@@ -612,7 +611,7 @@ packages:
     backend: vulkan
     target_platform: linux-64
   license: MIT
-- conda_source: pi-extensions[4aaa9ac8] @ pixi-recipes/pi-extensions
+- conda_source: pi-extensions[50d5a681] @ pixi-recipes/pi-extensions
   variants:
     target_platform: linux-64
   depends:
@@ -636,7 +635,7 @@ packages:
   - conda: https://prefix.dev/conda-forge/linux-64/libzlib-1.3.2-h25fd6f3_2.conda
   - conda: https://prefix.dev/conda-forge/linux-64/nodejs-26.2.0-he4ff34a_0.conda
   - conda: https://prefix.dev/conda-forge/linux-64/openssl-3.6.2-h35e630c_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.75.5-h5585027_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.75.5-h5585027_1.conda
   - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
   - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
 - pypi: https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl
