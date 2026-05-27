@@ -16,12 +16,25 @@ set -o nounset
 
 DIR="$(realpath "$1")"
 
-PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
+_PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
+_CONDA_PREFIX="$CONDA_PREFIX"
 
-# Cause pi to use $CONDA_PREFIX/home/.pi instead of ~/.pi
-# See matching code in install-pi.sh
-REAL_HOME="$HOME"
-export HOME="$CONDA_PREFIX/home"
+mkdir -p ~/.cache/ccache
+mkdir -p ~/.cache/pip
+mkdir -p ~/.cache/pre-commit
+mkdir -p ~/.cache/rattler
+mkdir -p ~/.cache/uv
+mkdir -p ~/.pi/agent/sessions
+if [ ! -f ~/.pi/agent/auth.json ]; then
+  echo "{}" > ~/.pi/agent/auth.json
+fi
+mkdir -p "$CONDA_PREFIX/home/.pi/agent"
+
+# Unset all PIXI_* and CONDA_* environment variables
+while IFS= read -r var; do
+  unset "$var"
+done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
+unset INIT_CWD
 
 bwrap \
   --ro-bind / / \
@@ -30,13 +43,18 @@ bwrap \
   --tmpfs /tmp \
   --tmpfs /home \
   --tmpfs /root \
-  --ro-bind "$PWD/models.json" "$PWD/models.json" \
-  --ro-bind "$CONDA_PREFIX" "$CONDA_PREFIX" \
-  --ro-bind "$PIXI_ROOT" "$PIXI_ROOT" \
-  --bind "$REAL_HOME/.pi" "$REAL_HOME/.pi" \
-  --bind "$CONDA_PREFIX/home/.pi" "$CONDA_PREFIX/home/.pi" \
-  --ro-bind "$CONDA_PREFIX/home/.pi/agent/npm" "$CONDA_PREFIX/home/.pi/agent/npm" \
-  --bind "$DIR" "$DIR" \
+  --ro-bind "$_CONDA_PREFIX"         "$_CONDA_PREFIX" \
+  --bind "$HOME/.cache/ccache"       "$HOME/.cache/ccache" \
+  --bind "$HOME/.cache/pip"          "$HOME/.cache/pip" \
+  --bind "$HOME/.cache/pre-commit"   "$HOME/.cache/pre-commit" \
+  --bind "$HOME/.cache/rattler"      "$HOME/.cache/rattler" \
+  --bind "$HOME/.cache/uv"           "$HOME/.cache/uv" \
+  --bind "$_CONDA_PREFIX/home/.pi"   "$HOME/.pi" \
+  --bind "$HOME/.pi/agent/auth.json" "$HOME/.pi/agent/auth.json" \
+  --bind "$HOME/.pi/agent/sessions"  "$HOME/.pi/agent/sessions" \
+  --ro-bind "$PWD/models.json"       "$HOME/.pi/agent/models.json" \
+  --ro-bind "$_PIXI_ROOT"            "$_PIXI_ROOT" \
+  --bind "$DIR"                      "$DIR" \
   --chdir "$DIR" \
   --die-with-parent \
   --unshare-all --share-net \
