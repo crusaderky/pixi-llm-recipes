@@ -6,7 +6,7 @@ platforms = ["linux-64"]
 [tasks]
 
 [feature.llama.dependencies]
-llama-cpp = { path = "llama-cpp/vulkan" }
+llama-cpp = { path = "pixi-recipes/llama-cpp/vulkan" }
 
 [feature.llama.tasks]
 list-devices = "llama-server --list-devices"
