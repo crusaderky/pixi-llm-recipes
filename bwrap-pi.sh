@@ -17,6 +17,9 @@ set -o nounset
 DIR="$(realpath "$1")"
 
 PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
+
+# Cause pi to use $CONDA_PREFIX/home/.pi instead of ~/.pi
+# See matching code in install-pi.sh
 REAL_HOME="$HOME"
 export HOME="$CONDA_PREFIX/home"
 

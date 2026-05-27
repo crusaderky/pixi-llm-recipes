@@ -16,10 +16,13 @@ serve-qwen36 = "llama-server -hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ3_S -lv 4 
 pi-coding-agent = "*"
 bubblewrap = "*"
 
+[feature.pi.activation]
+# Install pi extensions in $CONDA_PREFIX/home/.pi
+scripts = ["install-pi.sh"]
+
 [feature.pi.tasks]
 pi = { cmd = "./bwrap-pi.sh {{ root_dir }}", args = ["root_dir"] }
 pi-export = "pi --export"
-install-pi = "./install-pi.sh"
 
 [feature.forge.dependencies]
 python = "=3.14"
