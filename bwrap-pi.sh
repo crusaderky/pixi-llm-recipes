@@ -30,10 +30,12 @@ bwrap \
   --tmpfs /tmp \
   --tmpfs /home \
   --tmpfs /root \
+  --ro-bind "$PWD/models.json" "$PWD/models.json" \
   --ro-bind "$CONDA_PREFIX" "$CONDA_PREFIX" \
   --ro-bind "$PIXI_ROOT" "$PIXI_ROOT" \
   --bind "$REAL_HOME/.pi" "$REAL_HOME/.pi" \
   --bind "$CONDA_PREFIX/home/.pi" "$CONDA_PREFIX/home/.pi" \
+  --ro-bind "$CONDA_PREFIX/home/.pi/agent/npm" "$CONDA_PREFIX/home/.pi/agent/npm" \
   --bind "$DIR" "$DIR" \
   --chdir "$DIR" \
   --die-with-parent \
