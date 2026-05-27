@@ -18,11 +18,8 @@ bubblewrap = "*"
 
 [feature.pi.tasks]
 pi = { cmd = "./bwrap-pi.sh {{ root_dir }}", args = ["root_dir"] }
-pi-install = "pi install"
-install-pi-token-speed = { depends-on = [ { task = "pi-install", args = [ "npm:pi-token-speed@0.2.1" ] } ] }
-install-pi-usage-extension = { depends-on = [ { task = "pi-install", args = [ "npm:@tmustier/pi-usage-extension@0.3.2" ] } ] }
-install-pi-web-access = { depends-on = [ { task = "pi-install", args = [ "npm:pi-web-access@0.10.7" ] } ] }
-install-pi-extensions = { depends-on = ["install-pi-token-speed", "install-pi-usage-extension", "install-pi-web-access"] }
+pi-export = "pi --export"
+install-pi = "./install-pi.sh"
 
 [feature.forge.dependencies]
 python = "=3.14"

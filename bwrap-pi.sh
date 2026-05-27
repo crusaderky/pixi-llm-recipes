@@ -16,11 +16,9 @@ set -o nounset
 
 DIR="$(realpath "$1")"
 
-# Typically ~/.pixi
-export PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"
-
-mkdir -p ~/.pi/agent
-cp -pvf models.json ~/.pi/agent/
+PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
+REAL_HOME="$HOME"
+export HOME="$CONDA_PREFIX/home"
 
 bwrap \
   --ro-bind / / \
@@ -31,7 +29,8 @@ bwrap \
   --tmpfs /root \
   --ro-bind "$CONDA_PREFIX" "$CONDA_PREFIX" \
   --ro-bind "$PIXI_ROOT" "$PIXI_ROOT" \
-  --bind "$HOME/.pi" "$HOME/.pi" \
+  --bind "$REAL_HOME/.pi" "$REAL_HOME/.pi" \
+  --bind "$CONDA_PREFIX/home/.pi" "$CONDA_PREFIX/home/.pi" \
   --bind "$DIR" "$DIR" \
   --chdir "$DIR" \
   --die-with-parent \
