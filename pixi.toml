@@ -11,7 +11,7 @@ llama-cpp = { path = "pixi-recipes/llama-cpp" }
 
 [feature.llama.tasks]
 list-devices = "llama-server --list-devices"
-serve-qwen36 = "llama-server -hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ4_XS -lv 4 -c 131072 --no-mmap --cache-type-k q8_0 --cache-type-v q8_0 --image-min-tokens 1024 --spec-type draft-mtp --spec-draft-n-max 3 --flash-attn on --no-mmproj --jinja --fit-target 256"
+serve-qwen36 = "llama-server -hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ4_XS -lv 4 -c 131072 --no-mmap --cache-type-k q8_0 --cache-type-v q8_0 --image-min-tokens 1024 --spec-type draft-mtp --spec-draft-n-max 3 --flash-attn on --no-mmproj --jinja --fit-target 0"
 
 [feature.pi.dependencies]
 pi-coding-agent = "*"
