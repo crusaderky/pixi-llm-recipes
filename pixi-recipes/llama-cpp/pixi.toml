@@ -3,9 +3,9 @@ channels = ["https://prefix.dev/conda-forge"]
 preview = ["pixi-build"]
 platforms = ["linux-64"]
 
+[workspace.build-variants]
+backend = ["cpu", "vulkan", "rocm"]
+
 [package.build.backend]
 name = "pixi-build-rattler-build"
 version = "*"
-
-[package.build.config]
-recipe = "../recipe.yaml"

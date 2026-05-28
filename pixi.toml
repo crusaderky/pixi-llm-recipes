@@ -3,10 +3,11 @@ channels = ["https://prefix.dev/conda-forge"]
 preview = ["pixi-build"]
 platforms = ["linux-64"]
 
-[tasks]
+[workspace.build-variants]
+backend = ["vulkan"]
 
 [feature.llama.dependencies]
-llama-cpp = { path = "pixi-recipes/llama-cpp/vulkan" }
+llama-cpp = { path = "pixi-recipes/llama-cpp" }
 
 [feature.llama.tasks]
 list-devices = "llama-server --list-devices"
@@ -31,6 +32,6 @@ forge-guardrails = "*"
 forge-proxy = "python -m forge.proxy --backend-url http://localhost:8080 --port 8081"
 
 [environments]
-llama = ["llama"]
-pi = ["pi"]
-forge = ["forge"]
+llama = [ "llama" ]
+pi = [ "pi" ]
+forge = [ "forge" ]
