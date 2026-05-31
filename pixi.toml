@@ -9,9 +9,13 @@ backend = ["cuda"]
 [feature.llama.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp" }
 
-[feature.llama.activation.env]
+[feature.qwen36.activation.env]
 LLAMA_ARGS = "-hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ4_XS -lv 4 --no-mmap --cache-type-k q8_0 --cache-type-v q8_0 --flash-attn on --fit-target 256"
 LLAMA_SERVER_ARGS = "-c 131072 --image-min-tokens 1024 --spec-type draft-mtp --spec-draft-n-max 3 --no-mmproj --jinja"
+
+[feature.lfm25.activation.env]
+LLAMA_ARGS = "-hf unsloth/LFM2.5-8B-A1B-GGUF:UD-Q4_K_M -lv 4 --no-mmap --cache-type-k q8_0 --cache-type-v q8_0 --flash-attn on --fit-target 256"
+LLAMA_SERVER_ARGS = "-c 131072 --no-mmproj --jinja"
 
 [feature.llama.tasks]
 list-devices = "llama-server --list-devices"
@@ -39,6 +43,5 @@ forge-guardrails = "*"
 forge-proxy = "python -m forge.proxy --backend-url http://localhost:8080 --port 8081"
 
 [environments]
-llama = [ "llama" ]
-pi = [ "pi" ]
-forge = [ "forge" ]
+qwen36 = [ "llama", "pi", "forge", "qwen36" ]
+lfm25 = [ "llama", "pi", "forge", "lfm25" ]

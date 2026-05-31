@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 
 mkdir -p ~/.pi/agent
-cp -f models.json ~/.pi/agent/
+cp -f models.$PIXI_ENVIRONMENT_NAME.json ~/.pi/agent/models.json
 rm -rf ~/.pi/agent/npm
 ln -s $CONDA_PREFIX/home/.pi/agent/npm ~/.pi/agent/npm
 cp -f $CONDA_PREFIX/home/.pi/agent/settings.json ~/.pi/agent/

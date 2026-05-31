@@ -1,0 +1,16 @@
+{
+  "providers": {
+    "llama-cpp": {
+      // Change to port 8081 to serve through forge-proxy
+      "baseUrl": "http://localhost:8080/v1",
+      "api": "openai-completions",
+      "apiKey": "none",
+      "models": [
+        {
+          "id": "unsloth/LFM2.5-8B-A1B-GGUF:UD-Q4_K_M",
+          "name": "LFM2.5-8B-A1B"
+        }
+      ]
+    }
+  }
+}

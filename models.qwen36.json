@@ -13,7 +13,7 @@
       "models": [
         {
           "id": "byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ4_XS",
-          "name": "qwen36",
+          "name": "Qwen3.6-35B-A3B",
           "reasoning": true
         }
       ]
