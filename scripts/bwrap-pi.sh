@@ -25,6 +25,8 @@ mkdir -p ~/.cache/pre-commit
 mkdir -p ~/.cache/rattler
 mkdir -p ~/.cache/uv
 mkdir -p ~/.pi/agent/sessions
+mkdir -p ~/.config/rpiv-web-tools
+
 if [ ! -f ~/.pi/agent/auth.json ]; then
   echo "{}" > ~/.pi/agent/auth.json
 fi
@@ -43,18 +45,19 @@ bwrap \
   --tmpfs /tmp \
   --tmpfs /home \
   --tmpfs /root \
-  --ro-bind "$_CONDA_PREFIX"         "$_CONDA_PREFIX" \
-  --bind "$HOME/.cache/ccache"       "$HOME/.cache/ccache" \
-  --bind "$HOME/.cache/pip"          "$HOME/.cache/pip" \
-  --bind "$HOME/.cache/pre-commit"   "$HOME/.cache/pre-commit" \
-  --bind "$HOME/.cache/rattler"      "$HOME/.cache/rattler" \
-  --bind "$HOME/.cache/uv"           "$HOME/.cache/uv" \
-  --bind "$_CONDA_PREFIX/home/.pi"   "$HOME/.pi" \
-  --bind "$HOME/.pi/agent/auth.json" "$HOME/.pi/agent/auth.json" \
-  --bind "$HOME/.pi/agent/sessions"  "$HOME/.pi/agent/sessions" \
-  --ro-bind "$PWD/models.json"       "$HOME/.pi/agent/models.json" \
-  --ro-bind "$_PIXI_ROOT"            "$_PIXI_ROOT" \
-  --bind "$DIR"                      "$DIR" \
+  --ro-bind "$_CONDA_PREFIX"            "$_CONDA_PREFIX" \
+  --bind "$HOME/.cache/ccache"          "$HOME/.cache/ccache" \
+  --bind "$HOME/.cache/pip"             "$HOME/.cache/pip" \
+  --bind "$HOME/.cache/pre-commit"      "$HOME/.cache/pre-commit" \
+  --bind "$HOME/.cache/rattler"         "$HOME/.cache/rattler" \
+  --bind "$HOME/.cache/uv"              "$HOME/.cache/uv" \
+  --bind "$HOME/.config/rpiv-web-tools" "$HOME/.config/rpiv-web-tools" \
+  --bind "$_CONDA_PREFIX/home/.pi"      "$HOME/.pi" \
+  --bind "$HOME/.pi/agent/auth.json"    "$HOME/.pi/agent/auth.json" \
+  --bind "$HOME/.pi/agent/sessions"     "$HOME/.pi/agent/sessions" \
+  --ro-bind "$PWD/models.json"          "$HOME/.pi/agent/models.json" \
+  --ro-bind "$_PIXI_ROOT"               "$_PIXI_ROOT" \
+  --bind "$DIR"                         "$DIR" \
   --chdir "$DIR" \
   --die-with-parent \
   --unshare-all --share-net \
