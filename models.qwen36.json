@@ -1,7 +1,6 @@
 {
   "providers": {
     "llama-cpp": {
-      // Change to port 8081 to serve through forge-proxy
       "baseUrl": "http://localhost:8080/v1",
       "api": "openai-completions",
       "apiKey": "none",

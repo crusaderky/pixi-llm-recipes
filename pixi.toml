@@ -20,6 +20,7 @@ LLAMA_SERVER_ARGS = "-c 131072 --no-mmproj --jinja"
 [feature.llama.tasks]
 list-devices = "llama-server --list-devices"
 serve = "llama-server $LLAMA_ARGS $LLAMA_SERVER_ARGS"
+forge-serve = "llama-server $LLAMA_ARGS $LLAMA_SERVER_ARGS --port 8081"
 speed-benchmark = "llama-cli $LLAMA_ARGS $LLAMA_SERVER_ARGS -st -f wikitext-2-raw/speed-bench-prompt.txt"
 perplexity = "llama-perplexity $LLAMA_ARGS -c 65536 -f wikitext-2-raw/wiki.test.raw"
 
@@ -40,8 +41,9 @@ python = "=3.14"
 forge-guardrails = "*"
 
 [feature.forge.tasks]
-forge-proxy = "python -m forge.proxy --backend-url http://localhost:8080 --port 8081"
+forge-proxy = "python -m forge.proxy --backend-url http://localhost:8081 --port 8080"
 
 [environments]
-qwen36 = [ "llama", "pi", "forge", "qwen36" ]
-lfm25 = [ "llama", "pi", "forge", "lfm25" ]
+qwen36 = [ "llama", "pi", "qwen36" ]
+lfm25 = [ "llama", "pi", "lfm25" ]
+forge = [ "forge" ]
