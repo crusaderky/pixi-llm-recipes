@@ -14,7 +14,14 @@
 set -o errexit
 set -o nounset
 
-DIR="$(realpath "$1")"
+if [ "$1" == "-" ]; then
+  echo "Running in empty temporary directory"
+  echo "Use \`pixi run pi <directory>\` to move to a specific directory."
+  ARGS="--tmpfs /tmp/pi --chdir /tmp/pi"
+else
+  DIR="$(realpath "$1")"
+  ARGS="--bind $DIR $DIR --chdir $DIR"
+fi
 
 _PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
 _CONDA_PREFIX="$CONDA_PREFIX"
@@ -57,8 +64,7 @@ bwrap \
   --bind "$HOME/.pi/agent/sessions"     "$HOME/.pi/agent/sessions" \
   --ro-bind "$PWD/models.json"          "$HOME/.pi/agent/models.json" \
   --ro-bind "$_PIXI_ROOT"               "$_PIXI_ROOT" \
-  --bind "$DIR"                         "$DIR" \
-  --chdir "$DIR" \
+  $ARGS \
   --die-with-parent \
   --unshare-all --share-net \
   -- pi "${@:2}"

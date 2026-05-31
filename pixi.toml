@@ -25,8 +25,8 @@ pi-extensions = { path = "pixi-recipes/pi-extensions" }
 bubblewrap = "*"
 
 [feature.pi.tasks]
-pi = { cmd = "scripts/bwrap-pi.sh {{ root_dir }}", args = ["root_dir"] }
-unsafe-pi = { cmd = "scripts/unsafe-pi.sh {{ root_dir }}", args = ["root_dir"] }
+pi = { cmd = "scripts/bwrap-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", default = "-" }] }
+unsafe-pi = { cmd = "scripts/unsafe-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", default = "-" }] }
 pi-export = "pi --export"
 
 [feature.forge.dependencies]

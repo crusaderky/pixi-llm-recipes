@@ -3,8 +3,6 @@
 set -o errexit
 set -o nounset
 
-DIR="$(realpath "$1")"
-
 mkdir -p ~/.pi/agent
 cp -f models.json ~/.pi/agent/
 rm -rf ~/.pi/agent/npm
@@ -24,5 +22,14 @@ while IFS= read -r var; do
 done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
 unset INIT_CWD
 
-cd $DIR
+if [ "$1" == "-" ]; then
+  echo "Running in empty temporary directory"
+  echo "Use \`pixi run pi <directory>\` to move to a specific directory."
+  DIR=$(mktemp -d)
+  trap "cleanup && rm -rf $DIR" EXIT
+else
+  DIR="$1"
+fi
+
+cd "$DIR"
 pi ${@:2}
