@@ -9,20 +9,9 @@ backend = ["cuda"]
 [feature.llama.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp" }
 
-[feature.qwen36.activation.env]
-LLAMA_ARGS = "-hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:IQ4_XS -lv 4 --no-mmap --cache-type-k q8_0 --cache-type-v q8_0 --flash-attn on --fit-target 256"
-LLAMA_SERVER_ARGS = "-c 131072 --image-min-tokens 1024 --spec-type draft-mtp --spec-draft-n-max 3 --no-mmproj --jinja"
-
-[feature.lfm25.activation.env]
-LLAMA_ARGS = "-hf unsloth/LFM2.5-8B-A1B-GGUF:UD-Q4_K_M -lv 4 --no-mmap --cache-type-k q8_0 --cache-type-v q8_0 --flash-attn on --fit-target 256"
-LLAMA_SERVER_ARGS = "-c 131072 --no-mmproj --jinja"
-
 [feature.llama.tasks]
 list-devices = "llama-server --list-devices"
-serve = "llama-server $LLAMA_ARGS $LLAMA_SERVER_ARGS"
-forge-serve = "llama-server $LLAMA_ARGS $LLAMA_SERVER_ARGS --port 8081"
-speed-benchmark = "llama-cli $LLAMA_ARGS $LLAMA_SERVER_ARGS -st -f wikitext-2-raw/speed-bench-prompt.txt"
-perplexity = "llama-perplexity $LLAMA_ARGS -c 65536 -f wikitext-2-raw/wiki.test.raw"
+serve = "llama-server --models-preset models.ini"
 
 [feature.pi.dependencies]
 pi-coding-agent = "*"
@@ -34,16 +23,20 @@ pi = { cmd = "scripts/bwrap-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", d
 unsafe-pi = { cmd = "scripts/unsafe-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", default = "-" }] }
 pi-export = "pi --export"
 
-[feature.forge.dependencies]
+[feature.openclaw.dependencies]
+openclaw = { path = "pixi-recipes/openclaw" }
+
+[feature.llama-benchy.dependencies]
 python = "=3.14"
 
-[feature.forge.pypi-dependencies]
-forge-guardrails = "*"
+[feature.llama-benchy.pypi-dependencies]
+llama-benchy = "*"
 
-[feature.forge.tasks]
-forge-proxy = "python -m forge.proxy --backend-url http://localhost:8081 --port 8080"
+[feature.llama-benchy.tasks]
+llama-benchy = "python -m llama_benchy --base-url http://localhost:8080"
 
 [environments]
-qwen36 = [ "llama", "pi", "qwen36" ]
-lfm25 = [ "llama", "pi", "lfm25" ]
-forge = [ "forge" ]
+llama = [ "llama", ]
+llama-benchy = [ "llama-benchy" ]
+pi = [ "pi" ]
+openclaw = [ "openclaw" ]

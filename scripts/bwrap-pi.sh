@@ -63,7 +63,6 @@ bwrap \
   --bind "$_CONDA_PREFIX/home/.pi"      "$HOME/.pi" \
   --bind "$HOME/.pi/agent/auth.json"    "$HOME/.pi/agent/auth.json" \
   --bind "$HOME/.pi/agent/sessions"     "$HOME/.pi/agent/sessions" \
-  --ro-bind "$MODELS_JSON"              "$HOME/.pi/agent/models.json" \
   --ro-bind "$_PIXI_ROOT"               "$_PIXI_ROOT" \
   $ARGS \
   --die-with-parent \
