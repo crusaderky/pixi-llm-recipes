@@ -10,8 +10,15 @@ backend = ["cuda"]
 llama-cpp = { path = "pixi-recipes/llama-cpp" }
 
 [feature.llama.tasks]
-list-devices = "llama-server --list-devices"
 serve = "llama-server --models-preset models.ini"
+list-devices = "llama-server --list-devices"
+# Argument must be one from models.ini
+download-model = { cmd = "llama-cli -hf {{ model }} -st -p 'Hello world'", args = [ "model"] }
+
+# Crude quality benchmark.
+# Typically you want to pass -hf <model> --cache-type-k q8_0 --cache-type-v q8_0
+# Note: the measure only matters between two variants/settings of the same model.
+llama-perplexity = "llama-perplexity -f wikitext-2-raw/wiki.test.raw"
 
 [feature.pi.dependencies]
 pi-coding-agent = "*"
@@ -33,7 +40,7 @@ python = "=3.14"
 llama-benchy = "*"
 
 [feature.llama-benchy.tasks]
-llama-benchy = "python -m llama_benchy --base-url http://localhost:8080"
+llama-benchy = "python -m llama_benchy --base-url http://localhost:8080 --no-cache --runs 7"
 
 [environments]
 llama = [ "llama", ]
