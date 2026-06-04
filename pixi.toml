@@ -18,7 +18,7 @@ download-model = { cmd = "llama-cli -hf {{ model }} -st -p 'Hello world'", args 
 # Quantitative benchmark on the degradation introduced by model and/or cache quantization.
 # Note: the measure is only significant between two variants/settings of the same model.
 # Typically you want to pass parameters: -hf XXX --cache-type-k YYY --cache-type-v ZZZ
-llama-perplexity = "llama-perplexity -f wikitext-2-raw/wiki.test.raw"
+llama-perplexity = "llama-perplexity -f sample-data/wiki.test.raw"
 
 [feature.pi.dependencies]
 pi-coding-agent = "*"
