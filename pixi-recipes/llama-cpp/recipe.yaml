@@ -13,14 +13,23 @@ build:
   number: 0
   string: ${{ backend }}_${{ build_number }}
   script:
-    file: build.sh
+    file: ${{ "build.bat" if win else "build.sh" }}
     env:
       BACKEND: ${{ backend }}
 
 requirements:
   build:
-    - ${{ compiler('c') }}
-    - ${{ compiler('cxx') }}
+    # On Linux/macOS use the conda-forge compiler metapackage (GCC/Clang).
+    # On Windows use the self-contained GCC 15 + UCRT MinGW-w64 toolchain
+    # (gcc_win-64 / gxx_win-64) — no system Visual Studio required.
+    - if: unix
+      then:
+        - ${{ compiler('c') }}
+        - ${{ compiler('cxx') }}
+    - if: win
+      then:
+        - gcc_win-64
+        - gxx_win-64
     - cmake
     - ninja
     - pkg-config
