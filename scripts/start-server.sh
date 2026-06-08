@@ -4,7 +4,8 @@ if nc -z localhost 8080; then
     exit 0
 fi
 
-llama-server --models-preset models.ini --log-file llama-server.log > /dev/null 2>&1 &
+# Note: Don't use --log-file; it hides a bunch of information
+llama-server --models-preset models.ini > llama-server.log 2>&1 &
 
 echo "Logging to llama-server.log"
 echo "Waiting for server to start..."
