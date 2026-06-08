@@ -5,10 +5,9 @@
 **pixi-llm-recipes** is a [pixi](https://pixi.sh/) project that serves multiple purposes:
 
 1. **Builds and packages llama.cpp** as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan).
-2. **Packages openclaw** — an npm-based coding agent — as a conda package.
-3. **Packages pi-extensions** — a curated set of pi coding agent plugins.
-4. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
-5. **Benchmarks LLM inference** via `llama-benchy`.
+2. **Packages pi-extensions** — a curated set of pi coding agent plugins.
+3. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
+4. **Benchmarks LLM inference** via `llama-benchy`.
 
 ## Key Technologies
 
@@ -16,7 +15,6 @@
 - **pixi-build / rattler-build** — Conda recipe building system
 - **llama.cpp** — Open-source LLM inference engine by ggml-org (MIT license), built from source
 - **bubblewrap (bwrap)** — Containerized sandbox for running the pi agent securely
-- **openclaw** — npm-based coding agent, packaged as conda
 - **pi-coding-agent** — The pi coding agent framework (installed via npm)
 - **pi-extensions** — Curated pi plugins installed via a conda package
 
@@ -41,8 +39,6 @@ pixi-llm-recipes/
     │   ├── pixi.toml                 # Package workspace + build-variants (cpu/cuda/vulkan)
     │   ├── recipe.yaml               # Conda recipe: builds llama.cpp from source
     │   └── build.sh                  # CMake build + install script
-    ├── openclaw/
-    │   └── recipe.yaml               # Packages openclaw via npm install --global
     └── pi-extensions/
         ├── recipe.yaml               # Packages curated pi plugins
         └── build.sh                  # Runs `pi install` for each plugin
@@ -92,8 +88,6 @@ Key aspects:
 |---------|-------------|-----------|
 | `llama` | `llama-cpp` (cuda, from `pixi-recipes/llama-cpp`) | `start-server`, `stop-server`, `list-devices`, `download-model`, `llama-perplexity` |
 | `pi` | `pi-coding-agent`, `pi-extensions`, `bubblewrap` | `pi`, `unsafe-pi`, `pi-export` |
-| `openclaw` | `openclaw` (from `pixi-recipes/open    echo 'Waiting for server to start...'
-claw`) | — |
 | `llama-benchy` | `python =3.14`, `llama-benchy` (PyPI) | `llama-benchy` |
 
 | Environment | Feature |
@@ -101,7 +95,6 @@ claw`) | — |
 | `llama` | `llama` |
 | `llama-benchy` | `llama-benchy` |
 | `pi` | `pi` |
-| `openclaw` | `openclaw` |
 
 ### `models.ini` — llama-server Preset Configuration
 
@@ -139,10 +132,6 @@ Installs a pinned set of pi plugins into `$PREFIX/home/.pi/agent` during the con
 - `pi-autoresearch@1.5.0`, `pi-btw@0.4.0`, `pi-llama-cpp@0.5.1`, `pi-ollama-cloud@0.5.0`, `pi-token-speed@0.3.1`
 - `@juicesharp/rpiv-advisor@1.18.2`, `@juicesharp/rpiv-ask-user-question@1.18.2`
 - `@tmustier/pi-usage-extension@0.3.2`
-
-### `pixi-recipes/openclaw` — Openclaw Package
-
-Packages `openclaw` (version `2026.5.28`) as a conda package via `npm install --global`. Requires and runs on `nodejs=24`.
 
 ## Build System
 
@@ -187,7 +176,6 @@ pixi build
 ```bash
 pixi install -e llama         # llama.cpp server (cuda build)
 pixi install -e pi            # pi coding agent + extensions + bubblewrap
-pixi install -e openclaw      # openclaw coding agent
 pixi install -e llama-benchy  # LLM benchmark tool
 ```
 
@@ -254,7 +242,6 @@ pixi run -e llama-benchy llama-benchy
 | `pixi-recipes/llama-cpp/pixi.toml` | llama-cpp package + build-variants |
 | `pixi-recipes/llama-cpp/recipe.yaml` | Conda recipe: source, deps, build string |
 | `pixi-recipes/llama-cpp/build.sh` | CMake build + install + symlink script |
-| `pixi-recipes/openclaw/recipe.yaml` | Packages openclaw via npm |
 | `pixi-recipes/pi-extensions/recipe.yaml` | Packages pi plugin set |
 | `pixi-recipes/pi-extensions/build.sh` | Runs `pi install` for each plugin |
 

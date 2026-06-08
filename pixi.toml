@@ -33,9 +33,6 @@ pi = { cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}", args = [{ arg = "root_di
 unsafe-pi = { cmd = "bash scripts/unsafe-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", default = "-" }] }
 pi-export = "pi --export"
 
-[feature.openclaw.dependencies]
-openclaw = { path = "pixi-recipes/openclaw" }
-
 [feature.llama-benchy.dependencies]
 python = "=3.14"
 
@@ -49,4 +46,3 @@ llama-benchy = "python -m llama_benchy --base-url http://localhost:8080 --no-cac
 llama = [ "llama", ]
 llama-benchy = [ "llama-benchy" ]
 pi = [ "pi" ]
-openclaw = [ "openclaw" ]
