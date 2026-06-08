@@ -11,7 +11,8 @@ llama-cpp = { path = "pixi-recipes/llama-cpp" }
 
 [feature.llama.tasks]
 start-server = "bash scripts/start-server.sh"
-stop-server = "pkill -f llama-server"
+stop-server = "bash scripts/stop-server.sh"
+restart-server = { depends-on = ["stop-server", "start-server"]}
 
 list-devices = "llama-server --list-devices"
 # Argument must be one from models.ini
