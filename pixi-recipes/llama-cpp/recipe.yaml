@@ -1,5 +1,5 @@
 context:
-  version: "b9518"
+  version: "b9553"
 
 package:
   name: llama-cpp
@@ -7,7 +7,7 @@ package:
 
 source:
   git: https://github.com/ggml-org/llama.cpp
-  rev: 7c158fbb4aec1bdc9c81d6ca0e785139f4826fae
+  rev: 9e3b928fd8c9d14dbf15a8768b9fdd7e5c721d66
 
 build:
   number: 0
