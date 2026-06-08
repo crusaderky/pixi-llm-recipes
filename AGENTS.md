@@ -31,6 +31,7 @@ pixi-llm-recipes/
 ├── models.ini                        # llama-server preset config (multi-model)
 ├── scripts/
 │   ├── bwrap-pi.sh                   # Bubblewrap sandbox wrapper for pi agent
+│   ├── start-server.sh               # Background llama-server with logging
 │   └── unsafe-pi.sh                  # Unsandboxed pi wrapper (full host access)
 ├── sample-data/
 │   ├── wiki.test.raw                 # Wikitext-2 benchmark corpus for llama-perplexity
@@ -89,9 +90,10 @@ Key aspects:
 
 | Feature | Dependencies | Key Tasks |
 |---------|-------------|-----------|
-| `llama` | `llama-cpp` (cuda, from `pixi-recipes/llama-cpp`) | `serve`, `list-devices`, `download-model`, `llama-perplexity` |
+| `llama` | `llama-cpp` (cuda, from `pixi-recipes/llama-cpp`) | `start-server`, `stop-server`, `list-devices`, `download-model`, `llama-perplexity` |
 | `pi` | `pi-coding-agent`, `pi-extensions`, `bubblewrap` | `pi`, `unsafe-pi`, `pi-export` |
-| `openclaw` | `openclaw` (from `pixi-recipes/openclaw`) | — |
+| `openclaw` | `openclaw` (from `pixi-recipes/open    echo 'Waiting for server to start...'
+claw`) | — |
 | `llama-benchy` | `python =3.14`, `llama-benchy` (PyPI) | `llama-benchy` |
 
 | Environment | Feature |
@@ -192,9 +194,10 @@ pixi install -e llama-benchy  # LLM benchmark tool
 ### Serving Models
 
 ```bash
-pixi run -e llama serve                                     # Start llama-server with all models in models.ini
+pixi run -e llama start-server                              # Start llama-server in background (logs to llama-server.log)
+pixi run -e llama stop-server                               # Kill llama-server process
 pixi run -e llama list-devices                              # List available compute devices
-pixi run -e llama download-model model=Qwen3.6-35B-A3B     # Download and smoke-test a model
+pixi run -e llama download-model model=Qwen3.6-35B-A3B      # Download and smoke-test a model
 ```
 
 ### Running the Pi Agent
@@ -243,6 +246,7 @@ pixi run -e llama-benchy llama-benchy
 | `pixi.toml` | Root workspace: features, tasks, environments |
 | `pixi.lock` | Locked dependency versions (binary; never edit) |
 | `models.ini` | llama-server multi-model preset config |
+| `llama-server.log` | Server log (gitignored) |
 | `scripts/bwrap-pi.sh` | Bubblewrap sandbox wrapper for pi agent |
 | `scripts/unsafe-pi.sh` | Unsandboxed pi wrapper (dev/debug only) |
 | `sample-data/wiki.test.raw` | Wikitext-2 corpus for `llama-perplexity` |
@@ -271,7 +275,10 @@ pixi run -e llama-benchy llama-benchy
 - **Symlinks use relative paths** (`../opt/llama/...`) — required for correct conda prefix portability
 - **All workspaces target `linux-64` only** — cross-platform support requires additional logic
 - **`bwrap-pi.sh` unsets all `PIXI_*`/`CONDA_*` vars** before calling pi — the agent must not see conda internals
+- **`start-server.sh` starts llama-server in background** with logging to `llama-server.log`; use `stop-server` to kill it
 - **Models file per environment**: the sandbox looks for `models.$PIXI_ENVIRONMENT_NAME.json`; if absent it falls back to nothing — create it when running a non-default pi environment
 - **`unsafe-pi.sh` symlinks extensions** from the conda prefix into `~/.pi/agent` and always cleans up on exit via `trap`
 - **AppArmor is required for bwrap** — the profile must be loaded (`sudo systemctl reload apparmor`) before running the sandboxed pi agent
 - **`pi-extensions` pins plugin versions explicitly** — bump versions in `build.sh` and update `recipe.yaml` version when adding or upgrading plugins
+- **`CLAUDE.md` is a symlink** to `AGENTS.md` for Claude Code compatibility
+- **`.claude/skills` is a symlink** to `.agents/skills/` for Claude Code compatibility

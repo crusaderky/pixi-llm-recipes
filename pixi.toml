@@ -10,7 +10,9 @@ backend = ["cuda"]
 llama-cpp = { path = "pixi-recipes/llama-cpp" }
 
 [feature.llama.tasks]
-serve = "llama-server --models-preset models.ini"
+start-server = "bash scripts/start-server.sh"
+stop-server = "pkill -f llama-server"
+
 list-devices = "llama-server --list-devices"
 # Argument must be one from models.ini
 download-model = { cmd = "llama-cli -hf {{ model }} -st -p 'Hello world'", args = [ "model"] }
@@ -26,8 +28,8 @@ pi-extensions = { path = "pixi-recipes/pi-extensions" }
 bubblewrap = "*"
 
 [feature.pi.tasks]
-pi = { cmd = "scripts/bwrap-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", default = "-" }] }
-unsafe-pi = { cmd = "scripts/unsafe-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", default = "-" }] }
+pi = { cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", default = "-" }] }
+unsafe-pi = { cmd = "bash scripts/unsafe-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", default = "-" }] }
 pi-export = "pi --export"
 
 [feature.openclaw.dependencies]
