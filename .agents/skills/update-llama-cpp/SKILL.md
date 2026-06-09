@@ -59,11 +59,9 @@ allowed-tools: WebFetch Read Edit
 
 ### Phase 4 — Report
 
-12. **Report differences between source variants**: Run `bash pixi-recipes/llama-cpp-source/diff_variants.sh` and show the output.
+12. **Report differences between source variants**: Run `bash scripts/diff-llama-cpp-variants.sh` and show the output.
 
 13. **Report the change**:
     - Show old → new version and old → new commit SHA for source builds.
     - Show old → new version and old → new SHA256 hashes for binary builds.
     - Show the release notes from step 3.
-
-14. **Run `pixi lock`** to regenerate the lockfile.

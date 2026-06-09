@@ -38,6 +38,10 @@ mkdir -p ~/.config/rpiv-web-tools
 if [ ! -f ~/.pi/agent/auth.json ]; then
   echo "{}" > ~/.pi/agent/auth.json
 fi
+if [ ! -f ~/.pi/agent/trust.json ]; then
+  echo "{}" > ~/.pi/agent/trust.json
+fi
+
 mkdir -p "$CONDA_PREFIX/home/.pi/agent"
 
 # Unset all PIXI_* and CONDA_* environment variables
@@ -62,6 +66,7 @@ bwrap \
   --bind "$HOME/.config/rpiv-web-tools" "$HOME/.config/rpiv-web-tools" \
   --bind "$_CONDA_PREFIX/home/.pi"      "$HOME/.pi" \
   --bind "$HOME/.pi/agent/auth.json"    "$HOME/.pi/agent/auth.json" \
+  --bind "$HOME/.pi/agent/trust.json"   "$HOME/.pi/agent/trust.json" \
   --bind "$HOME/.pi/agent/sessions"     "$HOME/.pi/agent/sessions" \
   --ro-bind "$_PIXI_ROOT"               "$_PIXI_ROOT" \
   $ARGS \

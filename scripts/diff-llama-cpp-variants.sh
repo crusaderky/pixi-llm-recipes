@@ -1,10 +1,11 @@
-set -o xtrace
-cd "$(dirname "$0")"/../pixi-recipes
+cd "$(dirname "$0")"/..
+SRC=pixi-recipes/llama-cpp-source
+BIN=pixi-recipes/llama-cpp-binary
 
 echo "=== Source builds ==="
-diff llama-cpp-source/cpu/recipe.yaml llama-cpp-source/cuda/recipe.yaml
-diff llama-cpp-source/cpu/recipe.yaml llama-cpp-source/vulkan/recipe.yaml
+diff -u0 $SRC/cpu/recipe.yaml $SRC/cuda/recipe.yaml || true
+diff -u0 $SRC/cpu/recipe.yaml $SRC/vulkan/recipe.yaml || true
 
 echo "=== Binary builds ==="
-diff llama-cpp-binary/cpu/recipe.yaml llama-cpp-binary/vulkan/recipe.yaml
-diff llama-cpp-binary/cpu/recipe.yaml llama-cpp-binary/rocm/recipe.yaml
+diff -u0 $BIN/cpu/recipe.yaml $BIN/vulkan/recipe.yaml || true
+diff -u0 $BIN/cpu/recipe.yaml $BIN/rocm/recipe.yaml || true
