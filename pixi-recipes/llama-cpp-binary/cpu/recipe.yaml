@@ -1,13 +1,14 @@
 context:
   version: b9553
   backend: cpu
+  variant_tag: ubuntu-x64
 
 package:
   name: llama-cpp
   version: ${{ version }}
 
 source:
-  url: https://github.com/ggml-org/llama.cpp/releases/download/${{ version }}/llama-${{ version }}-bin-ubuntu-x64.tar.gz
+  url: https://github.com/ggml-org/llama.cpp/releases/download/${{ version }}/llama-${{ version }}-bin-${{ variant_tag }}.tar.gz
   sha256: e278c9534d9d5cfcdecababf83bc1315ed684daf52c32bd6596b300009aecdcd
 
 build:
@@ -20,4 +21,4 @@ about:
   homepage: https://github.com/ggml-org/llama.cpp
   license: MIT
   license_file: LICENSE
-  summary: LLM inference in C/C++ (pre-built CPU binary)
+  summary: LLM inference in C/C++

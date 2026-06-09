@@ -62,4 +62,4 @@ about:
   homepage: https://github.com/ggml-org/llama.cpp
   license: MIT
   license_file: LICENSE
-  summary: LLM inference in C/C++ (${{ backend }} build)
+  summary: LLM inference in C/C++
