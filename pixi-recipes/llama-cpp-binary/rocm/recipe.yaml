@@ -1,5 +1,5 @@
 context:
-  version: b9553
+  version: b9585
   backend: rocm
   variant_tag: ubuntu-rocm-7.2-x64
 
@@ -9,7 +9,7 @@ package:
 
 source:
   url: https://github.com/ggml-org/llama.cpp/releases/download/${{ version }}/llama-${{ version }}-bin-${{ variant_tag }}.tar.gz
-  sha256: 76907178a8f14a327c877c8adfb3441b276884f3fa03f156c03f4775a9d10984
+  sha256: e1b4f11db56506da9edcb6c68818c8b54c5a08a3b4e558554aeea1c874b4ef4a
 
 build:
   number: 0

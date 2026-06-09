@@ -1,5 +1,5 @@
 context:
-  version: b9553
+  version: b9585
   backend: cpu
   variant_tag: ubuntu-x64
 
@@ -9,7 +9,7 @@ package:
 
 source:
   url: https://github.com/ggml-org/llama.cpp/releases/download/${{ version }}/llama-${{ version }}-bin-${{ variant_tag }}.tar.gz
-  sha256: e278c9534d9d5cfcdecababf83bc1315ed684daf52c32bd6596b300009aecdcd
+  sha256: be111dd28e6228fc4cb6a6ec41f03a67947ab61f315a3d22d0e68ac7372a58ab
 
 build:
   number: 0
