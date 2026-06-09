@@ -4,7 +4,7 @@
 
 **pixi-llm-recipes** is a [pixi](https://pixi.sh/) project that serves multiple purposes:
 
-1. **Builds and packages llama.cpp** as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan).
+1. **Builds and packages llama.cpp** as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan), or using pre-built binaries from upstream releases (CPU, Vulkan, ROCm).
 2. **Packages pi-extensions** — a curated set of pi coding agent plugins.
 3. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
 4. **Benchmarks LLM inference** via `llama-benchy`.
@@ -31,7 +31,8 @@ pixi-llm-recipes/
 │   ├── bwrap-pi.sh                   # Bubblewrap sandbox wrapper for pi agent
 │   ├── start-server.sh               # Background llama-server with logging
 │   ├── stop-server.sh                # Graceful llama-server shutdown
-│   └── unsafe-pi.sh                  # Unsandboxed pi wrapper (full host access)
+│   ├── unsafe-pi.sh                  # Unsandboxed pi wrapper (full host access)
+│   └── diff-llama-cpp-variants.sh    # Compare llama-cpp recipe variants
 ├── sample-data/
 │   ├── wiki.test.raw                 # Wikitext-2 benchmark corpus for llama-perplexity
 │   ├── describe-me.jpg               # Arbitrary image for multimodal testing
@@ -39,10 +40,14 @@ pixi-llm-recipes/
 └── pixi-recipes/
     ├── llama-cpp-source/
     │   ├── build.sh                  # Shared CMake build + install + symlink script
-    │   ├── diff_variants.sh          # Script to diff recipe variants
     │   ├── cpu/recipe.yaml           # CPU build recipe
     │   ├── cuda/recipe.yaml          # CUDA build recipe
     │   └── vulkan/recipe.yaml        # Vulkan build recipe
+    ├── llama-cpp-binary/
+    │   ├── build.sh                  # Copy files + create symlinks
+    │   ├── cpu/recipe.yaml           # CPU binary recipe
+    │   ├── vulkan/recipe.yaml        # Vulkan binary recipe
+    │   └── rocm/recipe.yaml          # ROCm binary recipe
     └── pi-extensions/
         ├── recipe.yaml               # Packages curated pi plugins
         └── build.sh                  # Runs `pi install` for each plugin
@@ -52,6 +57,8 @@ pixi-llm-recipes/
 
 ### Variants and Backends (llama-cpp)
 
+#### Source Builds
+
 Build variants are organized in `pixi-recipes/llama-cpp-source/` with separate recipe directories per backend:
 
 ```
@@ -60,6 +67,18 @@ llama-cpp-source/
 ├── cpu/recipe.yaml   # CPU variant
 ├── cuda/recipe.yaml  # CUDA variant
 └── vulkan/recipe.yaml # Vulkan variant
+```
+
+#### Binary Builds
+
+Pre-built binaries from upstream GitHub releases (no build deps needed):
+
+```
+llama-cpp-binary/
+├── build.sh          # Copy files + create symlinks
+├── cpu/recipe.yaml   # CPU binary
+├── vulkan/recipe.yaml # Vulkan binary
+└── rocm/recipe.yaml  # ROCm binary
 ```
 
 The `BACKEND` env var controls which CMake flags are passed:
@@ -92,19 +111,25 @@ Key aspects:
 ### Root `pixi.toml` — Features & Environments
 
 | Feature | Dependencies | Key Tasks |
-|---------|-------------|-----------|
-| `llamacpp` | `llama-cpp` (from `pixi-recipes`) | `llama-help`, `list-devices`, `start-server`, `download-model`, `llama-perplexity` |
-| `llamacpp-cpu-source` | `llamacpp`, `llama-cpp` (cpu) | — |
-| `llamacpp-cuda-source` | `llamacpp`, `llama-cpp` (cuda) | — |
-| `llamacpp-vulkan-source` | `llamacpp`, `llama-cpp` (vulkan) | — |
+|---------|--------------|-----------|
+| `llamacpp` | `llama-cpp` (from `pixi-recipes`) | `llama-help`, `llama-version`, `list-devices`, `start-server`, `download-model`, `llama-perplexity` |
+| `llamacpp-source-cpu` | `llama-cpp` (cpu compiled from sources) | — |
+| `llamacpp-source-cuda` | `llama-cpp` (cuda compiled from sources) | — |
+| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources) | — |
+| `llamacpp-binary-cpu` | `llama-cpp` (cpu pre-built binary) | — |
+| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary) | — |
+| `llamacpp-binary-rocm` | `llama-cpp` (rocm pre-built binary) | — |
 | `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `bubblewrap` | `pi`, `unsafe-pi`, `pi-export` |
 | `llama-benchy` | `python =3.14`, `llama-benchy` (PyPI) | `llama-benchy` |
 
 | Environment | Feature(s) |
 |------------|-----------|
-| `llamacpp-cpu-source` | `llamacpp` + `llamacpp-cpu-source` |
-| `llamacpp-cuda-source` | `llamacpp` + `llamacpp-cuda-source` |
-| `llamacpp-vulkan-source` | `llamacpp` + `llamacpp-vulkan-source` |
+| `llamacpp-source-cpu` | `llamacpp` + `llamacpp-source-cpu` |
+| `llamacpp-source-cuda` | `llamacpp` + `llamacpp-source-cuda` |
+| `llamacpp-source-vulkan` | `llamacpp` + `llamacpp-source-vulkan` |
+| `llamacpp-binary-cpu` | `llamacpp` + `llamacpp-binary-cpu` |
+| `llamacpp-binary-vulkan` | `llamacpp` + `llamacpp-binary-vulkan` |
+| `llamacpp-binary-rocm` | `llamacpp` + `llamacpp-binary-rocm` |
 | `llama-benchy` | `llama-benchy` |
 | `pi` | `pi` |
 
@@ -168,8 +193,6 @@ version = "*"
 ### Constraints
 
 - **Platforms**: `linux-64` and `linux-aarch64`
-- **llama-cpp CUDA build**: Requires `cuda-nvcc` and `cuda-version =12.6` in the build environment
-- **Root workspace preview feature**: `pixi-build` required
 
 ## Working with This Project
 
@@ -187,7 +210,7 @@ pixi build
 ### Setting Up Environments
 
 ```bash
-pixi install -e llamacpp-cuda-source   # llama.cpp server (cuda build)
+pixi install -e llamacpp-source-cuda   # llama.cpp server (cuda build)
 pixi install -e pi                     # pi coding agent + extensions + bubblewrap
 pixi install -e llama-benchy           # LLM benchmark tool
 ```
@@ -195,13 +218,15 @@ pixi install -e llama-benchy           # LLM benchmark tool
 ### Serving Models
 
 ```bash
-pixi run -e llamacpp-cuda-source start-server       # Start llama-server in background (logs to llama-server.log)
-pixi run -e llamacpp-cuda-source stop-server         # Graceful llama-server shutdown (SIGTERM → SIGKILL)
-pixi run -e llamacpp-cuda-source restart-server      # Stop + start in one command
-pixi run -e llamacpp-cuda-source list-devices        # List available compute devices
-pixi run -e llamacpp-cuda-source llama-help          # llama-server help
-pixi run -e llamacpp-cuda-source download-model model=Qwen3.6-35B-A3B  # Download and smoke-test a model
+pixi run -e llamacpp-source-cuda start-server       # Start llama-server in background (logs to llama-server.log)
+pixi run -e llamacpp-source-cuda stop-server         # Graceful llama-server shutdown (SIGTERM → SIGKILL)
+pixi run -e llamacpp-source-cuda restart-server      # Stop + start in one command
+pixi run -e llamacpp-source-cuda list-devices        # List available compute devices
+pixi run -e llamacpp-source-cuda llama-help          # llama-server help
+pixi run -e llamacpp-source-cuda download-model model=Qwen3.6-35B-A3B  # Download and smoke-test a model
 ```
+
+**Note**: Binary environments (`llamacpp-*-binary`) skip compilation entirely, making them much faster to set up. They provide pre-built binaries from upstream llama.cpp releases for CPU, Vulkan, and ROCm backends. (No Linux CUDA binary is provided upstream — use `llamacpp-source-cuda` for CUDA.)
 
 ### Running the Pi Agent
 
@@ -222,7 +247,7 @@ The sandbox mounts extensions from `$CONDA_PREFIX/home/.pi/agent` as `~/.pi` ins
 
 ```bash
 # Perplexity benchmark against wiki.test.raw (requires llama-server running on :8080)
-pixi run -e llamacpp-cuda-source llama-perplexity
+pixi run -e llamacpp-source-cuda llama-perplexity
 
 # Throughput benchmark
 pixi run -e llama-benchy llama-benchy
@@ -261,6 +286,10 @@ pixi run -e llama-benchy llama-benchy
 | `pixi-recipes/llama-cpp-source/cpu/recipe.yaml` | CPU build recipe |
 | `pixi-recipes/llama-cpp-source/cuda/recipe.yaml` | CUDA build recipe |
 | `pixi-recipes/llama-cpp-source/vulkan/recipe.yaml` | Vulkan build recipe |
+| `pixi-recipes/llama-cpp-binary/build.sh` | Copy files + create symlinks for pre-built binaries |
+| `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml` | CPU binary recipe |
+| `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml` | Vulkan binary recipe |
+| `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml` | ROCm binary recipe |
 | `pixi-recipes/pi-extensions/recipe.yaml` | Packages pi plugin set |
 | `pixi-recipes/pi-extensions/build.sh` | Runs `pi install` for each plugin |
 
@@ -269,7 +298,7 @@ pixi run -e llama-benchy llama-benchy
 - All llama-cpp backends share the same `build.sh` — differences are controlled by the `BACKEND` env var and conditional recipe dependencies
 - The `.pixi/` directory contains build artifacts and environments (gitignored except `config.toml`)
 - Built packages produce `.conda` files suitable for `pixi add` or `conda install`
-- The `llamacpp-cuda-source` environment uses the `cuda` backend by default
+- The `llamacpp-source-cuda` environment uses the `cuda` backend by default
 - The `pi` feature uses `pi-extensions` (a conda package) so plugins are versioned and reproducible
 - Plugin state lives in `$CONDA_PREFIX/home/.pi/agent`; the sandbox bind-mounts it as `~/.pi`
 

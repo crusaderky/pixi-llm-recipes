@@ -1,20 +1,20 @@
 ---
 name: llama-cpp-changelog
-description: Summarize changes between two versions of llama.cpp. Initial version defaults to the one pinned in pixi-recipes/llama-cpp/recipe.yaml; final version defaults to the latest upstream release. Both can be overridden with arbitrary git refs via `from=<ref>` and `to=<ref>` args.
+description: Summarize changes between two versions of llama.cpp. Initial version defaults to the one pinned in pixi-recipes/llama-cpp-source/cpu/recipe.yaml; final version defaults to the latest upstream release. Both can be overridden with arbitrary git refs via `from=<ref>` and `to=<ref>` args.
 compatibility: Requires network access to api.github.com. Designed for the pixi-llm-recipes project.
 allowed-tools: WebFetch Read
 ---
 
 ## Arguments (space-separated, all optional)
 
-- `from=<ref>` — starting git ref (tag such as `b9518`, or a commit SHA). Defaults to `context.version` in `pixi-recipes/llama-cpp/recipe.yaml`.
+- `from=<ref>` — starting git ref (tag such as `b9518`, or a commit SHA). Defaults to `context.version` in `pixi-recipes/llama-cpp-source/cpu/recipe.yaml`.
 - `to=<ref>` — ending git ref. Defaults to the latest upstream release tag.
 
 ## Steps
 
 ### 1. Resolve `from` ref
 
-- If `from` was **not** supplied, read `pixi-recipes/llama-cpp/recipe.yaml` and extract `context.version` (e.g. `b9518`). Use that value as `FROM`.
+- If `from` was **not** supplied, read `pixi-recipes/llama-cpp-source/cpu/recipe.yaml` and extract `context.version` (e.g. `b9518`). Use that value as `FROM`.
 - Otherwise use the supplied value as-is as `FROM`.
 
 ### 2. Resolve `to` ref

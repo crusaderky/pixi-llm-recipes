@@ -1,0 +1,23 @@
+context:
+  version: b9553
+  backend: rocm
+
+package:
+  name: llama-cpp
+  version: ${{ version }}
+
+source:
+  url: https://github.com/ggml-org/llama.cpp/releases/download/${{ version }}/llama-${{ version }}-bin-ubuntu-rocm-7.2-x64.tar.gz
+  sha256: 76907178a8f14a327c877c8adfb3441b276884f3fa03f156c03f4775a9d10984
+
+build:
+  number: 0
+  string: ${{ backend }}_${{ build_number }}
+  script:
+    file: ../build.sh
+
+about:
+  homepage: https://github.com/ggml-org/llama.cpp
+  license: MIT
+  license_file: LICENSE
+  summary: LLM inference in C/C++ (pre-built ROCm binary)

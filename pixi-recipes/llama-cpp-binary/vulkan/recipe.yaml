@@ -1,0 +1,23 @@
+context:
+  version: b9553
+  backend: vulkan
+
+package:
+  name: llama-cpp
+  version: ${{ version }}
+
+source:
+  url: https://github.com/ggml-org/llama.cpp/releases/download/${{ version }}/llama-${{ version }}-bin-ubuntu-vulkan-x64.tar.gz
+  sha256: b0aedc39b764f29b84ae0adc458a943473e7632175c5f673cfdbf99325bf1ae7
+
+build:
+  number: 0
+  string: ${{ backend }}_${{ build_number }}
+  script:
+    file: ../build.sh
+
+about:
+  homepage: https://github.com/ggml-org/llama.cpp
+  license: MIT
+  license_file: LICENSE
+  summary: LLM inference in C/C++ (pre-built Vulkan binary)

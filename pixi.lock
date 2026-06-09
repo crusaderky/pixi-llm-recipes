@@ -157,7 +157,25 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fb/76/641ae371508676492379f16e2fa48f4e2c11741bd63c48be4b12a6b09cba/aiosignal-1.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fd/7b/122376b1fd3c62c1ed9dc80c931ace4844b3c55407b6fb2d199377c9736f/pydantic-2.13.4-py3-none-any.whl
-  llamacpp-cpu-source:
+  llamacpp-binary-cpu:
+    channels:
+    - url: https://prefix.dev/conda-forge/
+    packages:
+      linux-64:
+      - conda_source: llama-cpp[9d9ea10c] @ pixi-recipes/llama-cpp-binary/cpu
+  llamacpp-binary-rocm:
+    channels:
+    - url: https://prefix.dev/conda-forge/
+    packages:
+      linux-64:
+      - conda_source: llama-cpp[c71780d6] @ pixi-recipes/llama-cpp-binary/rocm
+  llamacpp-binary-vulkan:
+    channels:
+    - url: https://prefix.dev/conda-forge/
+    packages:
+      linux-64:
+      - conda_source: llama-cpp[9b664212] @ pixi-recipes/llama-cpp-binary/vulkan
+  llamacpp-source-cpu:
     channels:
     - url: https://prefix.dev/conda-forge/
     packages:
@@ -201,7 +219,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-aarch64/zstd-1.5.7-h85ac4a6_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
       - conda_source: llama-cpp[1a96606b] @ pixi-recipes/llama-cpp-source/cpu
-  llamacpp-cuda-source:
+  llamacpp-source-cuda:
     channels:
     - url: https://prefix.dev/conda-forge/
     packages:
@@ -258,7 +276,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/cuda-cudart_linux-aarch64-12.9.79-h3ae8b8a_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/cuda-version-12.9-h4f385c5_3.conda
       - conda_source: llama-cpp[cc57ed88] @ pixi-recipes/llama-cpp-source/cuda
-  llamacpp-vulkan-source:
+  llamacpp-source-vulkan:
     channels:
     - url: https://prefix.dev/conda-forge/
     packages:
@@ -1390,6 +1408,7 @@ packages:
   depends:
   - nodejs >=20.6.0
   license: MIT
+  license_family: MIT
   run_exports: {}
   size: 13397848
   timestamp: 1780958497595
@@ -2669,6 +2688,7 @@ packages:
   depends:
   - nodejs >=20.6.0
   license: MIT
+  license_family: MIT
   run_exports: {}
   size: 13397725
   timestamp: 1780958500781
@@ -3630,6 +3650,14 @@ packages:
   - conda: https://prefix.dev/conda-forge/linux-aarch64/xorg-libxrender-0.9.12-h86ecc28_0.conda
   - conda: https://prefix.dev/conda-forge/linux-aarch64/zstd-1.5.7-h85ac4a6_6.conda
   - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
+- conda_source: llama-cpp[9b664212] @ pixi-recipes/llama-cpp-binary/vulkan
+  variants:
+    target_platform: linux-64
+  license: MIT
+- conda_source: llama-cpp[9d9ea10c] @ pixi-recipes/llama-cpp-binary/cpu
+  variants:
+    target_platform: linux-64
+  license: MIT
 - conda_source: llama-cpp[bb6dad9f] @ pixi-recipes/llama-cpp-source/vulkan
   variants:
     target_platform: linux-64
@@ -3718,6 +3746,10 @@ packages:
   - conda: https://prefix.dev/conda-forge/linux-64/xorg-libxrender-0.9.12-hb9d3cd8_0.conda
   - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
   - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
+- conda_source: llama-cpp[c71780d6] @ pixi-recipes/llama-cpp-binary/rocm
+  variants:
+    target_platform: linux-64
+  license: MIT
 - conda_source: llama-cpp[cc57ed88] @ pixi-recipes/llama-cpp-source/cuda
   variants:
     target_platform: linux-aarch64
