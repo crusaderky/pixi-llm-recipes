@@ -1,0 +1,65 @@
+context:
+  version: b9553
+  backend: cpu
+
+package:
+  name: llama-cpp
+  version: ${{ version }}
+
+source:
+  git: https://github.com/ggml-org/llama.cpp
+  rev: 9e3b928fd8c9d14dbf15a8768b9fdd7e5c721d66
+
+build:
+  number: 0
+  string: ${{ backend }}_${{ build_number }}
+  script:
+    file: ../build.sh
+    env:
+      BACKEND: ${{ backend }}
+
+requirements:
+  build:
+    - ${{ compiler('c') }}
+    - ${{ compiler('cxx') }}
+    - cmake
+    - ninja
+    - pkg-config
+    - if: backend == "cuda"
+      then:
+        - cuda-nvcc
+        - cuda-version =12.6
+    - if: backend == "vulkan"
+      then:
+        - shaderc
+  host:
+    - libcurl
+    - openssl
+    - if: backend == "cuda"
+      then:
+        - cuda-version =12.6
+        - cuda-cudart-dev
+        - libcublas-dev
+        - libcurand-dev
+    - if: backend == "vulkan"
+      then:
+        - libvulkan-headers
+        - libvulkan-loader
+        - spirv-headers
+        - spirv-tools
+  run:
+    - libcurl
+    - if: backend == "cuda"
+      then:
+        - cuda-cudart
+        - libcublas
+        - libcurand
+    - if: backend == "vulkan"
+      then:
+        - libvulkan-loader
+
+about:
+  homepage: https://github.com/ggml-org/llama.cpp
+  license: MIT
+  license_file: LICENSE
+  summary: LLM inference in C/C++ (${{ backend }} build)

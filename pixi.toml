@@ -1,21 +1,25 @@
 [workspace]
 channels = ["https://prefix.dev/conda-forge"]
 preview = ["pixi-build"]
-platforms = ["linux-64"]
+platforms = ["linux-64", "linux-aarch64"]
 
-[workspace.build-variants]
-backend = ["cuda"]
-
-[feature.llama.dependencies]
-llama-cpp = { path = "pixi-recipes/llama-cpp" }
-
-[feature.llama.tasks]
-start-server = "bash scripts/start-server.sh"
+[tasks]
 stop-server = "bash scripts/stop-server.sh"
 restart-server = { depends-on = ["stop-server", "start-server"]}
 
+[feature.llamacpp-cpu-source.dependencies]
+llama-cpp = { path = "pixi-recipes/llama-cpp-source/cpu" }
+
+[feature.llamacpp-cuda-source.dependencies]
+llama-cpp = { path = "pixi-recipes/llama-cpp-source/cuda" }
+
+[feature.llamacpp-vulkan-source.dependencies]
+llama-cpp = { path = "pixi-recipes/llama-cpp-source/vulkan" }
+
+[feature.llamacpp.tasks]
+llama-help = "llama-server --help"
 list-devices = "llama-server --list-devices"
-# Argument must be one from models.ini
+start-server = "bash scripts/start-server.sh"
 download-model = { cmd = "llama-cli -hf {{ model }} -st -p 'Hello world'", args = [ "model"] }
 
 # Quantitative benchmark on the degradation introduced by model and/or cache quantization.
@@ -29,8 +33,10 @@ pi-extensions = { path = "pixi-recipes/pi-extensions" }
 bubblewrap = "*"
 
 [feature.pi.tasks]
-pi = { cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", default = "-" }] }
-unsafe-pi = { cmd = "bash scripts/unsafe-pi.sh {{ root_dir }}", args = [{ arg = "root_dir", default = "-" }] }
+pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
+pi.args = [{ arg = "root_dir", default = "-" }]
+unsafe-pi.cmd = "bash scripts/unsafe-pi.sh {{ root_dir }}"
+unsafe-pi.args = [{ arg = "root_dir", default = "-" }]
 pi-export = "pi --export"
 
 [feature.llama-benchy.dependencies]
@@ -43,6 +49,8 @@ llama-benchy = "*"
 llama-benchy = "python -m llama_benchy --base-url http://localhost:8080 --no-cache --runs 7"
 
 [environments]
-llama = [ "llama", ]
+llamacpp-cpu-source = [ "llamacpp", "llamacpp-cpu-source" ]
+llamacpp-cuda-source = [ "llamacpp", "llamacpp-cuda-source" ]
+llamacpp-vulkan-source = [ "llamacpp", "llamacpp-vulkan-source" ]
 llama-benchy = [ "llama-benchy" ]
 pi = [ "pi" ]

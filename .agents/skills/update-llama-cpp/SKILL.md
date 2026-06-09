@@ -16,7 +16,7 @@ allowed-tools: WebFetch Read Edit
    - If `.object.type` is `"commit"`, use `.object.sha` directly.
    - If `.object.type` is `"tag"` (annotated tag), follow `.object.url` with another GET and use the returned `.object.sha`.
 
-3. **Read the current recipe** at `pixi-recipes/llama-cpp/recipe.yaml` and note the existing `context.version` and `source.rev`.
+3. **Read the current recipe** at `pixi-recipes/llama-cpp-source/cpu/recipe.yaml` and note the existing `context.version` and `source.rev`.
 
 4. **Check if already up to date**: if both match, report that and stop.
 
@@ -24,4 +24,10 @@ allowed-tools: WebFetch Read Edit
    - Set `context.version` to the new tag name.
    - Set `source.rev` to the resolved commit SHA.
 
-6. **Report the change**: show old → new version and old → new commit SHA.
+6. **Update recipe variants**:
+   - Repeat step 5 for `pixi-recipes/llama-cpp-source/cuda/recipe.yaml`.
+   - Repeat step 5 for `pixi-recipes/llama-cpp-source/vulkan/recipe.yaml`.
+
+7. **Report differences between variants**: Run `bash pixi-recipes/llama-cpp/diff_variants.sh` and show the output.
+
+8. **Report the change**: show old → new version and old → new commit SHA.
