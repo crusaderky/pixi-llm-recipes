@@ -92,3 +92,6 @@ jobs:
 
       - name: Stop server
         run: pixi r stop-server
+
+      - name: Dump server log
+        run: cat llama-server.log
