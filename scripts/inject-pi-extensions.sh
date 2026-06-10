@@ -8,13 +8,17 @@ set -o nounset
 CONDA_CFG="$CONDA_PREFIX/home/.pi/agent/settings.json"
 HOME_CFG=~/.pi/agent/settings.json
 
-if [ ! -f $HOME_CFG ]; then
-  echo '{}' > $HOME_CFG
+if [ ! -f "$HOME_CFG" ]; then
+  echo '{}' > "$HOME_CFG"
 fi
 
-# Use jq to merge the packages block from KEEP_PACKAGES into KEEP_REST
-# First, extract packages from KEEP_PACKAGES as a compact JSON string
-PACKAGES=$(jq -c '.packages' "$CONDA_CFG")
-# Then, apply that JSON string to the packages field of KEEP_REST
-jq --argjson pkg "$PACKAGES" '.packages = $pkg' $HOME_CFG > $HOME_CFG.new
-mv $HOME_CFG.new $HOME_CFG
+# Merge the packages block from CONDA_CFG into HOME_CFG.
+# Use node (always present, as pi itself needs it) instead of jq,
+# which is not packaged for Windows on conda-forge.
+node -e '
+const fs = require("fs");
+const [condaCfg, homeCfg] = process.argv.slice(1);
+const cfg = JSON.parse(fs.readFileSync(homeCfg, "utf8"));
+cfg.packages = JSON.parse(fs.readFileSync(condaCfg, "utf8")).packages ?? null;
+fs.writeFileSync(homeCfg, JSON.stringify(cfg, null, 2) + "\n");
+' "$CONDA_CFG" "$HOME_CFG"

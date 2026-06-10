@@ -46,13 +46,9 @@ start-server = "bash scripts/start-server.sh"
 # Typically you want to pass parameters: -hf XXX --cache-type-k YYY --cache-type-v ZZZ
 llama-perplexity = "llama-perplexity -f sample-data/wiki.test.raw"
 
-[feature.pi]
-platforms = ["linux-64", "linux-aarch64"]
-
 [feature.pi.dependencies]
 pi-coding-agent = "*"
 pi-extensions = { path = "pixi-recipes/pi-extensions" }
-jq = "*"
 
 [feature.pi.target.linux-64.dependencies]
 bubblewrap = "*"

@@ -5,7 +5,21 @@ package:
 build:
   number: 0
   script:
-    file: build.sh
+    # Extension-less: resolves to build.sh on Linux and build.bat on Windows
+    file: build
+    env:
+      # Single source of truth for the plugin pins, consumed by both
+      # build.sh and build.bat (space-separated <package>@<version> list).
+      # @juicesharp/rpiv-web-tools is excluded: redundant with pi-ollama-cloud.
+      PLUGINS: >-
+        pi-autoresearch@1.6.0
+        pi-btw@0.4.1
+        pi-llama-cpp@0.6.0
+        pi-ollama-cloud@0.6.0
+        pi-token-speed@0.3.1
+        @juicesharp/rpiv-advisor@1.19.1
+        @juicesharp/rpiv-ask-user-question@1.19.1
+        @tmustier/pi-usage-extension@0.3.2
 
 requirements:
   host:

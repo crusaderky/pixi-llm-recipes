@@ -6,9 +6,14 @@ set -o nounset
 mkdir -p ~/.pi/agent
 
 rm -rf ~/.pi/agent/npm
-ln -s "$CONDA_PREFIX/home/.pi/agent/npm" ~/.pi/agent/npm
+if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+  # git-bash can't create symlinks; copy instead
+  cp -r "$CONDA_PREFIX/home/.pi/agent/npm" ~/.pi/agent/npm
+else
+  ln -s "$CONDA_PREFIX/home/.pi/agent/npm" ~/.pi/agent/npm
+fi
 function cleanup {
-  rm ~/.pi/agent/npm
+  rm -rf ~/.pi/agent/npm
 }
 trap cleanup EXIT
 

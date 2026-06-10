@@ -51,8 +51,9 @@ pixi-llm-recipes/
     │   ├── vulkan/recipe.yaml        # Vulkan binary recipe
     │   └── rocm/recipe.yaml          # ROCm binary recipe
     └── pi-extensions/
-        ├── recipe.yaml               # Packages curated pi plugins
-        └── build.sh                  # Runs `pi install` for each plugin
+        ├── recipe.yaml               # Packages curated pi plugins (pins in PLUGINS env var)
+        ├── build.sh                  # Linux: runs `pi install` for each plugin
+        └── build.bat                 # Windows: runs `pi install` for each plugin
 ```
 
 ## Core Concepts
@@ -136,7 +137,7 @@ Key aspects:
 | `llamacpp-binary-cpu` | `llama-cpp` (cpu pre-built binary) | — |
 | `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary) | — |
 | `llamacpp-binary-rocm` | `llama-cpp` (rocm pre-built binary) | — |
-| `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `bubblewrap`, `jq` | `pi`, `pi-unsafe`, `pi-export` |
+| `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export` |
 | `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers` etc. | `llama-benchy`, `hf`, `download-gemma-drafters` |
 
 | Environment | Feature(s) |
@@ -180,15 +181,11 @@ Wraps the pi coding agent in a bubblewrap container:
 
 ### `scripts/unsafe-pi.sh` — Unsandboxed Pi Wrapper
 
-Runs pi with full host access. Symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` and copies `settings.json`, then cleans up on exit. Handles `-` argument by creating a temp directory. Unsets `PIXI_*`, `CONDA_*`, and `INIT_CWD` env vars. Use only for development/debugging.
+Runs pi with full host access. Symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where git-bash can't create symlinks) and merges `settings.json`, then cleans up on exit. Handles `-` argument by creating a temp directory. Unsets `PIXI_*`, `CONDA_*`, and `INIT_CWD` env vars. Use only for development/debugging.
 
 ### `pixi-recipes/pi-extensions` — Pi Plugin Package
 
-Installs a pinned set of pi plugins into `$PREFIX/home/.pi/agent` during the conda build. Plugins installed:
-
-- `pi-autoresearch@1.6.0`, `pi-btw@0.4.0`, `pi-llama-cpp@0.6.0`, `pi-ollama-cloud@0.6.0`, `pi-token-speed@0.3.1`
-- `@juicesharp/rpiv-advisor@1.18.2`, `@juicesharp/rpiv-ask-user-question@1.18.2`
-- `@tmustier/pi-usage-extension@0.3.2`
+Installs a pinned set of pi plugins into `$PREFIX/home/.pi/agent` during the conda build. The plugin pins live in the `PLUGINS` env var in `recipe.yaml`, which is consumed by both `build.sh` (Linux) and `build.bat` (Windows) via the extension-less `script.file: build` mechanism. See `recipe.yaml` for the current plugin list and versions.
 
 ## Build System
 
@@ -311,7 +308,8 @@ pixi run -e pytools llama-benchy
 | `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml` | Vulkan binary recipe |
 | `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml` | ROCm binary recipe |
 | `pixi-recipes/pi-extensions/recipe.yaml` | Packages pi plugin set |
-| `pixi-recipes/pi-extensions/build.sh` | Runs `pi install` for each plugin |
+| `pixi-recipes/pi-extensions/build.sh` | Linux: runs `pi install` for each plugin in `PLUGINS` |
+| `pixi-recipes/pi-extensions/build.bat` | Windows: runs `pi install` for each plugin in `PLUGINS` |
 
 ## Conventions
 
@@ -335,6 +333,7 @@ pixi run -e pytools llama-benchy
 - **Models file per environment**: the sandbox looks for `models.$PIXI_ENVIRONMENT_NAME.json`; if absent it falls back to nothing — create it when running a non-default pi environment
 - **`unsafe-pi.sh` symlinks extensions** from the conda prefix into `~/.pi/agent` and always cleans up on exit via `trap`
 - **AppArmor is required for bwrap** — run `pixi run install-apparmor` to install and load the profile before running the sandboxed pi agent (works locally with sudo and unattended on GitHub Actions; no-op where unprivileged user namespaces are unrestricted)
-- **`pi-extensions` pins plugin versions explicitly** — bump versions in `build.sh` and update `recipe.yaml` version when adding or upgrading plugins
+- **`pi-extensions` pins plugin versions explicitly** — bump versions in the `PLUGINS` list in `recipe.yaml` (shared by `build.sh` and `build.bat`) and update the `recipe.yaml` package version when adding or upgrading plugins
+- **Windows scripts run under git-bash** — don't use `jq` (not packaged for win-64 on conda-forge), `nc`, `pkill`/`pgrep`, or `ln -s` in scripts that must run on Windows; use `node -e` for JSON, `curl` for port checks, `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` instead of symlinks
 - **`CLAUDE.md` is a symlink** to `AGENTS.md` for Claude Code compatibility
 - **`.claude/skills` is a symlink** to `.agents/skills/` for Claude Code compatibility

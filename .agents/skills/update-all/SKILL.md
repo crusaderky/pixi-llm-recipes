@@ -28,9 +28,9 @@ Run the **update-llama-cpp** skill:
 
 Run the **update-pi-extensions** skill:
 
-1. Extract pinned npm packages from `pixi-recipes/pi-extensions/build.sh`.
+1. Extract pinned npm packages from the `PLUGINS` list in `pixi-recipes/pi-extensions/recipe.yaml`.
 2. Fetch latest versions from the npm registry.
-3. Update any out-of-date versions in `build.sh`.
+3. Update any out-of-date versions in `recipe.yaml`.
 4. Report the summary of what was updated.
 
 ### Phase 3 — Refresh pixi lockfile

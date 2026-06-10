@@ -1,19 +1,21 @@
 ---
 name: update-pi-extensions
-description: Check the latest version of every npm package pinned in pixi-recipes/pi-extensions/build.sh and update the script in-place with any versions that are out of date. Use when asked to "update pi-extensions", "bump pi plugin versions", or "refresh pi-extensions versions".
+description: Check the latest version of every npm package pinned in the PLUGINS list of pixi-recipes/pi-extensions/recipe.yaml and update the file in-place with any versions that are out of date. Use when asked to "update pi-extensions", "bump pi plugin versions", or "refresh pi-extensions versions".
 compatibility: Requires network access to registry.npmjs.org. Designed for the pixi-llm-recipes project.
 allowed-tools: WebFetch Read Edit
 ---
 
 ## Steps
 
-### 1. Extract pinned packages from build.sh
+### 1. Extract pinned packages from recipe.yaml
 
-Read `pixi-recipes/pi-extensions/build.sh` and extract every `pi install npm:<package>@<version>` line, including commented-out ones.
+Read `pixi-recipes/pi-extensions/recipe.yaml`. The plugin pins live in the
+`build.script.env.PLUGINS` value: a space/newline-separated list of
+`<package>@<version>` entries.
 
-For each such line, parse:
-- **package name** — the part after `npm:` and before `@` (e.g. `pi-autoresearch`, `@juicesharp/rpiv-advisor`)
-- **current version** — the part after the last `@` on the line (e.g. `1.5.0`)
+For each entry, parse:
+- **package name** — the part before the last `@` (e.g. `pi-autoresearch`, `@juicesharp/rpiv-advisor`)
+- **current version** — the part after the last `@` (e.g. `1.5.0`)
 
 Store them as a list of `(package, current_version)` tuples in the order they appear.
 
@@ -27,7 +29,7 @@ For each package, query the npm registry:
 GET https://registry.npmjs.org/<package>/latest
 ```
 
-Extract `.version` from the JSON response. If the request fails (404 or other error), skip that package and print a warning — do **not** modify its line in build.sh.
+Extract `.version` from the JSON response. If the request fails (404 or other error), skip that package and print a warning — do **not** modify its entry in recipe.yaml.
 
 ### 3. Compare and identify updates needed
 
@@ -46,30 +48,30 @@ pi-autoresearch                  1.5.0     1.6.0    YES
 
 If **no packages need updating**, print "All packages are already at their latest version. Nothing to do." and stop.
 
-### 4. Update build.sh
+### 4. Update recipe.yaml
 
-For every package marked **YES**, perform an in-place edit on `pixi-recipes/pi-extensions/build.sh`:
+For every package marked **YES**, perform an in-place edit on `pixi-recipes/pi-extensions/recipe.yaml`:
 
-Replace the version in each matching `pi install npm:<package>@<old_version>` line with the new version.
+Replace the version in the matching `<package>@<old_version>` entry of the `PLUGINS` list with the new version.
 
 **Example edit** (old text → new text):
 
 ```
 # Old:
-pi install npm:pi-autoresearch@1.5.0
+        pi-autoresearch@1.5.0
 
 # New:
-pi install npm:pi-autoresearch@1.6.0
+        pi-autoresearch@1.6.0
 ```
 
-Preserve all comments, blank lines, and ordering exactly as they were. Only change the version number portion.
+Preserve all comments, blank lines, indentation, and ordering exactly as they were. Only change the version number portion.
 
 ### 5. Report the result
 
 Print a final summary:
 
 ```
-Updated pi-extensions build.sh:
+Updated pi-extensions recipe.yaml:
   pi-autoresearch:      1.5.0 → 1.6.0
   pi-token-speed:       0.3.1 → 0.4.0
 
