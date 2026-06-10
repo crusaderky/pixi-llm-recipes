@@ -11,7 +11,11 @@ allowed-tools: WebFetch Read Edit
 
 Read `pixi-recipes/pi-extensions/recipe.yaml`. The plugin pins live in the
 `build.script.env.PLUGINS` value: a space/newline-separated list of
-`<package>@<version>` entries.
+`<package>@<version>` entries. Note: `@juicesharp/rpiv-web-tools` is excluded
+(redundant with `pi-ollama-cloud`) and should not be added back.
+
+Also note: the recipe package version is fixed (1) and
+separate from the plugin versions.
 
 For each entry, parse:
 - **package name** — the part before the last `@` (e.g. `pi-autoresearch`, `@juicesharp/rpiv-advisor`)

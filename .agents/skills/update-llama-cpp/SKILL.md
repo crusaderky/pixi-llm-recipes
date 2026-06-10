@@ -44,6 +44,7 @@ allowed-tools: WebFetch Read Edit
 
 10. **Update the binary version**:
     - Set `context.version` to the new tag name in `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml`, `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml`, and `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml`.
+    - The binary recipes use `file: ../build` (extension-less), have `version: 0`, and pass `VERSION: ${{ version }}` to the build script.
 
 ### Phase 4 — Report
 

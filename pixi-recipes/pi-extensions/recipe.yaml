@@ -1,6 +1,6 @@
 package:
   name: pi-extensions
-  version: "2026.05.27"
+  version: "1"
 
 build:
   number: 0

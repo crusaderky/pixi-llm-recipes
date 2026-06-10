@@ -200,7 +200,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.79.1-h5585027_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
-      - conda_source: pi-extensions[f0718cb2] @ pixi-recipes/pi-extensions
+      - conda_source: pi-extensions[9107f0a1] @ pixi-recipes/pi-extensions
       linux-aarch64:
       - conda: https://prefix.dev/conda-forge/linux-aarch64/_openmp_mutex-4.5-20_gnu.conda
       - conda: https://prefix.dev/conda-forge/linux-aarch64/bubblewrap-0.11.2-h9367005_0.conda
@@ -225,11 +225,11 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-aarch64/pi-coding-agent-0.79.1-h4337743_0.conda
       - conda: https://prefix.dev/conda-forge/linux-aarch64/zstd-1.5.7-h85ac4a6_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
-      - conda_source: pi-extensions[c4c95c96] @ pixi-recipes/pi-extensions
+      - conda_source: pi-extensions[4582efa0] @ pixi-recipes/pi-extensions
       win-64:
       - conda: https://prefix.dev/conda-forge/win-64/nodejs-26.3.0-h80d1838_0.conda
       - conda: https://prefix.dev/conda-forge/win-64/pi-coding-agent-0.79.1-hff8d339_0.conda
-      - conda_source: pi-extensions[8d5ad83d] @ pixi-recipes/pi-extensions
+      - conda_source: pi-extensions[c183f28c] @ pixi-recipes/pi-extensions
   pytools:
     channels:
     - url: https://prefix.dev/conda-forge/
@@ -5502,15 +5502,7 @@ packages:
   - conda: https://prefix.dev/conda-forge/linux-aarch64/openssl-3.6.3-h546c87b_0.conda
   - conda: https://prefix.dev/conda-forge/linux-aarch64/zstd-1.5.7-h85ac4a6_6.conda
   - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
-- conda_source: pi-extensions[8d5ad83d] @ pixi-recipes/pi-extensions
-  variants:
-    target_platform: win-64
-  depends:
-  - pi-coding-agent
-  host_packages:
-  - conda: https://prefix.dev/conda-forge/win-64/nodejs-26.3.0-h80d1838_0.conda
-  - conda: https://prefix.dev/conda-forge/win-64/pi-coding-agent-0.79.1-hff8d339_0.conda
-- conda_source: pi-extensions[c4c95c96] @ pixi-recipes/pi-extensions
+- conda_source: pi-extensions[4582efa0] @ pixi-recipes/pi-extensions
   variants:
     target_platform: linux-aarch64
   depends:
@@ -5537,7 +5529,7 @@ packages:
   - conda: https://prefix.dev/conda-forge/linux-aarch64/pi-coding-agent-0.79.1-h4337743_0.conda
   - conda: https://prefix.dev/conda-forge/linux-aarch64/zstd-1.5.7-h85ac4a6_6.conda
   - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
-- conda_source: pi-extensions[f0718cb2] @ pixi-recipes/pi-extensions
+- conda_source: pi-extensions[9107f0a1] @ pixi-recipes/pi-extensions
   variants:
     target_platform: linux-64
   depends:
@@ -5564,6 +5556,14 @@ packages:
   - conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.79.1-h5585027_0.conda
   - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
   - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
+- conda_source: pi-extensions[c183f28c] @ pixi-recipes/pi-extensions
+  variants:
+    target_platform: win-64
+  depends:
+  - pi-coding-agent
+  host_packages:
+  - conda: https://prefix.dev/conda-forge/win-64/nodejs-26.3.0-h80d1838_0.conda
+  - conda: https://prefix.dev/conda-forge/win-64/pi-coding-agent-0.79.1-hff8d339_0.conda
 - pypi: https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl
   name: distro
   version: 1.9.0

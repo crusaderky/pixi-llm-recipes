@@ -29,11 +29,13 @@ pixi-llm-recipes/
 ├── models.ini                        # llama-server preset config (multi-model)
 ├── scripts/
 │   ├── bwrap-pi.sh                   # Bubblewrap sandbox wrapper for pi agent
+│   ├── diff-llama-cpp-variants.sh    # Compare llama-cpp recipe variants
+│   ├── download-gemma-drafters.sh    # Download MTP drafters for Gemma4
+│   ├── inject-pi-extensions.sh       # Merge pi-extensions packages into settings.json
 │   ├── install-apparmor.sh           # Install AppArmor profile for bwrap (sudo/CI)
 │   ├── start-server.sh               # Background llama-server with logging
 │   ├── stop-server.sh                # Graceful llama-server shutdown
-│   ├── unsafe-pi.sh                  # Unsandboxed pi wrapper (full host access)
-│   └── diff-llama-cpp-variants.sh    # Compare llama-cpp recipe variants
+│   └── pi-unsafe.sh                  # Unsandboxed pi wrapper (full host access)
 ├── sample-data/
 │   ├── wiki.test.raw                 # Wikitext-2 benchmark corpus for llama-perplexity
 │   ├── describe-me.jpg               # Arbitrary image for multimodal testing
@@ -111,8 +113,8 @@ The `BACKEND` env var controls which CMake flags are passed:
 
 Key aspects:
 
-- **Version**: `b9553` (maps to llama.cpp git tag/rev)
-- **Source**: Clones from `https://github.com/ggml-org/llama.cpp` at a pinned commit rev (`9e3b928fd8c9d14dbf15a8768b9fdd7e5c721d66`)
+- **Version**: `b9587` (maps to llama.cpp git tag/rev)
+- **Source**: Clones from `https://github.com/ggml-org/llama.cpp` at a pinned commit rev (`d2e22ed975e3464ff8108542c840733b488f165f`)
 - **Build script**: `../build.sh` (shared across variants) runs CMake + Ninja
 - **Build string**: `${{ backend }}_${{ build_number }}`
 - **Output**: Conda package named `llama-cpp`
@@ -126,11 +128,19 @@ Key aspects:
 
 **Important**: Executables and DLLs must coexist in `opt/llama` so that `dlopen` can locate optional backend libraries at runtime.
 
+### The Binary Build Script (`pixi-recipes/llama-cpp-binary/build.sh`)
+
+Copies pre-built binaries from upstream releases into `${PREFIX}/opt/llama`, then symlinks `llama-*` executables into `${PREFIX}/bin`. The `VERSION` env var (from `context.version`) determines which upstream release to fetch.
+
+On Windows (`build.bat`): executables and DLLs are all copied into `%PREFIX%\bin`, which is on `PATH` in activated pixi environments.
+
+The binary recipes use `file: ../build` (extension-less) so rattler-build resolves to `build.sh` on Linux and `build.bat` on Windows.
+
 ### Root `pixi.toml` — Features & Environments
 
 | Feature | Dependencies | Key Tasks |
 |---------|--------------|-----------|
-| `llamacpp` | `llama-cpp` (from `pixi-recipes`) | `llama-help`, `llama-version`, `list-devices`, `start-server`, `download-model`, `llama-perplexity` |
+| `llamacpp` | `llama-cpp` (from `pixi-recipes`) | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `llama-perplexity` |
 | `llamacpp-source-cpu` | `llama-cpp` (cpu compiled from sources) | — |
 | `llamacpp-source-cuda` | `llama-cpp` (cuda compiled from sources) | — |
 | `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources) | — |
@@ -143,7 +153,7 @@ Key aspects:
 | Environment | Feature(s) |
 |------------|-----------|
 | `llamacpp-source-cpu` | `llamacpp` + `llamacpp-source-cpu` |
-| `llamacpp-source-cuda` | `llamacpp` + `llamacpp-source-cuda` |
+| `llamacpp-source-cuda` | `llamacpp` + `llamacpp-source-cuda` | — (FIXME: Linux ARM fails to compile) |
 | `llamacpp-source-vulkan` | `llamacpp` + `llamacpp-source-vulkan` |
 | `llamacpp-binary-cpu` | `llamacpp` + `llamacpp-binary-cpu` |
 | `llamacpp-binary-vulkan` | `llamacpp` + `llamacpp-binary-vulkan` |
@@ -161,7 +171,8 @@ The `models.ini` file uses the native llama-server preset format (`--models-pres
 | `MiniCPM5-1B` | openbmb/MiniCPM5-1B-GGUF:Q4_K_M | ~0.7 GiB | ~455 tok/s |
 | `Gemma4-E2B` | unsloth/gemma-4-E2B-it-qat-GGUF:UD-Q4_K_XL | ~2.6 GiB | ~222 tok/s |
 | `Gemma4-E4B` | unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL | ~4.2 GiB | ~137 tok/s |
-| `Gemma4-12B` | unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL | ~6.7 GiB | ~70 tok/s |
+| `Gemma4-12B` | unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL | ~6.7 GiB | ~112 tok/s |
+| `Gemma4-31B` | unsloth/gemma-4-31B-it-qat-GGUF:UD-Q4_K_XL | ~18.3 GiB | N/A (does not fit) |
 
 Global settings include Jinja templating, flash attention, KV cache quantization (`q8_0`), reasoning budgets, and `models-max = 1`.
 
@@ -172,20 +183,23 @@ Wraps the pi coding agent in a bubblewrap container:
 - Binds the target working directory read-write (or a temp dir if `-` is passed)
 - Binds `$CONDA_PREFIX` read-only; mounts `$CONDA_PREFIX/home/.pi` as `~/.pi` inside the sandbox
 - Binds caches: `~/.cache/{ccache,pip,pre-commit,rattler,uv}` and `~/.config/rpiv-web-tools`
-- Creates and bind-mounts `~/.pi/agent/sessions` and `~/.pi/agent/auth.json`
+- Creates and bind-mounts `~/.pi/agent/sessions`, `auth.json`, `trust.json`, and `settings.json`
+- Calls `inject-pi-extensions.sh` to merge pi-extensions packages into `settings.json`
 - Bind-mounts `$PIXI_ROOT` (typically `~/.pixi`) read-only
 - Unsets all `PIXI_*`, `CONDA_*`, and `INIT_CWD` env vars before exec to isolate the pi agent from the host environment
-- Uses `--unshare-all --share-net` for additional isolation
+- Uses `--unshare-all --share-net --die-with-parent` for additional isolation
 - Models config file: `models.$PIXI_ENVIRONMENT_NAME.json` (per-environment override; create this file next to `models.ini` if needed)
 - Requires AppArmor profile at `/etc/apparmor.d/bwrap` — install it with `pixi run install-apparmor` (see `scripts/install-apparmor.sh`)
 
-### `scripts/unsafe-pi.sh` — Unsandboxed Pi Wrapper
+### `scripts/pi-unsafe.sh` — Unsandboxed Pi Wrapper
 
-Runs pi with full host access. Symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where git-bash can't create symlinks) and merges `settings.json`, then cleans up on exit. Handles `-` argument by creating a temp directory. Unsets `PIXI_*`, `CONDA_*`, and `INIT_CWD` env vars. Use only for development/debugging.
+Runs pi with full host access. Calls `inject-pi-extensions.sh` to merge pi-extensions packages into `settings.json`. Symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where git-bash can't create symlinks), then cleans up on exit. Handles `-` argument by creating a temp directory. Unsets all `PIXI_*` and `CONDA_*` env vars plus `INIT_CWD`. Use only for development/debugging.
 
 ### `pixi-recipes/pi-extensions` — Pi Plugin Package
 
 Installs a pinned set of pi plugins into `$PREFIX/home/.pi/agent` during the conda build. The plugin pins live in the `PLUGINS` env var in `recipe.yaml`, which is consumed by both `build.sh` (Linux) and `build.bat` (Windows) via the extension-less `script.file: build` mechanism. See `recipe.yaml` for the current plugin list and versions.
+
+`@juicesharp/rpiv-web-tools` is excluded from the plugin list — it is redundant with `pi-ollama-cloud`.
 
 ## Build System
 
@@ -235,9 +249,9 @@ pixi install -e pytools                 # LLM benchmark tool & py-utils
 pixi run -e llamacpp-source-cuda start-server       # Start llama-server in background (logs to llama-server.log)
 pixi run -e llamacpp-source-cuda stop-server         # Graceful llama-server shutdown (SIGTERM → SIGKILL)
 pixi run -e llamacpp-source-cuda restart-server      # Stop + start in one command
-pixi run -e llamacpp-source-cuda list-devices        # List available compute devices
+pixi run -e llamacpp-source-cuda llama-list-devices  # List available compute devices
 pixi run -e llamacpp-source-cuda llama-help          # llama-server help
-pixi run -e llamacpp-source-cuda download-model model=Qwen3.6-35B-A3B  # Download and smoke-test a model
+pixi run -e llamacpp-source-cuda llama-hello         # Quick smoke test with llama-cli
 ```
 
 **Note**: Binary environments (`llamacpp-*-binary`) skip compilation entirely, making them much faster to set up. They provide pre-built binaries from upstream llama.cpp releases for CPU, Vulkan, and ROCm backends. (No Linux CUDA binary is provided upstream — use `llamacpp-source-cuda` for CUDA.)
@@ -291,10 +305,13 @@ pixi run -e pytools llama-benchy
 | `models.ini` | llama-server multi-model preset config |
 | `llama-server.log` | Server log (gitignored) |
 | `scripts/bwrap-pi.sh` | Bubblewrap sandbox wrapper for pi agent |
+| `scripts/diff-llama-cpp-variants.sh` | Compare llama-cpp recipe variants |
+| `scripts/download-gemma-drafters.sh` | Download MTP drafters for Gemma4 models |
+| `scripts/inject-pi-extensions.sh` | Merge pi-extensions packages into settings.json |
 | `scripts/install-apparmor.sh` | Install/load AppArmor profile for bwrap (local sudo or CI) |
 | `scripts/stop-server.sh` | Graceful llama-server shutdown (SIGTERM → SIGKILL) |
 | `scripts/start-server.sh` | Background llama-server with logging |
-| `scripts/unsafe-pi.sh` | Unsandboxed pi wrapper (dev/debug only) |
+| `scripts/pi-unsafe.sh` | Unsandboxed pi wrapper (dev/debug only) |
 | `sample-data/wiki.test.raw` | Wikitext-2 corpus for `llama-perplexity` |
 | `sample-data/describe-me.jpg` | Image for multimodal testing |
 | `sample-data/README.md` | Sample data documentation |
@@ -314,6 +331,7 @@ pixi run -e pytools llama-benchy
 ## Conventions
 
 - All llama-cpp backends share the same `build.sh` — differences are controlled by the `BACKEND` env var and conditional recipe dependencies
+- `inject-pi-extensions.sh` merges the pi-extensions `packages` block from `$CONDA_PREFIX/home/.pi/agent/settings.json` into `~/.pi/agent/settings.json` using `node -e` (not `jq`, for Windows compatibility)
 - The `.pixi/` directory contains build artifacts and environments (gitignored except `config.toml`)
 - Built packages produce `.conda` files suitable for `pixi add` or `conda install`
 - The `llamacpp-source-cuda` environment uses the `cuda` backend by default
@@ -331,7 +349,7 @@ pixi run -e pytools llama-benchy
 - **`start-server.sh` starts llama-server in background** with logging to `llama-server.log`; use `stop-server` to gracefully kill it
 - **`stop-server.sh` uses SIGTERM first, then SIGKILL after timeout** — graceful shutdown pattern
 - **Models file per environment**: the sandbox looks for `models.$PIXI_ENVIRONMENT_NAME.json`; if absent it falls back to nothing — create it when running a non-default pi environment
-- **`unsafe-pi.sh` symlinks extensions** from the conda prefix into `~/.pi/agent` and always cleans up on exit via `trap`
+- **`pi-unsafe.sh` calls `inject-pi-extensions.sh`** to merge pi-extensions packages, symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows), and always cleans up on exit via `trap`
 - **AppArmor is required for bwrap** — run `pixi run install-apparmor` to install and load the profile before running the sandboxed pi agent (works locally with sudo and unattended on GitHub Actions; no-op where unprivileged user namespaces are unrestricted)
 - **`pi-extensions` pins plugin versions explicitly** — bump versions in the `PLUGINS` list in `recipe.yaml` (shared by `build.sh` and `build.bat`) and update the `recipe.yaml` package version when adding or upgrading plugins
 - **Windows scripts run under git-bash** — don't use `jq` (not packaged for win-64 on conda-forge), `nc`, `pkill`/`pgrep`, or `ln -s` in scripts that must run on Windows; use `node -e` for JSON, `curl` for port checks, `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` instead of symlinks
