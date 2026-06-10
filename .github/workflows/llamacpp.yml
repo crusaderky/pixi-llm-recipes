@@ -28,11 +28,11 @@ jobs:
           - ubuntu-latest
           - ubuntu-24.04-arm
         backend:
-          - binary-cpu
-          - binary-vulkan
           - source-cpu
           - source-cuda
           - source-vulkan
+          - binary-cpu
+          - binary-vulkan
         include:
           - os: ubuntu-latest
             backend: binary-rocm
@@ -56,7 +56,7 @@ jobs:
         run: pixi r -e llamacpp-${{ matrix.backend }} llama-version
 
       - name: llama-server --list-devices
-        run: pixi r -e llamacpp-${{ matrix.backend }} llama-devices
+        run: pixi r -e llamacpp-${{ matrix.backend }} llama-list-devices
 
       - name: llama-cli Hello world
         run: pixi r -e llama-hello
