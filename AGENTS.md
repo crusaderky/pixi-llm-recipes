@@ -44,7 +44,8 @@ pixi-llm-recipes/
     │   ├── cuda/recipe.yaml          # CUDA build recipe
     │   └── vulkan/recipe.yaml        # Vulkan build recipe
     ├── llama-cpp-binary/
-    │   ├── build.sh                  # Copy files + create symlinks
+    │   ├── build.sh                  # Linux: copy files + create symlinks
+    │   ├── build.bat                 # Windows: copy exes + DLLs into bin
     │   ├── cpu/recipe.yaml           # CPU binary recipe
     │   ├── vulkan/recipe.yaml        # Vulkan binary recipe
     │   └── rocm/recipe.yaml          # ROCm binary recipe
@@ -75,11 +76,26 @@ Pre-built binaries from upstream GitHub releases (no build deps needed):
 
 ```
 llama-cpp-binary/
-├── build.sh          # Copy files + create symlinks
+├── build.sh          # Linux: copy files + create symlinks
+├── build.bat         # Windows: copy exes + DLLs into bin
 ├── cpu/recipe.yaml   # CPU binary
 ├── vulkan/recipe.yaml # Vulkan binary
 └── rocm/recipe.yaml  # ROCm binary
 ```
+
+The recipes reference the build script as an extension-less `file: ../build`:
+rattler-build resolves it to `build.sh` (bash) on Linux and `build.bat`
+(cmd.exe) on Windows. Do not point `script.file` at the `.sh` file directly —
+rattler-build would then run it with bash on Windows too, and its generated
+`build_env.sh` chokes on Windows env vars like `ProgramFiles(x86)`.
+
+The pinned upstream release tag lives in `context.version` of each binary
+recipe.yaml and is passed to both build scripts as the `VERSION` env var.
+
+On Windows there are no symlinks and no `opt/llama` split: executables and
+DLLs are all copied into `%PREFIX%\bin`, which is on `PATH` in activated pixi
+environments and lets executables find their DLLs and dynamically loaded
+ggml backends.
 
 The `BACKEND` env var controls which CMake flags are passed:
 
@@ -264,8 +280,9 @@ pixi run -e pytools llama-benchy
 1. Find the new tag and commit hash at `https://github.com/ggml-org/llama.cpp/releases`
 2. Update `context.version` in all three `pixi-recipes/llama-cpp-source/{cpu,cuda,vulkan}/recipe.yaml`
 3. Update `source.rev` to the commit hash for the new tag in all three recipes
-4. Run `pixi lock` to regenerate the lockfile
-5. Test all backends
+4. Update `context.version` in all three `pixi-recipes/llama-cpp-binary/{cpu,vulkan,rocm}/recipe.yaml`
+5. Run `pixi lock` to regenerate the lockfile
+6. Test all backends
 
 ## File Reference
 
@@ -286,7 +303,8 @@ pixi run -e pytools llama-benchy
 | `pixi-recipes/llama-cpp-source/cpu/recipe.yaml` | CPU build recipe |
 | `pixi-recipes/llama-cpp-source/cuda/recipe.yaml` | CUDA build recipe |
 | `pixi-recipes/llama-cpp-source/vulkan/recipe.yaml` | Vulkan build recipe |
-| `pixi-recipes/llama-cpp-binary/build.sh` | Copy files + create symlinks for pre-built binaries |
+| `pixi-recipes/llama-cpp-binary/build.sh` | Linux: copy pre-built binaries + create symlinks |
+| `pixi-recipes/llama-cpp-binary/build.bat` | Windows: copy pre-built exes + DLLs into `bin` |
 | `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml` | CPU binary recipe |
 | `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml` | Vulkan binary recipe |
 | `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml` | ROCm binary recipe |

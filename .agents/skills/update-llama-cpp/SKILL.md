@@ -38,12 +38,12 @@ allowed-tools: WebFetch Read Edit
 
 ### Phase 3 — Update binary builds
 
-8. **Read the binary build script** at `pixi-recipes/llama-cpp-binary/build.sh`.
+8. **Read the binary recipe** at `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml` and note the existing `context.version`.
 
-9. **Check if already up to date**: if the `VERSION` variable matches the new tag, report that and stop.
+9. **Check if already up to date**: if `context.version` matches the new tag, report that and stop.
 
 10. **Update the binary version**:
-    - Update the `VERSION="<tag>"` line in `pixi-recipes/llama-cpp-binary/build.sh` to the new tag name.
+    - Set `context.version` to the new tag name in `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml`, `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml`, and `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml`.
 
 ### Phase 4 — Report
 
@@ -51,5 +51,5 @@ allowed-tools: WebFetch Read Edit
 
 12. **Report the change**:
     - Show old → new version and old → new commit SHA for source builds.
-    - Show old → new version for binary builds (updated in `build.sh`).
+    - Show old → new version for binary builds (updated in the three binary `recipe.yaml` files).
     - Show the release notes from step 3.

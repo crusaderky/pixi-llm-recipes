@@ -1,5 +1,6 @@
 context:
   backend: rocm
+  version: b9587
 
 package:
   name: llama-cpp
@@ -9,9 +10,11 @@ build:
   number: 0
   string: ${{ backend }}_${{ build_number }}
   script:
-    file: ../build.sh
+    # Extension-less: resolves to build.sh on Linux and build.bat on Windows
+    file: ../build
     env:
       BACKEND: ${{ backend }}
+      VERSION: ${{ version }}
 
 requirements:
   host:

@@ -1,23 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install pre-built llama.cpp binaries into the conda prefix.
-# Rattler-build extracts the linux-64 archive (used as the default source).
-# For other platforms, we download and swap in the correct archive.
+# Install pre-built llama.cpp binaries into the conda prefix (Linux only;
+# Windows is handled by build.bat).
+#
+# VERSION and BACKEND are set by recipe.yaml (build.script.env).
 #
 # Strategy:
 #   1. Detect target platform
-#   2. If not linux-64, download the correct archive and extract it over the work dir
-#   3. Copy files into ${PREFIX}/opt/llama, create symlinks (or copies) in ${PREFIX}/bin
-
-VERSION="b9587"
+#   2. Download the matching release archive and extract it into the work dir
+#   3. Copy files into ${PREFIX}/opt/llama, create symlinks in ${PREFIX}/bin
 
 # Detect target platform
-UNAME_S=$(uname -s)
-UNAME_M=$(uname -m)
-if [[ "$UNAME_S" == MINGW* ]] || [[ "$UNAME_S" == MSYS* ]] || [[ "$UNAME_S" == CYGWIN* ]]; then
-    TARGET_PLATFORM="win-64"
-elif [[ "$UNAME_M" == aarch64 ]] || [[ "$UNAME_M" == arm64 ]]; then
+if [[ "$(uname -m)" == aarch64 ]] || [[ "$(uname -m)" == arm64 ]]; then
     TARGET_PLATFORM="linux-aarch64"
 else
     TARGET_PLATFORM="linux-64"
@@ -41,12 +36,6 @@ case "$TARGET_PLATFORM-$BACKEND" in
     linux-aarch64-vulkan)
         ARCHIVE_POSTFIX=ubuntu-vulkan-arm64.tar.gz
         ;;
-    win-64-cpu)
-        ARCHIVE_POSTFIX=win-cpu-x64.zip
-        ;;
-    win-64-vulkan)
-        ARCHIVE_POSTFIX=win-vulkan-x64.zip
-        ;;
     *)
         echo "Invalid platform=$TARGET_PLATFORM backend=$BACKEND"
         exit 1
@@ -56,17 +45,11 @@ esac
 ARCHIVE_URL="https://github.com/ggml-org/llama.cpp/releases/download/${VERSION}/llama-${VERSION}-bin-$ARCHIVE_POSTFIX"
 echo "Downloading $ARCHIVE_URL..."
 
-if [[ "$ARCHIVE_POSTFIX" == *.zip ]]; then
-    curl -sL $ARCHIVE_URL -o archive.zip
-    unzip -o $TMPDIR/archive.zip
-    rm archive.zip
-else
-    curl -sL $ARCHIVE_URL -o archive.tar.gz
-    tar xzf archive.tar.gz
-    mv llama-$VERSION/* .
-    rmdir llama-$VERSION
-    rm archive.tar.gz  
-fi
+curl -sL $ARCHIVE_URL -o archive.tar.gz
+tar xzf archive.tar.gz
+mv llama-$VERSION/* .
+rmdir llama-$VERSION
+rm archive.tar.gz
 
 mkdir -p "${PREFIX}/opt/llama" "${PREFIX}/bin"
 
@@ -80,23 +63,10 @@ for f in *; do
         *.so|*.so.*)
             cp -v "$f" "${PREFIX}/opt/llama/"
             ;;
-        *.dll)
-            cp -v "$f" "${PREFIX}/opt/llama/"
-            ;;
-        *.exe)
-            cp -v "$f" "${PREFIX}/opt/llama/"
-            cp -v "$f" "${PREFIX}/bin/"
-            ;;
         llama*|rpc-server)
             cp -v "$f" "${PREFIX}/opt/llama/"
-            if [ -f "${PREFIX}/opt/llama/$f" ]; then
-                if [ -x "${PREFIX}/opt/llama/$f" ] || [[ "$f" == *.exe ]]; then
-                    if ln -svf "../opt/llama/${f}" "${PREFIX}/bin/${f}" 2>/dev/null; then
-                        : # symlink created successfully
-                    else
-                        cp -v "${PREFIX}/opt/llama/${f}" "${PREFIX}/bin/"
-                    fi
-                fi
+            if [ -x "${PREFIX}/opt/llama/$f" ]; then
+                ln -svf "../opt/llama/${f}" "${PREFIX}/bin/${f}"
             fi
             ;;
         *)
