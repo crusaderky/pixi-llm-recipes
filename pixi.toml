@@ -68,10 +68,12 @@ pi-export = "pi --export"
 [feature.pi.target.linux-64.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
+install-apparmor = "bash scripts/install-apparmor.sh"
 
 [feature.pi.target.linux-aarch64.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
+install-apparmor = "bash scripts/install-apparmor.sh"
 
 [feature.pytools.dependencies]
 python = "=3.14"

@@ -1,16 +1,7 @@
 #!/bin/bash
 # Run Pi with read/write permissions in pwd and no access anywhere else
-# Needs AppArmor config. Create file /etc/apparmor.d/bwrap:
-#
-# abi <abi/4.0>,
-# include <tunables/global>
-#
-# profile bwrap /path/to/pixi-llm-recipes/.pixi/envs/pi/bin/bwrap flags=(unconfined) {
-#   userns,
-#   include if exists <local/bwrap>
-# }
-#
-# Then run `sudo systemctl reload apparmor` to load the profile.
+# Needs an AppArmor profile at /etc/apparmor.d/bwrap; install it with
+# `pixi run install-apparmor` (see scripts/install-apparmor.sh).
 set -o errexit
 set -o nounset
 

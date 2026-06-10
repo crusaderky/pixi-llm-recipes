@@ -67,6 +67,10 @@ jobs:
       - name: pi-unsafe Hello world
         run: pixi r pi-unsafe -- --model MiniCPM5-1B -p 'Hello world'
 
+      - name: Install AppArmor profile for bwrap
+        if: matrix.os != 'windows-latest'
+        run: pixi r install-apparmor
+
       - name: pi Hello world
         if: matrix.os != 'windows-latest'
         run: pixi r pi -- --model MiniCPM5-1B -p 'Hello world'

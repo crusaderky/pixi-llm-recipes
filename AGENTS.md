@@ -29,6 +29,7 @@ pixi-llm-recipes/
 ├── models.ini                        # llama-server preset config (multi-model)
 ├── scripts/
 │   ├── bwrap-pi.sh                   # Bubblewrap sandbox wrapper for pi agent
+│   ├── install-apparmor.sh           # Install AppArmor profile for bwrap (sudo/CI)
 │   ├── start-server.sh               # Background llama-server with logging
 │   ├── stop-server.sh                # Graceful llama-server shutdown
 │   ├── unsafe-pi.sh                  # Unsandboxed pi wrapper (full host access)
@@ -175,7 +176,7 @@ Wraps the pi coding agent in a bubblewrap container:
 - Unsets all `PIXI_*`, `CONDA_*`, and `INIT_CWD` env vars before exec to isolate the pi agent from the host environment
 - Uses `--unshare-all --share-net` for additional isolation
 - Models config file: `models.$PIXI_ENVIRONMENT_NAME.json` (per-environment override; create this file next to `models.ini` if needed)
-- Requires AppArmor profile at `/etc/apparmor.d/bwrap` (template provided in script comments)
+- Requires AppArmor profile at `/etc/apparmor.d/bwrap` — install it with `pixi run install-apparmor` (see `scripts/install-apparmor.sh`)
 
 ### `scripts/unsafe-pi.sh` — Unsandboxed Pi Wrapper
 
@@ -293,6 +294,7 @@ pixi run -e pytools llama-benchy
 | `models.ini` | llama-server multi-model preset config |
 | `llama-server.log` | Server log (gitignored) |
 | `scripts/bwrap-pi.sh` | Bubblewrap sandbox wrapper for pi agent |
+| `scripts/install-apparmor.sh` | Install/load AppArmor profile for bwrap (local sudo or CI) |
 | `scripts/stop-server.sh` | Graceful llama-server shutdown (SIGTERM → SIGKILL) |
 | `scripts/start-server.sh` | Background llama-server with logging |
 | `scripts/unsafe-pi.sh` | Unsandboxed pi wrapper (dev/debug only) |
@@ -332,7 +334,7 @@ pixi run -e pytools llama-benchy
 - **`stop-server.sh` uses SIGTERM first, then SIGKILL after timeout** — graceful shutdown pattern
 - **Models file per environment**: the sandbox looks for `models.$PIXI_ENVIRONMENT_NAME.json`; if absent it falls back to nothing — create it when running a non-default pi environment
 - **`unsafe-pi.sh` symlinks extensions** from the conda prefix into `~/.pi/agent` and always cleans up on exit via `trap`
-- **AppArmor is required for bwrap** — the profile must be loaded (`sudo systemctl reload apparmor`) before running the sandboxed pi agent
+- **AppArmor is required for bwrap** — run `pixi run install-apparmor` to install and load the profile before running the sandboxed pi agent (works locally with sudo and unattended on GitHub Actions; no-op where unprivileged user namespaces are unrestricted)
 - **`pi-extensions` pins plugin versions explicitly** — bump versions in `build.sh` and update `recipe.yaml` version when adding or upgrading plugins
 - **`CLAUDE.md` is a symlink** to `AGENTS.md` for Claude Code compatibility
 - **`.claude/skills` is a symlink** to `.agents/skills/` for Claude Code compatibility
