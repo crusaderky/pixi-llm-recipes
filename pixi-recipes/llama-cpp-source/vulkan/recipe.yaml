@@ -1,5 +1,5 @@
 context:
-  version: b9585
+  version: b9587
   backend: vulkan
 
 package:
@@ -8,7 +8,7 @@ package:
 
 source:
   git: https://github.com/ggml-org/llama.cpp
-  rev: d73cd076740db9c111d0e58ddd4486904469e75e
+  rev: d2e22ed975e3464ff8108542c840733b488f165f
 
 build:
   number: 0

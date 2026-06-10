@@ -1,5 +1,5 @@
 context:
-  version: b9585
+  version: b9587
   backend: vulkan
   variant_tag: ubuntu-vulkan-x64
 
@@ -9,7 +9,7 @@ package:
 
 source:
   url: https://github.com/ggml-org/llama.cpp/releases/download/${{ version }}/llama-${{ version }}-bin-${{ variant_tag }}.tar.gz
-  sha256: 5f5467e5d9827b27eda17ee39b35fd2b7c8aa298f144e8836491ccec76160fdf
+  sha256: 5491c9afba9d5ea8437c077daa7663925ccd15222f3761a967d0d4cf8904ba3f
 
 build:
   number: 0
