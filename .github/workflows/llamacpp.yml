@@ -1,0 +1,81 @@
+name: llama.cpp
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["*"]
+  workflow_dispatch: # allows you to trigger manually
+
+# When this workflow is queued, automatically cancel any previous running
+# or pending jobs from the same branch
+concurrency:
+  group: llamacpp-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+jobs:
+  test:
+    name: ${{ matrix.os }} ${{ matrix.backend }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+        backend:
+          - binary-cpu
+          - binary-vulkan
+          - source-cpu
+          - source-cuda
+          - source-vulkan
+        include:
+          - os: ubuntu-latest
+            backend: binary-rocm
+          - os: windows-latest
+            backend: binary-cpu
+          - os: windows-latest
+            backend: binary-vulkan
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: prefix-dev/setup-pixi@v0
+        with:
+          pixi-version: v0.70.2
+          environments: llamacpp-${{ matrix.backend }} pytools pi
+          cache: true
+          locked: true
+
+      - name: llama-server --version
+        run: pixi r -e llamacpp-${{ matrix.backend }} llama-version
+
+      - name: llama-server --list-devices
+        run: pixi r -e llamacpp-${{ matrix.backend }} llama-devices
+
+      - name: llama-cli Hello world
+        run: pixi r -e llama-hello
+
+      - name: Start server
+        run: pixi r -e llamacpp-${{ matrix.backend }} start-server
+
+      - name: pi-unsafe Hello world
+        run: pixi r pi-unsafe -- --model MiniCPM5-1B -p 'Hello world'
+
+      - name: pi Hello world
+        if: matrix.os != 'windows-latest'
+        run: pixi r pi -- --model MiniCPM5-1B -p 'Hello world'
+
+      - name: Restart server
+        run: pixi r restart-server
+
+      - name: llama-benchy
+        run: pixi r llama-benchy --model MiniCPM5-1B --runs 1
+
+      - name: Stop server
+        run: pixi r stop-server

@@ -36,9 +36,10 @@ llama-cpp = { path = "pixi-recipes/llama-cpp-binary/rocm" }
 [feature.llamacpp.tasks]
 llama-help = "llama-server --help"
 llama-version = "llama-server --version"
-list-devices = "llama-server --list-devices"
+llama-hello.cmd = "llama-cli -hf {{ model }} -st -p 'Hello world'"
+llama-hello.args = [ { arg = "model", default = "openbmb/MiniCPM5-1B-GGUF:Q4_K_M" } ]
+llama-list-devices = "llama-server --list-devices"
 start-server = "bash scripts/start-server.sh"
-download-model = { cmd = "llama-cli -hf {{ model }} -st -p 'Hello world'", args = [ "model"] }
 
 # Quantitative benchmark on the degradation introduced by model and/or cache quantization.
 # Note: the measure is only significant between two variants/settings of the same model.
@@ -60,7 +61,7 @@ bubblewrap = "*"
 bubblewrap = "*"
 
 [feature.pi.tasks]
-pi-unsafe.cmd = "bash scripts/unsafe-pi.sh {{ root_dir }}"
+pi-unsafe.cmd = "bash scripts/pi-unsafe.sh {{ root_dir }}"
 pi-unsafe.args = [{ arg = "root_dir", default = "-" }]
 pi-export = "pi --export"
 
