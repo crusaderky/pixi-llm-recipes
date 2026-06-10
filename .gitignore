@@ -2,3 +2,4 @@
 .pixi/*
 !.pixi/config.toml
 llama-server.log
+huggingface

@@ -56,14 +56,24 @@ unsafe-pi.cmd = "bash scripts/unsafe-pi.sh {{ root_dir }}"
 unsafe-pi.args = [{ arg = "root_dir", default = "-" }]
 pi-export = "pi --export"
 
-[feature.llama-benchy.dependencies]
+[feature.pytools.dependencies]
 python = "=3.14"
+huggingface_hub = "*"
+# Install key llama-benchy dependencies from conda-forge
+aiohttp = "*"
+numpy = "*"
+pydantic = "*"
+safetensors = "*"
+tokenizers = "*"
+transformers = "*"
 
-[feature.llama-benchy.pypi-dependencies]
+[feature.pytools.pypi-dependencies]
 llama-benchy = "*"
 
-[feature.llama-benchy.tasks]
+[feature.pytools.tasks]
 llama-benchy = "python -m llama_benchy --base-url http://localhost:8080 --no-cache --runs 7"
+hf = "hf"
+download-gemma-drafters = "bash scripts/download-gemma-drafters.sh"
 
 [environments]
 llamacpp-source-cpu = [ "llamacpp", "llamacpp-source-cpu" ]
@@ -72,5 +82,5 @@ llamacpp-source-vulkan = [ "llamacpp", "llamacpp-source-vulkan" ]
 llamacpp-binary-cpu = [ "llamacpp", "llamacpp-binary-cpu" ]
 llamacpp-binary-vulkan = [ "llamacpp", "llamacpp-binary-vulkan" ]
 llamacpp-binary-rocm = [ "llamacpp", "llamacpp-binary-rocm" ]
-llama-benchy = [ "llama-benchy" ]
+pytools = [ "pytools" ]
 pi = [ "pi" ]
