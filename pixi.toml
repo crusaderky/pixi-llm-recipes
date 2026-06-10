@@ -1,28 +1,30 @@
 [workspace]
 channels = ["https://prefix.dev/conda-forge"]
 preview = ["pixi-build"]
-platforms = ["linux-64", "linux-aarch64"]
+platforms = ["linux-64", "linux-aarch64", "win-64"]
 
 [tasks]
 stop-server = "bash scripts/stop-server.sh"
 restart-server = { depends-on = ["stop-server", "start-server"]}
 
+[feature.llamacpp-source-cpu]
+platforms = ["linux-64", "linux-aarch64"]
 [feature.llamacpp-source-cpu.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source/cpu" }
 
+[feature.llamacpp-source-cuda]
+platforms = ["linux-64", "linux-aarch64"]
 [feature.llamacpp-source-cuda.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source/cuda" }
 
+[feature.llamacpp-source-vulkan]
+platforms = ["linux-64", "linux-aarch64"]
 [feature.llamacpp-source-vulkan.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source/vulkan" }
 
-[feature.llamacpp-binary-cpu]
-platforms = ["linux-64"]
 [feature.llamacpp-binary-cpu.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary/cpu" }
 
-[feature.llamacpp-binary-vulkan]
-platforms = ["linux-64"]
 [feature.llamacpp-binary-vulkan.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary/vulkan" }
 
@@ -43,18 +45,32 @@ download-model = { cmd = "llama-cli -hf {{ model }} -st -p 'Hello world'", args 
 # Typically you want to pass parameters: -hf XXX --cache-type-k YYY --cache-type-v ZZZ
 llama-perplexity = "llama-perplexity -f sample-data/wiki.test.raw"
 
+[feature.pi]
+platforms = ["linux-64", "linux-aarch64"]
+
 [feature.pi.dependencies]
 pi-coding-agent = "*"
 pi-extensions = { path = "pixi-recipes/pi-extensions" }
-bubblewrap = "*"
 jq = "*"
 
+[feature.pi.target.linux-64.dependencies]
+bubblewrap = "*"
+
+[feature.pi.target.linux-aarch64.dependencies]
+bubblewrap = "*"
+
 [feature.pi.tasks]
+pi-unsafe.cmd = "bash scripts/unsafe-pi.sh {{ root_dir }}"
+pi-unsafe.args = [{ arg = "root_dir", default = "-" }]
+pi-export = "pi --export"
+
+[feature.pi.target.linux-64.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
-unsafe-pi.cmd = "bash scripts/unsafe-pi.sh {{ root_dir }}"
-unsafe-pi.args = [{ arg = "root_dir", default = "-" }]
-pi-export = "pi --export"
+
+[feature.pi.target.linux-aarch64.tasks]
+pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
+pi.args = [{ arg = "root_dir", default = "-" }]
 
 [feature.pytools.dependencies]
 python = "=3.14"
@@ -80,7 +96,7 @@ llamacpp-source-cpu = [ "llamacpp", "llamacpp-source-cpu" ]
 llamacpp-source-cuda = [ "llamacpp", "llamacpp-source-cuda" ]
 llamacpp-source-vulkan = [ "llamacpp", "llamacpp-source-vulkan" ]
 llamacpp-binary-cpu = [ "llamacpp", "llamacpp-binary-cpu" ]
-llamacpp-binary-vulkan = [ "llamacpp", "llamacpp-binary-vulkan" ]
 llamacpp-binary-rocm = [ "llamacpp", "llamacpp-binary-rocm" ]
+llamacpp-binary-vulkan = [ "llamacpp", "llamacpp-binary-vulkan" ]
 pytools = [ "pytools" ]
 pi = [ "pi" ]

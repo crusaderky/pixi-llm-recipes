@@ -1,21 +1,21 @@
 context:
-  version: b9587
   backend: rocm
-  variant_tag: ubuntu-rocm-7.2-x64
 
 package:
   name: llama-cpp
-  version: ${{ version }}
-
-source:
-  url: https://github.com/ggml-org/llama.cpp/releases/download/${{ version }}/llama-${{ version }}-bin-${{ variant_tag }}.tar.gz
-  sha256: cc06176f58ba501fcc54f9508f8125460666f8aa9589ad9919fddd80a3ac5024
+  version: 0
 
 build:
   number: 0
   string: ${{ backend }}_${{ build_number }}
   script:
     file: ../build.sh
+    env:
+      BACKEND: ${{ backend }}
+
+requirements:
+  host:
+    - curl
 
 about:
   homepage: https://github.com/ggml-org/llama.cpp

@@ -1,21 +1,21 @@
 context:
-  version: b9587
   backend: vulkan
-  variant_tag: ubuntu-vulkan-x64
 
 package:
   name: llama-cpp
-  version: ${{ version }}
-
-source:
-  url: https://github.com/ggml-org/llama.cpp/releases/download/${{ version }}/llama-${{ version }}-bin-${{ variant_tag }}.tar.gz
-  sha256: 5491c9afba9d5ea8437c077daa7663925ccd15222f3761a967d0d4cf8904ba3f
+  version: 0
 
 build:
   number: 0
   string: ${{ backend }}_${{ build_number }}
   script:
     file: ../build.sh
+    env:
+      BACKEND: ${{ backend }}
+
+requirements:
+  host:
+    - curl
 
 about:
   homepage: https://github.com/ggml-org/llama.cpp
