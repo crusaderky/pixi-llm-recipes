@@ -59,7 +59,7 @@ jobs:
         run: pixi r -e llamacpp-${{ matrix.backend }} llama-list-devices
 
       - name: llama-cli Hello world
-        run: pixi r -e llama-hello
+        run: pixi r -e llamacpp-${{ matrix.backend }} llama-hello
 
       - name: Start server
         run: pixi r -e llamacpp-${{ matrix.backend }} start-server
@@ -72,7 +72,7 @@ jobs:
         run: pixi r pi -- --model MiniCPM5-1B -p 'Hello world'
 
       - name: Restart server
-        run: pixi r restart-server
+        run: pixi r -e llamacpp-${{ matrix.backend }} restart-server
 
       - name: llama-benchy
         run: pixi r llama-benchy --model MiniCPM5-1B --runs 1
