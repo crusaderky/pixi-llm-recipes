@@ -33,6 +33,9 @@ jobs:
           - source-vulkan
           - binary-cpu
           - binary-vulkan
+        exclude:
+          - os: ubuntu-24.04-arm
+            backend: source-cuda  # FIXME compilation crashes
         include:
           - os: ubuntu-latest
             backend: binary-rocm
