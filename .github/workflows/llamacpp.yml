@@ -55,6 +55,12 @@ jobs:
           cache: true
           locked: true
 
+      - name: Cache downloaded models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: huggingface-${{ matrix.os }}
+
       - name: llama-server --version
         run: pixi r -e llamacpp-${{ matrix.backend }} llama-version
 
