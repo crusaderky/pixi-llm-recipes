@@ -20,7 +20,7 @@ Run the **update-llama-cpp** skill:
 
 1. Fetch the latest upstream release tag and commit SHA from GitHub.
 2. Update all source build recipes (`cpu`, `cuda`, `vulkan`).
-3. Update all binary build recipes (`cpu`, `vulkan`, `rocm`) with new versions and SHA256 hashes.
+3. Update the binary build script with the new version.
 4. Run `bash scripts/diff-llama-cpp-variants.sh` and show the output.
 5. Report old → new versions and release notes.
 
@@ -52,9 +52,7 @@ Present a consolidated report:
 
 ### llama.cpp
 - Source: <old> → <new>
-- Binary (cpu): <old> → <new>
-- Binary (vulkan): <old> → <new>
-- Binary (rocm): <old> → <new>
+- Binary: <old> → <new>
 
 ### pi-extensions
 - Updated: <list of packages with version bumps>

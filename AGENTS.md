@@ -119,8 +119,8 @@ Key aspects:
 | `llamacpp-binary-cpu` | `llama-cpp` (cpu pre-built binary) | — |
 | `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary) | — |
 | `llamacpp-binary-rocm` | `llama-cpp` (rocm pre-built binary) | — |
-| `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `bubblewrap` | `pi`, `unsafe-pi`, `pi-export` |
-| `llama-benchy` | `python =3.14`, `llama-benchy` (PyPI) | `llama-benchy` |
+| `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `bubblewrap`, `jq` | `pi`, `pi-unsafe`, `pi-export` |
+| `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers` etc. | `llama-benchy`, `hf`, `download-gemma-drafters` |
 
 | Environment | Feature(s) |
 |------------|-----------|
@@ -130,7 +130,7 @@ Key aspects:
 | `llamacpp-binary-cpu` | `llamacpp` + `llamacpp-binary-cpu` |
 | `llamacpp-binary-vulkan` | `llamacpp` + `llamacpp-binary-vulkan` |
 | `llamacpp-binary-rocm` | `llamacpp` + `llamacpp-binary-rocm` |
-| `llama-benchy` | `llama-benchy` |
+| `pytools` | `pytools` |
 | `pi` | `pi` |
 
 ### `models.ini` — llama-server Preset Configuration
@@ -183,7 +183,7 @@ All package workspaces use:
 [workspace]
 channels = ["https://prefix.dev/conda-forge"]
 preview = ["pixi-build"]
-platforms = ["linux-64", "linux-aarch64"]
+platforms = ["linux-64", "linux-aarch64", "win-64"]
 
 [package.build.backend]
 name = "pixi-build-rattler-build"
@@ -192,7 +192,7 @@ version = "*"
 
 ### Constraints
 
-- **Platforms**: `linux-64` and `linux-aarch64`
+- **Platforms**: `linux-64`, `linux-aarch64`, and `win-64`
 
 ## Working with This Project
 
@@ -212,7 +212,7 @@ pixi build
 ```bash
 pixi install -e llamacpp-source-cuda   # llama.cpp server (cuda build)
 pixi install -e pi                     # pi coding agent + extensions + bubblewrap
-pixi install -e llama-benchy           # LLM benchmark tool
+pixi install -e pytools                 # LLM benchmark tool & py-utils
 ```
 
 ### Serving Models
@@ -238,7 +238,7 @@ pixi run -e pi pi /path/to/workspace
 pixi run -e pi pi -
 
 # Unsandboxed (full host access, for debugging)
-pixi run -e pi unsafe-pi /path/to/workspace
+pixi run -e pi pi-unsafe /path/to/workspace
 ```
 
 The sandbox mounts extensions from `$CONDA_PREFIX/home/.pi/agent` as `~/.pi` inside the container.
@@ -250,7 +250,7 @@ The sandbox mounts extensions from `$CONDA_PREFIX/home/.pi/agent` as `~/.pi` ins
 pixi run -e llamacpp-source-cuda llama-perplexity
 
 # Throughput benchmark
-pixi run -e llama-benchy llama-benchy
+pixi run -e pytools llama-benchy
 ```
 
 ### Adding a New Backend (llama-cpp)
@@ -308,7 +308,7 @@ pixi run -e llama-benchy llama-benchy
 - **Never hardcode git revisions** — update `source.rev` in all three `recipe.yaml` files to the commit hash for the new tag
 - **`build.sh` uses `${PREFIX}`** — set by rattler-build; never reference it outside build scripts
 - **Symlinks use relative paths** (`../opt/llama/...`) — required for correct conda prefix portability
-- **All workspaces target `linux-64` and `linux-aarch64`** — cross-platform support requires additional logic
+- **All workspaces target `linux-64`, `linux-aarch64`, and `win-64`** — cross-platform support requires additional logic
 - **`bwrap-pi.sh` unsets all `PIXI_*`/`CONDA_*`/`INIT_CWD` vars** before calling pi — the agent must not see conda internals
 - **`start-server.sh` starts llama-server in background** with logging to `llama-server.log`; use `stop-server` to gracefully kill it
 - **`stop-server.sh` uses SIGTERM first, then SIGKILL after timeout** — graceful shutdown pattern

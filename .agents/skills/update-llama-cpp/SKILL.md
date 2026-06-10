@@ -38,30 +38,18 @@ allowed-tools: WebFetch Read Edit
 
 ### Phase 3 — Update binary builds
 
-8. **Read the current binary recipes** at:
-   - `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml`
-   - `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml`
-   - `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml`
-   Note their existing `context.version` and `sha256` values.
+8. **Read the binary build script** at `pixi-recipes/llama-cpp-binary/build.sh`.
 
-9. **Check if already up to date**: if all three match the new tag, report that and stop.
+9. **Check if already up to date**: if the `VERSION` variable matches the new tag, report that and stop.
 
-10. **Compute new SHA256 hashes** for the binary tarballs:
-    - `llama-<tag>-bin-ubuntu-x64.tar.gz` → CPU hash
-    - `llama-<tag>-bin-ubuntu-vulkan-x64.tar.gz` → Vulkan hash
-    - `llama-<tag>-bin-ubuntu-rocm-7.2-x64.tar.gz` → ROCm hash
-    - Download each from `https://github.com/ggml-org/llama.cpp/releases/download/<tag>/<filename>` and compute `sha256sum`.
-
-11. **Update binary recipes**:
-    - Set `context.version` to the new tag name in all three binary recipes.
-    - Update `sha256` in each recipe to the newly computed hash.
-    - The URL pattern is `https://github.com/ggml-org/llama.cpp/releases/download/${{ version }}/llama-${{ version }}-bin-ubuntu-<variant>.tar.gz` — the `${{ version }}` variable is interpolated by the build system, so only the `sha256` and `context.version` need updating.
+10. **Update the binary version**:
+    - Update the `VERSION="<tag>"` line in `pixi-recipes/llama-cpp-binary/build.sh` to the new tag name.
 
 ### Phase 4 — Report
 
-12. **Report differences between source variants**: Run `bash scripts/diff-llama-cpp-variants.sh` and show the output.
+11. **Report differences between source variants**: Run `bash scripts/diff-llama-cpp-variants.sh` and show the output.
 
-13. **Report the change**:
+12. **Report the change**:
     - Show old → new version and old → new commit SHA for source builds.
-    - Show old → new version and old → new SHA256 hashes for binary builds.
+    - Show old → new version for binary builds (updated in `build.sh`).
     - Show the release notes from step 3.
