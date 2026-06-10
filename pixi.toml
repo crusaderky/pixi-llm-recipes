@@ -47,6 +47,7 @@ llama-perplexity = "llama-perplexity -f sample-data/wiki.test.raw"
 pi-coding-agent = "*"
 pi-extensions = { path = "pixi-recipes/pi-extensions" }
 bubblewrap = "*"
+jq = "*"
 
 [feature.pi.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"

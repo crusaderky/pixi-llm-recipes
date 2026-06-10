@@ -35,14 +35,13 @@ mkdir -p ~/.cache/uv
 mkdir -p ~/.pi/agent/sessions
 mkdir -p ~/.config/rpiv-web-tools
 
-if [ ! -f ~/.pi/agent/auth.json ]; then
-  echo "{}" > ~/.pi/agent/auth.json
-fi
-if [ ! -f ~/.pi/agent/trust.json ]; then
-  echo "{}" > ~/.pi/agent/trust.json
-fi
+for f in auth trust settings; do
+  if [ ! -f ~/.pi/agent/$f.json ]; then
+    echo "{}" > ~/.pi/agent/$f.json
+  fi
+done
 
-mkdir -p "$CONDA_PREFIX/home/.pi/agent"
+bash "$(dirname "$0")/inject-pi-extensions.sh"
 
 # Unset all PIXI_* and CONDA_* environment variables
 while IFS= read -r var; do
@@ -57,18 +56,19 @@ bwrap \
   --tmpfs /tmp \
   --tmpfs /home \
   --tmpfs /root \
-  --ro-bind "$_CONDA_PREFIX"            "$_CONDA_PREFIX" \
-  --bind "$HOME/.cache/ccache"          "$HOME/.cache/ccache" \
-  --bind "$HOME/.cache/pip"             "$HOME/.cache/pip" \
-  --bind "$HOME/.cache/pre-commit"      "$HOME/.cache/pre-commit" \
-  --bind "$HOME/.cache/rattler"         "$HOME/.cache/rattler" \
-  --bind "$HOME/.cache/uv"              "$HOME/.cache/uv" \
-  --bind "$HOME/.config/rpiv-web-tools" "$HOME/.config/rpiv-web-tools" \
-  --bind "$_CONDA_PREFIX/home/.pi"      "$HOME/.pi" \
-  --bind "$HOME/.pi/agent/auth.json"    "$HOME/.pi/agent/auth.json" \
-  --bind "$HOME/.pi/agent/trust.json"   "$HOME/.pi/agent/trust.json" \
-  --bind "$HOME/.pi/agent/sessions"     "$HOME/.pi/agent/sessions" \
-  --ro-bind "$_PIXI_ROOT"               "$_PIXI_ROOT" \
+  --ro-bind "$_CONDA_PREFIX"              "$_CONDA_PREFIX" \
+  --bind "$HOME/.cache/ccache"            "$HOME/.cache/ccache" \
+  --bind "$HOME/.cache/pip"               "$HOME/.cache/pip" \
+  --bind "$HOME/.cache/pre-commit"        "$HOME/.cache/pre-commit" \
+  --bind "$HOME/.cache/rattler"           "$HOME/.cache/rattler" \
+  --bind "$HOME/.cache/uv"                "$HOME/.cache/uv" \
+  --bind "$HOME/.config/rpiv-web-tools"   "$HOME/.config/rpiv-web-tools" \
+  --bind "$_CONDA_PREFIX/home/.pi"        "$HOME/.pi" \
+  --bind "$HOME/.pi/agent/auth.json"      "$HOME/.pi/agent/auth.json" \
+  --bind "$HOME/.pi/agent/trust.json"     "$HOME/.pi/agent/trust.json" \
+  --bind "$HOME/.pi/agent/settings.json"  "$HOME/.pi/agent/settings.json" \
+  --bind "$HOME/.pi/agent/sessions"       "$HOME/.pi/agent/sessions" \
+  --ro-bind "$_PIXI_ROOT"                 "$_PIXI_ROOT" \
   $ARGS \
   --die-with-parent \
   --unshare-all --share-net \
