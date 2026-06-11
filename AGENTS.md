@@ -30,7 +30,6 @@ pixi-llm-recipes/
 ├── scripts/
 │   ├── bwrap-pi.sh                   # Bubblewrap sandbox wrapper for pi agent
 │   ├── diff-llama-cpp-variants.sh    # Compare llama-cpp recipe variants
-│   ├── download-gemma-drafters.sh    # Download MTP drafters for Gemma4
 │   ├── inject-pi-extensions.sh       # Merge pi-extensions packages into settings.json
 │   ├── install-apparmor.sh           # Install AppArmor profile for bwrap (sudo/CI)
 │   ├── start-server.sh               # Background llama-server with logging
@@ -148,7 +147,7 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 | `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary) | — |
 | `llamacpp-binary-rocm` | `llama-cpp` (rocm pre-built binary) | — |
 | `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export` |
-| `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers` etc. | `llama-benchy`, `hf`, `download-gemma-drafters` |
+| `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers` etc. | `llama-benchy`, `hf` |
 
 | Environment | Feature(s) |
 |------------|-----------|
@@ -307,7 +306,6 @@ pixi run -e pytools llama-benchy
 | `llama-server.log` | Server log (gitignored) |
 | `scripts/bwrap-pi.sh` | Bubblewrap sandbox wrapper for pi agent |
 | `scripts/diff-llama-cpp-variants.sh` | Compare llama-cpp recipe variants |
-| `scripts/download-gemma-drafters.sh` | Download MTP drafters for Gemma4 models |
 | `scripts/inject-pi-extensions.sh` | Merge pi-extensions packages into settings.json |
 | `scripts/install-apparmor.sh` | Install/load AppArmor profile for bwrap (local sudo or CI) |
 | `scripts/stop-server.sh` | Graceful llama-server shutdown (SIGTERM → SIGKILL) |
