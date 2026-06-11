@@ -9,3 +9,5 @@ rm -f "${PREFIX}/home/.pi/agent/settings.json"
 for plugin in ${PLUGINS}; do
     pi install "npm:${plugin}"
 done
+
+rtk init -g --agent pi

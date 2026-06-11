@@ -25,6 +25,7 @@ mkdir -p ~/.cache/rattler
 mkdir -p ~/.cache/uv
 mkdir -p ~/.pi/agent/sessions
 mkdir -p ~/.config/rpiv-web-tools
+mkdir -p ~/.config/rtk
 
 for f in auth trust settings; do
   if [ ! -f ~/.pi/agent/$f.json ]; then
@@ -54,6 +55,7 @@ bwrap \
   --bind "$HOME/.cache/rattler"           "$HOME/.cache/rattler" \
   --bind "$HOME/.cache/uv"                "$HOME/.cache/uv" \
   --bind "$HOME/.config/rpiv-web-tools"   "$HOME/.config/rpiv-web-tools" \
+  --bind "$HOME/.config/rtk"              "$HOME/.config/rtk" \
   --bind "$_CONDA_PREFIX/home/.pi"        "$HOME/.pi" \
   --bind "$HOME/.pi/agent/auth.json"      "$HOME/.pi/agent/auth.json" \
   --bind "$HOME/.pi/agent/trust.json"     "$HOME/.pi/agent/trust.json" \

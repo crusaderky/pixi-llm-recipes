@@ -25,5 +25,7 @@ build:
 requirements:
   host:
     - pi-coding-agent
+    - rtk-cli
   run:
     - pi-coding-agent
+    - rtk-cli
