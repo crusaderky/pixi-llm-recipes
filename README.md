@@ -76,12 +76,12 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 | Model | Variant | Size on disk | Speed<sup>1</sup> | Notes |
 |---|---|---|---|---|
-| Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | ~17.6 GB | ~56 tok/s | best quality that performs well; the daily driver |
-| MiniCPM5-1B | Q4_K_M | ~0.7 GB | ~455 tok/s | tiny and blazing fast, but tool-use doesn't work yet |
-| Gemma4-E2B | Unsloth QAT | ~2.6 GB | ~222 tok/s | _very_ lightweight; multimodal |
-| Gemma4-E4B | Unsloth QAT | ~4.2 GB | ~137 tok/s | lightweight; multimodal |
-| Gemma4-12B<sup>2</sup> | Unsloth QAT + MTP | ~6.9 GB | ~112 tok/s | multimodal; barely fits in 10 GiB VRAM; context limited to 32k |
-| Gemma4-31B<sup>2</sup> | Unsloth QAT + MTP | ~18.3 GB | ~2 tok/s | doesn't fit; needs 24 GB VRAM |
+| Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | ~56 tok/s | best quality that performs well; the daily driver |
+| MiniCPM5-1B | Q4_K_M | 0.7 GB | ~455 tok/s | tool-use doesn't work yet |
+| Gemma4-E2B<sup>2</sup> | Unsloth QAT + MTP | 3.5 GB | ~280 tok/s | multimodal |
+| Gemma4-E4B | Unsloth QAT | 5.0 GB | ~137 tok/s | multimodal |
+| Gemma4-12B<sup>2</sup> | Unsloth QAT + MTP | 6.7 GB | ~109 tok/s | multimodal; barely fits in 10 GiB VRAM; context limited to 32k |
+| Gemma4-31B<sup>2</sup> | Unsloth QAT + MTP | 18 GB | ~2 tok/s | multimodal; doesn't fit (needs 24 GB VRAM) |
 
 **Notes:**
 - <sup>1</sup> As measured on the RTX 3080
