@@ -8,6 +8,7 @@ set -o nounset
 hf download unsloth/gemma-4-E2B-it-qat-GGUF mtp-gemma-4-E2B-it.gguf
 hf download unsloth/gemma-4-E4B-it-qat-GGUF mtp-gemma-4-E4B-it.gguf
 hf download unsloth/gemma-4-12B-it-qat-GGUF mtp-gemma-4-12B-it.gguf
+hf download unsloth/gemma-4-26B-A4B-it-qat-GGUF mtp-gemma-4-26B-A4B-it.gguf
 hf download unsloth/gemma-4-31B-it-qat-GGUF mtp-gemma-4-31B-it.gguf
 
 if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then

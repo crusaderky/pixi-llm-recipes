@@ -74,20 +74,25 @@ pixi r -e llamacpp-source-cuda start-server
 Models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Model | Variant | Size on disk | Speed<sup>1</sup> | Notes |
-|---|---|---|---|---|
-| Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | ~56 tok/s | best quality that performs well; the daily driver |
-| MiniCPM5-1B | Q4_K_M | 0.7 GB | ~455 tok/s | tool-use doesn't work yet |
-| Gemma4-E2B<sup>2</sup> | Unsloth QAT + MTP | 3.5 GB | ~280 tok/s | multimodal |
-| Gemma4-E4B | Unsloth QAT | 5.0 GB | ~137 tok/s | multimodal |
-| Gemma4-12B<sup>2</sup> | Unsloth QAT + MTP | 6.7 GB | ~109 tok/s | multimodal; barely fits in 10 GiB VRAM; context limited to 32k |
-| Gemma4-31B<sup>2</sup> | Unsloth QAT + MTP | 18 GB | ~2 tok/s | multimodal; doesn't fit (needs 32 GB VRAM) |
+| Model | Variant | Size on disk | VRAM<sup>1</sup> | Speed<sup>2</sup> | Notes |
+|---|---|---|---|---|---|
+| Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | 7.4 GB | ~56 tok/s | best quality that performs well; the daily driver |
+| MiniCPM5-1B | Q4_K_M | 0.7 GB | 2.7 GB | ~455 tok/s | tool-use doesn't work yet |
+| Gemma4-E2B<sup>3</sup> | Unsloth QAT + MTP | 3.5 GB | 4.0 GB | ~280 tok/s | multimodal |
+| Gemma4-E4B | Unsloth QAT | 5.0 GB | 5.8 GB | ~137 tok/s | multimodal |
+| Gemma4-12B<sup>3</sup> | Unsloth QAT + MTP | 6.7 GB | 8.7 GB<sup>4</sup> | ~120 tok/s | multimodal; barely fits in 10 GiB VRAM |
+| Gemma4-26B-A4B<sup>3</sup> | Unsloth QAT + MTP | 15 GB | 8.2 GB | ~32 tok/s | multimodal |
+| Gemma4-31B<sup>3</sup> | Unsloth QAT + MTP | 18 GB | ~31 GB | ~2 tok/s | multimodal; doesn't fit |
 
 **Notes:**
-- <sup>1</sup> As measured on the RTX 3080
-- <sup>2</sup> Must download MTP drafter with `pixi r download-gemma-drafters`
-- No Gemma4-26B-A4B because it's worse than Qwen3.6-35B-A3B by all metrics.
-- No Qwen3.6-27B because it's worse than Gemma4-31B by all metrics.
+
+- <sup>1</sup>When sizing video card VRAM, you must add 1~2 GiB for your desktop (unless you're
+  running on an integrated video card and your discrete card is detached from the X
+  server)
+- <sup>2</sup> As measured on the RTX 3080
+- <sup>3</sup> Must download MTP drafter with `pixi r download-gemma-drafters`
+- <sup>4</sup> Context limited to 64k
+- No Qwen3.6-27B yet.
 - KV cache quantized to `q8_0` for all models.
 - No turboquant as it would preclude getting the latest releases from the main branch.
 
