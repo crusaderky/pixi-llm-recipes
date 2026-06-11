@@ -1,3 +1,7 @@
+#!/bin/bash
+set -o errexit
+set -o nounset
+
 cd "$(dirname "$0")"/..
 SRC=pixi-recipes/llama-cpp-source
 BIN=pixi-recipes/llama-cpp-binary

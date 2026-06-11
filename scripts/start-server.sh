@@ -1,4 +1,6 @@
 #!/bin/bash
+set -o errexit
+set -o nounset
 
 # Test if something is listening on the port; any HTTP response (even an
 # error) means the server is up. Don't use nc, which doesn't exist on Windows.
