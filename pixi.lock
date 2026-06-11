@@ -19,6 +19,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/m2-libintl-0.22.5.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-libpcre-8.45.5-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-msys2-runtime-3.6.1.4-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-sed-4.9.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/win-64/m2-conda-epoch-20250515-0_x86_64.conda
   llamacpp-binary-cpu:
     channels:
@@ -39,6 +40,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/m2-libintl-0.22.5.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-libpcre-8.45.5-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-msys2-runtime-3.6.1.4-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-sed-4.9.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/win-64/m2-conda-epoch-20250515-0_x86_64.conda
       - conda_source: llama-cpp[02af9ad0] @ pixi-recipes/llama-cpp-binary/cpu
   llamacpp-binary-rocm:
@@ -66,6 +68,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/m2-libintl-0.22.5.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-libpcre-8.45.5-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-msys2-runtime-3.6.1.4-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-sed-4.9.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/win-64/m2-conda-epoch-20250515-0_x86_64.conda
       - conda_source: llama-cpp[efb2ed70] @ pixi-recipes/llama-cpp-binary/vulkan
   llamacpp-source-cpu:
@@ -271,6 +274,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/m2-libintl-0.22.5.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-libpcre-8.45.5-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-msys2-runtime-3.6.1.4-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-sed-4.9.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/win-64/m2-conda-epoch-20250515-0_x86_64.conda
       - conda: https://prefix.dev/conda-forge/win-64/nodejs-26.3.0-h80d1838_0.conda
       - conda: https://prefix.dev/conda-forge/win-64/pi-coding-agent-0.79.1-hff8d339_0.conda
@@ -503,6 +507,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/m2-libintl-0.22.5.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-libpcre-8.45.5-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-msys2-runtime-3.6.1.4-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-sed-4.9.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/markdown-it-py-4.2.0-pyhd8ed1ab_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/mdurl-0.1.2-pyhd8ed1ab_1.conda
       - conda: https://prefix.dev/conda-forge/noarch/multidict-6.7.1-pyh62beb40_0.conda
@@ -4030,6 +4035,20 @@ packages:
   run_exports: {}
   size: 2156552
   timestamp: 1748281166706
+- conda: https://prefix.dev/conda-forge/noarch/m2-sed-4.9.1-hc364b38_6.conda
+  sha256: 5c3ca07ba6bd47e56484f6a1a37bf143c5759340a425fee3043c214d8c5fd322
+  md5: a54c656117c664ce64d70a3853f5f9eb
+  depends:
+  - m2-libintl
+  - m2-bash
+  - m2-msys2-runtime
+  - m2-conda-epoch ==20250515 *_x86_64
+  license: GPL-3.0-or-later
+  license_family: GPL
+  purls: []
+  run_exports: {}
+  size: 291823
+  timestamp: 1748281166738
 - conda: https://prefix.dev/conda-forge/noarch/markdown-it-py-4.2.0-pyhd8ed1ab_0.conda
   sha256: 0c4c35376fe920714390d46e4b8d31c876d65f18e1655899e0763ec25f2a902f
   md5: 6d03368f2b2b0a5fb6839df53b2eb5e0
