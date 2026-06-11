@@ -1,5 +1,5 @@
 context:
-  version: b9592
+  version: b9601
   backend: cuda
 
 package:
@@ -8,7 +8,7 @@ package:
 
 source:
   git: https://github.com/ggml-org/llama.cpp
-  rev: ac4cddeb0dbd778f650bf568f6f08344a06abe3a
+  rev: 4c6595503fe45d5a39f88d194e270f64c7424677
 
 build:
   number: 0
