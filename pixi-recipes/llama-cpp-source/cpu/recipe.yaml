@@ -1,5 +1,5 @@
 context:
-  version: b9587
+  version: b9592
   backend: cpu
 
 package:
@@ -8,7 +8,7 @@ package:
 
 source:
   git: https://github.com/ggml-org/llama.cpp
-  rev: d2e22ed975e3464ff8108542c840733b488f165f
+  rev: ac4cddeb0dbd778f650bf568f6f08344a06abe3a
 
 build:
   number: 0
