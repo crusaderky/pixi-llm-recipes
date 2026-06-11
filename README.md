@@ -81,7 +81,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | Gemma4-E2B<sup>2</sup> | Unsloth QAT + MTP | 3.5 GB | ~280 tok/s | multimodal |
 | Gemma4-E4B | Unsloth QAT | 5.0 GB | ~137 tok/s | multimodal |
 | Gemma4-12B<sup>2</sup> | Unsloth QAT + MTP | 6.7 GB | ~109 tok/s | multimodal; barely fits in 10 GiB VRAM; context limited to 32k |
-| Gemma4-31B<sup>2</sup> | Unsloth QAT + MTP | 18 GB | ~2 tok/s | multimodal; doesn't fit (needs 24 GB VRAM) |
+| Gemma4-31B<sup>2</sup> | Unsloth QAT + MTP | 18 GB | ~2 tok/s | multimodal; doesn't fit (needs 32 GB VRAM) |
 
 **Notes:**
 - <sup>1</sup> As measured on the RTX 3080
