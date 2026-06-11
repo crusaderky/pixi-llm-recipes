@@ -109,6 +109,7 @@ agent setup is versioned and reproducible:
 |---|---|
 | `pi-autoresearch` | autonomous experiment loops for optimization |
 | `pi-btw` | build-time workspace tooling |
+| `pi-caveman` | drastically reduce output tokens consumed |
 | `pi-llama-cpp` | zero-config llama.cpp integration |
 | `pi-ollama-cloud` | Ollama cloud model provider + web search / web fetch |
 | `rpiv-advisor` | your local model can ask a larger datacenter model when in trouble |

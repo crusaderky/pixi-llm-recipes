@@ -14,6 +14,7 @@ build:
       PLUGINS: >-
         pi-autoresearch@1.6.0
         pi-btw@0.4.1
+        pi-caveman@1.0.7
         pi-llama-cpp@0.6.0
         pi-ollama-cloud@0.6.0
         pi-token-speed@0.3.1
