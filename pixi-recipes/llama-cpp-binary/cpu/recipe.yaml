@@ -17,8 +17,13 @@ build:
       VERSION: ${{ version }}
 
 requirements:
-  host:
+  build:
     - curl
+    - if: linux
+      then:
+      - patchelf
+  run:
+    - libgomp
 
 about:
   homepage: https://github.com/ggml-org/llama.cpp
