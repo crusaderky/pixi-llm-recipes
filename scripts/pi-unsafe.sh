@@ -3,6 +3,12 @@
 set -o errexit
 set -o nounset
 
+if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+  # Align bash's ~ with the home dir that pi (node) uses. If HOME is unset,
+  # MSYS bash would otherwise default it to <prefix>/Library/home/<user>.
+  export HOME="$USERPROFILE"
+fi
+
 mkdir -p ~/.pi/agent
 
 rm -rf ~/.pi/agent/npm

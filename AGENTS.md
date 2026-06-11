@@ -193,7 +193,7 @@ Wraps the pi coding agent in a bubblewrap container:
 
 ### `scripts/pi-unsafe.sh` — Unsandboxed Pi Wrapper
 
-Runs pi with full host access. Calls `inject-pi-extensions.sh` to merge pi-extensions packages into `settings.json`. Symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where git-bash can't create symlinks), then cleans up on exit. Handles `-` argument by creating a temp directory. Unsets all `PIXI_*` and `CONDA_*` env vars plus `INIT_CWD`. Use only for development/debugging.
+Runs pi with full host access. Calls `inject-pi-extensions.sh` to merge pi-extensions packages into `settings.json`. Symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where MSYS bash can't create symlinks; also forces `HOME=%USERPROFILE%` there so bash's `~` matches pi's home dir), then cleans up on exit. Handles `-` argument by creating a temp directory. Unsets all `PIXI_*` and `CONDA_*` env vars plus `INIT_CWD`. Use only for development/debugging.
 
 ### `pixi-recipes/pi-extensions` — Pi Plugin Package
 
@@ -352,6 +352,6 @@ pixi run -e pytools llama-benchy
 - **`pi-unsafe.sh` calls `inject-pi-extensions.sh`** to merge pi-extensions packages, symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows), and always cleans up on exit via `trap`
 - **AppArmor is required for bwrap** — run `pixi run install-apparmor` to install and load the profile before running the sandboxed pi agent (works locally with sudo and unattended on GitHub Actions; no-op where unprivileged user namespaces are unrestricted)
 - **`pi-extensions` pins plugin versions explicitly** — bump versions in the `PLUGINS` list in `recipe.yaml` (shared by `build.sh` and `build.bat`) and update the `recipe.yaml` package version when adding or upgrading plugins
-- **Windows scripts run under git-bash** — don't use `jq` (not packaged for win-64 on conda-forge), `nc`, `pkill`/`pgrep`, or `ln -s` in scripts that must run on Windows; use `node -e` for JSON, `curl` for port checks, `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` instead of symlinks
+- **Windows scripts run under MSYS2 bash shipped by the environment** — the default feature pins `m2-bash`, `m2-coreutils`, and `m2-grep` on win-64, because a plain `bash` from PATH on vanilla Windows resolves to WSL, which discards the pixi environment. Don't use `jq` (not packaged for win-64 on conda-forge), `nc`, `pkill`/`pgrep`, or `ln -s` in scripts that must run on Windows; use `node -e` for JSON, `curl` for port checks (Windows ships it in System32), `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` instead of symlinks. If a script needs another external command on Windows, add the corresponding `m2-*` package
 - **`CLAUDE.md` is a symlink** to `AGENTS.md` for Claude Code compatibility
 - **`.claude/skills` is a symlink** to `.agents/skills/` for Claude Code compatibility

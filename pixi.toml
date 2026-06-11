@@ -7,6 +7,14 @@ platforms = ["linux-64", "linux-aarch64", "win-64"]
 stop-server = "bash scripts/stop-server.sh"
 restart-server = { depends-on = ["stop-server", "start-server"]}
 
+# Tasks invoke `bash scripts/*.sh`. On Windows, a plain `bash` from PATH would
+# resolve to WSL (C:\Windows\System32\bash.exe), which discards the pixi
+# environment; ship MSYS2 bash and the utilities the scripts need instead.
+[target.win-64.dependencies]
+m2-bash = "*"
+m2-coreutils = "*"
+m2-grep = "*"
+
 [feature.llamacpp-source-cpu]
 platforms = ["linux-64", "linux-aarch64"]
 [feature.llamacpp-source-cpu.dependencies]
