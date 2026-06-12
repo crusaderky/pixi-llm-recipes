@@ -1,0 +1,128 @@
+# Terminal-Bench 2.0 "tb2-quick" subset pin
+#
+# Format: one task ID per line. Commented (#) lines are EXCLUDED.
+# Toggle by commenting/uncommenting. Uncomment ALL to run the full 89-task
+# suite. See docs/benchmarks/02-terminalbench-canonical.md.
+#
+# This pin is consumed by Harbor via `--task-ids` (one flag per task, or a
+# file the runner expands). The SAME pin state is used for BOTH the canonical
+# Terminus 2 arm (doc 02) and the pi-adapter arm (doc 04) so they share a
+# yardstick (decision: deliverables 2 and 4 use the same suite).
+#
+# Selection logic for the DEFAULT pin (12 tasks):
+#   * Bias toward `difficulty = medium` and the shortest agent timeouts
+#     (900s) to fit the 1-4h budget at ~56 tok/s on one RTX 3080, n=1.
+#   * Spread across categories for a representative coding-experience signal.
+#   * EXCLUDE tasks that are slow regardless of model skill (large builds,
+#     VM installs, GPU-shaped ML, multi-thousand-second timeouts) — these
+#     blow the budget on wall time alone and tell you little about the model.
+#   * All TB2 tasks are gpus=0, so none are GPU-blocked on this host; the
+#     constraint is purely wall-clock.
+#
+# agent_to below = the task's own agent timeout in seconds (from task.toml).
+# It is the WORST CASE per task; a capable run finishes far sooner, a failing
+# run can burn the whole budget. Doc 02 sets a runner-level per-task cap of
+# 1200s (overrides task defaults downward where allowed) to bound total time;
+# tasks whose work cannot plausibly fit in 1200s are excluded here regardless.
+#
+# Calibrate before trusting totals: 12 tasks x up-to-20min = up-to-4h worst
+# case at n=1. If calibration shows the model timing out on most tasks (likely
+# for a 4-bit 35B-A3B local model), reduce the pin to ~8 tasks.
+
+# --- INCLUDED (default pin: 12 tasks) ---
+fix-git                        # debugging-ish SE, easy, agent_to=900 — fast sanity task
+cobol-modernization            # software-engineering, easy, agent_to=900 — translation task
+prove-plus-comm                # software-engineering, easy, agent_to=900 — proof/logic, short
+overfull-hbox                  # debugging, easy, agent_to=750 — shortest timeout in suite
+openssl-selfsigned-cert        # security, medium, agent_to=900 — classic sysadmin/security
+regex-log                      # data-processing, medium, agent_to=900 — string/regex parsing
+log-summary-date-ranges        # data-processing, medium, agent_to=900 — data wrangling
+nginx-request-logging          # system-administration, medium, agent_to=900 — server config
+git-multibranch                # system-administration, medium, agent_to=900 — git workflow
+largest-eigenval               # mathematics, medium, agent_to=900 — numerical, self-contained
+hf-model-inference             # data-science, medium, agent_to=900 — ML glue without training
+sqlite-db-truncate             # debugging, medium, agent_to=900 — focused debugging
+
+# --- EXCLUDED: too slow on wall time regardless of model skill ---
+# build-pov-ray                # SE, agent_to=12000 — multi-hour build alone
+# compile-compcert             # sysadmin, agent_to=2400 — large compile
+# install-windows-3.11         # sysadmin, hard, agent_to=3600 — full VM install
+# sam-cell-seg                 # data-science, hard, agent_to=7200 — 2h timeout
+# video-processing             # hard, agent_to=3600
+# train-fasttext               # model-training, hard, agent_to=3600 — training loop
+# distribution-search          # ML, agent_to=3600
+# mteb-leaderboard             # data-science, agent_to=3600
+# reshard-c4-data              # data-science, agent_to=3600 — large data
+# winning-avg-corewars         # SE, agent_to=3600
+# regex-chess                  # SE, hard, agent_to=3600
+# circuit-fibsqrt              # SE, hard, agent_to=3600
+# bn-fit-modify                # sci-computing, hard, agent_to=3600
+# portfolio-optimization       # optimization, agent_to=3600
+# schemelike-metacircular-eval # SE, agent_to=2400
+# fix-ocaml-gc                 # SE, hard, agent_to=3600
+# qemu-startup                 # sysadmin, agent_to=900 but heavy qemu boot — borderline; excluded for safety
+# qemu-alpine-ssh              # sysadmin, agent_to=900 but qemu — borderline; excluded for safety
+
+# --- EXCLUDED: hard difficulty, kept out of default to protect budget ---
+# (Uncomment selectively to probe harder tasks once calibration is known.)
+# cancel-async-tasks           # SE, hard, agent_to=900
+# configure-git-webserver      # sysadmin, hard, agent_to=900
+# make-doom-for-mips           # SE, hard, agent_to=900
+# polyglot-rust-c              # SE, hard, agent_to=900
+# password-recovery            # security, hard, agent_to=900
+# fix-code-vulnerability       # security, hard, agent_to=900
+# model-extraction-relu-logits # mathematics, hard, agent_to=900
+# write-compressor             # SE, hard, agent_to=900
+# path-tracing                 # SE, hard, agent_to=1800
+# path-tracing-reverse         # SE, hard, agent_to=1800
+# sparql-university            # data-querying, hard, agent_to=900
+# torch-pipeline-parallelism   # SE, hard, agent_to=900
+# torch-tensor-parallelism     # SE, hard, agent_to=900
+# dna-assembly                 # sci-computing, hard, agent_to=1800
+# protein-assembly             # sci-computing, hard, agent_to=1800
+# feal-differential-cryptanalysis # math, hard, agent_to=1800
+# feal-linear-cryptanalysis    # math, hard, agent_to=1800
+# make-mips-interpreter        # SE, hard, agent_to=1800
+# mcmc-sampling-stan           # data-science, hard, agent_to=1800
+# llm-inference-batching-scheduler # ML, hard, agent_to=1800
+# extract-moves-from-video     # file-ops, hard, agent_to=1800
+
+# --- EXCLUDED: remaining medium tasks (uncomment to expand toward full 89) ---
+# adaptive-rejection-sampler
+# break-filter-js-from-html
+# build-cython-ext
+# build-pmars
+# caffe-cifar-10
+# chess-best-move
+# code-from-image
+# constraints-scheduling
+# count-dataset-tokens
+# crack-7z-hash
+# custom-memory-heap-crash
+# db-wal-recovery
+# dna-insert
+# extract-elf
+# filter-js-from-html
+# financial-document-processor
+# gcode-to-text
+# git-leak-recovery
+# gpt2-codegolf
+# headless-terminal
+# kv-store-grpc
+# large-scale-text-editing
+# mailman
+# merge-diff-arc-agi-task
+# modernize-scientific-stack
+# mteb-retrieve
+# multi-source-data-merger
+# polyglot-c-py
+# pypi-server
+# pytorch-model-cli
+# pytorch-model-recovery
+# query-optimize
+# raman-fitting
+# rstan-to-pystan
+# sanitize-git-repo
+# sqlite-with-gcov
+# tune-mjcf
+# vulnerable-secret

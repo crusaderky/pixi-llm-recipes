@@ -1,0 +1,18 @@
+# CRUXEval selection pin
+#
+# See docs/benchmarks/09-cruxeval.md. 800 functions x 2 tasks (input- and
+# output-prediction) run quickly, so the DEFAULT is the FULL suite, with -I and
+# -O recorded as two separate ledger entries. The SAME selection is used for
+# both arms (L1, L2).
+#
+# Keep CoT mode fixed across arms and matching the leaderboard column you
+# compare against (default: direct / no CoT).
+
+input_prediction  = full   # CRUXEval-I full (800) — DEFAULT (needs exec sandbox)
+output_prediction = full   # CRUXEval-O full (800) — DEFAULT (string match, no sandbox)
+cot = false                # direct mode — DEFAULT; flip only for all arms together
+
+# Optional quick smoke: cap to the first N. Plumbing check only; never a headline.
+# input_prediction  = first
+# output_prediction = first
+# n_items = 10

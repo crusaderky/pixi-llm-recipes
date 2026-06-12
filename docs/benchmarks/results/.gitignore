@@ -1,0 +1,8 @@
+# Run outputs are local artifacts; keep the dir and tooling, ignore the data.
+*
+!.gitkeep
+!.gitignore
+!check_ledger.py
+!vendor-precision/
+vendor-precision/*
+!vendor-precision/.gitkeep

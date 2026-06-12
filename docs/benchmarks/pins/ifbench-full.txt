@@ -1,0 +1,15 @@
+# IFBench selection pin
+#
+# See docs/benchmarks/07-ifbench.md. IFBench is ~294 prompts and runs in
+# minutes, so the DEFAULT is the FULL eval set. The SAME selection is used for
+# both arms (L1 remote, L2 local).
+#
+# Use the held-out OOD EVAL constraints; do NOT evaluate on the IFTrain
+# constraints (that would not be a held-out measurement).
+
+selection = full        # full eval set (~294 prompts) — DEFAULT
+
+# Optional quick smoke: cap to the first N prompts. Uncomment for a fast
+# plumbing check only; NEVER report a headline number from a capped run.
+# selection = first
+# n_items = 20

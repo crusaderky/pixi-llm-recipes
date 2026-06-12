@@ -1,0 +1,17 @@
+# EvalPlus selection pin
+#
+# See docs/benchmarks/08-evalplus.md. HumanEval+ (164) and MBPP+ (378) each run
+# in minutes, so the DEFAULT is the FULL suite for BOTH datasets, run as two
+# separate ledger entries. The SAME selection is used for both arms (L1, L2).
+#
+# ALWAYS headline the augmented ("+") pass@1; base pass@1 is recorded only to
+# show the base-vs-plus gap.
+
+humaneval = full        # HumanEval+ full (164) — DEFAULT
+mbpp      = full        # MBPP+ full (378)      — DEFAULT
+
+# Optional quick smoke: cap to the first N problems per dataset. Plumbing check
+# only; never a headline.
+# humaneval = first
+# mbpp      = first
+# n_items   = 10

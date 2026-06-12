@@ -1,0 +1,27 @@
+# LiveCodeBench date-window "pin"
+#
+# Unlike an ID list, LiveCodeBench is subset by CONTEST DATE so the problem set
+# stays contamination-free. See docs/benchmarks/06-livecodebench.md.
+#
+# The SAME window is used for both arms (L1 remote, L2 local). Record the
+# resolved problem count in the ledger pin.n_items, and the harness's
+# release_version / dataset revision in harness.version.
+#
+# HARD RULE: the window START must be AFTER the model's training-data cutoff
+# (record the cutoff in the ledger notes). A window straddling the cutoff voids
+# the contamination posture — the whole reason to run this benchmark.
+
+# --- model cutoff (fill in at implementation time, from vendor/model card) ---
+# model_cutoff = YYYY-MM-DD
+
+# --- DEFAULT WINDOW ---
+# Smallest recent post-cutoff window that yields ~50-100 problems.
+# Express EITHER as a harness release tag OR an explicit date range; the
+# implementer picks whichever the pinned livecodebench version supports and
+# records the exact flag used.
+release_version = release_latest   # e.g. release_v5 / release_v6 — pin precisely
+# start_date = YYYY-MM-DD          # (alternative) post-cutoff start
+# end_date   = YYYY-MM-DD          # (alternative) window end
+
+# To widen (more problems, more wall time): move start_date earlier but NEVER
+# before model_cutoff, or bump to a release tag whose problems are all post-cutoff.

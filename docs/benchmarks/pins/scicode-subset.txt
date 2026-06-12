@@ -1,0 +1,121 @@
+# SciCode test-set subset pin
+#
+# Format: one main-problem ID per line. Commented (#) lines are EXCLUDED.
+# Toggle by commenting/uncommenting. Uncomment ALL to run the full 65-problem
+# test set (288 subproblems). See docs/benchmarks/01-scicode-canonical.md.
+#
+# The SciCode test split has 65 main problems / 288 subproblems. inspect_ai
+# selects problems with `-T split=test` and `--limit N`, but --limit takes the
+# FIRST N problems, which is not a stratified sample. To honor this pin exactly,
+# the runner must pass an explicit problem-ID allowlist (see doc 01
+# §"Honoring the pin"); --limit alone is not sufficient.
+#
+# DEFAULT PIN: 30 of 65 problems, stratified across the 6 domains so internal
+# ladder deltas (L1->L2->L3->L4->L5) stay meaningful. The exact per-problem
+# runtime on the RTX 3080 is unknown until calibration; if a pinned problem
+# blows the budget, swap it for a commented problem (any domain is fine for
+# SciCode — domains are for coverage, not runtime) and record in the ledger.
+#
+# Problem IDs are the integer indices used by the SciCode dataset (1..80;
+# the test split is the subset of these not in the 15-problem validation set).
+# The grouping comments below are advisory; verify against the loaded dataset
+# metadata at implementation time (problem->domain mapping ships in the HF
+# dataset). If an ID listed here turns out to be a validation-split problem,
+# the runner must error out rather than silently skip it.
+
+# --- Physics (numerical methods, simulation) ---
+2     # INCLUDED: representative multi-step physics simulation
+8     # INCLUDED: numerical integration chain
+14    # INCLUDED: shorter physics problem, good calibration probe candidate
+21    # INCLUDED
+27    # INCLUDED
+# 33  # EXCLUDED: long subproblem chain (>10 subproblems), budget risk
+35    # INCLUDED
+
+# --- Mathematics ---
+4     # INCLUDED: linear-algebra heavy
+11    # INCLUDED
+18    # INCLUDED
+# 23  # EXCLUDED: redundant with 18 (same subfield), trim for budget
+40    # INCLUDED
+
+# --- Material Science ---
+6     # INCLUDED
+16    # INCLUDED
+29    # INCLUDED
+# 44  # EXCLUDED: heavy external numeric dependencies, slow to evaluate
+
+# --- Biology ---
+9     # INCLUDED
+25    # INCLUDED
+38    # INCLUDED
+# 51  # EXCLUDED: trim to keep domain balance at ~5
+
+# --- Chemistry ---
+12    # INCLUDED
+31    # INCLUDED
+46    # INCLUDED
+# 55  # EXCLUDED: trim for budget
+
+# --- Mixed / scientific-computing ---
+3     # INCLUDED
+7     # INCLUDED
+19    # INCLUDED
+28    # INCLUDED
+42    # INCLUDED
+48    # INCLUDED
+57    # INCLUDED
+63    # INCLUDED
+
+# ---------------------------------------------------------------------------
+# Everything below is EXCLUDED by default. Uncomment to expand toward full set.
+# (Listing the remaining test-split IDs so "uncomment all" yields the full run.)
+# ---------------------------------------------------------------------------
+# 1
+# 5
+# 10
+# 13
+# 15
+# 17
+# 20
+# 22
+# 24
+# 26
+# 30
+# 32
+# 34
+# 36
+# 37
+# 39
+# 41
+# 43
+# 45
+# 47
+# 49
+# 50
+# 52
+# 53
+# 54
+# 56
+# 58
+# 59
+# 60
+# 61
+# 62
+# 64
+# 65
+# 66
+# 67
+# 68
+# 69
+# 70
+# 71
+# 72
+# 73
+# 74
+# 75
+# 76
+# 77
+# 78
+# 79
+# 80
