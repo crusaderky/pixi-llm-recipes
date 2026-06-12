@@ -80,7 +80,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | MiniCPM5-1B | Q4_K_M | 0.7 GB | 2.7 GB | ~455 tok/s | tool-use doesn't work yet |
 | Gemma4-E2B | Unsloth QAT + MTP | 3.5 GB | 4.0 GB | ~290 tok/s | multimodal |
 | Gemma4-E4B | Unsloth QAT | 5.0 GB | 5.8 GB | ~137 tok/s | multimodal |
-| Gemma4-12B | Unsloth QAT + MTP | 6.7 GB | 8.7 GB<sup>3</sup> | ~120 tok/s | multimodal; barely fits in 10 GiB VRAM |
+| Gemma4-12B | Unsloth QAT + MTP | 6.7 GB | 8.2 GB<sup>3</sup> | ~104 tok/s | multimodal; barely fits in 10 GiB VRAM |
 | Gemma4-26B-A4B | Unsloth QAT + MTP | 15 GB | 8.2 GB | ~32 tok/s | multimodal |
 | Gemma4-31B | Unsloth QAT + MTP | 18 GB | ~31 GB | ~2 tok/s | multimodal; doesn't fit |
 
@@ -90,7 +90,7 @@ served on demand. All models were carefully cherry-picked and tuned.
   running on an integrated video card and your discrete card is detached from the X
   server)
 - <sup>2</sup> As measured on the RTX 3080
-- <sup>3</sup> Context limited to 64k
+- <sup>3</sup> Context limited to 32k
 - No Qwen3.6-27B yet.
 - KV cache quantized to `q8_0` for all models.
 - No turboquant as it would preclude getting the latest releases from the main branch.
