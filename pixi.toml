@@ -95,7 +95,7 @@ transformers = "*"
 llama-benchy = "*"
 
 [feature.pytools.tasks]
-llama-benchy = "python -m llama_benchy --base-url http://localhost:8080 --no-cache --runs 7"
+llama-benchy = "python -m llama_benchy --base-url http://localhost:8080/v1 --no-cache --runs 7"
 hf = "hf"
 
 [environments]
