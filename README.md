@@ -77,6 +77,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | Model | Variant | Size on disk | VRAM<sup>1</sup> | Speed<sup>2</sup> | Notes |
 |---|---|---|---|---|---|
 | Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | 7.4 GB | ~56 tok/s | best quality that performs well; the daily driver |
+| Qwen3.6-27B | Unsloth Q4_K_M MTP | 18 GB | ~28 GB | ~2 tok/s | doesn't fit |
 | MiniCPM5-1B | Q4_K_M | 0.7 GB | 2.7 GB | ~455 tok/s | tool-use doesn't work yet |
 | Gemma4-E2B | Unsloth QAT + MTP | 3.5 GB | 4.0 GB | ~290 tok/s | multimodal |
 | Gemma4-E4B | Unsloth QAT | 5.0 GB | 5.8 GB | ~137 tok/s | multimodal |
@@ -91,7 +92,6 @@ served on demand. All models were carefully cherry-picked and tuned.
   server)
 - <sup>2</sup> As measured on the RTX 3080
 - <sup>3</sup> Context limited to 32k
-- No Qwen3.6-27B yet.
 - KV cache quantized to `q8_0` for all models.
 - No turboquant as it would preclude getting the latest releases from the main branch.
 

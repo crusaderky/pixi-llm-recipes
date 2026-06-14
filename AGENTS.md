@@ -166,8 +166,9 @@ The `models.ini` file uses the native llama-server preset format (`--models-pres
 
 | Section | Model | VRAM | Speed |
 |---------|-------|------|-------|
-| `Qwen3.6-35B-A3B` | byteshape/Qwen3.6-35B-A3B-MTP-GGUF:Qwen3.6-35B-A3B-IQ4_XS-3.97bpw | ~17.6 GiB | ~56 tok/s |
-| `MiniCPM5-1B` | openbmb/MiniCPM5-1B-GGUF:Q4_K_M | ~0.7 GiB | ~455 tok/s |
+| `Qwen3.6-35B-A3B` | byteshape/Qwen3.6-35B-A3B-MTP-GGUF:Qwen3.6-35B-A3B-IQ4_XS-3.97bpw | 18 GiB | ~56 tok/s |
+| `Qwen3.6-27B` | unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M | 18 GiB | ~2 tok/s (does not fit) |
+| `MiniCPM5-1B` | openbmb/MiniCPM5-1B-GGUF:Q4_K_M | 0.7 GiB | ~455 tok/s |
 | `Gemma4-E2B` | unsloth/gemma-4-E2B-it-qat-GGUF:UD-Q4_K_XL | 3.5 GiB | ~222 tok/s |
 | `Gemma4-E4B` | unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL | 5.0 GiB | ~137 tok/s |
 | `Gemma4-12B` | unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL | 6.7 GiB | ~112 tok/s |
