@@ -14,7 +14,7 @@ if server_is_up; then
 fi
 
 # Note: Don't use --log-file; it hides a bunch of information
-llama-server --models-preset models.ini > llama-server.log 2>&1 &
+llama-server --models-preset models.ini --models-max 1 > llama-server.log 2>&1 &
 
 echo "Logging to llama-server.log"
 echo "Waiting for server to start..."
