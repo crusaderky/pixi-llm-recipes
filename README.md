@@ -150,16 +150,8 @@ pixi r pi-unsafe - -- -p "Hello"                   # In a temporary directory; p
 
 ## Claude Code
 
-[Claude Code](https://claude.ai/code) must be installed **system-wide**, not through pixi.
-Install it once on the host before using this environment:
-
-```bash
-npm install -g @anthropic-ai/claude-code
-```
-
-The `claude` pixi environment provides only
-[bubblewrap](https://github.com/containers/bubblewrap) for sandboxing — the `claude`
-binary itself comes from the system.
+[Claude Code](https://claude.ai/code) is installed as part of the `agents` pixi
+environment — no separate system-wide installation needed. Just `pixi install` and run.
 
 ### Sandboxed usage
 
@@ -175,6 +167,15 @@ The sandbox uses the same AppArmor profile as Pi. Install it once with:
 
 ```bash
 pixi r install-apparmor
+```
+
+If you need full host access for development or debugging, or if you are on Windows,
+there's an escape hatch:
+
+```bash
+pixi r claude-unsafe /path/to/workspace
+pixi r claude-unsafe                                      # in a temporary directory
+pixi r claude-unsafe /path/to/workspace -- --resume       # pass arbitrary parameters to claude after --
 ```
 
 ## git and GitHub CLI

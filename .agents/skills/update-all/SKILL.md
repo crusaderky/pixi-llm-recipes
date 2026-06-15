@@ -1,6 +1,6 @@
 ---
 name: update-all
-description: Update everything — llama.cpp (source + binary recipes), pi-extensions npm packages, and run `pixi update` to refresh the lockfile. Triggered by "update yourself", "update everything", or "do a full update".
+description: Update everything — llama.cpp (source + binary recipes), pi-extensions npm packages, Claude Code conda recipe, and run `pixi update` to refresh the lockfile. Triggered by "update yourself", "update everything", or "do a full update".
 compatibility: Requires network access to api.github.com and registry.npmjs.org. Designed for the pixi-llm-recipes project.
 allowed-tools: Bash, Read, Edit, WebFetch
 ---
@@ -33,7 +33,16 @@ Run the **update-pi-extensions** skill:
 3. Update any out-of-date versions in `recipe.yaml`.
 4. Report the summary of what was updated.
 
-### Phase 3 — Refresh pixi lockfile
+### Phase 3 — Update Claude Code
+
+Run the **update-claude** skill:
+
+1. Read the current pinned version from `pixi-recipes/claude/recipe.yaml`.
+2. Fetch the latest stable version from the npm registry.
+3. If a newer version is available, download the tarball, compute its sha256, and update the recipe.
+4. Report old → new version.
+
+### Phase 4 — Refresh pixi lockfile
 
 Run `pixi update` from the project root:
 
@@ -43,7 +52,7 @@ pixi update
 
 This refreshes the `pixi.lock` file with the latest resolved versions of all dependencies.
 
-### Phase 4 — Final summary
+### Phase 5 — Final summary
 
 Present a consolidated report:
 
@@ -57,6 +66,9 @@ Present a consolidated report:
 ### pi-extensions
 - Updated: <list of packages with version bumps>
 - Up to date: <list of packages>
+
+### Claude Code
+- <old> → <new>   (or "already at stable <version>")
 
 ### pixi.lock
 - Refreshed via `pixi update`.

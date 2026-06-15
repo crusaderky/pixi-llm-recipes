@@ -80,6 +80,13 @@ pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
 install-apparmor = "bash scripts/install-apparmor.sh"
 
+[feature.claude.dependencies]
+claude = { path = "pixi-recipes/claude" }
+
+[feature.claude.tasks]
+claude-unsafe.cmd = "bash scripts/claude-unsafe.sh {{ root_dir }}"
+claude-unsafe.args = [{ arg = "root_dir", default = "-" }]
+
 [feature.claude.target.linux-64.dependencies]
 bubblewrap = "*"
 

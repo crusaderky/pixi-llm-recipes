@@ -1,0 +1,45 @@
+context:
+  name: claude
+  version: "2.1.153"
+
+package:
+  name: ${{ name }}
+  version: ${{ version }}
+
+source:
+  url: https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-${{ version }}.tgz
+  sha256: 1870f640a84bda437a06808ecb8beadedfe3cf06ab0f541797b778cc90ba18e8
+
+build:
+  number: 0
+  script:
+    # Extension-less: resolves to build.sh on Linux and build.bat on Windows
+    file: build
+    env:
+      target_platform: ${{ target_platform }}
+  dynamic_linking:
+    binary_relocation: false
+
+requirements:
+  build:
+    - pnpm
+    - pnpm-licenses
+    - nodejs
+  run:
+    - nodejs >=18.0.0
+
+tests:
+  - requirements:
+      run:
+        - nodejs
+    script:
+      - claude --version
+
+about:
+  summary: Claude Code - Anthropic's agentic coding CLI
+  license: MIT
+  license_file:
+    - LICENSE.md
+    - third-party-licenses.txt
+  homepage: https://claude.ai/code
+  repository: https://github.com/anthropics/claude-code

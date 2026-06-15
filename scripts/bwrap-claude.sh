@@ -1,7 +1,7 @@
 #!/bin/bash
-# Run Claude with read/write permissions in pwd and no access anywhere else
+# Run Claude Code with read/write permissions in pwd and no access anywhere else.
 # Needs an AppArmor profile at /etc/apparmor.d/bwrap; install it with
-# `pixi run -e pi install-apparmor` (see scripts/install-apparmor.sh).
+# `pixi run install-apparmor` (see scripts/install-apparmor.sh).
 #
 # Usage: bwrap-claude.sh <dir|-> [--with-git] [--bind <dir>] ... [-- claude-args...]
 #   --with-git  Bind ~/.ssh, ~/.gitconfig, ~/.config/git, ~/.git-credentials,
@@ -51,6 +51,9 @@ done
 # except ~/.config/gh which gh may write token refreshes to).
 # The SSH agent socket (SSH_AUTH_SOCK) is accessible via the root bind as long as it
 # lives under /run/ (typical for gnome-keyring/systemd). If it's under /tmp, bind it too.
+_CONDA_PREFIX="$CONDA_PREFIX"
+_PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
+
 GIT_BINDS=""
 if [ "$WITH_GIT" = true ]; then
   for p in "$HOME/.ssh" "$HOME/.config/git" "$HOME/.git-credentials"; do
@@ -77,12 +80,10 @@ exec bwrap \
   --bind    "$HOME/.cache/pre-commit"        "$HOME/.cache/pre-commit" \
   --bind    "$HOME/.cache/rattler"           "$HOME/.cache/rattler" \
   --bind    "$HOME/.cache/uv"                "$HOME/.cache/uv" \
+  --ro-bind "$_CONDA_PREFIX"                 "$_CONDA_PREFIX" \
   --bind    "$HOME/.claude"                  "$HOME/.claude" \
   --bind    "$HOME/.claude.json"             "$HOME/.claude.json" \
-  --bind    "$HOME/.local/bin/claude"        "$HOME/.local/bin/claude" \
-  --bind    "$HOME/.local/share/claude"      "$HOME/.local/share/claude" \
-  --bind    "$HOME/.local/state/claude"      "$HOME/.local/state/claude" \
-  --ro-bind "$HOME/.pixi"                    "$HOME/.pixi" \
+  --ro-bind "$_PIXI_ROOT"                    "$_PIXI_ROOT" \
   $EXTRA_BINDS \
   $GIT_BINDS \
   $ARGS \

@@ -17,6 +17,7 @@
 - **bubblewrap (bwrap)** — Containerized sandbox for running the pi agent securely
 - **pi-coding-agent** — The pi coding agent framework (installed via npm)
 - **pi-extensions** — Curated pi plugins installed via a conda package
+- **claude** — Claude Code CLI (`@anthropic-ai/claude-code`) installed via a conda package (fetches from npm)
 
 ## Project Structure
 
@@ -52,6 +53,10 @@ pixi-llm-recipes/
     │   ├── cpu/recipe.yaml           # CPU binary recipe
     │   ├── vulkan/recipe.yaml        # Vulkan binary recipe
     │   └── rocm/recipe.yaml          # ROCm binary recipe
+    ├── claude/
+    │   ├── recipe.yaml               # Claude Code conda package (fetches from npm)
+    │   ├── build.sh                  # Linux: npm install --global into prefix
+    │   └── build.bat                 # Windows: npm install --global into prefix
     └── pi-extensions/
         ├── recipe.yaml               # Packages curated pi plugins (pins in PLUGINS env var)
         ├── build.sh                  # Linux: runs `pi install` for each plugin
@@ -148,7 +153,7 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 | `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary) | — |
 | `llamacpp-binary-rocm` | `llama-cpp` (rocm pre-built binary) | — |
 | `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export` |
-| `claude` | `bubblewrap` (Linux only) | `claude` (Linux only) |
+| `claude` | `claude` (from `pixi-recipes/claude`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe` |
 | `git` | `git` and `gh` (GitHub CLI from conda-forge) | `git`, `gh` |
 | `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers` etc. | `llama-benchy`, `hf` |
 
@@ -184,9 +189,9 @@ Global settings include Jinja templating, flash attention, KV cache quantization
 Wraps Claude Code (`claude`) in a bubblewrap container using the current working directory:
 - Read-only root filesystem; `/tmp`, `/home`, `/root` are `tmpfs`
 - Binds the target working directory read-write (or a temp dir at `/tmp/claude` if `-` is passed)
-- Binds `~/.claude`, `~/.claude.json`, `~/.local/bin/claude`, `~/.local/share/claude`, `~/.local/state/claude` (Claude Code state/config; must already exist — install Claude Code first)
+- Binds `~/.claude`, `~/.claude.json` (Claude Code config/auth)
 - Binds caches: `~/.cache/{ccache,claude,claude-cli-nodejs,pip,pre-commit,rattler,uv}`
-- Binds `~/.pixi` read-only
+- Binds `$CONDA_PREFIX` read-only (claude binary and Node.js runtime); also binds the pixi root read-only for shared packages
 - Uses `--unshare-all --share-net --die-with-parent` for isolation; runs `claude --dangerously-skip-permissions`
 - Requires AppArmor profile at `/etc/apparmor.d/bwrap` — same profile used by `bwrap-pi.sh`
 - Optional `--with-git` flag: binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` (read-only) and `~/.config/gh` (read-write) so that `git push` and the `gh` CLI work inside the sandbox. The SSH agent socket (`SSH_AUTH_SOCK`) is accessible automatically when it lives under `/run/` (gnome-keyring/systemd default); if it lives under `/tmp` it is also bound automatically. The conda-forge `gh` from the `agents` environment is on `PATH` inside the sandbox (via `$CONDA_PREFIX/bin`), shadowing any system-installed snap version.
@@ -301,7 +306,7 @@ pixi run claude --with-git
 pixi run claude -- --resume
 ```
 
-Claude Code must already be installed on the host (`~/.local/bin/claude` must exist). The sandbox runs `claude --dangerously-skip-permissions` so no interactive prompts interrupt agent work. Requires the same AppArmor profile as `bwrap-pi.sh` — install with `pixi run install-apparmor`.
+Claude Code is installed as a conda package in the `agents` environment (`pixi-recipes/claude/recipe.yaml`). The sandbox runs `claude --dangerously-skip-permissions` so no interactive prompts interrupt agent work. Requires the same AppArmor profile as `bwrap-pi.sh` — install with `pixi run install-apparmor`.
 
 ### Running Benchmarks
 
@@ -337,6 +342,7 @@ pixi run llama-benchy
 | `models.ini` | llama-server multi-model preset config |
 | `llama-server.log` | Server log (gitignored) |
 | `scripts/bwrap-claude.sh` | Bubblewrap sandbox wrapper for Claude Code |
+| `scripts/claude-unsafe.sh` | Unsandboxed Claude Code wrapper (dev/debug only) |
 | `scripts/bwrap-pi.sh` | Bubblewrap sandbox wrapper for pi agent |
 | `scripts/diff-llama-cpp-variants.sh` | Compare llama-cpp recipe variants |
 | `scripts/inject-pi-extensions.sh` | Merge pi-extensions packages into settings.json |
@@ -356,6 +362,9 @@ pixi run llama-benchy
 | `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml` | CPU binary recipe |
 | `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml` | Vulkan binary recipe |
 | `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml` | ROCm binary recipe |
+| `pixi-recipes/claude/recipe.yaml` | Claude Code conda package recipe |
+| `pixi-recipes/claude/build.sh` | Linux: `npm install --global` into prefix |
+| `pixi-recipes/claude/build.bat` | Windows: `npm install --global` into prefix |
 | `pixi-recipes/pi-extensions/recipe.yaml` | Packages pi plugin set |
 | `pixi-recipes/pi-extensions/build.sh` | Linux: runs `pi install` for each plugin in `PLUGINS` |
 | `pixi-recipes/pi-extensions/build.bat` | Windows: runs `pi install` for each plugin in `PLUGINS` |
@@ -384,6 +393,7 @@ pixi run llama-benchy
 - **`pi-unsafe.sh` calls `inject-pi-extensions.sh`** to merge pi-extensions packages, symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows), and always cleans up on exit via `trap`
 - **AppArmor is required for bwrap** — run `pixi run install-apparmor` to install and load the profile before running the sandboxed pi agent (works locally with sudo and unattended on GitHub Actions; no-op where unprivileged user namespaces are unrestricted)
 - **`pi-extensions` pins plugin versions explicitly** — bump versions in the `PLUGINS` list in `recipe.yaml` (shared by `build.sh` and `build.bat`) and update the `recipe.yaml` package version when adding or upgrading plugins
+- **`claude` recipe packages Claude Code from npm** — update `context.version` and `source.sha256` in `pixi-recipes/claude/recipe.yaml` when bumping the version; use the `stable` dist-tag from the npm registry
 - **Windows scripts run under MSYS2 bash shipped by the environment** — the default feature pins `m2-bash`, `m2-coreutils`, and `m2-grep` on win-64, because a plain `bash` from PATH on vanilla Windows resolves to WSL, which discards the pixi environment. Don't use `jq` (not packaged for win-64 on conda-forge), `nc`, `pkill`/`pgrep`, or `ln -s` in scripts that must run on Windows; use `node -e` for JSON, `curl` for port checks (Windows ships it in System32), `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` (files) or an NTFS junction via `cmd //c 'mklink /J <link> <target>'` (directories; needs no admin rights) instead of symlinks. If a script needs another external command on Windows, add the corresponding `m2-*` package
 - **`CLAUDE.md` is a symlink** to `AGENTS.md` for Claude Code compatibility
 - **`.claude/skills` is a symlink** to `.agents/skills/` for Claude Code compatibility
