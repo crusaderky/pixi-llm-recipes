@@ -177,11 +177,23 @@ The sandbox uses the same AppArmor profile as Pi. Install it once with:
 pixi r install-apparmor
 ```
 
-## git push and gh inside the sandbox
+## git and GitHub CLI
 
-By default the sandbox blocks `git push` on public accounts, all remote git commands on
-private accounts, and the `gh` CLI (to read/run CI, open and interact on PRs, etc). Pass
-`--with-git` to allow the agent to act as you on your GitHub account.
+The `agents` environment bundles `git` and the [GitHub CLI](https://cli.github.com/)
+(`gh`) from conda-forge. They are available as plain commands in the `agents` environment
+and are also on `PATH` inside both sandboxes:
+
+```bash
+pixi r git status
+pixi r gh pr list
+```
+
+### git push and gh inside the agent sandbox
+
+By default the `pixi r pi` and `pixi r claude` sandboxes block `git push` on public
+accounts, all remote git commands on private accounts, and the `gh` CLI (to read/run CI,
+open and interact on PRs, etc). Pass `--with-git` to allow the agent to act as you on
+your GitHub account.
 
 ```bash
 pixi r pi /path/to/workspace -- --with-git
@@ -196,7 +208,7 @@ To verify everything is wired up correctly before starting real work, run either
 ## Benchmarking
 
 `llama-benchy` measures tok/s throughput against a live llama-server, so start one first
-(e.g. `pixi run -e llamacpp-source-cuda start-server`). Then:
+(e.g. `pixi r -e llamacpp-source-cuda start-server`). Then:
 
 ```bash
 pixi r llama-benchy --model <model alias>

@@ -149,6 +149,7 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 | `llamacpp-binary-rocm` | `llama-cpp` (rocm pre-built binary) | — |
 | `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export` |
 | `claude` | `bubblewrap` (Linux only) | `claude` (Linux only) |
+| `git` | `git` and `gh` (GitHub CLI from conda-forge) | `git`, `gh` |
 | `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers` etc. | `llama-benchy`, `hf` |
 
 | Environment | Feature(s) |
@@ -159,9 +160,7 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 | `llamacpp-binary-cpu` | `llamacpp` + `llamacpp-binary-cpu` |
 | `llamacpp-binary-vulkan` | `llamacpp` + `llamacpp-binary-vulkan` |
 | `llamacpp-binary-rocm` | `llamacpp` + `llamacpp-binary-rocm` |
-| `pytools` | `pytools` |
-| `pi` | `pi` |
-| `claude` | `claude` |
+| `agents` | `pi` + `claude` + `git` + `pytools` |
 
 ### `models.ini` — llama-server Preset Configuration
 
@@ -190,7 +189,7 @@ Wraps Claude Code (`claude`) in a bubblewrap container using the current working
 - Binds `~/.pixi` read-only
 - Uses `--unshare-all --share-net --die-with-parent` for isolation; runs `claude --dangerously-skip-permissions`
 - Requires AppArmor profile at `/etc/apparmor.d/bwrap` — same profile used by `bwrap-pi.sh`
-- Optional `--with-git` flag: binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` (read-only) and `~/.config/gh` (read-write) so that `git push` and the `gh` CLI work inside the sandbox. The SSH agent socket (`SSH_AUTH_SOCK`) is accessible automatically when it lives under `/run/` (gnome-keyring/systemd default); if it lives under `/tmp` it is also bound automatically.
+- Optional `--with-git` flag: binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` (read-only) and `~/.config/gh` (read-write) so that `git push` and the `gh` CLI work inside the sandbox. The SSH agent socket (`SSH_AUTH_SOCK`) is accessible automatically when it lives under `/run/` (gnome-keyring/systemd default); if it lives under `/tmp` it is also bound automatically. The conda-forge `gh` from the `agents` environment is on `PATH` inside the sandbox (via `$CONDA_PREFIX/bin`), shadowing any system-installed snap version.
 
 ### `scripts/bwrap-pi.sh` — Bubblewrap Sandbox
 
@@ -206,7 +205,7 @@ Wraps the pi coding agent in a bubblewrap container:
 - Uses `--unshare-all --share-net --die-with-parent` for additional isolation
 - Models config file: `models.$PIXI_ENVIRONMENT_NAME.json` (per-environment override; create this file next to `models.ini` if needed)
 - Requires AppArmor profile at `/etc/apparmor.d/bwrap` — install it with `pixi run install-apparmor` (see `scripts/install-apparmor.sh`)
-- Optional `--with-git` flag: binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` (read-only) and `~/.config/gh` (read-write) so that `git push` and the `gh` CLI work inside the sandbox. The SSH agent socket (`SSH_AUTH_SOCK`) is accessible automatically when it lives under `/run/` (gnome-keyring/systemd default); if it lives under `/tmp` it is also bound automatically.
+- Optional `--with-git` flag: binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` (read-only) and `~/.config/gh` (read-write) so that `git push` and the `gh` CLI work inside the sandbox. The SSH agent socket (`SSH_AUTH_SOCK`) is accessible automatically when it lives under `/run/` (gnome-keyring/systemd default); if it lives under `/tmp` it is also bound automatically. The conda-forge `gh` from the `agents` environment is on `PATH` inside the sandbox (via `$CONDA_PREFIX/bin`), shadowing any system-installed snap version.
 
 ### `scripts/pi-unsafe.sh` — Unsandboxed Pi Wrapper
 
@@ -241,6 +240,8 @@ version = "*"
 
 ## Working with This Project
 
+**`-e <env>` is only required when a task name exists in multiple environments.** Tasks that belong to exactly one environment (e.g. `pi`, `claude`, `gh`, `llama-benchy`) can be invoked with plain `pixi run <task>` — pixi selects the environment automatically. The llamacpp tasks (`start-server`, `llama-help`, etc.) exist in all six `llamacpp-*` environments, so `-e` is mandatory there to pick the right backend.
+
 ### Building Packages
 
 ```bash
@@ -256,8 +257,7 @@ pixi build
 
 ```bash
 pixi install -e llamacpp-source-cuda   # llama.cpp server (cuda build)
-pixi install -e pi                     # pi coding agent + extensions + bubblewrap
-pixi install -e pytools                 # LLM benchmark tool & py-utils
+pixi install -e agents                 # pi agent, Claude Code, gh CLI, pytools
 ```
 
 ### Serving Models
@@ -277,13 +277,13 @@ pixi run -e llamacpp-source-cuda llama-hello         # Quick smoke test with lla
 
 ```bash
 # Sandboxed (recommended)
-pixi run -e pi pi /path/to/workspace
+pixi run pi /path/to/workspace
 
 # Pass `-` to start in a temporary empty directory
-pixi run -e pi pi -
+pixi run pi -
 
 # Unsandboxed (full host access, for debugging)
-pixi run -e pi pi-unsafe /path/to/workspace
+pixi run pi-unsafe /path/to/workspace
 ```
 
 The sandbox mounts extensions from `$CONDA_PREFIX/home/.pi/agent` as `~/.pi` inside the container.
@@ -292,16 +292,16 @@ The sandbox mounts extensions from `$CONDA_PREFIX/home/.pi/agent` as `~/.pi` ins
 
 ```bash
 # Sandboxed in the current directory (recommended)
-pixi run -e claude claude
+pixi run claude
 
 # With git push / gh CLI access
-pixi run -e claude claude --with-git
+pixi run claude --with-git
 
 # Pass additional args to claude (after --)
-pixi run -e claude claude -- --resume
+pixi run claude -- --resume
 ```
 
-Claude Code must already be installed on the host (`~/.local/bin/claude` must exist). The sandbox runs `claude --dangerously-skip-permissions` so no interactive prompts interrupt agent work. Requires the same AppArmor profile as `bwrap-pi.sh` — install with `pixi run install-apparmor` (available in the `pi` environment).
+Claude Code must already be installed on the host (`~/.local/bin/claude` must exist). The sandbox runs `claude --dangerously-skip-permissions` so no interactive prompts interrupt agent work. Requires the same AppArmor profile as `bwrap-pi.sh` — install with `pixi run install-apparmor`.
 
 ### Running Benchmarks
 
@@ -310,7 +310,7 @@ Claude Code must already be installed on the host (`~/.local/bin/claude` must ex
 pixi run -e llamacpp-source-cuda llama-perplexity
 
 # Throughput benchmark
-pixi run -e pytools llama-benchy
+pixi run llama-benchy
 ```
 
 ### Adding a New Backend (llama-cpp)
