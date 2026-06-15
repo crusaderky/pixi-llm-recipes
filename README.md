@@ -79,8 +79,8 @@ served on demand. All models were carefully cherry-picked and tuned.
 | Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | 7.4 GB | ~56 tok/s | best quality that performs well; the daily driver |
 | Qwen3.6-27B | Unsloth Q4_K_M MTP | 18 GB | ~28 GB | ~2 tok/s | doesn't fit |
 | MiniCPM5-1B | Q4_K_M | 0.7 GB | 2.7 GB | ~455 tok/s | tool-use doesn't work yet |
-| Gemma4-E2B | Unsloth QAT + MTP | 3.5 GB | 4.0 GB | ~290 tok/s | multimodal |
-| Gemma4-E4B | Unsloth QAT | 5.0 GB | 5.8 GB | ~137 tok/s | multimodal |
+| Gemma4-E2B | Unsloth QAT + MTP | 3.5 GB | 3.8 GB | ~290 tok/s | multimodal |
+| Gemma4-E4B | Unsloth QAT | 5.0 GB | 5.8 GB | ~143 tok/s | multimodal |
 | Gemma4-12B | Unsloth QAT + MTP | 6.7 GB | 8.2 GB<sup>3</sup> | ~104 tok/s | multimodal; barely fits in 10 GiB VRAM |
 | Gemma4-26B-A4B | Unsloth QAT + MTP | 15 GB | 8.2 GB | ~32 tok/s | multimodal |
 | Gemma4-31B | Unsloth QAT + MTP | 18 GB | ~31 GB | ~2 tok/s | multimodal; doesn't fit |
