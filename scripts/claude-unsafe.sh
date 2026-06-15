@@ -18,4 +18,4 @@ else
 fi
 
 cd "$DIR"
-claude --dangerously-skip-permissions "${@:2}"
+claude "${@:2}"
