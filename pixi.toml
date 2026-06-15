@@ -80,6 +80,20 @@ pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
 install-apparmor = "bash scripts/install-apparmor.sh"
 
+[feature.claude.target.linux-64.dependencies]
+bubblewrap = "*"
+
+[feature.claude.target.linux-aarch64.dependencies]
+bubblewrap = "*"
+
+[feature.claude.target.linux-64.tasks]
+claude.cmd = "bash scripts/bwrap-claude.sh {{ root_dir }}"
+claude.args = [{ arg = "root_dir", default = "-" }]
+
+[feature.claude.target.linux-aarch64.tasks]
+claude.cmd = "bash scripts/bwrap-claude.sh {{ root_dir }}"
+claude.args = [{ arg = "root_dir", default = "-" }]
+
 [feature.pytools.dependencies]
 python = "=3.14"
 huggingface_hub = "*"
@@ -107,3 +121,4 @@ llamacpp-binary-rocm = [ "llamacpp", "llamacpp-binary-rocm" ]
 llamacpp-binary-vulkan = [ "llamacpp", "llamacpp-binary-vulkan" ]
 pytools = [ "pytools" ]
 pi = [ "pi" ]
+claude = [ "claude" ]

@@ -4,6 +4,35 @@ platforms:
 - name: linux-aarch64
 - name: win-64
 environments:
+  claude:
+    channels:
+    - url: https://prefix.dev/conda-forge/
+    packages:
+      linux-64:
+      - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/bubblewrap-0.11.2-h008f793_0.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/libcap-2.77-hd0affe5_1.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/libgcc-15.2.0-he0feb66_19.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/libgomp-15.2.0-he0feb66_19.conda
+      linux-aarch64:
+      - conda: https://prefix.dev/conda-forge/linux-aarch64/_openmp_mutex-4.5-20_gnu.conda
+      - conda: https://prefix.dev/conda-forge/linux-aarch64/bubblewrap-0.11.2-h9367005_0.conda
+      - conda: https://prefix.dev/conda-forge/linux-aarch64/libcap-2.77-hf9559e3_1.conda
+      - conda: https://prefix.dev/conda-forge/linux-aarch64/libgcc-15.2.0-h8acb6b2_19.conda
+      - conda: https://prefix.dev/conda-forge/linux-aarch64/libgomp-15.2.0-h8acb6b2_19.conda
+      win-64:
+      - conda: https://prefix.dev/conda-forge/noarch/m2-bash-5.2.037.2-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-coreutils-8.32.5-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-filesystem-2025.02.23.1-hc364b38_10.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-gcc-libs-13.3.0.1-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-gmp-6.3.0.1-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-grep-1!3.0.7-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-libiconv-1.18.1-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-libintl-0.22.5.1-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-libpcre-8.45.5-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-msys2-runtime-3.6.1.4-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/noarch/m2-sed-4.9.1-hc364b38_6.conda
+      - conda: https://prefix.dev/conda-forge/win-64/m2-conda-epoch-20250515-0_x86_64.conda
   default:
     channels:
     - url: https://prefix.dev/conda-forge/
@@ -245,11 +274,11 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/libzlib-1.3.2-h25fd6f3_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/nodejs-26.3.0-he4ff34a_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/openssl-3.6.3-h35e630c_0.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.79.3-hd412ae8_0.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.79.4-hd412ae8_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/rtk-cli-0.42.4-hb17b654_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
-      - conda_source: pi-extensions[b7a4161f] @ pixi-recipes/pi-extensions
+      - conda_source: pi-extensions[3aef33fb] @ pixi-recipes/pi-extensions
       linux-aarch64:
       - conda: https://prefix.dev/conda-forge/linux-aarch64/_openmp_mutex-4.5-20_gnu.conda
       - conda: https://prefix.dev/conda-forge/linux-aarch64/bubblewrap-0.11.2-h9367005_0.conda
@@ -271,11 +300,11 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-aarch64/libzlib-1.3.2-hdc9db2a_2.conda
       - conda: https://prefix.dev/conda-forge/linux-aarch64/nodejs-26.3.0-h07adefd_0.conda
       - conda: https://prefix.dev/conda-forge/linux-aarch64/openssl-3.6.3-h546c87b_0.conda
-      - conda: https://prefix.dev/conda-forge/linux-aarch64/pi-coding-agent-0.79.3-h4337743_0.conda
+      - conda: https://prefix.dev/conda-forge/linux-aarch64/pi-coding-agent-0.79.4-hc5b7237_0.conda
       - conda: https://prefix.dev/conda-forge/linux-aarch64/rtk-cli-0.42.4-h069e38c_0.conda
       - conda: https://prefix.dev/conda-forge/linux-aarch64/zstd-1.5.7-h85ac4a6_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
-      - conda_source: pi-extensions[f05e6007] @ pixi-recipes/pi-extensions
+      - conda_source: pi-extensions[26d0fe52] @ pixi-recipes/pi-extensions
       win-64:
       - conda: https://prefix.dev/conda-forge/noarch/m2-bash-5.2.037.2-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-coreutils-8.32.5-hc364b38_6.conda
@@ -290,13 +319,13 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/m2-sed-4.9.1-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/win-64/m2-conda-epoch-20250515-0_x86_64.conda
       - conda: https://prefix.dev/conda-forge/win-64/nodejs-26.3.0-h80d1838_0.conda
-      - conda: https://prefix.dev/conda-forge/win-64/pi-coding-agent-0.79.3-hff8d339_0.conda
+      - conda: https://prefix.dev/conda-forge/win-64/pi-coding-agent-0.79.4-h8fff0a6_0.conda
       - conda: https://prefix.dev/conda-forge/win-64/rtk-cli-0.42.4-h18a1a76_0.conda
       - conda: https://prefix.dev/conda-forge/win-64/ucrt-10.0.26100.0-h57928b3_0.conda
       - conda: https://prefix.dev/conda-forge/win-64/vc-14.5-h1b7c187_39.conda
       - conda: https://prefix.dev/conda-forge/win-64/vc14_runtime-14.51.36231-h1b9f54f_39.conda
       - conda: https://prefix.dev/conda-forge/win-64/vcomp14-14.51.36231-h1b9f54f_39.conda
-      - conda_source: pi-extensions[6a8eaf04] @ pixi-recipes/pi-extensions
+      - conda_source: pi-extensions[c7a66f5e] @ pixi-recipes/pi-extensions
   pytools:
     channels:
     - url: https://prefix.dev/conda-forge/
@@ -347,7 +376,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/anyio-4.13.0-pyhcf101f3_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/async-timeout-5.0.1-pyhcf101f3_2.conda
       - conda: https://prefix.dev/conda-forge/noarch/attrs-26.1.0-pyhcf101f3_0.conda
-      - conda: https://prefix.dev/conda-forge/noarch/backports.zstd-1.5.0-py314h680f03e_0.conda
+      - conda: https://prefix.dev/conda-forge/noarch/backports.zstd-1.6.0-py314h680f03e_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/certifi-2026.5.20-pyhd8ed1ab_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/charset-normalizer-3.4.7-pyhd8ed1ab_0.conda
@@ -439,7 +468,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/anyio-4.13.0-pyhcf101f3_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/async-timeout-5.0.1-pyhcf101f3_2.conda
       - conda: https://prefix.dev/conda-forge/noarch/attrs-26.1.0-pyhcf101f3_0.conda
-      - conda: https://prefix.dev/conda-forge/noarch/backports.zstd-1.5.0-py314h680f03e_0.conda
+      - conda: https://prefix.dev/conda-forge/noarch/backports.zstd-1.6.0-py314h680f03e_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/certifi-2026.5.20-pyhd8ed1ab_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/charset-normalizer-3.4.7-pyhd8ed1ab_0.conda
@@ -496,7 +525,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/anyio-4.13.0-pyhcf101f3_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/async-timeout-5.0.1-pyhcf101f3_2.conda
       - conda: https://prefix.dev/conda-forge/noarch/attrs-26.1.0-pyhcf101f3_0.conda
-      - conda: https://prefix.dev/conda-forge/noarch/backports.zstd-1.5.0-py314h680f03e_0.conda
+      - conda: https://prefix.dev/conda-forge/noarch/backports.zstd-1.6.0-py314h680f03e_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-h4c7d964_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/certifi-2026.5.20-pyhd8ed1ab_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/charset-normalizer-3.4.7-pyhd8ed1ab_0.conda
@@ -1761,7 +1790,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=hash-mapping
+  - pkg:pypi/numpy?source=compressed-mapping
   run_exports:
     weak:
     - numpy >=1.23,<3
@@ -1795,16 +1824,15 @@ packages:
   run_exports: {}
   size: 136130
   timestamp: 1745559387060
-- conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.79.3-hd412ae8_0.conda
-  sha256: c3583fc487901c58be92b33da374a13d9f6fb565f3174e6b714598a7d0707be5
-  md5: 731e93f5a2ffe29ba86fee9c1e85add7
+- conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.79.4-hd412ae8_0.conda
+  sha256: eac82fc738816339b9bb79647c8f96595d8788f71668954dfb75fb211679c147
+  md5: 3711c6befb9f1ada7e6bb72605713863
   depends:
   - nodejs >=20.6.0
   license: MIT
-  license_family: MIT
   run_exports: {}
-  size: 13412659
-  timestamp: 1781371436765
+  size: 13453366
+  timestamp: 1781516797010
 - conda: https://prefix.dev/conda-forge/linux-64/pkg-config-0.29.2-h4bc722e_1009.conda
   sha256: c9601efb1af5391317e04eca77c6fe4d716bf1ca1ad8da2a05d15cb7c28d7d4e
   md5: 1bee70681f504ea424fb07cdb090c001
@@ -3027,16 +3055,15 @@ packages:
     - pcre2 >=10.47,<10.48.0a0
   size: 1166552
   timestamp: 1763655534263
-- conda: https://prefix.dev/conda-forge/linux-aarch64/pi-coding-agent-0.79.3-h4337743_0.conda
-  sha256: 34bff7dde4c8a156d158d77eb28bb35fcf7d28eba3d6b08fba24a99cef69e075
-  md5: dc318f4ae8948e9b52fc306381c820a9
+- conda: https://prefix.dev/conda-forge/linux-aarch64/pi-coding-agent-0.79.4-hc5b7237_0.conda
+  sha256: b4f067a6e14237f805b0896976f65fbd5aaf0a830ba4a9c7b11c4f87ad790615
+  md5: 35194837b26b78f9c290724e7732b0ce
   depends:
   - nodejs >=20.6.0
   license: MIT
-  license_family: MIT
   run_exports: {}
-  size: 13412891
-  timestamp: 1781371449509
+  size: 13453195
+  timestamp: 1781516797503
 - conda: https://prefix.dev/conda-forge/linux-aarch64/pkg-config-0.29.2-hce167ba_1009.conda
   sha256: 6468cbfaf1d3140be46dd315ec383d373dbbafd770ce2efe77c3f0cdbc4576c1
   md5: 05eda637f6465f7e8c5ab7e341341ea9
@@ -3507,18 +3534,18 @@ packages:
   run_exports: {}
   size: 64927
   timestamp: 1773935801332
-- conda: https://prefix.dev/conda-forge/noarch/backports.zstd-1.5.0-py314h680f03e_0.conda
+- conda: https://prefix.dev/conda-forge/noarch/backports.zstd-1.6.0-py314h680f03e_0.conda
   noarch: generic
-  sha256: a1c97297e867776760489537bc5ae36fa83a154be30e3b79385a39ca4cb058fe
-  md5: 1133126d840e75287d83947be3fc3e71
+  sha256: 709cac7434d1c5a8828105036212a2a36022a07d807e89e2e99cac939c2d2526
+  md5: 40d89d8546ad6e139e73ec8f6d56068b
   depends:
   - python >=3.14
   license: BSD-3-Clause AND MIT AND EPL-2.0
   purls:
   - pkg:pypi/backports-zstd?source=compressed-mapping
   run_exports: {}
-  size: 7533
-  timestamp: 1778594057496
+  size: 7526
+  timestamp: 1781450817767
 - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-h4c7d964_0.conda
   sha256: 86981d764e4ea1883409d30447ff9da46127426d31a63df08315aaded768e652
   md5: c9b86eece2f944541b86441c94117ab3
@@ -4513,7 +4540,7 @@ packages:
   license: Apache-2.0
   license_family: Apache
   purls:
-  - pkg:pypi/yarl?source=compressed-mapping
+  - pkg:pypi/yarl?source=hash-mapping
   run_exports: {}
   size: 81559
   timestamp: 1779246114561
@@ -4987,16 +5014,15 @@ packages:
     - openssl >=3.6.3,<4.0a0
   size: 9414790
   timestamp: 1781071745579
-- conda: https://prefix.dev/conda-forge/win-64/pi-coding-agent-0.79.3-hff8d339_0.conda
-  sha256: 2fccef5277b1ccc9cc874682ac585bd8fbdf0b5438291525b06dabd1a32872c9
-  md5: 8f5fa09d697f13ecd766b695feadb75f
+- conda: https://prefix.dev/conda-forge/win-64/pi-coding-agent-0.79.4-h8fff0a6_0.conda
+  sha256: ad33ca9483c3cb178acac28c3797aab7c5d7efbab70f09682814ebcee1b8a3c3
+  md5: de35a64be69025366d2a0f9730a12448
   depends:
   - nodejs >=20.6.0
   license: MIT
-  license_family: MIT
   run_exports: {}
-  size: 13343766
-  timestamp: 1781371494272
+  size: 13380924
+  timestamp: 1781516843756
 - conda: https://prefix.dev/conda-forge/win-64/pydantic-core-2.46.4-py314h9f07db2_0.conda
   sha256: 53621d25961c97ef77d7d03b8e0d479ee0bb8135b51d71e99a5ed7713a229f5f
   md5: a5a21f85bcee70d505798d56750d69cf
@@ -5842,50 +5868,7 @@ packages:
   - conda: https://prefix.dev/conda-forge/linux-aarch64/patchelf-0.18.0-h5ad3122_2.conda
   - conda: https://prefix.dev/conda-forge/linux-aarch64/zstd-1.5.7-h85ac4a6_6.conda
   - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
-- conda_source: pi-extensions[6a8eaf04] @ pixi-recipes/pi-extensions
-  variants:
-    target_platform: win-64
-  depends:
-  - pi-coding-agent
-  - rtk-cli
-  host_packages:
-  - conda: https://prefix.dev/conda-forge/win-64/nodejs-26.3.0-h80d1838_0.conda
-  - conda: https://prefix.dev/conda-forge/win-64/pi-coding-agent-0.79.3-hff8d339_0.conda
-  - conda: https://prefix.dev/conda-forge/win-64/rtk-cli-0.42.4-h18a1a76_0.conda
-  - conda: https://prefix.dev/conda-forge/win-64/ucrt-10.0.26100.0-h57928b3_0.conda
-  - conda: https://prefix.dev/conda-forge/win-64/vc-14.5-h1b7c187_39.conda
-  - conda: https://prefix.dev/conda-forge/win-64/vc14_runtime-14.51.36231-h1b9f54f_39.conda
-  - conda: https://prefix.dev/conda-forge/win-64/vcomp14-14.51.36231-h1b9f54f_39.conda
-- conda_source: pi-extensions[b7a4161f] @ pixi-recipes/pi-extensions
-  variants:
-    target_platform: linux-64
-  depends:
-  - pi-coding-agent
-  - rtk-cli
-  host_packages:
-  - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/c-ares-1.34.6-hb03c661_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/icu-78.3-h33c6efd_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libabseil-20260107.1-cxx17_h7b12aa8_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libbrotlicommon-1.2.0-hb03c661_1.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libbrotlidec-1.2.0-hb03c661_1.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libbrotlienc-1.2.0-hb03c661_1.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libev-4.33-hd590300_2.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libgcc-15.2.0-he0feb66_19.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libgcc-ng-15.2.0-h69a702a_19.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libgomp-15.2.0-he0feb66_19.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libnghttp2-1.68.1-h877daf1_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libsqlite-3.53.2-h0c1763c_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libstdcxx-15.2.0-h934c35e_19.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libuv-1.52.1-h280c20c_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/libzlib-1.3.2-h25fd6f3_2.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/nodejs-26.3.0-he4ff34a_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/openssl-3.6.3-h35e630c_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.79.3-hd412ae8_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/rtk-cli-0.42.4-hb17b654_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
-  - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
-- conda_source: pi-extensions[f05e6007] @ pixi-recipes/pi-extensions
+- conda_source: pi-extensions[26d0fe52] @ pixi-recipes/pi-extensions
   variants:
     target_platform: linux-aarch64
   depends:
@@ -5910,10 +5893,53 @@ packages:
   - conda: https://prefix.dev/conda-forge/linux-aarch64/libzlib-1.3.2-hdc9db2a_2.conda
   - conda: https://prefix.dev/conda-forge/linux-aarch64/nodejs-26.3.0-h07adefd_0.conda
   - conda: https://prefix.dev/conda-forge/linux-aarch64/openssl-3.6.3-h546c87b_0.conda
-  - conda: https://prefix.dev/conda-forge/linux-aarch64/pi-coding-agent-0.79.3-h4337743_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-aarch64/pi-coding-agent-0.79.4-hc5b7237_0.conda
   - conda: https://prefix.dev/conda-forge/linux-aarch64/rtk-cli-0.42.4-h069e38c_0.conda
   - conda: https://prefix.dev/conda-forge/linux-aarch64/zstd-1.5.7-h85ac4a6_6.conda
   - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
+- conda_source: pi-extensions[3aef33fb] @ pixi-recipes/pi-extensions
+  variants:
+    target_platform: linux-64
+  depends:
+  - pi-coding-agent
+  - rtk-cli
+  host_packages:
+  - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/c-ares-1.34.6-hb03c661_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/icu-78.3-h33c6efd_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libabseil-20260107.1-cxx17_h7b12aa8_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libbrotlicommon-1.2.0-hb03c661_1.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libbrotlidec-1.2.0-hb03c661_1.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libbrotlienc-1.2.0-hb03c661_1.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libev-4.33-hd590300_2.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libgcc-15.2.0-he0feb66_19.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libgcc-ng-15.2.0-h69a702a_19.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libgomp-15.2.0-he0feb66_19.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libnghttp2-1.68.1-h877daf1_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libsqlite-3.53.2-h0c1763c_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libstdcxx-15.2.0-h934c35e_19.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libuv-1.52.1-h280c20c_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libzlib-1.3.2-h25fd6f3_2.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/nodejs-26.3.0-he4ff34a_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/openssl-3.6.3-h35e630c_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/pi-coding-agent-0.79.4-hd412ae8_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/rtk-cli-0.42.4-hb17b654_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
+  - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
+- conda_source: pi-extensions[c7a66f5e] @ pixi-recipes/pi-extensions
+  variants:
+    target_platform: win-64
+  depends:
+  - pi-coding-agent
+  - rtk-cli
+  host_packages:
+  - conda: https://prefix.dev/conda-forge/win-64/nodejs-26.3.0-h80d1838_0.conda
+  - conda: https://prefix.dev/conda-forge/win-64/pi-coding-agent-0.79.4-h8fff0a6_0.conda
+  - conda: https://prefix.dev/conda-forge/win-64/rtk-cli-0.42.4-h18a1a76_0.conda
+  - conda: https://prefix.dev/conda-forge/win-64/ucrt-10.0.26100.0-h57928b3_0.conda
+  - conda: https://prefix.dev/conda-forge/win-64/vc-14.5-h1b7c187_39.conda
+  - conda: https://prefix.dev/conda-forge/win-64/vc14_runtime-14.51.36231-h1b9f54f_39.conda
+  - conda: https://prefix.dev/conda-forge/win-64/vcomp14-14.51.36231-h1b9f54f_39.conda
 - pypi: https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl
   name: distro
   version: 1.9.0

@@ -148,6 +148,51 @@ pixi r pi-unsafe /path/to/workspace -- -p "Hello"  # Pass arbitrary parameters
 pixi r pi-unsafe - -- -p "Hello"                   # In a temporary directory; pass arbitrary parameters
 ```
 
+## Claude Code
+
+[Claude Code](https://claude.ai/code) must be installed **system-wide**, not through pixi.
+Install it once on the host before using this environment:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+The `claude` pixi environment provides only
+[bubblewrap](https://github.com/containers/bubblewrap) for sandboxing — the `claude`
+binary itself comes from the system.
+
+### Sandboxed usage
+
+```bash
+pixi r claude /path/to/workspace                   # sandboxed
+pixi r claude                                      # sandboxed in a temporary directory
+pixi r claude /path/to/workspace -- --with-git     # also allow git push and gh CLI
+pixi r claude /path/to/workspace -- --bind /data   # bind an extra directory read-write
+pixi r claude /path/to/workspace -- --resume       # pass arbitrary parameters to claude after --
+```
+
+The sandbox uses the same AppArmor profile as Pi. Install it once with:
+
+```bash
+pixi r install-apparmor
+```
+
+## git push and gh inside the sandbox
+
+By default the sandbox blocks `git push` on public accounts, all remote git commands on
+private accounts, and the `gh` CLI (to read/run CI, open and interact on PRs, etc). Pass
+`--with-git` to allow the agent to act as you on your GitHub account.
+
+```bash
+pixi r pi /path/to/workspace -- --with-git
+pixi r claude /path/to/workspace -- --with-git
+```
+
+To verify everything is wired up correctly before starting real work, run either:
+
+- `pixi r pi . -- --with-git "run the test-git-auth skill"`
+- `pixi r claude . -- --with-git "run the test-git-auth skill"`
+
 ## Benchmarking
 
 `llama-benchy` measures tok/s throughput against a live llama-server, so start one first
