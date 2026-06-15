@@ -134,6 +134,7 @@ pixi r pi /path/to/workspace                # sandboxed
 pixi r pi                                   # sandboxed in a temporary directory (just for chatting)
 pixi r pi /path/to/workspace -- -p "Hello"  # Pass arbitrary parameters
 pixi r pi - -- -p "Hello"                   # In a temporary directory; pass arbitrary parameters
+pixi r pi /workspace -- --bind /data --bind /models  # Bind extra directories into the sandbox
 ```
 
 If you need full host access for development or debugging, or if you are on Windows,

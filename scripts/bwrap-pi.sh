@@ -14,6 +14,23 @@ else
   ARGS="--bind $DIR $DIR --chdir $DIR"
 fi
 
+# Parse --bind <dir> pairs from remaining args
+EXTRA_BINDS=""
+PI_ARGS=()
+i=2
+while [ $i -le $# ]; do
+  eval "arg=\${$i}"
+  if [ "$arg" = "--bind" ]; then
+    eval "bind_dir=\${$((i+1))}"
+    ABS_BIND="$(realpath "$bind_dir")"
+    EXTRA_BINDS="$EXTRA_BINDS --bind $ABS_BIND $ABS_BIND"
+    i=$((i + 2))
+  else
+    PI_ARGS+=("$arg")
+    i=$((i + 1))
+  fi
+done
+
 _PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
 _CONDA_PREFIX="$CONDA_PREFIX"
 MODELS_JSON="$PWD/models.$PIXI_ENVIRONMENT_NAME.json"
@@ -62,7 +79,8 @@ bwrap \
   --bind "$HOME/.pi/agent/settings.json"  "$HOME/.pi/agent/settings.json" \
   --bind "$HOME/.pi/agent/sessions"       "$HOME/.pi/agent/sessions" \
   --ro-bind "$_PIXI_ROOT"                 "$_PIXI_ROOT" \
+  $EXTRA_BINDS \
   $ARGS \
   --die-with-parent \
   --unshare-all --share-net \
-  -- pi "${@:2}"
+  -- pi "${PI_ARGS[@]}"
