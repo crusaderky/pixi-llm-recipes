@@ -12,10 +12,7 @@
 # max_tokens = 16384  # Note that it's limited server-side too
 ctx-size = ["16k", "32k", "64k", "128k"]
 
-# A model served locally that supports up to 128k tokens of context.
-# It will be evaluated on the 16k, 32k, 64k, and 128k context-wide books.
-
-[MiniCPM5-1B]
+# [MiniCPM5-1B]  # Don't bother with this one, it scores abysmally
 
 [Gemma4-E2B]
 

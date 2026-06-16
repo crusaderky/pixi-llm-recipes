@@ -3,5 +3,5 @@
 !.pixi/config.toml
 llama-server.log
 huggingface
-sample-data/context-bench/context-bench-results.toml
+sample-data/context-bench/context-bench-results*.toml
 *.pyc
