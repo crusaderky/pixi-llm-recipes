@@ -74,16 +74,17 @@ pixi r -e llamacpp-source-cuda start-server
 Models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Model | Variant | Size on disk | VRAM<sup>1</sup> | Speed<sup>2</sup> | Notes |
-|---|---|---|---|---|---|
-| Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | 7.4 GB | ~56 tok/s | best quality that performs well; the daily driver |
-| Qwen3.6-27B | Unsloth Q4_K_M MTP | 18 GB | ~28 GB | ~2 tok/s | doesn't fit |
-| MiniCPM5-1B | Q4_K_M | 0.7 GB | 2.7 GB | ~455 tok/s | tool-use doesn't work yet |
-| Gemma4-E2B | Unsloth QAT + MTP | 3.5 GB | 3.8 GB | ~290 tok/s | multimodal |
-| Gemma4-E4B | Unsloth QAT | 5.0 GB | 5.8 GB | ~143 tok/s | multimodal |
-| Gemma4-12B | Unsloth QAT + MTP | 6.7 GB | 8.2 GB<sup>3</sup> | ~104 tok/s | multimodal; barely fits in 10 GiB VRAM |
-| Gemma4-26B-A4B | Unsloth QAT + MTP | 15 GB | 8.2 GB | ~32 tok/s | multimodal |
-| Gemma4-31B | Unsloth QAT + MTP | 18 GB | ~31 GB | ~2 tok/s | multimodal; doesn't fit |
+| Model | Variant | Size on disk | Context | VRAM<sup>1</sup> | Speed<sup>2</sup> | Notes |
+|---|---|---|---|---|---|---|
+| Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | 256k | 7.4 GB | ~56 tok/s | best quality that performs well; the daily driver |
+| Qwen3.6-27B | Unsloth Q4_K_M MTP | 18 GB | 256k | ~28 GB | ~2 tok/s | doesn't fit |
+| MiniCPM5-1B | Q4_K_M | 0.7 GB | 128k | 2.7 GB | ~455 tok/s | tool-use doesn't work yet |
+| Gemma4-E2B | Unsloth QAT + MTP | 3.5 GB | 128k | 3.8 GB | ~290 tok/s | |
+| Gemma4-E4B | Unsloth QAT | 5.0 GB | 128k | 5.8 GB | ~143 tok/s | MTP doesn't work yet |
+| Gemma4-12B | Unsloth QAT + MTP | 6.7 GB | 256k | 8.0 GB | ~19 tok/s | full context in host RAM |
+| | | | 32k | 8.2 GB | ~104 tok/s | limited context in VRAM |
+| Gemma4-26B-A4B | Unsloth QAT + MTP | 15 GB | 256k | 8.2 GB | ~32 tok/s | |
+| Gemma4-31B | Unsloth QAT + MTP | 18 GB | 256k | ~31 GB | ~2 tok/s | doesn't fit |
 
 **Notes:**
 
@@ -91,7 +92,8 @@ served on demand. All models were carefully cherry-picked and tuned.
   running on an integrated video card and your discrete card is detached from the X
   server)
 - <sup>2</sup> As measured on the RTX 3080
-- <sup>3</sup> Context limited to 32k
+- <sup>3</sup> 256k context offloaded to host RAM
+- <sup>4</sup> 32k context in VRAM
 - KV cache quantized to `q8_0` for all models.
 - No turboquant as it would preclude getting the latest releases from the main branch.
 

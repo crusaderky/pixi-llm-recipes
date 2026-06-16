@@ -178,7 +178,7 @@ The `models.ini` file uses the native llama-server preset format (`--models-pres
 | `MiniCPM5-1B` | openbmb/MiniCPM5-1B-GGUF:Q4_K_M | 0.7 GiB | ~455 tok/s |
 | `Gemma4-E2B` | unsloth/gemma-4-E2B-it-qat-GGUF:UD-Q4_K_XL | 3.5 GiB | ~222 tok/s |
 | `Gemma4-E4B` | unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL | 5.0 GiB | ~137 tok/s |
-| `Gemma4-12B` | unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL | 6.7 GiB | ~112 tok/s |
+| `Gemma4-12B` | unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL | 6.7 GiB | ~112 tok/s (limited context) |
 | `Gemma4-26B-A4B` | unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL | 15 GiB | ~32 tok/s |
 | `Gemma4-31B` | unsloth/gemma-4-31B-it-qat-GGUF:UD-Q4_K_XL | 18 GB | ~2 tok/s (does not fit) |
 
