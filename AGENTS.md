@@ -8,6 +8,7 @@
 2. **Packages pi-extensions** — a curated set of pi coding agent plugins.
 3. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
 4. **Benchmarks LLM inference** via `llama-benchy`.
+5. **Benchmarks long-context recall** (and how it degrades under quantized KV cache) via the `context-bench` harness in `sample-data/context-bench/`.
 
 ## Key Technologies
 
@@ -40,6 +41,12 @@ pixi-llm-recipes/
 ├── sample-data/
 │   ├── wiki.test.raw                 # Wikitext-2 benchmark corpus for llama-perplexity
 │   ├── describe-me.jpg               # Arbitrary image for multimodal testing
+│   ├── context-bench/                # Long-context recall benchmark
+│   │   ├── AGENTS.md                 # System prompt given to the model under test
+│   │   ├── run_benchmark.py          # Prompts each model, grades answers, writes a TOML report
+│   │   ├── config.toml               # Runner config (one table per model)
+│   │   ├── 16k.txt … 256k.txt        # Books sized to fill 16k/32k/64k/128k/256k contexts (20 questions appended)
+│   │   └── 16k.answers.txt …         # Reference answers (A1–A20) with source line numbers
 │   └── README.md                     # Sample data documentation
 └── pixi-recipes/
     ├── llama-cpp-source/
@@ -155,7 +162,7 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 | `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export` |
 | `claude` | `claude` (from `pixi-recipes/claude`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe` |
 | `git` | `git` and `gh` (GitHub CLI from conda-forge) | `git`, `gh` |
-| `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers` etc. | `llama-benchy`, `hf` |
+| `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc. | `llama-benchy`, `hf`, `context-bench` |
 
 | Environment | Feature(s) |
 |------------|-----------|
@@ -183,6 +190,21 @@ The `models.ini` file uses the native llama-server preset format (`--models-pres
 | `Gemma4-31B` | unsloth/gemma-4-31B-it-qat-GGUF:UD-Q4_K_XL | 18 GB | ~2 tok/s (does not fit) |
 
 Global settings include Jinja templating, flash attention, KV cache quantization (`q8_0`), reasoning budgets, and `models-max = 1`.
+
+### `sample-data/context-bench/` — Long-Context Recall Benchmark
+
+Measures how well a model recalls facts scattered through a long context, and how that degrades under pressure such as a quantized KV cache. It consists of:
+
+- **Books** `16k.txt`, `32k.txt`, `64k.txt`, `128k.txt`, `256k.txt` — public-domain Project Gutenberg books, each sized so its text plus questions comfortably fills the named context window. The PG license boilerplate is stripped; 20 questions about strict, unambiguous facts (drawn from paragraphs spread evenly through the book) are appended under a `QUESTIONS` section.
+- **Answer keys** `<size>.answers.txt` — reference answers `A1`–`A20`, each with the original source line number(s) in `[brackets]`.
+- **`AGENTS.md`** — the system prompt handed to the model under test (no tools): answer `A1`–`A20` from the supplied text only, in the requested format, leaving an answer blank if unknown.
+- **`run_benchmark.py`** — the runner (see below).
+
+The books are deliberately obscure, recently-digitised titles so that answers must come from the context, not the model's training data. When bumping/replacing a book, keep it well under its target window (the existing ones fill ~70–90%) and regenerate the matching `.answers.txt`.
+
+#### `run_benchmark.py`
+
+Reads a Pydantic-validated TOML config (one `[model tag]` table each: `url` defaulting to localhost, optional `api_key`/`api_key_env`/`model_name`, required `max_context` accepting `65536`/`64k`/`1M`, and optional `temperature`/`max_tokens`/`timeout`). An optional `[*]` table supplies defaults applied to every model (per-model values override it). For every model it sends `AGENTS.md` (system) + each book (user) via the `openai` client, for **all books whose nominal size ≤ `max_context`** (cumulative). Answers are graded with normalized string matching (case-insensitive; ignores articles, currency symbols, separators and spacing; maps number-words to digits, e.g. `nine`→`9`). It writes a TOML report keyed `[model tag.context size]` with `raw_answers` (verbatim), `outcomes` (20× `PASS`/`NO ANSWER`/`WRONG`) and `grade` = `(#PASS − #WRONG)/20` in `[-1, 1]`. Grading is deterministic, so a correct-but-off-format answer can score `WRONG`; `raw_answers` is preserved for inspection.
 
 ### `scripts/bwrap-claude.sh` — Claude Code Bubblewrap Sandbox
 
@@ -316,6 +338,9 @@ pixi run -e llamacpp-source-cuda llama-perplexity
 
 # Throughput benchmark
 pixi run llama-benchy
+
+# Long-context recall benchmark (edit the config first; one table per model endpoint)
+pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 ```
 
 ### Adding a New Backend (llama-cpp)
@@ -353,6 +378,11 @@ pixi run llama-benchy
 | `sample-data/wiki.test.raw` | Wikitext-2 corpus for `llama-perplexity` |
 | `sample-data/describe-me.jpg` | Image for multimodal testing |
 | `sample-data/README.md` | Sample data documentation |
+| `sample-data/context-bench/run_benchmark.py` | Long-context recall benchmark runner (prompts models, grades, writes TOML) |
+| `sample-data/context-bench/AGENTS.md` | System prompt for the model under test |
+| `sample-data/context-bench/config.toml` | Benchmark runner config |
+| `sample-data/context-bench/<size>.txt` | Benchmark books (16k–256k) with 20 questions appended |
+| `sample-data/context-bench/<size>.answers.txt` | Reference answers with source line numbers |
 | `pixi-recipes/llama-cpp-source/build.sh` | Shared CMake build + install + symlink script |
 | `pixi-recipes/llama-cpp-source/cpu/recipe.yaml` | CPU build recipe |
 | `pixi-recipes/llama-cpp-source/cuda/recipe.yaml` | CUDA build recipe |

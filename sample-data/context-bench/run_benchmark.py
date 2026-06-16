@@ -17,18 +17,31 @@ Config format (one table per model; the table name is the "model tag")::
     api_key_env = "OPENAI_API_KEY"     # optional, name of env var holding key
     model_name = "Qwen3.6-35B"         # optional; defaults to the table name
     max_context = "64k"                # required; int, or k / M suffix
-    temperature = 0.0                  # optional; default: 0
-    max_tokens = 4096                  # optional; default: 32k
+    temperature = 0.0                  # optional; default: let server decide
+    max_tokens = 4096                  # optional; default: let server decide
     timeout = 3600                     # optional; request timeout in seconds
+
+An optional ``[*]`` table supplies defaults applied to every model; values set
+in a specific model table override the ``[*]`` defaults::
+
+    [*]
+    max_context = "64k"                # e.g. give every model the same window
+    timeout = 1800
 
 For every model the runner evaluates *all* books whose nominal size is
 <= ``max_context`` (cumulative), so you can watch recall degrade as the context
 grows. Output (one table per model/book pair)::
 
     [my-model.64k]
-    raw_answers = '''...the model's unprocessed reply...'''
+    raw_answers = '''...the model's unprocessed answer text...'''
+    thoughts = '''...the model's raw train of thought (if any)...'''
     outcomes = ["PASS", "NO ANSWER", "WRONG", ...]   # 20 elements, A1..A20
     grade = 0.85   # (#PASS - #WRONG) / 20, in [-1, 1]
+
+The reply is streamed to stdout as it arrives: the train of thought is shown
+in grey, the answers in the default colour. Press Ctrl+C to stop early —
+whatever has been collected so far (including the partial in-flight reply) is
+still written to the output TOML.
 """
 import argparse
 import os
@@ -40,10 +53,19 @@ from pathlib import Path
 
 import tomli_w
 from openai import OpenAI
-from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    field_validator,
+    model_validator,
+)
 
 HERE = Path(__file__).resolve().parent
 N_QUESTIONS = 20
+GREY = "\033[90m"  # train of thought, as per standard coding agents
+RESET = "\033[0m"
 
 
 # --------------------------------------------------------------------------- #
@@ -71,8 +93,8 @@ class ModelConfig(BaseModel):
     api_key_env: str | None = None
     model_name: str | None = None
     max_context: int = Field(...)
-    temperature: float = 0
-    max_tokens: int = 32768
+    temperature: float | None = None
+    max_tokens: int | None = None
     timeout: float = 600.0
 
     @field_validator("max_context", mode="before")
@@ -99,7 +121,24 @@ class ModelConfig(BaseModel):
 
 
 class Config(RootModel[dict[str, ModelConfig]]):
-    pass
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_wildcard(cls, data: object) -> object:
+        """Merge the optional ``[*]`` table of defaults into every model.
+
+        Per-model values override the wildcard defaults; the ``*`` table itself
+        is removed and never treated as a model.
+        """
+        if not isinstance(data, dict) or "*" not in data:
+            return data
+        defaults = data["*"] or {}
+        if not isinstance(defaults, dict):
+            raise ValueError('the "*" config table must be a table of defaults')
+        return {
+            tag: {**defaults, **(table or {})}
+            for tag, table in data.items()
+            if tag != "*"
+        }
 
 
 # --------------------------------------------------------------------------- #
@@ -282,23 +321,134 @@ def score(outcomes: list[str]) -> float:
 # --------------------------------------------------------------------------- #
 # Inference
 # --------------------------------------------------------------------------- #
-def query_model(cfg: ModelConfig, system_prompt: str, book_text: str) -> str:
+class _ThinkSplitter:
+    """Split a streamed ``content`` field into ``(text, is_thought)`` pieces.
+
+    Treats ``<think>...</think>`` spans as train of thought, correctly handling
+    a tag that is split across streaming chunks.
+    """
+
+    def __init__(self) -> None:
+        self.in_think = False
+        self._buf = ""
+
+    @staticmethod
+    def _partial_suffix(buf: str, tag: str) -> int:
+        # longest suffix of buf that is a prefix of tag (a possibly-split tag)
+        for k in range(min(len(tag) - 1, len(buf)), 0, -1):
+            if buf[-k:] == tag[:k]:
+                return k
+        return 0
+
+    def feed(self, text: str) -> list[tuple[str, bool]]:
+        self._buf += text
+        pieces: list[tuple[str, bool]] = []
+        while True:
+            tag = "</think>" if self.in_think else "<think>"
+            idx = self._buf.find(tag)
+            if idx != -1:
+                if idx:
+                    pieces.append((self._buf[:idx], self.in_think))
+                self._buf = self._buf[idx + len(tag):]
+                self.in_think = not self.in_think
+                continue
+            keep = self._partial_suffix(self._buf, tag)
+            emit = self._buf[: len(self._buf) - keep]
+            if emit:
+                pieces.append((emit, self.in_think))
+            self._buf = self._buf[len(self._buf) - keep:]
+            return pieces
+
+    def flush(self) -> list[tuple[str, bool]]:
+        if not self._buf:
+            return []
+        pieces = [(self._buf, self.in_think)]
+        self._buf = ""
+        return pieces
+
+
+def _reasoning_delta(delta: object) -> str | None:
+    """Extract a separate ``reasoning_content`` field from a streaming delta."""
+    rc = getattr(delta, "reasoning_content", None)
+    if rc is None:
+        extra = getattr(delta, "model_extra", None)
+        if extra:
+            rc = extra.get("reasoning_content")
+    return rc
+
+
+def query_model(
+    cfg: ModelConfig, system_prompt: str, book_text: str, header: str
+) -> tuple[str, str, bool]:
+    """Stream the reply, echoing it to stdout (thoughts in grey).
+
+    Returns ``(answers, thoughts, interrupted)``: the answer text (content
+    outside any ``<think>`` span), the raw train of thought (``reasoning_content``
+    plus any inline ``<think>`` spans), and whether streaming was cut short by a
+    Ctrl+C (in which case the returned text is whatever streamed before it).
+    """
     client = OpenAI(
         base_url=cfg.url, api_key=cfg.resolve_api_key(), timeout=cfg.timeout
     )
-    kwargs: dict[str, object] = {}
+    kwargs = {}
+    if cfg.temperature is not None:
+        kwargs["temperature"] = cfg.temperature
     if cfg.max_tokens is not None:
         kwargs["max_tokens"] = cfg.max_tokens
-    resp = client.chat.completions.create(
+
+    stream = client.chat.completions.create(
         model=cfg.model_name,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": book_text},
         ],
-        temperature=cfg.temperature,
+        stream=True,
         **kwargs,
     )
-    return resp.choices[0].message.content or ""
+
+    use_color = sys.stdout.isatty()
+    answers: list[str] = []
+    thoughts: list[str] = []
+    cur_thought: bool | None = None
+
+    def emit(text: str, is_thought: bool) -> None:
+        nonlocal cur_thought
+        if not text:
+            return
+        (thoughts if is_thought else answers).append(text)
+        if use_color and is_thought != cur_thought:
+            sys.stdout.write(GREY if is_thought else RESET)
+            cur_thought = is_thought
+        sys.stdout.write(text)
+        sys.stdout.flush()
+
+    sys.stdout.write(header)
+    sys.stdout.flush()
+    splitter = _ThinkSplitter()
+    interrupted = False
+    try:
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            rc = _reasoning_delta(delta)
+            if rc:
+                emit(rc, True)
+            content = getattr(delta, "content", None)
+            if content:
+                for piece, is_thought in splitter.feed(content):
+                    emit(piece, is_thought)
+        for piece, is_thought in splitter.flush():
+            emit(piece, is_thought)
+    except KeyboardInterrupt:
+        interrupted = True
+    finally:
+        if use_color and cur_thought:
+            sys.stdout.write(RESET)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
+    return "".join(answers), "".join(thoughts), interrupted
 
 
 # --------------------------------------------------------------------------- #
@@ -315,50 +465,64 @@ def run(config_path: Path, output_path: Path) -> None:
 
     results: dict[str, dict[str, dict[str, object]]] = {}
 
-    for tag, cfg in config.root.items():
-        cfg.model_name = cfg.model_name or tag
-        eligible = [b for b in books if b.size <= cfg.max_context]
-        if not eligible:
-            print(
-                f"[{tag}] max_context={cfg.max_context} is below the smallest "
-                f"book ({books[0].label}); skipping.",
-                file=sys.stderr,
-            )
-            continue
+    try:
+        for tag, cfg in config.root.items():
+            cfg.model_name = cfg.model_name or tag
+            eligible = [b for b in books if b.size <= cfg.max_context]
+            if not eligible:
+                print(
+                    f"[{tag}] max_context={cfg.max_context} is below the smallest "
+                    f"book ({books[0].label}); skipping.",
+                    file=sys.stderr,
+                )
+                continue
 
-        results[tag] = {}
-        for book in eligible:
-            print(f"[{tag}] {book.label}: querying {cfg.model_name} ...", file=sys.stderr)
-            try:
-                raw = query_model(cfg, system_prompt, book.text())
-                if raw.strip() == "":
-                    print(f"[{tag}] {book.label}: EMPTY RESPONSE", file=sys.stderr)
+            results[tag] = {}
+            for book in eligible:
+                print(f"[{tag}] {book.label}: querying {cfg.model_name} ...", file=sys.stderr)
+                header = f"\n===== [{tag}] {book.label} =====\n"
+                thoughts = ""
+                interrupted = False
+                try:
+                    raw, thoughts, interrupted = query_model(
+                        cfg, system_prompt, book.text(), header
+                    )
+                    if raw.strip() == "":
+                        print(f"[{tag}] {book.label}: EMPTY RESPONSE", file=sys.stderr)
+                        outcomes = []
+                    else:
+                        outcomes = grade(parse_model_answers(raw), book.answers())
+                except Exception as exc:  # network / API errors: record and continue
+                    print(f"[{tag}] {book.label}: ERROR {exc}", file=sys.stderr)
+                    raw = f"<error: {exc}>"
                     outcomes = []
-                else:
-                    outcomes = grade(parse_model_answers(raw), book.answers())
-            except Exception as exc:  # network / API errors: record and continue
-                print(f"[{tag}] {book.label}: ERROR {exc}", file=sys.stderr)
-                raw = f"<error: {exc}>"
-                outcomes = []
 
-            g = score(outcomes)
-            n_pass = outcomes.count("PASS")
-            n_no_answer = outcomes.count("NO ANSWER")
-            n_wrong = outcomes.count("WRONG")
-            print(
-                f"[{tag}] {book.label}: "
-                f"{n_pass} PASS, {n_no_answer} NO ANSWER, {n_wrong} WRONG, grade={g}",
-                file=sys.stderr,
-            )
-            results[tag][book.label] = {
-                "raw_answers": raw,
-                "outcomes": outcomes,
-                "grade": g,
-            }
+                g = score(outcomes)
+                n_pass = outcomes.count("PASS")
+                n_no_answer = outcomes.count("NO ANSWER")
+                n_wrong = outcomes.count("WRONG")
+                print(
+                    f"[{tag}] {book.label}: "
+                    f"{n_pass} PASS, {n_no_answer} NO ANSWER, {n_wrong} WRONG, grade={g}",
+                    file=sys.stderr,
+                )
+                results[tag][book.label] = {
+                    "raw_answers": raw,
+                    "thoughts": thoughts,
+                    "outcomes": outcomes,
+                    "grade": g,
+                }
 
-    with output_path.open("wb") as f:
-        tomli_w.dump(results, f, multiline_strings=True)
-    print(f"\nWrote {output_path}", file=sys.stderr)
+                # Ctrl+C during streaming: the partial reply above is recorded;
+                # now stop and write what we have.
+                if interrupted:
+                    raise KeyboardInterrupt
+    except KeyboardInterrupt:
+        print("\nInterrupted — writing partial results so far.", file=sys.stderr)
+    finally:
+        with output_path.open("wb") as f:
+            tomli_w.dump(results, f, multiline_strings=True)
+        print(f"Wrote {output_path}", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> None:

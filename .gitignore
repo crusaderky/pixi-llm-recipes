@@ -4,3 +4,4 @@
 llama-server.log
 huggingface
 sample-data/context-bench/context-bench-results.toml
+*.pyc
