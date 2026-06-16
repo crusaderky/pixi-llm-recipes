@@ -2,35 +2,35 @@
 #
 #   pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 #
-# Each table is one "model tag". Only `max_context` is required.
+# Each table is one "model tag". Only `ctx-size` is required: it lists the
+# books to evaluate, each matching an available book (16k, 32k, 64k, 128k, 256k).
 # `url` defaults to http://localhost:8080/v1 (the project's llama-server).
 #
 # Apply defaults to all models
 ["*"]
 # temperature = 0.0
-max_tokens = 8500  # Slightly higher than the soft limit of 8192 in models.ini
+# max_tokens = 16384  # Note that it's limited server-side too
+ctx-size = ["16k", "32k", "64k", "128k"]
 
 # A model served locally that supports up to 128k tokens of context.
 # It will be evaluated on the 16k, 32k, 64k, and 128k context-wide books.
 
 [MiniCPM5-1B]
-max_context = "16k"
 
 [Gemma4-E2B]
-max_context = "16k"
 
 [Gemma4-E4B]
-max_context = "16k"
 
 [Gemma4-12B]
-max_context = "16k"
-# max_context = "256k"  # Note: requires tweak to models.ini
+# Increasing context beyond 32k requires a change in models.ini
+ctx-size = ["16k", "32k"]
+# ctx-size = ["16k", "32k", "64k", "128k", "256k"]
 
 [Gemma4-26B-A4B]
-max_context = "16k"
+ctx-size = ["16k", "32k", "64k", "128k", "256k"]
 
 ["Qwen3.6-35B-A3B"]
-max_context = "16k"
+ctx-size = ["16k", "32k", "64k", "128k", "256k"]
 
 # Arbitrary OpenAI-compatible endpoint
 # [some-cloud-model]
@@ -38,7 +38,7 @@ max_context = "16k"
 # api_key = "xxxxxxx"
 # api_key_env = "MY_API_KEY"  # Mutually exclusive with api_key
 # model_name = "provider/model-256k"
-# max_context = "256k"
+# ctx-size = ["16k", "32k", "64k", "128k", "256k"]
 # temperature = 0.0
 # max_tokens = 2048
 # timeout = 1800

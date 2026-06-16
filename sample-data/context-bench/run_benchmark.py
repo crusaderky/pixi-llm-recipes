@@ -16,7 +16,8 @@ Config format (one table per model; the table name is the "model tag")::
     api_key = "sk-..."                 # optional, literal key
     api_key_env = "OPENAI_API_KEY"     # optional, name of env var holding key
     model_name = "Qwen3.6-35B"         # optional; defaults to the table name
-    max_context = "64k"                # required; int, or k / M suffix
+    ctx-size = ["16k", "64k", "256k"]  # required; the books to run (each int,
+                                       # or a k / M suffix; must match a book)
     temperature = 0.0                  # optional; default: let server decide
     max_tokens = 4096                  # optional; default: let server decide
     timeout = 3600                     # optional; request timeout in seconds
@@ -25,12 +26,12 @@ An optional ``[*]`` table supplies defaults applied to every model; values set
 in a specific model table override the ``[*]`` defaults::
 
     [*]
-    max_context = "64k"                # e.g. give every model the same window
+    ctx-size = ["16k", "32k", "64k", "128k", "256k"]   # run every model on all
     timeout = 1800
 
-For every model the runner evaluates *all* books whose nominal size is
-<= ``max_context`` (cumulative), so you can watch recall degrade as the context
-grows. Output (one table per model/book pair)::
+For every model the runner evaluates each book listed in ``ctx-size``, so you
+can watch recall degrade as the context grows. Output (one table per
+model/book pair)::
 
     [my-model.64k]
     raw_answers = '''...the model's unprocessed answer text...'''
@@ -90,21 +91,23 @@ def parse_size(value: int | str) -> int:
 
 
 class ModelConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     url: str = "http://localhost:8080/v1"
     api_key: str | None = None
     api_key_env: str | None = None
     model_name: str | None = None
-    max_context: int = Field(...)
+    ctx_size: list[int] = Field(..., alias="ctx-size")
     temperature: float | None = None
     max_tokens: int | None = None
     timeout: float = 600.0
 
-    @field_validator("max_context", mode="before")
+    @field_validator("ctx_size", mode="before")
     @classmethod
-    def _parse_max_context(cls, v: object) -> int:
-        return parse_size(v)  # type: ignore[arg-type]
+    def _parse_ctx_size(cls, v: object) -> list[int]:
+        if not isinstance(v, (list, tuple)):
+            raise ValueError('ctx-size must be a list, e.g. ["16k", "64k"]')
+        return [parse_size(x) for x in v]  # type: ignore[arg-type]
 
     def resolve_api_key(self) -> str:
         """Return the API key, reading the env var if requested.
@@ -490,19 +493,31 @@ def run(config_path: Path, output_path: Path) -> None:
     books = discover_books(HERE)
     if not books:
         raise SystemExit(f"no benchmark books found in {HERE}")
+    by_size = {b.size: b for b in books}
 
     results: dict[str, dict[str, dict[str, object]]] = {}
 
     try:
         for tag, cfg in config.root.items():
             cfg.model_name = cfg.model_name or tag
-            eligible = [b for b in books if b.size <= cfg.max_context]
+            eligible: list[Book] = []
+            seen: set[int] = set()
+            for size in cfg.ctx_size:
+                if size in seen:
+                    continue
+                book = by_size.get(size)
+                if book is None:
+                    avail = ", ".join(b.label for b in books)
+                    print(
+                        f"[{tag}] no book of context size {size}; "
+                        f"available: {avail}. Skipping that size.",
+                        file=sys.stderr,
+                    )
+                    continue
+                seen.add(size)
+                eligible.append(book)
             if not eligible:
-                print(
-                    f"[{tag}] max_context={cfg.max_context} is below the smallest "
-                    f"book ({books[0].label}); skipping.",
-                    file=sys.stderr,
-                )
+                print(f"[{tag}] no valid ctx-size entries; skipping model.", file=sys.stderr)
                 continue
 
             results[tag] = {}
