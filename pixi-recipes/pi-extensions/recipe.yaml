@@ -18,8 +18,8 @@ build:
         pi-llama-cpp@0.7.1
         pi-ollama-cloud@0.6.0
         pi-token-speed@0.5.0
-        @juicesharp/rpiv-advisor@1.19.1
-        @juicesharp/rpiv-ask-user-question@1.19.1
+        @juicesharp/rpiv-advisor@1.20.0
+        @juicesharp/rpiv-ask-user-question@1.20.0
         @tmustier/pi-usage-extension@0.3.2
 
 requirements:

@@ -1,6 +1,6 @@
 ---
 name: update-claude
-description: Update the Claude Code conda recipe to the latest stable npm release. Use when asked to "update claude", "bump claude-code", or "update the claude recipe".
+description: Update the Claude Code conda recipe to the latest npm release. Use when asked to "update claude", "bump claude-code", or "update the claude recipe".
 compatibility: Requires network access to registry.npmjs.org. Designed for the pixi-llm-recipes project.
 allowed-tools: Bash Read Edit
 ---
@@ -13,22 +13,21 @@ Read `pixi-recipes/claude/recipe.yaml`. Extract:
 - **current version** — `context.version` (e.g. `"2.1.153"`)
 - **current sha256** — `source.sha256`
 
-### 2. Fetch the latest stable version from npm
+### 2. Fetch the latest version from npm
 
-Query the npm registry for the `stable` dist-tag:
+Query the npm registry for the `latest` dist-tag:
 
 ```
 GET https://registry.npmjs.org/@anthropic-ai/claude-code
 ```
 
-Extract `.dist-tags.stable` from the JSON response. This is the version to pin
-(not `latest`, which may include pre-releases).
+Extract `.dist-tags.latest` from the JSON response. This is the version to pin.
 
 If the request fails, abort with an error — do **not** modify the recipe.
 
 ### 3. Compare versions
 
-- If `stable_version` == `current_version`: print "Claude Code is already at the latest stable version (<version>). Nothing to do." and stop.
+- If `stable_version` == `current_version`: print "Claude Code is already at the latest version (<version>). Nothing to do." and stop.
 - Otherwise proceed.
 
 ### 4. Compute the sha256 of the new tarball
