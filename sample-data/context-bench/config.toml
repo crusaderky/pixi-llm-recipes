@@ -1,0 +1,39 @@
+# Example config for run_benchmark.py
+#
+#   pixi run context-bench sample-data/context-bench/config.example.toml -o results.toml
+#
+# Each table is one "model tag". Only `max_context` is required.
+# `url` defaults to http://localhost:8080/v1 (the project's llama-server).
+
+# A model served locally that supports up to 128k tokens of context.
+# It will be evaluated on the 16k, 32k, 64k, and 128k context-wide books.
+
+# This is spectacularly bad; don't bother
+# [MiniCPM5-1B]
+# max_context = "128k"
+
+[Gemma4-E2B]
+max_context = "128k"
+
+[Gemma4-E4B]
+max_context = "128k"
+
+[Gemma4-12B]
+max_context = "256k"  # Note: requires tweak to models.ini
+
+[Gemma4-26B-A4B]
+max_context = "256k"
+
+["Qwen3.6-35B-A3B"]
+max_context = "256k"
+
+# Arbitrary OpenAI-compatible endpoint
+# [some-cloud-model]
+# url = "https://api.example.com/v1"
+# api_key = "xxxxxxx"
+# api_key_env = "MY_API_KEY"  # Mutually exclusive with api_key
+# model_name = "provider/model-256k"
+# max_context = "256k"
+# temperature = 0.0
+# max_tokens = 2048
+# timeout = 1800

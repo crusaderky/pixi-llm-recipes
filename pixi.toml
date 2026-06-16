@@ -119,6 +119,9 @@ pydantic = "*"
 safetensors = "*"
 tokenizers = "*"
 transformers = "*"
+# context-bench runner dependencies
+openai = "*"
+tomli-w = "*"
 
 [feature.pytools.pypi-dependencies]
 llama-benchy = "*"
@@ -126,6 +129,7 @@ llama-benchy = "*"
 [feature.pytools.tasks]
 llama-benchy = "python -m llama_benchy --base-url http://localhost:8080/v1 --no-cache --runs 7"
 hf = "hf"
+context-bench = "python sample-data/context-bench/run_benchmark.py"
 
 [environments]
 llamacpp-source-cpu = [ "llamacpp", "llamacpp-source-cpu" ]
