@@ -7,31 +7,30 @@
 #
 # Apply defaults to all models
 ["*"]
-temperature = 0.0
-max_tokens = 8500  # Slightly higher than 8192 which is configured server-side
+# temperature = 0.0
+max_tokens = 8500  # Slightly higher than the soft limit of 8192 in models.ini
 
 # A model served locally that supports up to 128k tokens of context.
 # It will be evaluated on the 16k, 32k, 64k, and 128k context-wide books.
 
-# This is spectacularly bad; don't bother
-# [MiniCPM5-1B]
-# max_context = "128k"
+[MiniCPM5-1B]
+max_context = "16k"
 
-# [Gemma4-E2B]
-# max_context = "128k"
+[Gemma4-E2B]
+max_context = "16k"
 
-# [Gemma4-E4B]
-# max_context = "128k"
+[Gemma4-E4B]
+max_context = "16k"
 
 [Gemma4-12B]
-max_context = "32k"
+max_context = "16k"
 # max_context = "256k"  # Note: requires tweak to models.ini
 
 [Gemma4-26B-A4B]
-max_context = "256k"
+max_context = "16k"
 
 ["Qwen3.6-35B-A3B"]
-max_context = "256k"
+max_context = "16k"
 
 # Arbitrary OpenAI-compatible endpoint
 # [some-cloud-model]

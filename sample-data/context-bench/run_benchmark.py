@@ -36,7 +36,10 @@ grows. Output (one table per model/book pair)::
     raw_answers = '''...the model's unprocessed answer text...'''
     thoughts = '''...the model's raw train of thought (if any)...'''
     outcomes = ["PASS", "NO ANSWER", "WRONG", ...]   # 20 elements, A1..A20
-    grade = 0.85   # (#PASS - #WRONG) / 20, in [-1, 1]
+    grade = 0.85           # (#PASS - #WRONG) / 20, in [-1, 1]
+    wall_time_s = 12.34    # request wall-clock time
+    completion_tokens = 256  # output tokens (when the server reports usage)
+    tokens_per_s = 20.7    # completion_tokens / wall_time_s
 
 The reply is streamed to stdout as it arrives: the train of thought is shown
 in grey, the answers in the default colour. Press Ctrl+C to stop early —
@@ -47,6 +50,7 @@ import argparse
 import os
 import re
 import sys
+import time
 import tomllib
 import unicodedata
 from pathlib import Path
@@ -396,6 +400,7 @@ def query_model(
     if cfg.max_tokens is not None:
         kwargs["max_tokens"] = cfg.max_tokens
 
+    start = time.monotonic()
     stream = client.chat.completions.create(
         model=cfg.model_name,
         messages=[
@@ -403,6 +408,7 @@ def query_model(
             {"role": "user", "content": book_text},
         ],
         stream=True,
+        stream_options={"include_usage": True},
         **kwargs,
     )
 
@@ -426,8 +432,12 @@ def query_model(
     sys.stdout.flush()
     splitter = _ThinkSplitter()
     interrupted = False
+    usage = None
     try:
         for chunk in stream:
+            chunk_usage = getattr(chunk, "usage", None)
+            if chunk_usage is not None:
+                usage = chunk_usage
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta
@@ -448,7 +458,25 @@ def query_model(
         sys.stdout.write("\n")
         sys.stdout.flush()
 
-    return "".join(answers), "".join(thoughts), interrupted
+    wall = time.monotonic() - start
+    completion_tokens = getattr(usage, "completion_tokens", None)
+    tps = completion_tokens / wall if completion_tokens and wall > 0 else None
+
+    metrics: dict[str, float | int] = {"wall_time_s": round(wall, 3)}
+    if completion_tokens is not None:
+        metrics["completion_tokens"] = int(completion_tokens)
+    if tps is not None:
+        metrics["tokens_per_s"] = round(tps, 2)
+
+    footer = f"⏱  {wall:.1f}s"
+    if completion_tokens is not None:
+        footer += f"  ·  {int(completion_tokens)} tok"
+    if tps is not None:
+        footer += f"  ·  {tps:.1f} tok/s"
+    sys.stdout.write(f"{GREY}{footer}{RESET}\n" if use_color else f"{footer}\n")
+    sys.stdout.flush()
+
+    return "".join(answers), "".join(thoughts), interrupted, metrics
 
 
 # --------------------------------------------------------------------------- #
@@ -483,8 +511,9 @@ def run(config_path: Path, output_path: Path) -> None:
                 header = f"\n===== [{tag}] {book.label} =====\n"
                 thoughts = ""
                 interrupted = False
+                metrics: dict[str, float | int] = {}
                 try:
-                    raw, thoughts, interrupted = query_model(
+                    raw, thoughts, interrupted, metrics = query_model(
                         cfg, system_prompt, book.text(), header
                     )
                     if raw.strip() == "":
@@ -501,9 +530,17 @@ def run(config_path: Path, output_path: Path) -> None:
                 n_pass = outcomes.count("PASS")
                 n_no_answer = outcomes.count("NO ANSWER")
                 n_wrong = outcomes.count("WRONG")
+                perf = ""
+                if "wall_time_s" in metrics:
+                    perf += f", {metrics['wall_time_s']}s"
+                if "completion_tokens" in metrics:
+                    perf += f", {metrics['completion_tokens']} tok"
+                if "tokens_per_s" in metrics:
+                    perf += f", {metrics['tokens_per_s']} tok/s"
                 print(
                     f"[{tag}] {book.label}: "
-                    f"{n_pass} PASS, {n_no_answer} NO ANSWER, {n_wrong} WRONG, grade={g}",
+                    f"{n_pass} PASS, {n_no_answer} NO ANSWER, {n_wrong} WRONG, grade={g}"
+                    f"{perf}",
                     file=sys.stderr,
                 )
                 results[tag][book.label] = {
@@ -511,6 +548,7 @@ def run(config_path: Path, output_path: Path) -> None:
                     "thoughts": thoughts,
                     "outcomes": outcomes,
                     "grade": g,
+                    **metrics,
                 }
 
                 # Ctrl+C during streaming: the partial reply above is recorded;
