@@ -51,7 +51,7 @@ jobs:
       - uses: prefix-dev/setup-pixi@v0
         with:
           pixi-version: v0.70.2
-          environments: llamacpp-${{ matrix.backend }} pytools pi
+          environments: llamacpp-${{ matrix.backend }} agents
           cache: true
           locked: true
 
