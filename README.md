@@ -224,6 +224,21 @@ To get the list, you can just run:
 pixi r llama-benchy
 ```
 
+### Long-context recall
+
+`context-bench` measures how well a model recalls discrete facts scattered through a long
+context (16k–256k tokens), and how — or whether — that degrades under pressure such as a
+quantized KV cache. With a llama-server running:
+
+```bash
+pixi r context-bench sample-data/context-bench/config.toml -o results.toml
+```
+
+It's an extractive needle-recall task, which is deliberately robust: it will not show the
+KV-cache quantization harm that `llama-perplexity` does, and its run-to-run variance is
+large. See [`sample-data/context-bench/README.md`](sample-data/context-bench/README.md)
+for why, and how to read the numbers without over-interpreting them.
+
 ## Maintenance
 
 There are skills available; you can ask pi to

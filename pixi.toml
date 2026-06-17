@@ -130,6 +130,7 @@ llama-benchy = "*"
 llama-benchy = "python -m llama_benchy --base-url http://localhost:8080/v1 --no-cache --runs 7"
 hf = "hf"
 context-bench = "python sample-data/context-bench/run_benchmark.py"
+aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_results.py"
 
 [environments]
 llamacpp-source-cpu = [ "llamacpp", "llamacpp-source-cpu" ]

@@ -20,6 +20,8 @@ Config format (one table per model; the table name is the "model tag")::
                                        # or a k / M suffix; must match a book)
     temperature = 0.0                  # optional; default: let server decide
     max_tokens = 4096                  # optional; default: let server decide
+    seed = 42                          # optional; default: server picks a random
+                                       # seed per request (non-reproducible)
     timeout = 3600                     # optional; request timeout in seconds
 
 An optional ``[*]`` table supplies defaults applied to every model; values set
@@ -100,6 +102,7 @@ class ModelConfig(BaseModel):
     ctx_size: list[int] = Field(..., alias="ctx-size")
     temperature: float | None = None
     max_tokens: int | None = None
+    seed: int | None = None
     timeout: float = 600.0
 
     @field_validator("ctx_size", mode="before")
@@ -402,6 +405,8 @@ def query_model(
         kwargs["temperature"] = cfg.temperature
     if cfg.max_tokens is not None:
         kwargs["max_tokens"] = cfg.max_tokens
+    if cfg.seed is not None:
+        kwargs["seed"] = cfg.seed
 
     start = time.monotonic()
     stream = client.chat.completions.create(
