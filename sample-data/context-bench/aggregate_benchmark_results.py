@@ -59,13 +59,13 @@ def main(argv: list[str] | None = None) -> None:
     # ------------------------------------------------------------------ #
     # 2) Aggregate per label
     # ------------------------------------------------------------------ #
-    rows: list[tuple[str, str, str, int, float, float, float, float, float]] = []
+    rows: list[tuple[str, str, str, int, float, float, float, float, float, int, int, float]] = []
 
     for label in sorted(label_files):
         fpaths = sorted(label_files[label], key=lambda p: p.name)
 
-        # Collect counters per (model, context) across all reruns
-        buckets: dict[tuple[str, str], list[Counter[str]]] = {}
+        # Collect (counter, completion_tokens) per (model, context) across all reruns
+        buckets: dict[tuple[str, str], list[tuple[Counter[str], int | None]]] = {}
 
         for fpath in fpaths:
             data = tomllib.loads(fpath.read_text(encoding="utf-8"))
@@ -84,16 +84,22 @@ def main(argv: list[str] | None = None) -> None:
 
                     outcomes_pp = postprocess_outcomes(outcomes)
                     counter = Counter(outcomes_pp)
+                    completion = row.get("completion_tokens")
+                    if not isinstance(completion, int):
+                        completion = None
                     key = (raw_model, raw_context)
-                    buckets.setdefault(key, []).append(counter)
+                    buckets.setdefault(key, []).append((counter, completion))
 
         # Aggregate each bucket
         for (model, context), entries in buckets.items():
             total_counter: Counter[str] = Counter()
             n = len(entries)
+            comp_vals: list[int] = []
 
-            for counter in entries:
+            for counter, comp in entries:
                 total_counter += counter
+                if comp is not None:
+                    comp_vals.append(comp)
 
             total_cnt = sum(total_counter.values())
             coll = total_counter.get("MODEL COLLAPSE", 0)
@@ -116,6 +122,12 @@ def main(argv: list[str] | None = None) -> None:
             else:
                 pass_pct = wrong_pct = no_ans_pct = grade = 0.0
 
+            comp_mean = round(sum(comp_vals) / len(comp_vals)) if comp_vals else 0
+            comp_std = round(
+                (sum((c - comp_mean) ** 2 for c in comp_vals) / len(comp_vals)) ** 0.5
+            ) if comp_vals else 0
+            exceeded_budget = round(sum(1 for c in comp_vals if c > 8192) / len(comp_vals) * 100, 2) if comp_vals else 0.0
+
             rows.append((
                 label,
                 model,
@@ -126,6 +138,9 @@ def main(argv: list[str] | None = None) -> None:
                 no_ans_pct,
                 wrong_pct,
                 coll_pct,
+                comp_mean,
+                comp_std,
+                exceeded_budget,
             ))
 
     # ------------------------------------------------------------------ #
@@ -133,7 +148,7 @@ def main(argv: list[str] | None = None) -> None:
     # ------------------------------------------------------------------ #
     with args.output.open("w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["label", "model", "context", "runs_count", "grade", "pass", "no answer", "wrong", "model collapse"])
+        w.writerow(["label", "model", "context", "runs_count", "grade", "pass", "no answer", "wrong", "model collapse", "completion_tokens_mean", "completion_tokens_std", "exceeded_reasoning_budget"])
         w.writerows(rows)
 
     print(f"Wrote {args.output} ({len(rows)} rows)", file=sys.stderr)

@@ -140,3 +140,87 @@ ctx-size = ["16k", "64k", "256k"]  # required; books to run (int, or k/M suffix)
 ```
 
 Run `python run_benchmark.py --help` for the full docstring.
+
+## Benchmark results
+
+Results are with `models.ini` as of 2026-06-18; it may have changed since then.
+
+### Findings
+
+- All results below are with `--cache-type-k q8_0 --cache-type-v q8_0`. The test was
+  rerun with `--cache-type-k q4_0 --cache-type-v q4_0`, which produced **no degradation
+  above noise levels**. Please read above in this document to understand why this does
+  not mean you should just use q4/q4 in production!
+- **Qwen3.6-35B-A3B achieved near-perfect scores even at 256k context**. Its token usage
+  grows mildly with context size and is and very predictable throughout the board. I
+  would trust it to extract data from documents of any size (but note that it still
+  hallucinates 3% of the time).
+- **Performance of all Gemma models falls down a cliff past 32k context**, with
+  hallucinations shooting up in the 25% territory. This is likely due to their [sliding
+  window](https://ai.google.dev/gemma/docs/core/model_card_4#models_overview) attention
+  design.
+- **Gemma 4 E2B and E4B proved competent** for their size - at least up to 32k context.
+  32k context converts to 22~25k words in English; a research paper is typically 4k~9k
+  words. I would *cautiously* use these models to extract data from anything shorter
+  than a novel, if I could not afford to run Qwen (e.g. I need to run on a phone).
+  Emphasis on *cautiously* - these models were still **confidently wrong 15% of the
+  times**.
+- **Gemma 4 12B and 26B A4B proved astonishingly poor** for their size - somewhat better
+  grades than their smaller siblings, but unusable in practice. They routinely went into
+  infinite thought loops, which were rescued by the `reasoning-budget = 8192` plus
+  `reasoning-budget-message` settings in `models.ini`. Even when rescued, lots of time
+  was wasted reaching the ceiling of the reasoning budget, making them effectively
+  vastly slower than the other models. Despite the reasoning budget cap, Gemma 4 12B and
+  26B A4B routinely went into complete model collapse, often repeating incoherent output
+  to infinity, and were hard-terminated by `max_tokens = 9000` in `config.toml`. No
+  amount of tweaking to their parameters fixed this behaviour. Note that **model collapse
+  produces survivor bias in the other scores of the model**.
+
+  [forge](https://github.com/antoinezambelli/forge) may be the solution to always get a
+  response (untested) - however it would not prevent the model from burning through 9k
+  tokens two or three times to reach the response.
+
+### Grading
+
+`grade` is calculated as follows:
+
+- pass (correct answer) = +1
+- no answer = 0
+- wrong (hallucinated answer) = -1
+
+Repeat the test 5 times, sum everything up, and normalize to obtain grade in the
+`[-100%, +100%]` range.
+
+"Model collapse" is when the model went into an infinite loop and did not produce any
+answers. It is not accounted for in the normalization of `grade`, `pass`, `no answer`,
+and `wrong`.
+
+### Detailed results
+
+| model | context | runs | grade | pass | no answer | wrong | tokens/prompt | exceeded reasoning budget | model collapse |
+|-------|---------|------|-------|------|-----------|-------|---------------|---------------------------|----------------|
+| Qwen3.6-35B-A3B | 16k | 5 | 96% | 98% | 0% | 2% | 2.3k ± 0.2k | 0% | 0% |
+| | 32k | 5 | 100% | 100% | 0% | 0% | 2.8k ± 0.3k | 0% | 0% |
+| | 64k | 5 | 100% | 100% | 0% | 0% | 3.1k ± 0.3k | 0% | 0% |
+| | 128k | 5 | 100% | 100% | 0% | 0% | 3.3k ± 0.4k | 0% | 0% |
+| | 256k | 5 | 94% | 97% | 0% | 3% | 3.1k ± 0.7k | 0% | 0% |
+| Gemma4-E2B | 16k | 5 | 60% | 75% | 10% | 15% | 1.9k ± 0.5k | 0% | 0% |
+| | 32k | 5 | 72% | 86% | 0% | 14% | 2.0k ± 0.2k | 0% | 0% |
+| | 64k | 5 | 35% | 67% | 1% | 32% | 2.7k ± 0.4k | 0% | 0% |
+| | 128k | 5 | 10% | 41% | 28% | 31% | 2.7k ± 0.8k | 0% | 0% |
+| Gemma4-E4B | 16k | 5 | 83% | 88% | 7% | 5% | 2.1k ± 0.4k | 0% | 0% |
+| | 32k | 5 | 72% | 86% | 0% | 14% | 1.9k ± 0.5k | 0% | 0% |
+| | 64k | 5 | 10% | 52% | 6% | 42% | 2.9k ± 1.5k | 0% | 0% |
+| | 128k | 5 | 27% | 52% | 23% | 25% | 3.1k ± 1.0k | 0% | 0% |
+| Gemma4-12B | 16k | 5 | 91% | 95% | 1% | 4% | 5.2k ± 1.2k | 0% | 0% |
+| | 32k | 5 | 92% | 96% | 0% | 4% | 4.8k ± 1.6k | 0% | 0% |
+| | 64k | 5 | 58% | 79% | 0% | 21% | 8.4k ± 0.0k | 100% | 0% |
+| | 128k | 5 | 78% | 87% | 4% | 9% | 8.2k ± 0.4k | 80% | 0% |
+| | 256k | 5 | 82% | 91% | 0% | 9% | 5.5k ± 3.2k | 20% | 0% |
+| Gemma4-26B-A4B | 16k | 5 | 99% | 99% | 1% | 0% | 5.3k ± 1.8k | 20% | 0% |
+| | 32k | 5 | 100%* | 100%* | 0%* | 0%* | 3.1k ± 1.3k | 0% | 40% |
+| | 64k | 5 | 45%* | 70%* | 5%* | 25%* | 8.4k ± 0.0k | 100% | 60% |
+| | 128k | 5 | 44% | 66 | 12% | 22% | 7.0k ± 2.7k | 80% | 0% |
+| | 256k | 5 | 66%* | 74%* | 19* | 8%* | 4.7k ± 2.9k | 20% | 20% |
+
+\* Runs that suffered from model collapse were disregarded.
