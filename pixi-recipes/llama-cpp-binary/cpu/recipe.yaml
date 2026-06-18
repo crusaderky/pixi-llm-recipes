@@ -1,6 +1,6 @@
 context:
   backend: cpu
-  version: b9665
+  version: b9721
 
 package:
   name: llama-cpp

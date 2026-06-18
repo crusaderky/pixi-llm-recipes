@@ -49,7 +49,9 @@ source, and three that just unpack the pre-built binaries from upstream releases
 
 The binary environments are much faster to set up since they skip compilation entirely.
 The source environments are the only option to get CUDA (which on my hardware is faster
-than Vulkan) and can be easily adapted to compile PRs and forks.
+than Vulkan) and can be easily adapted to compile PRs and forks. By default they build
+from the [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant)
+fork with KV cache optimizations for improved long-context compression.
 
 To start llama-cpp interactively (you will be asked on which environment you want to run):
 
@@ -95,7 +97,8 @@ served on demand. All models were carefully cherry-picked and tuned.
 - <sup>3</sup> 256k context offloaded to host RAM
 - <sup>4</sup> 32k context in VRAM
 - KV cache quantized to `q8_0` for all models.
-- No turboquant as it would preclude getting the latest releases from the main branch.
+- While llama.cpp uses the turboquant fork, turboquant cache compression is still
+  being studied and is off by default.
 
 ### Tweaking models
 

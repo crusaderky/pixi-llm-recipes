@@ -1,20 +1,28 @@
 ---
 name: llama-cpp-changelog
-description: Summarize changes between two versions of llama.cpp. Initial version defaults to the one pinned in pixi-recipes/llama-cpp-source/cpu/recipe.yaml; final version defaults to the latest upstream release. Both can be overridden with arbitrary git refs via `from=<ref>` and `to=<ref>` args.
+description: Summarize changes between two versions of llama.cpp. Initial version defaults to the one pinned in pixi-recipes/llama-cpp-source/cpu/recipe.yaml (may be commented out — use that value anyway); final version defaults to the latest upstream release. Both can be overridden with arbitrary git refs via `from=<ref>` and `to=<ref>` args.
 compatibility: Uses GitHub API — no git clone needed. Designed for the pixi-llm-recipes project.
 allowed-tools: Bash Read
 ---
 
 ## Arguments (space-separated, all optional)
 
-- `from=<ref>` — starting git ref (tag such as `b9518`, or a commit SHA). Defaults to `context.version` in `pixi-recipes/llama-cpp-source/cpu/recipe.yaml`.
+- `from=<ref>` — starting git ref (tag such as `b9518`, or a commit SHA). Defaults based on active fork:
+  - **Turboquant fork** (uncommented `fork: TheTom/llama-cpp-turboquant`): read the `# Last sync with main at bNNNN` comment in `context` block and use that `bNNNN` value. The fork's own version string (e.g. `feature-turboquant-kv-cache-b9905-4595fff`) is NOT an upstream tag — never use it as FROM.
+  - **Main branch** (uncommented `fork: ggml-org/llama.cpp`): use `context.version` directly.
+  - **Other fork**: look for `# Last sync with main at bNNNN` comment first; fall back to commented-out `# version: bNNNN` under `# Main branch`.
+  - **No sync comment**: fall back to `# version: bNNNN` under `# Main branch` (commented out, ignore `#` when extracting).
 - `to=<ref>` — ending git ref. Defaults to the latest upstream release tag.
 
 ## Steps
 
 ### 1. Resolve `from` ref
 
-- If `from` was **not** supplied, read `pixi-recipes/llama-cpp-source/cpu/recipe.yaml` and extract `context.version` (e.g. `b9518`). Use that value as `FROM`.
+- If `from` was **not** supplied, read `pixi-recipes/llama-cpp-source/cpu/recipe.yaml`.
+  - First, look for a `# Last sync with main at bNNNN` comment in the `context` block. If found, extract `bNNNN` and use that as `FROM`.
+  - If no sync comment, look for uncommented `context.version`. If present (e.g. `version: b9698`), use that value as `FROM`.
+  - If neither, look for `# version: bNNNN` under `# Main branch` (commented out). Ignore the `#` prefix and use that value as `FROM`.
+  - **IMPORTANT**: When the active fork is `TheTom/llama-cpp-turboquant`, its version string contains a `bNNNN` (e.g. `feature-turboquant-kv-cache-b9905-4595fff`). This `b9905` is the turboquant fork's own internal tag, NOT an upstream tag — never use it as FROM.
 - Otherwise use the supplied value as-is as `FROM`.
 
 ### 2. Resolve `to` ref
@@ -89,3 +97,9 @@ End with a concise one-line verdict:
 - "Safe to upgrade — no breaking changes detected."
 - "Review before upgrading — `<flag/API>` was renamed/removed: <details>."
 - "Significant changes — test your workload before upgrading."
+
+#### Turboquant fork note (if applicable)
+
+When the active recipe uses the turboquant fork, add a line clarifying the context:
+- "Turboquant fork currently at its own `bNNNN`, last synced with main at `bXXXX`. This changelog covers upstream main changes `bXXXX`→`bYYYY` — check turboquant branch for whether those changes are already cherry-picked."
+- Do NOT say "turboquant already past this" — the fork's version number is its own internal tag and has no relation to upstream release tags.

@@ -4,7 +4,7 @@
 
 **pixi-llm-recipes** is a [pixi](https://pixi.sh/) project that serves multiple purposes:
 
-1. **Builds and packages llama.cpp** as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan), or using pre-built binaries from upstream releases (CPU, Vulkan, ROCm).
+1. **Builds and packages llama.cpp** (with turboquant KV cache optimizations) as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan), or using pre-built binaries from upstream releases (CPU, Vulkan, ROCm).
 2. **Packages pi-extensions** — a curated set of pi coding agent plugins.
 3. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
 4. **Benchmarks LLM inference** via `llama-benchy`.
@@ -14,7 +14,7 @@
 
 - **pixi** — Cross-platform dependency/environment manager (conda-compatible)
 - **pixi-build / rattler-build** — Conda recipe building system
-- **llama.cpp** — Open-source LLM inference engine by ggml-org (MIT license), built from source
+- **llama.cpp** — Open-source LLM inference engine by ggml-org (MIT license), built from source with turboquant KV cache optimizations via [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant)
 - **bubblewrap (bwrap)** — Containerized sandbox for running the pi agent securely
 - **pi-coding-agent** — The pi coding agent framework (installed via npm)
 - **pi-extensions** — Curated pi plugins installed via a conda package
@@ -128,10 +128,18 @@ The `BACKEND` env var controls which CMake flags are passed:
 
 ### The Build Recipe (`pixi-recipes/llama-cpp-source/*/recipe.yaml`)
 
-Key aspects:
+Each recipe has a `context:` block with the active fork pinned and several alternative forks commented out for reference:
 
-- **Version**: `b9587` (maps to llama.cpp git tag/rev)
-- **Source**: Clones from `https://github.com/ggml-org/llama.cpp` at a pinned commit rev (`d2e22ed975e3464ff8108542c840733b488f165f`)
+| Status | Fork | Version |
+|--------|------|---------|
+| **Active** | `TheTom/llama-cpp-turboquant` | `feature-turboquant-kv-cache-b9905-4595fff` |
+| Commented out | `ggml-org/llama.cpp` (main) | `b9721` |
+| Commented out | `crusaderky/llama.cpp` (turboquant + deltas) | `b9698-turboquant` |
+| Commented out | `crusaderky/llama.cpp` (PR#21067 + deltas) | `b9698-bunch-moe-transfer` |
+| Commented out | `crusaderky/llama.cpp` (turboquant + PR#21067) | `b9698-staging` |
+
+The `source:` block uses `${{ fork }}` and `${{ version }}` template variables, so swapping forks is a one-line change.
+
 - **Build script**: `../build.sh` (shared across variants) runs CMake + Ninja
 - **Build string**: `${{ backend }}_${{ build_number }}`
 - **Output**: Conda package named `llama-cpp`
@@ -360,12 +368,16 @@ pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 
 ### Version Updates (llama-cpp)
 
-1. Find the new tag and commit hash at `https://github.com/ggml-org/llama.cpp/releases`
-2. Update `context.version` in all three `pixi-recipes/llama-cpp-source/{cpu,cuda,vulkan}/recipe.yaml`
-3. Update `source.rev` to the commit hash for the new tag in all three recipes
-4. Update `context.version` in all three `pixi-recipes/llama-cpp-binary/{cpu,vulkan,rocm}/recipe.yaml`
-5. Run `pixi lock` to regenerate the lockfile
-6. Test all backends
+Source builds now track the **turboquant fork** (`TheTom/llama-cpp-turboquant`), not mainline llama.cpp. Binary builds still track mainline releases.
+
+1. **Turboquant fork (active, source builds)**: Check the latest tag on `TheTom/llama-cpp-turboquant` branch `feature/turboquant-kv-cache`. Update `context.version` in all three source recipe.yaml files.
+2. **Main branch (commented out, source builds)**: Check the latest tag on `ggml-org/llama.cpp` releases. Update the commented-out `# version:` under `# Main branch` in all three source recipe.yaml files.
+3. **Upstream merge**: If the turboquant fork merged upstream main since last update, also update the `# Last sync with main at bNNNN` comment.
+4. **Binary builds**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `context.version` in all three binary recipe.yaml files.
+5. Run `pixi lock` to regenerate the lockfile.
+6. Test all backends.
+
+See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 
 ## File Reference
 
@@ -425,7 +437,7 @@ pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 ## Notes for Coding Agents
 
 - **Never edit `pixi.lock`** — regenerate with `pixi lock` or `pixi lock -e <env>`
-- **Never hardcode git revisions** — update `source.rev` in all three `recipe.yaml` files to the commit hash for the new tag
+- **Never hardcode git revisions** — update `context.version` (the git tag) in all three source recipe.yaml files. The `source:` block uses template variables (`${{ fork }}`, `${{ version }}`), not a hardcoded commit SHA.
 - **`build.sh` uses `${PREFIX}`** — set by rattler-build; never reference it outside build scripts
 - **Symlinks use relative paths** (`../opt/llama/...`) — required for correct conda prefix portability
 - **All workspaces target `linux-64`, `linux-aarch64`, and `win-64`** — cross-platform support requires additional logic
