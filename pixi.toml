@@ -58,6 +58,7 @@ llama-perplexity = "llama-perplexity -f sample-data/wiki.test.raw"
 [feature.pi.dependencies]
 pi-coding-agent = "*"
 pi-extensions = { path = "pixi-recipes/pi-extensions" }
+pi-skills = { path = "pixi-recipes/pi-skills" }
 
 [feature.pi.target.linux-64.dependencies]
 bubblewrap = "*"

@@ -64,10 +64,15 @@ pixi-llm-recipes/
     │   ├── recipe.yaml               # Claude Code conda package (fetches from npm)
     │   ├── build.sh                  # Linux: npm install --global into prefix
     │   └── build.bat                 # Windows: npm install --global into prefix
-    └── pi-extensions/
-        ├── recipe.yaml               # Packages curated pi plugins (pins in PLUGINS env var)
-        ├── build.sh                  # Linux: runs `pi install` for each plugin
-        └── build.bat                 # Windows: runs `pi install` for each plugin
+    ├── pi-extensions/
+    │   ├── recipe.yaml               # Packages curated pi plugins (pins in PLUGINS env var)
+    │   ├── build.sh                  # Linux: runs `pi install` for each plugin
+    │   └── build.bat                 # Windows: runs `pi install` for each plugin
+    └── pi-skills/
+        ├── recipe.yaml               # Bundles pi skill directories (copied into prefix)
+        ├── build.sh                  # Linux: flat copy skills/ into $PREFIX/home/.pi/agent/skills
+        ├── build.bat                 # Windows: same
+        └── skills/                   # Skill directories (currently use-gh-cli)
 ```
 
 ## Core Concepts
@@ -159,7 +164,7 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 | `llamacpp-binary-cpu` | `llama-cpp` (cpu pre-built binary) | — |
 | `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary) | — |
 | `llamacpp-binary-rocm` | `llama-cpp` (rocm pre-built binary) | — |
-| `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export` |
+| `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-skills` (from `pixi-recipes/pi-skills`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export` |
 | `claude` | `claude` (from `pixi-recipes/claude`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe` |
 | `git` | `git` and `gh` (GitHub CLI from conda-forge) | `git`, `gh` |
 | `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc. | `llama-benchy`, `hf`, `context-bench` |
@@ -243,6 +248,10 @@ Runs pi with full host access. Calls `inject-pi-extensions.sh` to merge pi-exten
 Installs a pinned set of pi plugins into `$PREFIX/home/.pi/agent` during the conda build. The plugin pins live in the `PLUGINS` env var in `recipe.yaml`, which is consumed by both `build.sh` (Linux) and `build.bat` (Windows) via the extension-less `script.file: build` mechanism. See `recipe.yaml` for the current plugin list and versions.
 
 `@juicesharp/rpiv-web-tools` is excluded from the plugin list — it is redundant with `pi-ollama-cloud`.
+
+### `pixi-recipes/pi-skills` — Pi Skills Package
+
+Bundles skill directories (each containing `SKILL.md`) into `$PREFIX/home/.pi/agent/skills/` during the conda build. The `skills/` directory in the recipe is flat-copied so pi discovers each skill from `~/.pi/agent/skills/<name>/SKILL.md`. See `skills/use-gh-cli/SKILL.md` for the first bundled skill.
 
 ## Build System
 
@@ -398,6 +407,10 @@ pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 | `pixi-recipes/pi-extensions/recipe.yaml` | Packages pi plugin set |
 | `pixi-recipes/pi-extensions/build.sh` | Linux: runs `pi install` for each plugin in `PLUGINS` |
 | `pixi-recipes/pi-extensions/build.bat` | Windows: runs `pi install` for each plugin in `PLUGINS` |
+| `pixi-recipes/pi-skills/recipe.yaml` | Packages pi skill directories |
+| `pixi-recipes/pi-skills/build.sh` | Linux: copies skills/ into $PREFIX/home/.pi/agent/skills |
+| `pixi-recipes/pi-skills/build.bat` | Windows: same |
+| `pixi-recipes/pi-skills/skills/use-gh-cli/SKILL.md` | Skill: use gh CLI instead of web fetch for GitHub |
 
 ## Conventions
 
