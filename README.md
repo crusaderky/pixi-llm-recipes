@@ -62,7 +62,6 @@ pixi r llama-hello         # Download a model, load it, prompt "Hello world" and
 pixi r start-server        # Start the llama-server router in the background on port 8080
 pixi r stop-server 
 pixi r restart-server
-pixi r llama-perplexity    # Run llama-perplexity with standard wiki data
 ```
 
 Alternatively, you can select an environment non-interactively:
@@ -227,6 +226,26 @@ To get the list, you can just run:
 pixi r llama-benchy
 ```
 
+### KV cache quantization quality
+
+`kv-perplexity` runs `llama-perplexity` over the cartesian product of K-quant × V-quant
+combinations, measuring KL divergence against an f16/f16 baseline. Edit
+`scripts/kv-perplexity.yaml` to set the model and quant lists, then:
+
+```bash
+pixi r -e llamacpp-source-cuda kv-perplexity -c scripts/kv-perplexity.yaml
+pixi r kv-kld-report perplexity.log -o kv-kld-report.html
+```
+
+`kv-kld-report.py` parses the log and generates an HTML report (interactive Chart.js plot)
+plus a Markdown report with a static SVG.
+
+The [`perplexity/`](perplexity/README.md) folder holds committed sweeps for Qwen3.6-35B-A3B
+and Gemma4-E2B with a summary of the findings — in short: `q8/q8` is nearly free, `turbo4`
+is not the "almost q8" the internet claims, the K cache matters more than V (so asymmetric
+caches win), and `q4/q4` is acceptable on Qwen but catastrophic on Gemma. See
+[`perplexity/README.md`](perplexity/README.md) for the numbers and the per-model reports.
+
 ### Long-context recall
 
 `context-bench` measures how well a model recalls discrete facts scattered through a long
@@ -238,7 +257,7 @@ pixi r context-bench sample-data/context-bench/config.toml -o results.toml
 ```
 
 It's an extractive needle-recall task, which is deliberately robust: it will not show the
-KV-cache quantization harm that `llama-perplexity` does, and its run-to-run variance is
+KV-cache quantization harm that `kv-perplexity` does, and its run-to-run variance is
 large. See [`sample-data/context-bench/README.md`](sample-data/context-bench/README.md)
 for why, and how to read the numbers without over-interpreting them.
 

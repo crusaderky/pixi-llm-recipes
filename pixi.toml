@@ -3,6 +3,9 @@ channels = ["https://prefix.dev/conda-forge"]
 preview = ["pixi-build"]
 platforms = ["linux-64", "linux-aarch64", "win-64"]
 
+[dependencies]
+python = "=3.14"
+
 [tasks]
 stop-server = "bash scripts/stop-server.sh"
 restart-server = { depends-on = ["stop-server", "start-server"]}
@@ -42,6 +45,16 @@ platforms = ["linux-64"]
 [feature.llamacpp-binary-rocm.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary/rocm" }
 
+[feature.llamacpp.dependencies]
+pydantic = "*"
+pyyaml = "*"
+
+[feature.llamacpp.activation.env]
+# Disable turboquant's auto-asymmetric K-cache upgrade: on high-GQA models it
+# silently rewrites a requested turbo K cache to q8_0, so -ctk no longer measures
+# (or serves) what was asked for. Keep it off so K/V quant settings are honoured.
+TURBO_AUTO_ASYMMETRIC = "0"
+
 [feature.llamacpp.tasks]
 llama-help = "llama-server --help"
 llama-version = "llama-server --version"
@@ -52,8 +65,8 @@ start-server = "bash scripts/start-server.sh"
 
 # Quantitative benchmark on the degradation introduced by model and/or cache quantization.
 # Note: the measure is only significant between two variants/settings of the same model.
-# Typically you want to pass parameters: -hf XXX --cache-type-k YYY --cache-type-v ZZZ
-llama-perplexity = "llama-perplexity -f sample-data/wiki.test.raw"
+# You should modify scripts/kv-perplexity-config.yaml before you start.
+kv-perplexity = "scripts/kv-perplexity.py"
 
 [feature.pi.dependencies]
 pi-coding-agent = "*"
@@ -111,10 +124,10 @@ git = "git"
 gh = "gh"
 
 [feature.pytools.dependencies]
-python = "=3.14"
 huggingface_hub = "*"
 # Install key llama-benchy dependencies from conda-forge
 aiohttp = "*"
+matplotlib = "*"
 numpy = "*"
 pydantic = "*"
 safetensors = "*"
@@ -132,6 +145,7 @@ llama-benchy = "python -m llama_benchy --base-url http://localhost:8080/v1 --no-
 hf = "hf"
 context-bench = "python sample-data/context-bench/run_benchmark.py"
 aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_results.py"
+kv-kld-report = "python scripts/kv-kld-report.py"
 
 [environments]
 llamacpp-source-cpu = [ "llamacpp", "llamacpp-source-cpu" ]

@@ -1,0 +1,58 @@
+# YAML config for scripts/kv-perplexity.py
+#
+# Usage:
+# pixi r kv-perplexity
+# pixi r kv-kld-report
+
+# Common flags prepended to every llama-perplexity invocation.
+# The baseline run (first combo) omits --kl-divergence to create baseline logits.
+# All other combos append --kl-divergence -ctk <kq> -ctv <vq>.
+
+common: >
+    llama-perplexity --kl-divergence-base /tmp/logits.dat
+    --ctx-size 2048 -f sample-data/wiki.test.raw
+    -hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:Qwen3.6-35B-A3B-IQ4_XS-3.97bpw
+    -fa on -ngl 99 --cpu-moe
+
+# K-quant types to test.
+# You'll need to switch to the Turboquant fork in
+# pixi-recipes/llama-cpp-source/*/recipe.yaml
+# to enable turbo4, turbo3, and turbo2.
+k_quants:
+  - f16
+  - q8_0
+  # - q5_1  # Very slow
+  # - q5_0  # Very slow
+  # - q4_1  # Very slow
+  - q4_0
+  # - iq4_nl  # Very slow
+  - turbo4
+  - turbo3
+  - turbo2
+
+# V-quant types to test (cartesian product with k_quants).
+v_quants:
+  - f16
+  - q8_0
+  # - q5_1  # Very slow
+  # - q5_0  # Very slow
+  # - q4_1  # Very slow
+  - q4_0
+  # - iq4_nl  # Very slow
+  - turbo4
+  - turbo3
+  - turbo2
+
+# Baseline combo that creates logits.dat (no --kl-divergence). Mandatory.
+# Must match an actual entry from the cartesian product / include list.
+baseline: f16/f16
+
+# Extra kq/vq combos to add beyond the cartesian product.
+include:
+
+# kq/vq combos to remove from the cartesian product.
+exclude:
+
+# Abort non-baseline runs whose ETA exceeds baseline_eta * max_eta_factor.
+# Set to 0 to disable the abort check entirely.
+max_eta_factor: 4.0

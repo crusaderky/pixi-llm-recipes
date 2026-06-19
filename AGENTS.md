@@ -9,6 +9,7 @@
 3. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
 4. **Benchmarks LLM inference** via `llama-benchy`.
 5. **Benchmarks long-context recall** (and how it degrades under quantized KV cache) via the `context-bench` harness in `sample-data/context-bench/`.
+6. **Analyzes KV cache quantization quality** via `kv-perplexity` (KL-divergence sweep over K/V quant combos) and `kv-kld-report` (HTML/Markdown report with plots) in `scripts/`.
 
 ## Key Technologies
 
@@ -28,6 +29,7 @@ pixi-llm-recipes/
 ├── pixi.lock                         # Lockfile for reproducible builds
 ├── .gitignore                        # Excludes .pixi/ (envs) but keeps .pixi/config.toml
 ├── .gitattributes                    # Marks pixi.lock as binary
+├── kv-perplexity.yaml                # Config for kv-perplexity.py
 ├── models.ini                        # llama-server preset config (multi-model)
 ├── scripts/
 │   ├── bwrap-claude.sh               # Bubblewrap sandbox wrapper for Claude Code
@@ -35,11 +37,15 @@ pixi-llm-recipes/
 │   ├── diff-llama-cpp-variants.sh    # Compare llama-cpp recipe variants
 │   ├── inject-pi-extensions.sh       # Merge pi-extensions packages into settings.json
 │   ├── install-apparmor.sh           # Install AppArmor profile for bwrap (sudo/CI)
+│   ├── kv-kld-report.py                 # Parse perplexity log → HTML/Markdown KLD report
+│   ├── kv-perplexity.py              # KLD sweep over cartesian product of K/V quant combos
 │   ├── start-server.sh               # Background llama-server with logging
 │   ├── stop-server.sh                # Graceful llama-server shutdown
 │   └── pi-unsafe.sh                  # Unsandboxed pi wrapper (full host access)
+├── perplexity/                       # Historical KLD sweep outputs
 ├── sample-data/
-│   ├── wiki.test.raw                 # Wikitext-2 benchmark corpus for llama-perplexity
+│   ├── wiki.test.raw                 # Wikitext-2 test corpus for perplexity/KLD
+│   ├── wiki.train.head-10k.raw       # First 10k lines of wiki.train.raw (~674k tokens)
 │   ├── describe-me.jpg               # Arbitrary image for multimodal testing
 │   ├── context-bench/                # Long-context recall benchmark
 │   │   ├── AGENTS.md                 # System prompt given to the model under test
@@ -165,7 +171,7 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 
 | Feature | Dependencies | Key Tasks |
 |---------|--------------|-----------|
-| `llamacpp` | `llama-cpp` (from `pixi-recipes`) | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `llama-perplexity` |
+| `llamacpp` | `llama-cpp` (from `pixi-recipes`) | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `kv-perplexity` |
 | `llamacpp-source-cpu` | `llama-cpp` (cpu compiled from sources) | — |
 | `llamacpp-source-cuda` | `llama-cpp` (cuda compiled from sources) | — |
 | `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources) | — |
@@ -175,7 +181,7 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 | `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-skills` (from `pixi-recipes/pi-skills`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export` |
 | `claude` | `claude` (from `pixi-recipes/claude`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe` |
 | `git` | `git` and `gh` (GitHub CLI from conda-forge) | `git`, `gh` |
-| `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc. | `llama-benchy`, `hf`, `context-bench` |
+| `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc. | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report` |
 
 | Environment | Feature(s) |
 |------------|-----------|
@@ -218,6 +224,23 @@ The books are deliberately obscure, recently-digitised titles so that answers mu
 #### `run_benchmark.py`
 
 Reads a Pydantic-validated TOML config (one `[model tag]` table each: `url` defaulting to localhost, optional `api_key`/`api_key_env`/`model_name`, required `ctx-size` — a list of book sizes to run, each `65536`/`64k`/`1M` and matching an available book — and optional `temperature`/`max_tokens`/`timeout`). An optional `[*]` table supplies defaults applied to every model (per-model values override it). For every model it sends `AGENTS.md` (system) + each book (user) via the `openai` client, for **each book listed in `ctx-size`**. Answers are graded with normalized string matching (case-insensitive; ignores articles, currency symbols, separators and spacing; maps number-words to digits, e.g. `nine`→`9`). It writes a TOML report keyed `[model tag.context size]` with `raw_answers` (verbatim), `outcomes` (20× `PASS`/`NO ANSWER`/`WRONG`) and `grade` = `(#PASS − #WRONG)/20` in `[-1, 1]`. Grading is deterministic, so a correct-but-off-format answer can score `WRONG`; `raw_answers` is preserved for inspection.
+
+### `scripts/kv-perplexity.py` — KV Cache KL-Divergence Sweep
+
+Runs `llama-perplexity` over the cartesian product of K-quant × V-quant combinations, measuring KL divergence against an f16/f16 baseline. Reads a YAML config (common flags, `k_quants`, `v_quants`, `baseline`, optional `include`/`exclude` lists). The baseline run creates a logits dump (`--kl-divergence-base`); all other combos load that dump and append `--kl-divergence`. Completed combos are skipped on re-run (idempotent). Output is appended to a log file (default `perplexity.log`).
+
+```bash
+# (Duplicate and) edit kv-perplexity.yaml first, then:
+pixi run -e llamacpp-source-cuda kv-perplexity -c kv-perplexity.yaml
+```
+
+### `scripts/kv-kld-report.py` — KLD Report Generator
+
+Parses a `perplexity.log` produced by `kv-perplexity.py`, extracts per-chunk KL divergence for each `-ctk`/`-ctv` combo, and generates an HTML report (interactive Chart.js plot) and a Markdown report (static SVG via matplotlib). Embeds Chart.js inline (fetched from CDN; falls back to CDN `<script>` tag on failure).
+
+```bash
+pixi run kv-kld-report perplexity.log -o kv-kld-report.html
+```
 
 ### `scripts/bwrap-claude.sh` — Claude Code Bubblewrap Sandbox
 
@@ -350,8 +373,11 @@ Claude Code is installed as a conda package in the `agents` environment (`pixi-r
 ### Running Benchmarks
 
 ```bash
-# Perplexity benchmark against wiki.test.raw (requires llama-server running on :8080)
-pixi run -e llamacpp-source-cuda llama-perplexity
+# KL-divergence sweep over K/V quant combos (edit kv-perplexity.yaml first)
+pixi run -e llamacpp-source-cuda kv-perplexity -c kv-perplexity.yaml
+
+# Generate HTML/Markdown KLD report from the sweep log
+pixi run kv-kld-report perplexity.log -o kv-kld-report.html
 
 # Throughput benchmark
 pixi run llama-benchy
@@ -385,6 +411,7 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 |------|---------|
 | `pixi.toml` | Root workspace: features, tasks, environments |
 | `pixi.lock` | Locked dependency versions (binary; never edit) |
+| `kv-perplexity.yaml` | Sample config for `kv-perplexity.py` |
 | `models.ini` | llama-server multi-model preset config |
 | `llama-server.log` | Server log (gitignored) |
 | `scripts/bwrap-claude.sh` | Bubblewrap sandbox wrapper for Claude Code |
@@ -396,7 +423,10 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 | `scripts/stop-server.sh` | Graceful llama-server shutdown (SIGTERM → SIGKILL) |
 | `scripts/start-server.sh` | Background llama-server with logging |
 | `scripts/pi-unsafe.sh` | Unsandboxed pi wrapper (dev/debug only) |
-| `sample-data/wiki.test.raw` | Wikitext-2 corpus for `llama-perplexity` |
+| `scripts/kv-perplexity.py` | KLD sweep over cartesian product of K/V quant combos (`kv-perplexity` task) |
+| `scripts/kv-kld-report.py` | Parse perplexity log → HTML/Markdown KLD report with plots (`kv-kld-report` task) |
+| `sample-data/wiki.test.raw` | Wikitext-2 test corpus for KLD/perplexity benchmarks |
+| `sample-data/wiki.train.head-10k.raw` | First 10k lines of wiki.train.raw (~674k tokens; larger KLD baseline) |
 | `sample-data/describe-me.jpg` | Image for multimodal testing |
 | `sample-data/README.md` | Sample data documentation |
 | `sample-data/context-bench/run_benchmark.py` | Long-context recall benchmark runner (prompts models, grades, writes TOML) |
