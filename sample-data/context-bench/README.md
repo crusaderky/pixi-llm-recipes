@@ -17,7 +17,7 @@ KV cache.
 
 The books are deliberately obscure, recently-digitised Project Gutenberg titles
 so that answers must come from the supplied context, not the model's training
-data. Each is sized to fill ~70–90% of its named window once the questions are
+data. Each is sized to fill \~70–90% of its named window once the questions are
 appended.
 
 ## How it works
@@ -58,7 +58,7 @@ Perplexity and this benchmark measure different things:
   the *entire* next-token distribution, including the tail. It is, by design, a
   maximally sensitive detector of distributional perturbation — which is exactly
   why KV-cache quantization moves it.
-- **This benchmark** is a thresholded, argmax-style task: retrieve ~20 discrete
+- **This benchmark** is a thresholded, argmax-style task: retrieve \~20 discrete
   facts and emit them parseably. The model only needs its attention to land on
   roughly the right region and copy a token. A small logit wobble doesn't change
   the answer unless it flips the argmax. The noise perplexity amplifies is
@@ -152,7 +152,7 @@ Results are with `models.ini` as of 2026-06-18; it may have changed since then.
   above noise levels**. Please read above in this document to understand why this does
   not mean you should just use q4/q4 in production!
 - **Qwen3.6-35B-A3B achieved near-perfect scores even at 256k context**. Its token usage
-  grows mildly with context size and is and very predictable throughout the board. I
+  grows mildly with context size and is very predictable throughout the board. I
   would trust it to extract data from documents of any size (but note that it still
   hallucinates 3% of the time).
 - **Performance of all Gemma models falls down a cliff past 32k context**, with
@@ -160,7 +160,7 @@ Results are with `models.ini` as of 2026-06-18; it may have changed since then.
   window](https://ai.google.dev/gemma/docs/core/model_card_4#models_overview) attention
   design.
 - **Gemma 4 E2B and E4B proved competent** for their size - at least up to 32k context.
-  32k context converts to 22~25k words in English; a research paper is typically 4k~9k
+  32k context converts to 22\~25k words in English; a research paper is typically 4k\~9k
   words. I would *cautiously* use these models to extract data from anything shorter
   than a novel, if I could not afford to run Qwen (e.g. I need to run on a phone).
   Emphasis on *cautiously* - these models were still **confidently wrong 15% of the
