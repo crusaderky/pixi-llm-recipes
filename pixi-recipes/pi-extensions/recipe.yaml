@@ -2,6 +2,9 @@ package:
   name: pi-extensions
   version: "1"
 
+source:
+  - path: .
+
 build:
   number: 0
   script:
@@ -18,8 +21,8 @@ build:
         pi-llama-cpp@0.7.2
         pi-ollama-cloud@0.6.0
         pi-token-speed@0.5.1
-        @juicesharp/rpiv-advisor@1.20.0
         @juicesharp/rpiv-ask-user-question@1.20.0
+        @tintinweb/pi-subagents@0.10.3
         @tmustier/pi-usage-extension@0.3.2
 
 requirements:

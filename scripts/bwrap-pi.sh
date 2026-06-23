@@ -76,6 +76,11 @@ done
 
 bash "$(dirname "$0")/inject-pi-extensions.sh"
 
+function cleanup {
+  rsync -avcO --no-perms --no-times $_CONDA_PREFIX/home/.pi/agent/{agents,skills,AGENTS.md} pixi-recipes/pi-skills/
+}
+trap cleanup EXIT
+
 # Unset all PIXI_* and CONDA_* environment variables
 while IFS= read -r var; do
   unset "$var"

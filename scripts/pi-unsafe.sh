@@ -14,12 +14,21 @@ mkdir -p ~/.pi/agent
 rm -rf ~/.pi/agent/npm
 if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
   # git-bash can't create symlinks; copy instead
+  cp -r "$CONDA_PREFIX/home/.pi/agent/agents" ~/.pi/agent/agents
   cp -r "$CONDA_PREFIX/home/.pi/agent/npm" ~/.pi/agent/npm
+  cp -r "$CONDA_PREFIX/home/.pi/agent/skills" ~/.pi/agent/skills
+  cp -r "$CONDA_PREFIX/home/.pi/agent/AGENTS.md" ~/.pi/agent/AGENTS.md  
 else
+  ln -s "$CONDA_PREFIX/home/.pi/agent/agents" ~/.pi/agent/agents
   ln -s "$CONDA_PREFIX/home/.pi/agent/npm" ~/.pi/agent/npm
+  ln -s "$CONDA_PREFIX/home/.pi/agent/skills" ~/.pi/agent/skills
+  ln -s "$CONDA_PREFIX/home/.pi/agent/AGENTS.md" ~/.pi/agent/AGENTS.md
 fi
 function cleanup {
-  rm -rf ~/.pi/agent/npm
+  if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+    rsync -avcO --no-perms --no-times ~/.pi/agent/{agents,skills,AGENTS.md} pixi-recipes/pi-skills/
+  fi
+  rm -rf ~/.pi/agent/{agents,npm,skills,AGENTS.md}
 }
 trap cleanup EXIT
 
