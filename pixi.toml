@@ -3,9 +3,6 @@ channels = ["https://prefix.dev/conda-forge"]
 preview = ["pixi-build"]
 platforms = ["linux-64", "linux-aarch64", "win-64"]
 
-[dependencies]
-python = "=3.14"
-
 [tasks]
 stop-server = "bash scripts/stop-server.sh"
 restart-server = { depends-on = ["stop-server", "start-server"]}
@@ -46,6 +43,8 @@ platforms = ["linux-64"]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary/rocm" }
 
 [feature.llamacpp.dependencies]
+# kv-perplexity dependencies
+python = "=3.14"
 pydantic = "*"
 pyyaml = "*"
 
@@ -124,6 +123,7 @@ git = "git"
 gh = "gh"
 
 [feature.pytools.dependencies]
+python = "=3.14"
 huggingface_hub = "*"
 # Install key llama-benchy dependencies from conda-forge
 aiohttp = "*"
@@ -154,4 +154,6 @@ llamacpp-source-vulkan = [ "llamacpp", "llamacpp-source-vulkan" ]
 llamacpp-binary-cpu = [ "llamacpp", "llamacpp-binary-cpu" ]
 llamacpp-binary-rocm = [ "llamacpp", "llamacpp-binary-rocm" ]
 llamacpp-binary-vulkan = [ "llamacpp", "llamacpp-binary-vulkan" ]
-agents = [ "pi", "claude", "git", "pytools" ]
+pi = [ "pi", "git"]
+claude = [ "claude", "git" ]
+pytools = [ "pytools" ]
