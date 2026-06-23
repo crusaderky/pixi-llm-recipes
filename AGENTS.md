@@ -29,6 +29,10 @@ pixi-llm-recipes/
 ├── pixi.lock                         # Lockfile for reproducible builds
 ├── .gitignore                        # Excludes .pixi/ (envs) but keeps .pixi/config.toml
 ├── .gitattributes                    # Marks pixi.lock as binary
+├── .github/workflows/                # GitHub Actions workflows
+├── README.md                         # Project readme
+├── chat-templates/                   # Jinja chat templates for llama-server
+│   └── qwen3.6-froggeric-v20.jinja   # Custom Qwen 3.6 chat template
 ├── kv-perplexity.yaml                # Config for kv-perplexity.py
 ├── models.ini                        # llama-server preset config (multi-model)
 ├── scripts/
@@ -42,6 +46,13 @@ pixi-llm-recipes/
 │   ├── start-server.sh               # Background llama-server with logging
 │   ├── stop-server.sh                # Graceful llama-server shutdown
 │   └── pi-unsafe.sh                  # Unsandboxed pi wrapper (full host access)
+├── .agents/skills/                   # Agent skills (discovered by pi agent)
+│   ├── llama-cpp-changelog/SKILL.md  # Summarize llama.cpp changelog
+│   ├── test-git-auth/SKILL.md        # Verify git push / gh CLI auth
+│   ├── update-all/SKILL.md           # Update everything
+│   ├── update-claude/SKILL.md        # Update Claude Code recipe
+│   ├── update-llama-cpp/SKILL.md     # Update llama.cpp recipes
+│   └── update-pi-extensions/SKILL.md # Update pi-extensions versions
 ├── perplexity/                       # Historical KLD sweep outputs
 ├── sample-data/
 │   ├── wiki.test.raw                 # Wikitext-2 test corpus for perplexity/KLD
@@ -49,7 +60,9 @@ pixi-llm-recipes/
 │   ├── describe-me.jpg               # Arbitrary image for multimodal testing
 │   ├── context-bench/                # Long-context recall benchmark
 │   │   ├── AGENTS.md                 # System prompt given to the model under test
+│   │   ├── README.md                 # Benchmark documentation
 │   │   ├── run_benchmark.py          # Prompts each model, grades answers, writes a TOML report
+│   │   ├── aggregate_benchmark_results.py  # Aggregates multiple benchmark runs
 │   │   ├── config.toml               # Runner config (one table per model)
 │   │   ├── 16k.txt … 256k.txt        # Books sized to fill 16k/32k/64k/128k/256k contexts (20 questions appended)
 │   │   └── 16k.answers.txt …         # Reference answers (A1–A20) with source line numbers
@@ -74,11 +87,20 @@ pixi-llm-recipes/
     │   ├── recipe.yaml               # Packages curated pi plugins (pins in PLUGINS env var)
     │   ├── build.sh                  # Linux: runs `pi install` for each plugin
     │   └── build.bat                 # Windows: runs `pi install` for each plugin
-    └── pi-skills/
-        ├── recipe.yaml               # Bundles pi skill directories (copied into prefix)
-        ├── build.sh                  # Linux: flat copy skills/ into $PREFIX/home/.pi/agent/skills
-        ├── build.bat                 # Windows: same
-        └── skills/                   # Skill directories (currently use-gh-cli)
+    ├── pi-skills/
+        │   ├── recipe.yaml           # Bundles pi skill directories (copied into prefix)
+        │   ├── build.sh              # Linux: flat copy skills/ into $PREFIX/home/.pi/agent/skills
+        │   ├── build.bat             # Windows: same
+        │   ├── AGENTS.md             # Global agent instructions (mirrors root AGENTS.md)
+        │   ├── agents/               # Agent-specific instruction files
+        │   │   ├── Explore.md        # Explore agent instructions
+        │   │   ├── Plan.md           # Plan agent instructions
+        │   │   ├── Programmer.md     # Programmer agent instructions
+        │   │   ├── Reviewer.md       # Reviewer agent instructions
+        │   │   ├── general-purpose.md # General-purpose agent instructions
+        │   │   └── Explore.md        # Explore agent instructions
+        │   └── skills/               # Skill directories (currently use-gh-cli)
+        │       └── use-gh-cli/SKILL.md # Skill: use gh CLI instead of web fetch for GitHub
 ```
 
 ## Core Concepts
@@ -406,6 +428,10 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 
 | File | Purpose |
 |------|---------|
+| `AGENTS.md` | Project guide for coding agents |
+| `README.md` | Project readme |
+| `.github/workflows/llamacpp.yml` | CI workflow for llama-cpp builds |
+| `chat-templates/qwen3.6-froggeric-v20.jinja` | Custom Qwen 3.6 chat template (Jinja) |
 | `pixi.toml` | Root workspace: features, tasks, environments |
 | `pixi.lock` | Locked dependency versions (binary; never edit) |
 | `kv-perplexity.yaml` | Sample config for `kv-perplexity.py` |
@@ -450,6 +476,11 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 | `pixi-recipes/pi-skills/build.sh` | Linux: copies skills/ into $PREFIX/home/.pi/agent/skills |
 | `pixi-recipes/pi-skills/build.bat` | Windows: same |
 | `pixi-recipes/pi-skills/skills/use-gh-cli/SKILL.md` | Skill: use gh CLI instead of web fetch for GitHub |
+| `pixi-recipes/pi-skills/AGENTS.md` | Global agent instructions (mirrors root AGENTS.md) |
+| `pixi-recipes/pi-skills/agents/*.md` | Agent-specific instruction files (Explore, Plan, Programmer, Reviewer, general-purpose) |
+| `.agents/skills/*/SKILL.md` | Agent skills discovered by pi agent (llama-cpp-changelog, test-git-auth, update-*) |
+| `sample-data/context-bench/README.md` | Context-bench documentation |
+| `sample-data/context-bench/aggregate_benchmark_results.py` | Aggregates multiple context-benchmark runs (`aggregate-context-bench` task) |
 
 ## Conventions
 
