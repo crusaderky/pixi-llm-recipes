@@ -42,7 +42,7 @@ def _fetch_chart_js() -> str:
 # ---------------------------------------------------------------------------
 #  Bytes-per-parameter conversion table
 #  Includes block-overhead where relevant.
-#  Values for standard llama.cpp types + turboquant variants
+#  Values for standard llama.cpp types + Turboquant variants
 #  (https://github.com/TheTom/llama-cpp-turboquant)
 # ---------------------------------------------------------------------------
 BPP = {

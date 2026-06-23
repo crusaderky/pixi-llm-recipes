@@ -64,7 +64,7 @@ ETA_RE = re.compile(
 # Handles "6 hours 17.00 minutes", "5.43 minutes", "30 seconds".
 _ETA_PART_RE = re.compile(r"([\d.]+)\s*(hours?|minutes?|seconds?)")
 
-# turboquant's auto-asymmetric feature silently upgrades the K cache on high-GQA
+# Turboquant's auto-asymmetric feature silently upgrades the K cache on high-GQA
 # models, e.g.:
 #   W llama_kv_cache: auto-asymmetric: GQA ratio 8:1 (...) — upgrading K from
 #   turbo4 to q8_0 to prevent quality degradation. Disable with TURBO_AUTO_ASYMMETRIC=0
@@ -74,7 +74,7 @@ AUTO_ASYM_RE = re.compile(r"auto-asymmetric:.*?upgrading K from (\S+) to (\S+)")
 
 
 def print_auto_asymmetric_warning(label: str, from_q: str, to_q: str) -> None:
-    """Print a prominent banner when turboquant silently upgrades the K cache.
+    """Print a prominent banner when Turboquant silently upgrades the K cache.
 
     The requested ``-ctk {from_q}`` was overridden to ``{to_q}``, so the run does
     not measure the requested config (and uses a larger cache than its label

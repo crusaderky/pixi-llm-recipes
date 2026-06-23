@@ -8,8 +8,8 @@ allowed-tools: Bash Read
 ## Arguments (space-separated, all optional)
 
 - `from=<ref>` — starting git ref (tag such as `b9518`, or a commit SHA). Defaults based on active fork:
-  - **Turboquant fork** (uncommented `fork: TheTom/llama-cpp-turboquant`): read the `# Last sync with main at bNNNN` comment in `context` block and use that `bNNNN` value. The fork's own version string (e.g. `feature-turboquant-kv-cache-b9905-4595fff`) is NOT an upstream tag — never use it as FROM.
-  - **Main branch** (uncommented `fork: ggml-org/llama.cpp`): use `context.version` directly.
+  - **Turboquant fork** (`fork: TheTom/llama-cpp-turboquant`): read the `# Last sync with main at bNNNN` comment in `context` block and use that `bNNNN` value. The fork's own version string (e.g. `feature-turboquant-kv-cache-b9905-4595fff`) is NOT an upstream tag — never use it as FROM.
+  - **Main branch** (`fork: ggml-org/llama.cpp`): use `context.version`.
   - **Other fork**: look for `# Last sync with main at bNNNN` comment first; fall back to commented-out `# version: bNNNN` under `# Main branch`.
   - **No sync comment**: fall back to `# version: bNNNN` under `# Main branch` (commented out, ignore `#` when extracting).
 - `to=<ref>` — ending git ref. Defaults to the latest upstream release tag.
@@ -20,7 +20,7 @@ allowed-tools: Bash Read
 
 - If `from` was **not** supplied, read `pixi-recipes/llama-cpp-source/cpu/recipe.yaml`.
   - First, look for a `# Last sync with main at bNNNN` comment in the `context` block. If found, extract `bNNNN` and use that as `FROM`.
-  - If no sync comment, look for uncommented `context.version`. If present (e.g. `version: b9698`), use that value as `FROM`.
+  - If no sync comment, look for `context.version` section for the main branch. If present (e.g. `version: b9698`), use that value as `FROM`.
   - If neither, look for `# version: bNNNN` under `# Main branch` (commented out). Ignore the `#` prefix and use that value as `FROM`.
   - **IMPORTANT**: When the active fork is `TheTom/llama-cpp-turboquant`, its version string contains a `bNNNN` (e.g. `feature-turboquant-kv-cache-b9905-4595fff`). This `b9905` is the turboquant fork's own internal tag, NOT an upstream tag — never use it as FROM.
 - Otherwise use the supplied value as-is as `FROM`.
@@ -100,6 +100,6 @@ End with a concise one-line verdict:
 
 #### Turboquant fork note (if applicable)
 
-When the active recipe uses the turboquant fork, add a line clarifying the context:
+When the active recipe uses the Turboquant fork, add a line clarifying the context:
 - "Turboquant fork currently at its own `bNNNN`, last synced with main at `bXXXX`. This changelog covers upstream main changes `bXXXX`→`bYYYY` — check turboquant branch for whether those changes are already cherry-picked."
-- Do NOT say "turboquant already past this" — the fork's version number is its own internal tag and has no relation to upstream release tags.
+- Do NOT say "Turboquant already past this" — the fork's version number is its own internal tag and has no relation to upstream release tags.

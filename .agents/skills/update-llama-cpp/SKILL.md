@@ -9,8 +9,11 @@ allowed-tools: WebFetch Bash Read Edit
 
 Each `pixi-recipes/llama-cpp-source/{cpu,cuda,vulkan}/recipe.yaml` has a `context:` block with multiple entries:
 
-- **Main branch** (commented out) — `fork: ggml-org/llama.cpp`, `version: bNNNN`. This is NOT in effect (commented out).
-- **Turboquant fork** (active) — `fork: TheTom/llama-cpp-turboquant`, `version: feature-turboquant-kv-cache-bNNNN-XXXXXXX`. This IS the version used to build.
+- **Main branch** — `fork: ggml-org/llama.cpp`, `version: bNNNN`.
+- **Turboquant fork** — `fork: TheTom/llama-cpp-turboquant`, `version: feature-turboquant-kv-cache-bNNNN-XXXXXXX`.
+
+Either of the two above is commented out.
+
 - The `source:` block uses `${{ fork }}` and `${{ version }}` — there is NO separate `source.rev` / commit SHA field.
 
 When updating only the turboquant branch (no new upstream merge), the `Last sync with main at bNNNN` comment does NOT change.
@@ -78,8 +81,8 @@ When a new upstream merge occurred on the turboquant fork, you must also update 
 16. **Report differences between source variants**: Run `bash scripts/diff-llama-cpp-variants.sh` and show the output.
 
 17. **Report all changes**:
-    - Main branch version (commented out): old → new
-    - Turboquant fork (active): old → new
+    - Main branch version (active|commented out): old → new
+    - Turboquant fork (active|commented out): old → new
     - Last sync comment: old → new (if changed)
     - Binary versions: old → new (if changed)
-    - Clarify which changes are **in effect** (turboquant fork) and which are **commented out** (main branch).
+    - Clarify which changes are **in effect** and which are **commented out**.

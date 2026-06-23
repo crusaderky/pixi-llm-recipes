@@ -4,7 +4,7 @@
 
 **pixi-llm-recipes** is a [pixi](https://pixi.sh/) project that serves multiple purposes:
 
-1. **Builds and packages llama.cpp** (with turboquant KV cache optimizations) as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan), or using pre-built binaries from upstream releases (CPU, Vulkan, ROCm).
+1. **Builds and packages llama.cpp** (with opt-in turboquant KV cache optimizations) as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan), or using pre-built binaries from upstream releases (CPU, Vulkan, ROCm).
 2. **Packages pi-extensions** — a curated set of pi coding agent plugins.
 3. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
 4. **Benchmarks LLM inference** via `llama-benchy`.
@@ -15,7 +15,7 @@
 
 - **pixi** — Cross-platform dependency/environment manager (conda-compatible)
 - **pixi-build / rattler-build** — Conda recipe building system
-- **llama.cpp** — Open-source LLM inference engine by ggml-org (MIT license), built from source with turboquant KV cache optimizations via [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant)
+- **llama.cpp** — Open-source LLM inference engine by ggml-org (MIT license), built from source with opt-in turboquant KV cache optimizations via [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant)
 - **bubblewrap (bwrap)** — Containerized sandbox for running the pi agent securely
 - **pi-coding-agent** — The pi coding agent framework (installed via npm)
 - **pi-extensions** — Curated pi plugins installed via a conda package
@@ -138,11 +138,8 @@ Each recipe has a `context:` block with the active fork pinned and several alter
 
 | Status | Fork | Version |
 |--------|------|---------|
-| **Active** | `TheTom/llama-cpp-turboquant` | `feature-turboquant-kv-cache-b9905-4595fff` |
-| Commented out | `ggml-org/llama.cpp` (main) | `b9721` |
-| Commented out | `crusaderky/llama.cpp` (turboquant + deltas) | `b9698-turboquant` |
-| Commented out | `crusaderky/llama.cpp` (PR#21067 + deltas) | `b9698-bunch-moe-transfer` |
-| Commented out | `crusaderky/llama.cpp` (turboquant + PR#21067) | `b9698-staging` |
+| **Active** | `ggml-org/llama.cpp` (main) | `b9721` |
+| Commented out | `TheTom/llama-cpp-turboquant` | `feature-turboquant-kv-cache-b9905-4595fff` |
 
 The `source:` block uses `${{ fork }}` and `${{ version }}` template variables, so swapping forks is a one-line change.
 
@@ -394,10 +391,10 @@ pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 
 ### Version Updates (llama-cpp)
 
-Source builds now track the **turboquant fork** (`TheTom/llama-cpp-turboquant`), not mainline llama.cpp. Binary builds still track mainline releases.
+Source builds currently tracks mainline llama.cpp. Binary builds still track mainline releases.
 
-1. **Turboquant fork (active, source builds)**: Check the latest tag on `TheTom/llama-cpp-turboquant` branch `feature/turboquant-kv-cache`. Update `context.version` in all three source recipe.yaml files.
-2. **Main branch (commented out, source builds)**: Check the latest tag on `ggml-org/llama.cpp` releases. Update the commented-out `# version:` under `# Main branch` in all three source recipe.yaml files.
+1. **Main branch (active, source builds)**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `version:` under `# Main branch` in all three source recipe.yaml files.
+2. **Turboquant fork (commented out, source builds)**: Check the latest tag on `TheTom/llama-cpp-turboquant` branch `feature/turboquant-kv-cache`. Update `context.version` in all three source recipe.yaml files.
 3. **Upstream merge**: If the turboquant fork merged upstream main since last update, also update the `# Last sync with main at bNNNN` comment.
 4. **Binary builds**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `context.version` in all three binary recipe.yaml files.
 5. Run `pixi lock` to regenerate the lockfile.

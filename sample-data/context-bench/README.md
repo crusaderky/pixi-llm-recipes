@@ -48,7 +48,7 @@ KV-cache quantization harm.
 
 The most common reason to run this is to ask "does quantizing the KV cache
 (e.g. `cache-type-k/v = q4_0`) hurt long-context performance?" The internet — and
-papers measuring schemes like turboquant's `turbo4` — will tell you q4 keys are
+papers measuring schemes like Turboquant's `turbo4` — will tell you q4 keys are
 catastrophic. Those measurements are almost always **perplexity**.
 
 Perplexity and this benchmark measure different things:

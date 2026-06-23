@@ -1,6 +1,6 @@
 context:
   backend: rocm
-  version: b9754
+  version: b9767
 
 package:
   name: llama-cpp
