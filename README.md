@@ -78,15 +78,16 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 | Model | Variant | Size on disk | Context | VRAM<sup>1</sup> | Speed<sup>2</sup> | Notes |
 |---|---|---|---|---|---|---|
-| Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | 256k | 7.4 GB | ~56 tok/s | best quality that performs well; the daily driver |
-| Qwen3.6-27B | Unsloth Q4_K_M MTP | 18 GB | 256k | ~28 GB | ~2 tok/s | doesn't fit |
-| MiniCPM5-1B | Q4_K_M | 0.7 GB | 128k | 2.7 GB | ~455 tok/s | tool-use doesn't work yet |
-| Gemma4-E2B | Unsloth QAT + MTP | 3.5 GB | 128k | 3.8 GB | ~290 tok/s | |
-| Gemma4-E4B | Unsloth QAT | 5.0 GB | 128k | 5.8 GB | ~143 tok/s | MTP doesn't work yet |
-| Gemma4-12B | Unsloth QAT + MTP | 6.7 GB | 256k | 8.0 GB | ~19 tok/s | full context in host RAM |
-| | | | 32k | 8.2 GB | ~104 tok/s | limited context in VRAM |
-| Gemma4-26B-A4B | Unsloth QAT + MTP | 15 GB | 256k | 8.2 GB | ~32 tok/s | |
-| Gemma4-31B | Unsloth QAT + MTP | 18 GB | 256k | ~31 GB | ~2 tok/s | doesn't fit |
+| Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | 256k q8/q8 | 7.4 GB | ~56 tok/s | best quality that performs well; the daily driver |
+| Qwen3.6-27B | Unsloth Q4_K_M MTP | 18 GB | 256k q8/q8 | ~28 GB | ~2 tok/s | doesn't fit |
+| MiniCPM5-1B | Q4_K_M | 0.7 GB | 128k q8/q8 | 2.7 GB q8/q8 | ~455 tok/s | [tool calls don't work yet](https://github.com/ggml-org/llama.cpp/pulls?q=MiniCPM5) |
+| Gemma4-E2B | Unsloth QAT MTP | 3.5 GB | 128k q8/q8 | 3.8 GB | ~290 tok/s | |
+| Gemma4-E4B | Unsloth QAT | 5.0 GB | 128k q8/q8 | 5.8 GB | ~143 tok/s | [MTP doesn't support quantized V-cache](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF/blob/main/MTP/README.md) |
+| | Unsloth QAT MTP | 5.0 GB | 64k f16/f16 | 7.2 GB | ~221 tok/s | full unquantized context doesn't fit |
+| Gemma4-12B | Unsloth QAT MTP | 6.7 GB | 256k q8/q8 | 8.0 GB | ~19 tok/s | full context in host RAM |
+| | Unsloth QAT MTP | 6.7 GB | 32k q8/q8 | 8.2 GB | ~104 tok/s | limited context in VRAM |
+| Gemma4-26B-A4B | Unsloth QAT MTP | 15 GB | 256k q8/q8 | 8.2 GB | ~32 tok/s | |
+| Gemma4-31B | Unsloth QAT MTP | 18 GB | 256k q8/q8 | ~31 GB | ~2 tok/s | doesn't fit |
 
 **Notes:**
 
