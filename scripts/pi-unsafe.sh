@@ -14,9 +14,9 @@ mkdir -p ~/.pi/agent
 rm -rf ~/.pi/agent/npm
 if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
   # git-bash can't create symlinks; copy instead
-  cp -r "$CONDA_PREFIX/home/.pi/agent/{agents,npm,skills,AGENTS.md,keybindings.json}" ~/.pi/agent/
+  cp -r "$CONDA_PREFIX"/home/.pi/agent/{agents,npm,skills,AGENTS.md,keybindings.json} ~/.pi/agent/
 else
-  ln -s "$CONDA_PREFIX/home/.pi/agent/{agents,npm,skills,AGENTS.md,keybindings.json}" ~/.pi/agent/
+  ln -s "$CONDA_PREFIX"/home/.pi/agent/{agents,npm,skills,AGENTS.md,keybindings.json} ~/.pi/agent/
 fi
 
 function cleanup {
