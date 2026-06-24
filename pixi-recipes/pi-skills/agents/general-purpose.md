@@ -5,5 +5,3 @@ tools: all
 prompt_mode: append
 model: opencode-go/deepseek-v4-pro
 ---
-
-

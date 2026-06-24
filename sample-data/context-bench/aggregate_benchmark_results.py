@@ -4,6 +4,7 @@
 Usage:
     python aggregate_benchmark_results.py -o aggregated.csv context-bench.results.*.toml
 """
+
 import argparse
 import csv
 import re
@@ -59,7 +60,9 @@ def main(argv: list[str] | None = None) -> None:
     # ------------------------------------------------------------------ #
     # 2) Aggregate per label
     # ------------------------------------------------------------------ #
-    rows: list[tuple[str, str, str, int, float, float, float, float, float, int, int, float]] = []
+    rows: list[
+        tuple[str, str, str, int, float, float, float, float, float, int, int, float]
+    ] = []
 
     for label in sorted(label_files):
         fpaths = sorted(label_files[label], key=lambda p: p.name)
@@ -111,7 +114,11 @@ def main(argv: list[str] | None = None) -> None:
                 coll_pct = 0.0
 
             if valid_cnt > 0:
-                lo = {k.lower(): v for k, v in total_counter.items() if k.lower() != "model collapse"}
+                lo = {
+                    k.lower(): v
+                    for k, v in total_counter.items()
+                    if k.lower() != "model collapse"
+                }
                 pass_ = lo.get("pass", 0)
                 wrong = lo.get("wrong", 0)
                 no_ans = lo.get("no answer", 0)
@@ -123,32 +130,58 @@ def main(argv: list[str] | None = None) -> None:
                 pass_pct = wrong_pct = no_ans_pct = grade = 0.0
 
             comp_mean = round(sum(comp_vals) / len(comp_vals)) if comp_vals else 0
-            comp_std = round(
-                (sum((c - comp_mean) ** 2 for c in comp_vals) / len(comp_vals)) ** 0.5
-            ) if comp_vals else 0
-            exceeded_budget = round(sum(1 for c in comp_vals if c > 8192) / len(comp_vals) * 100, 2) if comp_vals else 0.0
+            comp_std = (
+                round(
+                    (sum((c - comp_mean) ** 2 for c in comp_vals) / len(comp_vals))
+                    ** 0.5
+                )
+                if comp_vals
+                else 0
+            )
+            exceeded_budget = (
+                round(sum(1 for c in comp_vals if c > 8192) / len(comp_vals) * 100, 2)
+                if comp_vals
+                else 0.0
+            )
 
-            rows.append((
-                label,
-                model,
-                context,
-                n,
-                grade,
-                pass_pct,
-                no_ans_pct,
-                wrong_pct,
-                coll_pct,
-                comp_mean,
-                comp_std,
-                exceeded_budget,
-            ))
+            rows.append(
+                (
+                    label,
+                    model,
+                    context,
+                    n,
+                    grade,
+                    pass_pct,
+                    no_ans_pct,
+                    wrong_pct,
+                    coll_pct,
+                    comp_mean,
+                    comp_std,
+                    exceeded_budget,
+                )
+            )
 
     # ------------------------------------------------------------------ #
     # 3) Write CSV
     # ------------------------------------------------------------------ #
     with args.output.open("w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["label", "model", "context", "runs_count", "grade", "pass", "no answer", "wrong", "model collapse", "completion_tokens_mean", "completion_tokens_std", "exceeded_reasoning_budget"])
+        w.writerow(
+            [
+                "label",
+                "model",
+                "context",
+                "runs_count",
+                "grade",
+                "pass",
+                "no answer",
+                "wrong",
+                "model collapse",
+                "completion_tokens_mean",
+                "completion_tokens_std",
+                "exceeded_reasoning_budget",
+            ]
+        )
         w.writerows(rows)
 
     print(f"Wrote {args.output} ({len(rows)} rows)", file=sys.stderr)

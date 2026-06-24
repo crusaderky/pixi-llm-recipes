@@ -18,6 +18,7 @@ Also note: the recipe package version is fixed (1) and
 separate from the plugin versions.
 
 For each entry, parse:
+
 - **package name** — the part before the last `@` (e.g. `pi-autoresearch`, `@juicesharp/rpiv-advisor`)
 - **current version** — the part after the last `@` (e.g. `1.5.0`)
 
@@ -38,6 +39,7 @@ Extract `.version` from the JSON response. If the request fails (404 or other er
 ### 3. Compare and identify updates needed
 
 For each package:
+
 - If `latest_version` == `current_version`: no change needed.
 - If `latest_version` != `current_version`: mark this package as **needs update**.
 

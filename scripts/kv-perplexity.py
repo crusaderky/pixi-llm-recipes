@@ -247,7 +247,9 @@ def find_baseline_eta_in_log(
             continue
         if capturing:
             stripped = line.strip()
-            if stripped == "------------------------------" or stripped.startswith("---"):
+            if stripped == "------------------------------" or stripped.startswith(
+                "---"
+            ):
                 break
             eta = parse_eta_minutes(line)
             if eta is not None:
@@ -409,9 +411,11 @@ def main() -> None:
 
     if LOGITS.exists():
         # Determine if baseline is also completed in log
-        log_completed = _has_completed_run(
-            logfile.read_text(), kv_args_base
-        ) if logfile.exists() else False
+        log_completed = (
+            _has_completed_run(logfile.read_text(), kv_args_base)
+            if logfile.exists()
+            else False
+        )
         log_hint = f", completed in {logfile}" if log_completed else ""
         print(
             f"[SKIP] baseline {kv_args_base} "

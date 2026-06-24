@@ -35,7 +35,7 @@ jobs:
           - binary-vulkan
         exclude:
           - os: ubuntu-24.04-arm
-            backend: source-cuda  # FIXME compilation crashes
+            backend: source-cuda # FIXME compilation crashes
         include:
           - os: ubuntu-latest
             backend: binary-rocm
@@ -50,7 +50,7 @@ jobs:
 
       - uses: prefix-dev/setup-pixi@v0
         with:
-          pixi-version: v0.70.2
+          pixi-version: v0.71.0
           environments: llamacpp-${{ matrix.backend }} agents
           cache: true
           locked: true

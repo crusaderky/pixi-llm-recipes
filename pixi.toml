@@ -5,7 +5,7 @@ platforms = ["linux-64", "linux-aarch64", "win-64"]
 
 [tasks]
 stop-server = "bash scripts/stop-server.sh"
-restart-server = { depends-on = ["stop-server", "start-server"]}
+restart-server = { depends-on = ["stop-server", "start-server"] }
 
 # Tasks invoke `bash scripts/*.sh`. On Windows, a plain `bash` from PATH would
 # resolve to WSL (C:\Windows\System32\bash.exe), which discards the pixi
@@ -22,7 +22,7 @@ platforms = ["linux-64", "linux-aarch64"]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source/cpu" }
 
 [feature.llamacpp-source-cuda]
-platforms = ["linux-64"]  # FIXME Linux ARM fails to compile
+platforms = ["linux-64"] # FIXME Linux ARM fails to compile
 [feature.llamacpp-source-cuda.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source/cuda" }
 
@@ -58,7 +58,7 @@ TURBO_AUTO_ASYMMETRIC = "0"
 llama-help = "llama-server --help"
 llama-version = "llama-server --version"
 llama-hello.cmd = "llama-cli -hf {{ model }} -st -p 'Hello world'"
-llama-hello.args = [ { arg = "model", default = "openbmb/MiniCPM5-1B-GGUF:Q4_K_M" } ]
+llama-hello.args = [{ arg = "model", default = "openbmb/MiniCPM5-1B-GGUF:Q4_K_M" }]
 llama-list-devices = "llama-server --list-devices"
 start-server = "bash scripts/start-server.sh"
 
@@ -147,13 +147,29 @@ context-bench = "python sample-data/context-bench/run_benchmark.py"
 aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_results.py"
 kv-kld-report = "python scripts/kv-kld-report.py"
 
+[feature.lint.dependencies]
+lefthook = "*"
+actionlint = "*"
+shellcheck = "*" # Runs inside actionlint
+pyflakes = "*" # Runs inside actionlint
+ruff = "*"
+blacken-docs = "*"
+dprint = "*"
+codespell = "*"
+
+[feature.lint.tasks]
+install-git-hooks = { cmd = "lefthook install", description = "Install pre-commit hooks" }
+update-dprint = { cmd = "dprint config update", description = "Update dprint plugins" }
+lint = { cmd = "lefthook run pre-commit --all-files --force", description = "Run all linters" }
+
 [environments]
-llamacpp-source-cpu = [ "llamacpp", "llamacpp-source-cpu" ]
-llamacpp-source-cuda = [ "llamacpp", "llamacpp-source-cuda" ]
-llamacpp-source-vulkan = [ "llamacpp", "llamacpp-source-vulkan" ]
-llamacpp-binary-cpu = [ "llamacpp", "llamacpp-binary-cpu" ]
-llamacpp-binary-rocm = [ "llamacpp", "llamacpp-binary-rocm" ]
-llamacpp-binary-vulkan = [ "llamacpp", "llamacpp-binary-vulkan" ]
-pi = [ "pi", "git"]
-claude = [ "claude", "git" ]
-pytools = [ "pytools" ]
+llamacpp-source-cpu = ["llamacpp", "llamacpp-source-cpu"]
+llamacpp-source-cuda = ["llamacpp", "llamacpp-source-cuda"]
+llamacpp-source-vulkan = ["llamacpp", "llamacpp-source-vulkan"]
+llamacpp-binary-cpu = ["llamacpp", "llamacpp-binary-cpu"]
+llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
+llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
+pi = ["pi", "git"]
+claude = ["claude", "git"]
+pytools = ["pytools"]
+lint = { features = ["lint"], no-default-feature = true }

@@ -9,7 +9,7 @@ description: Use `gh` CLI for GitHub operations (CI logs, PRs, issues, releases)
 
 `ollama_web_fetch` / HTTP GET to `github.com` or `api.github.com` returns empty or limited data — GitHub requires authentication for most API endpoints and even web pages. This means CI logs, PR diffs, issue details, and release assets all fail via plain web fetch.
 
-The `gh` CLI is on `PATH` inside the sandbox, but **only `pixi run pi -- --with-git` (note the ` -- `) binds auth credentials**. Unsandboxed (`pi-unsafe`) works too.
+The `gh` CLI is on `PATH` inside the sandbox, but **only `pixi run pi -- --with-git` (note the `--`) binds auth credentials**. Unsandboxed (`pi-unsafe`) works too.
 
 ### First: Check Auth, Stop If Missing
 
@@ -25,9 +25,9 @@ Do not fall back to `ollama_web_fetch` or other methods.
 
 **When user pastes a CI log URL** — do NOT use `ollama_web_fetch`. Extract owner/repo, run ID, and optional job ID from the URL, then use `gh`:
 
-| URL | Pattern | `gh` command |
-|-----|---------|-------------|
-| `https://github.com/owner/repo/actions/runs/12345` | run ID = `12345` | `gh run view 12345 --log` |
+| URL                                                          | Pattern                            | `gh` command                          |
+| ------------------------------------------------------------ | ---------------------------------- | ------------------------------------- |
+| `https://github.com/owner/repo/actions/runs/12345`           | run ID = `12345`                   | `gh run view 12345 --log`             |
 | `https://github.com/owner/repo/actions/runs/12345/job/67890` | run ID = `12345`, job ID = `67890` | `gh run view 12345 --log --job 67890` |
 
 Example: user pastes `https://github.com/dask/dask/actions/runs/27794025788/job/82249639708`

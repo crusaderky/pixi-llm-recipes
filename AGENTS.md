@@ -147,19 +147,19 @@ ggml backends.
 
 The `BACKEND` env var controls which CMake flags are passed:
 
-| Backend | CMake flag | Extra build deps |
-|---------|-----------|-----------------|
-| `cpu` | (none) | — |
-| `cuda` | `-DGGML_CUDA=ON` | `cuda-nvcc`, `cuda-version =12.6` |
-| `vulkan` | `-DGGML_VULKAN=ON` | `shaderc` |
+| Backend  | CMake flag         | Extra build deps                  |
+| -------- | ------------------ | --------------------------------- |
+| `cpu`    | (none)             | —                                 |
+| `cuda`   | `-DGGML_CUDA=ON`   | `cuda-nvcc`, `cuda-version =12.6` |
+| `vulkan` | `-DGGML_VULKAN=ON` | `shaderc`                         |
 
 ### The Build Recipe (`pixi-recipes/llama-cpp-source/*/recipe.yaml`)
 
 Each recipe has a `context:` block with the active fork pinned and several alternative forks commented out for reference:
 
-| Status | Fork | Notes |
-|--------|------|-------|
-| **Active** | `ggml-org/llama.cpp` (main) | |
+| Status        | Fork                          | Notes                                 |
+| ------------- | ----------------------------- | ------------------------------------- |
+| **Active**    | `ggml-org/llama.cpp` (main)   |                                       |
 | Commented out | `TheTom/llama-cpp-turboquant` | Lags behind main several weeks/months |
 
 The `source:` block uses `${{ fork }}` and `${{ version }}` template variables, so swapping forks is a one-line change.
@@ -187,45 +187,45 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 
 ### Root `pixi.toml` — Features & Environments
 
-| Feature | Dependencies | Key Tasks |
-|---------|--------------|-----------|
-| `llamacpp` | `llama-cpp` (from `pixi-recipes`) | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `kv-perplexity` |
-| `llamacpp-source-cpu` | `llama-cpp` (cpu compiled from sources) | — |
-| `llamacpp-source-cuda` | `llama-cpp` (cuda compiled from sources) | — |
-| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources) | — |
-| `llamacpp-binary-cpu` | `llama-cpp` (cpu pre-built binary) | — |
-| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary) | — |
-| `llamacpp-binary-rocm` | `llama-cpp` (rocm pre-built binary) | — |
-| `pi` | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-skills` (from `pixi-recipes/pi-skills`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export` |
-| `claude` | `claude` (from `pixi-recipes/claude`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe` |
-| `git` | `git` and `gh` (GitHub CLI from conda-forge) | `git`, `gh` |
-| `pytools` | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc. | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report` |
+| Feature                  | Dependencies                                                                                                                                   | Key Tasks                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                              | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `kv-perplexity` |
+| `llamacpp-source-cpu`    | `llama-cpp` (cpu compiled from sources)                                                                                                        | —                                                                                                   |
+| `llamacpp-source-cuda`   | `llama-cpp` (cuda compiled from sources)                                                                                                       | —                                                                                                   |
+| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                     | —                                                                                                   |
+| `llamacpp-binary-cpu`    | `llama-cpp` (cpu pre-built binary)                                                                                                             | —                                                                                                   |
+| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary)                                                                                                          | —                                                                                                   |
+| `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                            | —                                                                                                   |
+| `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-skills` (from `pixi-recipes/pi-skills`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                         |
+| `claude`                 | `claude` (from `pixi-recipes/claude`), `bubblewrap` (Linux only)                                                                               | `claude` (Linux only), `claude-unsafe`                                                              |
+| `git`                    | `git` and `gh` (GitHub CLI from conda-forge)                                                                                                   | `git`, `gh`                                                                                         |
+| `pytools`                | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc.                                             | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report`                   |
 
-| Environment | Feature(s) |
-|------------|-----------|
-| `llamacpp-source-cpu` | `llamacpp` + `llamacpp-source-cpu` |
-| `llamacpp-source-cuda` | `llamacpp` + `llamacpp-source-cuda` | — (FIXME: Linux ARM fails to compile) |
+| Environment              | Feature(s)                            |
+| ------------------------ | ------------------------------------- |
+| `llamacpp-source-cpu`    | `llamacpp` + `llamacpp-source-cpu`    |
+| `llamacpp-source-cuda`   | `llamacpp` + `llamacpp-source-cuda`   |
 | `llamacpp-source-vulkan` | `llamacpp` + `llamacpp-source-vulkan` |
-| `llamacpp-binary-cpu` | `llamacpp` + `llamacpp-binary-cpu` |
+| `llamacpp-binary-cpu`    | `llamacpp` + `llamacpp-binary-cpu`    |
 | `llamacpp-binary-vulkan` | `llamacpp` + `llamacpp-binary-vulkan` |
-| `llamacpp-binary-rocm` | `llamacpp` + `llamacpp-binary-rocm` |
-| `agents` | `pi` + `claude` + `git` + `pytools` |
+| `llamacpp-binary-rocm`   | `llamacpp` + `llamacpp-binary-rocm`   |
+| `agents`                 | `pi` + `claude` + `git` + `pytools`   |
 
 ### `models.ini` — llama-server Preset Configuration
 
 The `models.ini` file uses the native llama-server preset format (`--models-preset`). It defines multiple named model profiles served on demand:
 
-| Section | Model | disk size | Speed |
-|---------|-------|-----------|-------|
-| `Qwen3.6-35B-A3B` | byteshape/Qwen3.6-35B-A3B-MTP-GGUF:Qwen3.6-35B-A3B-IQ4_XS-3.97bpw | 18 GiB | ~56 tok/s |
-| `Qwen3.6-27B` | unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M | 18 GiB | 2 tok/s (does not fit) |
-| `Qwen3.5-9B`  | unsloth/Qwen3.5-9B-MTP-GGUF:Q4_K_M | 6.4 GiB | 163 tok/s (limited context) |
-| `MiniCPM5-1B` | openbmb/MiniCPM5-1B-GGUF:Q4_K_M | 0.7 GiB | 455 tok/s |
-| `Gemma4-E2B`  | unsloth/gemma-4-E2B-it-qat-GGUF:UD-Q4_K_XL | 3.5 GiB | 290 tok/s |
-| `Gemma4-E4B`  | unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL | 5.0 GiB | 143 tok/s (limited context) |
-| `Gemma4-12B`  | unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL | 6.7 GiB | 104 tok/s (limited context) |
-| `Gemma4-26B-A4B` | unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL | 15 GiB | 32 tok/s |
-| `Gemma4-31B`  | unsloth/gemma-4-31B-it-qat-GGUF:UD-Q4_K_XL | 18 GB | 2 tok/s (does not fit) |
+| Section           | Model                                                             | disk size | Speed                       |
+| ----------------- | ----------------------------------------------------------------- | --------- | --------------------------- |
+| `Qwen3.6-35B-A3B` | byteshape/Qwen3.6-35B-A3B-MTP-GGUF:Qwen3.6-35B-A3B-IQ4_XS-3.97bpw | 18 GiB    | ~56 tok/s                   |
+| `Qwen3.6-27B`     | unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M                               | 18 GiB    | 2 tok/s (does not fit)      |
+| `Qwen3.5-9B`      | unsloth/Qwen3.5-9B-MTP-GGUF:Q4_K_M                                | 6.4 GiB   | 163 tok/s (limited context) |
+| `MiniCPM5-1B`     | openbmb/MiniCPM5-1B-GGUF:Q4_K_M                                   | 0.7 GiB   | 455 tok/s                   |
+| `Gemma4-E2B`      | unsloth/gemma-4-E2B-it-qat-GGUF:UD-Q4_K_XL                        | 3.5 GiB   | 290 tok/s                   |
+| `Gemma4-E4B`      | unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL                        | 5.0 GiB   | 143 tok/s (limited context) |
+| `Gemma4-12B`      | unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL                        | 6.7 GiB   | 104 tok/s (limited context) |
+| `Gemma4-26B-A4B`  | unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL                    | 15 GiB    | 32 tok/s                    |
+| `Gemma4-31B`      | unsloth/gemma-4-31B-it-qat-GGUF:UD-Q4_K_XL                        | 18 GB     | 2 tok/s (does not fit)      |
 
 Global settings include Jinja templating, flash attention, KV cache quantization (`q8_0`), reasoning budgets, and `models-max = 1`.
 
@@ -264,6 +264,7 @@ pixi run kv-kld-report perplexity.log -o kv-kld-report.html
 ### `scripts/bwrap-claude.sh` — Claude Code Bubblewrap Sandbox
 
 Wraps Claude Code (`claude`) in a bubblewrap container using the current working directory:
+
 - Read-only root filesystem; `/tmp`, `/home`, `/root` are `tmpfs`
 - Binds the target working directory read-write (or a temp dir at `/tmp/claude` if `-` is passed)
 - Binds `~/.claude`, `~/.claude.json` (Claude Code config/auth)
@@ -276,6 +277,7 @@ Wraps Claude Code (`claude`) in a bubblewrap container using the current working
 ### `scripts/bwrap-pi.sh` — Bubblewrap Sandbox
 
 Wraps the pi coding agent in a bubblewrap container:
+
 - Read-only root filesystem; `/tmp`, `/home`, `/root` are `tmpfs`
 - Binds the target working directory read-write (or a temp dir if `-` is passed)
 - Binds `$CONDA_PREFIX` read-only; mounts `$CONDA_PREFIX/home/.pi` as `~/.pi` inside the sandbox
@@ -426,61 +428,61 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 
 ## File Reference
 
-| File | Purpose |
-|------|---------|
-| `AGENTS.md` | Project guide for coding agents |
-| `README.md` | Project readme |
-| `.github/workflows/llamacpp.yml` | CI workflow for llama-cpp builds |
-| `chat-templates/qwen3.6-froggeric-v20.jinja` | Custom Qwen 3.6 chat template (Jinja) |
-| `pixi.toml` | Root workspace: features, tasks, environments |
-| `pixi.lock` | Locked dependency versions (binary; never edit) |
-| `kv-perplexity.yaml` | Sample config for `kv-perplexity.py` |
-| `models.ini` | llama-server multi-model preset config |
-| `llama-server.log` | Server log (gitignored) |
-| `scripts/bwrap-claude.sh` | Bubblewrap sandbox wrapper for Claude Code |
-| `scripts/claude-unsafe.sh` | Unsandboxed Claude Code wrapper (dev/debug only) |
-| `scripts/bwrap-pi.sh` | Bubblewrap sandbox wrapper for pi agent |
-| `scripts/diff-llama-cpp-variants.sh` | Compare llama-cpp recipe variants |
-| `scripts/inject-pi-extensions.sh` | Merge pi-extensions packages into settings.json |
-| `scripts/install-apparmor.sh` | Install/load AppArmor profile for bwrap (local sudo or CI) |
-| `scripts/stop-server.sh` | Graceful llama-server shutdown (SIGTERM → SIGKILL) |
-| `scripts/start-server.sh` | Background llama-server with logging |
-| `scripts/pi-unsafe.sh` | Unsandboxed pi wrapper (dev/debug only) |
-| `scripts/kv-perplexity.py` | KLD sweep over cartesian product of K/V quant combos (`kv-perplexity` task) |
-| `scripts/kv-kld-report.py` | Parse perplexity log → HTML/Markdown KLD report with plots (`kv-kld-report` task) |
-| `sample-data/wiki.test.raw` | Wikitext-2 test corpus for KLD/perplexity benchmarks |
-| `sample-data/wiki.train.head-10k.raw` | First 10k lines of wiki.train.raw (~674k tokens; larger KLD baseline) |
-| `sample-data/describe-me.jpg` | Image for multimodal testing |
-| `sample-data/README.md` | Sample data documentation |
-| `sample-data/context-bench/run_benchmark.py` | Long-context recall benchmark runner (prompts models, grades, writes TOML) |
-| `sample-data/context-bench/AGENTS.md` | System prompt for the model under test |
-| `sample-data/context-bench/config.toml` | Benchmark runner config |
-| `sample-data/context-bench/<size>.txt` | Benchmark books (16k–256k) with 20 questions appended |
-| `sample-data/context-bench/<size>.answers.txt` | Reference answers with source line numbers |
-| `pixi-recipes/llama-cpp-source/build.sh` | Shared CMake build + install + symlink script |
-| `pixi-recipes/llama-cpp-source/cpu/recipe.yaml` | CPU build recipe |
-| `pixi-recipes/llama-cpp-source/cuda/recipe.yaml` | CUDA build recipe |
-| `pixi-recipes/llama-cpp-source/vulkan/recipe.yaml` | Vulkan build recipe |
-| `pixi-recipes/llama-cpp-binary/build.sh` | Linux: copy pre-built binaries + create symlinks |
-| `pixi-recipes/llama-cpp-binary/build.bat` | Windows: copy pre-built exes + DLLs into `bin` |
-| `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml` | CPU binary recipe |
-| `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml` | Vulkan binary recipe |
-| `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml` | ROCm binary recipe |
-| `pixi-recipes/claude/recipe.yaml` | Claude Code conda package recipe |
-| `pixi-recipes/claude/build.sh` | Linux: `npm install --global` into prefix |
-| `pixi-recipes/claude/build.bat` | Windows: `npm install --global` into prefix |
-| `pixi-recipes/pi-extensions/recipe.yaml` | Packages pi plugin set |
-| `pixi-recipes/pi-extensions/build.sh` | Linux: runs `pi install` for each plugin in `PLUGINS` |
-| `pixi-recipes/pi-extensions/build.bat` | Windows: runs `pi install` for each plugin in `PLUGINS` |
-| `pixi-recipes/pi-skills/recipe.yaml` | Packages pi skill directories |
-| `pixi-recipes/pi-skills/build.sh` | Linux: copies skills/ into $PREFIX/home/.pi/agent/skills |
-| `pixi-recipes/pi-skills/build.bat` | Windows: same |
-| `pixi-recipes/pi-skills/skills/use-gh-cli/SKILL.md` | Skill: use gh CLI instead of web fetch for GitHub |
-| `pixi-recipes/pi-skills/AGENTS.md` | Global agent instructions (mirrors root AGENTS.md) |
-| `pixi-recipes/pi-skills/agents/*.md` | Agent-specific instruction files (Explore, Plan, Programmer, Reviewer, general-purpose) |
-| `.agents/skills/*/SKILL.md` | Agent skills discovered by pi agent (llama-cpp-changelog, test-git-auth, update-*) |
-| `sample-data/context-bench/README.md` | Context-bench documentation |
-| `sample-data/context-bench/aggregate_benchmark_results.py` | Aggregates multiple context-benchmark runs (`aggregate-context-bench` task) |
+| File                                                       | Purpose                                                                                 |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `AGENTS.md`                                                | Project guide for coding agents                                                         |
+| `README.md`                                                | Project readme                                                                          |
+| `.github/workflows/llamacpp.yml`                           | CI workflow for llama-cpp builds                                                        |
+| `chat-templates/qwen3.6-froggeric-v20.jinja`               | Custom Qwen 3.6 chat template (Jinja)                                                   |
+| `pixi.toml`                                                | Root workspace: features, tasks, environments                                           |
+| `pixi.lock`                                                | Locked dependency versions (binary; never edit)                                         |
+| `kv-perplexity.yaml`                                       | Sample config for `kv-perplexity.py`                                                    |
+| `models.ini`                                               | llama-server multi-model preset config                                                  |
+| `llama-server.log`                                         | Server log (gitignored)                                                                 |
+| `scripts/bwrap-claude.sh`                                  | Bubblewrap sandbox wrapper for Claude Code                                              |
+| `scripts/claude-unsafe.sh`                                 | Unsandboxed Claude Code wrapper (dev/debug only)                                        |
+| `scripts/bwrap-pi.sh`                                      | Bubblewrap sandbox wrapper for pi agent                                                 |
+| `scripts/diff-llama-cpp-variants.sh`                       | Compare llama-cpp recipe variants                                                       |
+| `scripts/inject-pi-extensions.sh`                          | Merge pi-extensions packages into settings.json                                         |
+| `scripts/install-apparmor.sh`                              | Install/load AppArmor profile for bwrap (local sudo or CI)                              |
+| `scripts/stop-server.sh`                                   | Graceful llama-server shutdown (SIGTERM → SIGKILL)                                      |
+| `scripts/start-server.sh`                                  | Background llama-server with logging                                                    |
+| `scripts/pi-unsafe.sh`                                     | Unsandboxed pi wrapper (dev/debug only)                                                 |
+| `scripts/kv-perplexity.py`                                 | KLD sweep over cartesian product of K/V quant combos (`kv-perplexity` task)             |
+| `scripts/kv-kld-report.py`                                 | Parse perplexity log → HTML/Markdown KLD report with plots (`kv-kld-report` task)       |
+| `sample-data/wiki.test.raw`                                | Wikitext-2 test corpus for KLD/perplexity benchmarks                                    |
+| `sample-data/wiki.train.head-10k.raw`                      | First 10k lines of wiki.train.raw (~674k tokens; larger KLD baseline)                   |
+| `sample-data/describe-me.jpg`                              | Image for multimodal testing                                                            |
+| `sample-data/README.md`                                    | Sample data documentation                                                               |
+| `sample-data/context-bench/run_benchmark.py`               | Long-context recall benchmark runner (prompts models, grades, writes TOML)              |
+| `sample-data/context-bench/AGENTS.md`                      | System prompt for the model under test                                                  |
+| `sample-data/context-bench/config.toml`                    | Benchmark runner config                                                                 |
+| `sample-data/context-bench/<size>.txt`                     | Benchmark books (16k–256k) with 20 questions appended                                   |
+| `sample-data/context-bench/<size>.answers.txt`             | Reference answers with source line numbers                                              |
+| `pixi-recipes/llama-cpp-source/build.sh`                   | Shared CMake build + install + symlink script                                           |
+| `pixi-recipes/llama-cpp-source/cpu/recipe.yaml`            | CPU build recipe                                                                        |
+| `pixi-recipes/llama-cpp-source/cuda/recipe.yaml`           | CUDA build recipe                                                                       |
+| `pixi-recipes/llama-cpp-source/vulkan/recipe.yaml`         | Vulkan build recipe                                                                     |
+| `pixi-recipes/llama-cpp-binary/build.sh`                   | Linux: copy pre-built binaries + create symlinks                                        |
+| `pixi-recipes/llama-cpp-binary/build.bat`                  | Windows: copy pre-built exes + DLLs into `bin`                                          |
+| `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml`            | CPU binary recipe                                                                       |
+| `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml`         | Vulkan binary recipe                                                                    |
+| `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml`           | ROCm binary recipe                                                                      |
+| `pixi-recipes/claude/recipe.yaml`                          | Claude Code conda package recipe                                                        |
+| `pixi-recipes/claude/build.sh`                             | Linux: `npm install --global` into prefix                                               |
+| `pixi-recipes/claude/build.bat`                            | Windows: `npm install --global` into prefix                                             |
+| `pixi-recipes/pi-extensions/recipe.yaml`                   | Packages pi plugin set                                                                  |
+| `pixi-recipes/pi-extensions/build.sh`                      | Linux: runs `pi install` for each plugin in `PLUGINS`                                   |
+| `pixi-recipes/pi-extensions/build.bat`                     | Windows: runs `pi install` for each plugin in `PLUGINS`                                 |
+| `pixi-recipes/pi-skills/recipe.yaml`                       | Packages pi skill directories                                                           |
+| `pixi-recipes/pi-skills/build.sh`                          | Linux: copies skills/ into $PREFIX/home/.pi/agent/skills                                |
+| `pixi-recipes/pi-skills/build.bat`                         | Windows: same                                                                           |
+| `pixi-recipes/pi-skills/skills/use-gh-cli/SKILL.md`        | Skill: use gh CLI instead of web fetch for GitHub                                       |
+| `pixi-recipes/pi-skills/AGENTS.md`                         | Global agent instructions (mirrors root AGENTS.md)                                      |
+| `pixi-recipes/pi-skills/agents/*.md`                       | Agent-specific instruction files (Explore, Plan, Programmer, Reviewer, general-purpose) |
+| `.agents/skills/*/SKILL.md`                                | Agent skills discovered by pi agent (llama-cpp-changelog, test-git-auth, update-*)      |
+| `sample-data/context-bench/README.md`                      | Context-bench documentation                                                             |
+| `sample-data/context-bench/aggregate_benchmark_results.py` | Aggregates multiple context-benchmark runs (`aggregate-context-bench` task)             |
 
 ## Conventions
 
@@ -510,3 +512,4 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 - **Windows scripts run under MSYS2 bash shipped by the environment** — the default feature pins `m2-bash`, `m2-coreutils`, and `m2-grep` on win-64, because a plain `bash` from PATH on vanilla Windows resolves to WSL, which discards the pixi environment. Don't use `jq` (not packaged for win-64 on conda-forge), `nc`, `pkill`/`pgrep`, or `ln -s` in scripts that must run on Windows; use `node -e` for JSON, `curl` for port checks (Windows ships it in System32), `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` (files) or an NTFS junction via `cmd //c 'mklink /J <link> <target>'` (directories; needs no admin rights) instead of symlinks. If a script needs another external command on Windows, add the corresponding `m2-*` package
 - **`CLAUDE.md` is a symlink** to `AGENTS.md` for Claude Code compatibility
 - **`.claude/skills` is a symlink** to `.agents/skills/` for Claude Code compatibility
+- **Always run `pixi r lint` after changing files** — fix any resulting issues immediately. This invalidates your memory of file contents; re-read from disk before making further changes.

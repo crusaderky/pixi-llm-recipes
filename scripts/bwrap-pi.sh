@@ -57,7 +57,6 @@ fi
 
 _PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
 _CONDA_PREFIX="$CONDA_PREFIX"
-MODELS_JSON="$PWD/models.$PIXI_ENVIRONMENT_NAME.json"
 
 mkdir -p ~/.cache/ccache
 mkdir -p ~/.cache/pip

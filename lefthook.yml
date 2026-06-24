@@ -1,0 +1,16 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - run: actionlint
+    - run: blacken-docs
+    - run: codespell
+    - name: dprint
+      run: dprint fmt
+    - name: ruff
+      group:
+        piped: true
+        jobs:
+          - name: ruff format
+            run: ruff format
+          - name: ruff check
+            run: ruff check --fix --show-fixes

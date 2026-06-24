@@ -10,6 +10,7 @@ allowed-tools: Bash Read Edit
 ### 1. Read the current pinned version
 
 Read `pixi-recipes/claude/recipe.yaml`. Extract:
+
 - **current version** — `context.version` (e.g. `"2.1.153"`)
 - **current sha256** — `source.sha256`
 
@@ -43,6 +44,7 @@ Extract the hex digest (first field of output).
 ### 5. Update recipe.yaml
 
 Edit `pixi-recipes/claude/recipe.yaml` in-place:
+
 - Replace the `context.version` value with the new version string (keep the surrounding quotes).
 - Replace the `source.sha256` value with the new hex digest.
 

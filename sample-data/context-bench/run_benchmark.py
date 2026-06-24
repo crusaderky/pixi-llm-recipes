@@ -49,6 +49,7 @@ in grey, the answers in the default colour. Press Ctrl+C to stop early —
 whatever has been collected so far (including the partial in-flight reply) is
 still written to the output TOML.
 """
+
 import argparse
 import os
 import re
@@ -227,17 +228,43 @@ def parse_model_answers(text: str) -> dict[int, str]:
 # Grading
 # --------------------------------------------------------------------------- #
 _ONES = {
-    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
-    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
-    "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
-    "seventeen": 17, "eighteen": 18, "nineteen": 19,
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
 }
 _TENS = {
-    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
-    "seventy": 70, "eighty": 80, "ninety": 90,
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+    "fifty": 50,
+    "sixty": 60,
+    "seventy": 70,
+    "eighty": 80,
+    "ninety": 90,
 }
-_SCALES = {"hundred": 100, "thousand": 1000, "million": 1_000_000,
-           "billion": 1_000_000_000}
+_SCALES = {
+    "hundred": 100,
+    "thousand": 1000,
+    "million": 1_000_000,
+    "billion": 1_000_000_000,
+}
 _NUMWORDS = set(_ONES) | set(_TENS) | set(_SCALES)
 
 
@@ -302,8 +329,8 @@ def normalize(s: str) -> str:
     s = unicodedata.normalize("NFKC", s).strip().lower()
     s = re.sub(r"^(the|a|an)\s+", "", s)
     s = _words_to_digits(s)
-    s = re.sub(r"[^a-z0-9.]", "", s)        # drop spaces, £, commas, etc.
-    s = re.sub(r"\.(?!\d)", "", s)          # drop dots not part of a decimal
+    s = re.sub(r"[^a-z0-9.]", "", s)  # drop spaces, £, commas, etc.
+    s = re.sub(r"\.(?!\d)", "", s)  # drop dots not part of a decimal
     s = re.sub(r"(?<!\d)\.", "", s)
     return s
 
@@ -359,14 +386,14 @@ class _ThinkSplitter:
             if idx != -1:
                 if idx:
                     pieces.append((self._buf[:idx], self.in_think))
-                self._buf = self._buf[idx + len(tag):]
+                self._buf = self._buf[idx + len(tag) :]
                 self.in_think = not self.in_think
                 continue
             keep = self._partial_suffix(self._buf, tag)
             emit = self._buf[: len(self._buf) - keep]
             if emit:
                 pieces.append((emit, self.in_think))
-            self._buf = self._buf[len(self._buf) - keep:]
+            self._buf = self._buf[len(self._buf) - keep :]
             return pieces
 
     def flush(self) -> list[tuple[str, bool]]:
@@ -522,12 +549,18 @@ def run(config_path: Path, output_path: Path) -> None:
                 seen.add(size)
                 eligible.append(book)
             if not eligible:
-                print(f"[{tag}] no valid ctx-size entries; skipping model.", file=sys.stderr)
+                print(
+                    f"[{tag}] no valid ctx-size entries; skipping model.",
+                    file=sys.stderr,
+                )
                 continue
 
             results[tag] = {}
             for book in eligible:
-                print(f"[{tag}] {book.label}: querying {cfg.model_name} ...", file=sys.stderr)
+                print(
+                    f"[{tag}] {book.label}: querying {cfg.model_name} ...",
+                    file=sys.stderr,
+                )
                 header = f"\n===== [{tag}] {book.label} =====\n"
                 thoughts = ""
                 interrupted = False

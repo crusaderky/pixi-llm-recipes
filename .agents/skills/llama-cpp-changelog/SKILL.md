@@ -65,6 +65,7 @@ Run: `curl -s "https://api.github.com/repos/ggml-org/llama.cpp/compare/${FROM}..
 Produce a structured markdown summary with the following sections (omit any section that has no relevant content):
 
 #### Header
+
 ```
 ## llama.cpp changelog: {FROM} (Released: {FROM_DATE}) → {TO} (Released: {TO_DATE})
 {N} release(s) — {total_commits} commits
@@ -94,6 +95,7 @@ Group notable changes across all releases into theme buckets (include only non-e
 #### Upgrade recommendation
 
 End with a concise one-line verdict:
+
 - "Safe to upgrade — no breaking changes detected."
 - "Review before upgrading — `<flag/API>` was renamed/removed: <details>."
 - "Significant changes — test your workload before upgrading."
@@ -101,5 +103,6 @@ End with a concise one-line verdict:
 #### Turboquant fork note (if applicable)
 
 When the active recipe uses the Turboquant fork, add a line clarifying the context:
+
 - "Turboquant fork currently at its own `bNNNN`, last synced with main at `bXXXX`. This changelog covers upstream main changes `bXXXX`→`bYYYY` — check turboquant branch for whether those changes are already cherry-picked."
 - Do NOT say "Turboquant already past this" — the fork's version number is its own internal tag and has no relation to upstream release tags.

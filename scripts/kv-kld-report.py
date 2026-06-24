@@ -46,20 +46,20 @@ def _fetch_chart_js() -> str:
 #  (https://github.com/TheTom/llama-cpp-turboquant)
 # ---------------------------------------------------------------------------
 BPP = {
-    "f32": 4.0,        # 32-bit float
-    "f16": 2.0,        # 16-bit float
-    "bf16": 2.0,       # bfloat16
-    "q8_0": 1.0625,    # d(fp16)=2 + qs(int8)[32]=32 => 34/32
-    "q5_1": 0.75,      # d(fp16)=2 + m(fp16)=2 + qh[4]=4 + qs[16]=16 => 24/32
-    "q5_0": 0.6875,    # d(fp16)=2 + qh[4]=4 + qs[16]=16 => 22/32
-    "q4_1": 0.625,     # d(fp16)=2 + m(fp16)=2 + qs[16]=16 => 20/32
-    "q4_0": 0.5625,    # d(fp16)=2 + qs[16]=16 => 18/32
+    "f32": 4.0,  # 32-bit float
+    "f16": 2.0,  # 16-bit float
+    "bf16": 2.0,  # bfloat16
+    "q8_0": 1.0625,  # d(fp16)=2 + qs(int8)[32]=32 => 34/32
+    "q5_1": 0.75,  # d(fp16)=2 + m(fp16)=2 + qh[4]=4 + qs[16]=16 => 24/32
+    "q5_0": 0.6875,  # d(fp16)=2 + qh[4]=4 + qs[16]=16 => 22/32
+    "q4_1": 0.625,  # d(fp16)=2 + m(fp16)=2 + qs[16]=16 => 20/32
+    "q4_0": 0.5625,  # d(fp16)=2 + qs[16]=16 => 18/32
     "iq4_nl": 0.5625,  # d(fp16)=2 + qs[16]=16 => 18/32 (same size as q4_0)
     # TurboQuant+ KV cache (TheTom/llama-cpp-turboquant)
     # Values from https://github.com/TheTom/turboquant_plus
-    "turbo4": 0.53125,   # 4.25 bits/val
-    "turbo3": 0.4375,    # 3.5 bits/val
-    "turbo2": 0.3125,    # 2.5 bits/val
+    "turbo4": 0.53125,  # 4.25 bits/val
+    "turbo3": 0.4375,  # 3.5 bits/val
+    "turbo2": 0.3125,  # 2.5 bits/val
     # K-quant types (block of 256) — not used for KV cache but kept for reference
     "q2_k": 0.3125,
     "q3_k_s": 0.3125,
@@ -177,7 +177,7 @@ def parse_log(path: str) -> tuple[list[dict], str]:
             is_aborted = i < len(chunks) - 1  # ABORTED marker follows this chunk
 
             ctk, ctv = m.group(1), m.group(2)
-            has_kld = bool(re.search(r'(?:^|\s)--kl-divergence(?:\s|$)', cmd_line))
+            has_kld = bool(re.search(r"(?:^|\s)--kl-divergence(?:\s|$)", cmd_line))
 
             # Detect turboquant auto-asymmetric K-cache upgrade (bogus run).
             auto_asym = None
@@ -225,20 +225,22 @@ def parse_log(path: str) -> tuple[list[dict], str]:
             if not has_kld:
                 # Baseline run — KLD = 0 by definition
                 size = resolve_bpp(ctk) + resolve_bpp(ctv)
-                runs.append({
-                    "ctk": ctk,
-                    "ctv": ctv,
-                    "label": f"{ctk}/{ctv}",
-                    "size": size,
-                    "n_chunks": 0,
-                    "mean": 0.0,
-                    "median": 0.0,
-                    "p90": 0.0,
-                    "p999": 0.0,
-                    "speed": speed,
-                    "baseline": True,
-                    "auto_asymmetric": auto_asym,
-                })
+                runs.append(
+                    {
+                        "ctk": ctk,
+                        "ctv": ctv,
+                        "label": f"{ctk}/{ctv}",
+                        "size": size,
+                        "n_chunks": 0,
+                        "mean": 0.0,
+                        "median": 0.0,
+                        "p90": 0.0,
+                        "p999": 0.0,
+                        "speed": speed,
+                        "baseline": True,
+                        "auto_asymmetric": auto_asym,
+                    }
+                )
                 continue
 
             # Count chunks for display; parse summary for statistics
@@ -276,22 +278,27 @@ def parse_log(path: str) -> tuple[list[dict], str]:
             if not in_summary:
                 # Aborted run — no KLD stats. Still list in table with blank metrics.
                 if is_aborted:
-                    runs.append({
-                        "ctk": ctk,
-                        "ctv": ctv,
-                        "label": f"{ctk}/{ctv}",
-                        "size": resolve_bpp(ctk) + resolve_bpp(ctv),
-                        "n_chunks": 0,
-                        "mean": None,
-                        "median": None,
-                        "p90": None,
-                        "p999": None,
-                        "speed": speed,
-                        "aborted": True,
-                        "auto_asymmetric": auto_asym,
-                    })
+                    runs.append(
+                        {
+                            "ctk": ctk,
+                            "ctv": ctv,
+                            "label": f"{ctk}/{ctv}",
+                            "size": resolve_bpp(ctk) + resolve_bpp(ctv),
+                            "n_chunks": 0,
+                            "mean": None,
+                            "median": None,
+                            "p90": None,
+                            "p999": None,
+                            "speed": speed,
+                            "aborted": True,
+                            "auto_asymmetric": auto_asym,
+                        }
+                    )
                     continue
-                print(f"WARNING: --kl-divergence flag found but no summary stats for {ctk}/{ctv}", file=sys.stderr)
+                print(
+                    f"WARNING: --kl-divergence flag found but no summary stats for {ctk}/{ctv}",
+                    file=sys.stderr,
+                )
                 continue
 
             runs.append(
@@ -330,13 +337,18 @@ def _fmt_size(v):
     return f"{v:.4f}"
 
 
-def generate_html(runs: list[dict], common_params: str = "", chart_js_src: str = "",
-                  speed_cutoff_factor: float = 0.33) -> str:
+def generate_html(
+    runs: list[dict],
+    common_params: str = "",
+    chart_js_src: str = "",
+    speed_cutoff_factor: float = 0.33,
+) -> str:
     sorted_runs = sorted(runs, key=lambda r: r["size"])
 
     # ---- Pareto frontiers (separate per stat; group-by-size so same-size runs compete) ----
     def _frontier(key: str, candidate_runs: list[dict]) -> set[int]:
         from collections import defaultdict
+
         by_size: dict[float, list[dict]] = defaultdict(list)
         for r in candidate_runs:
             by_size[r["size"]].append(r)
@@ -352,15 +364,25 @@ def generate_html(runs: list[dict], common_params: str = "", chart_js_src: str =
         return ids
 
     baseline_run = next((r for r in runs if r.get("baseline")), None)
-    speed_cutoff = baseline_run["speed"] * speed_cutoff_factor if baseline_run and baseline_run["speed"] is not None else None
-    eligible_runs = [r for r in runs if not r.get("aborted") and (speed_cutoff is None or r["speed"] is None or r["speed"] >= speed_cutoff)]
+    speed_cutoff = (
+        baseline_run["speed"] * speed_cutoff_factor
+        if baseline_run and baseline_run["speed"] is not None
+        else None
+    )
+    eligible_runs = [
+        r
+        for r in runs
+        if not r.get("aborted")
+        and (speed_cutoff is None or r["speed"] is None or r["speed"] >= speed_cutoff)
+    ]
 
     frontier_mean = _frontier("mean", eligible_runs)
     frontier_p999 = _frontier("p999", eligible_runs)
 
     # A run is suboptimal if it's NOT on either frontier, OR if it's too slow
-    suboptimal_ids = {id(r) for r in runs
-                      if id(r) not in frontier_mean and id(r) not in frontier_p999}
+    suboptimal_ids = {
+        id(r) for r in runs if id(r) not in frontier_mean and id(r) not in frontier_p999
+    }
     if speed_cutoff is not None:
         for r in runs:
             if r["speed"] is not None and r["speed"] < speed_cutoff:
@@ -372,7 +394,7 @@ def generate_html(runs: list[dict], common_params: str = "", chart_js_src: str =
         common_html = (
             '<div class="common-params">'
             "<h2>Common Parameters</h2>"
-            f'<code>llama-perplexity {_esc(common_params)}</code>'
+            f"<code>llama-perplexity {_esc(common_params)}</code>"
             "</div>\n"
         )
 
@@ -416,9 +438,15 @@ def generate_html(runs: list[dict], common_params: str = "", chart_js_src: str =
             if r.get("aborted"):
                 continue
             y = r[key] if r[key] > 0 else 1e-10
-            pt = {"x": r["size"], "y": y, "_label": r["label"], "_suboptimal": id(r) in suboptimal_ids,
-                    "_speed": r["speed"], "_speed_pct": r["speed_pct"]}
-            # A point is on the "best line" only if it's in the calculated frontier 
+            pt = {
+                "x": r["size"],
+                "y": y,
+                "_label": r["label"],
+                "_suboptimal": id(r) in suboptimal_ids,
+                "_speed": r["speed"],
+                "_speed_pct": r["speed_pct"],
+            }
+            # A point is on the "best line" only if it's in the calculated frontier
             # AND it's not too slow.
             if id(r) in frontier and id(r) not in suboptimal_ids:
                 best_pts.append(pt)
@@ -444,18 +472,37 @@ def generate_html(runs: list[dict], common_params: str = "", chart_js_src: str =
         )
     # ---- extra lines: k=f16 (dashed) and v=f16 (dotted) ----
     for subset_name, dash_pat, subset_runs in [
-        ("k=f16", [6, 3], [r for r in sorted_runs if r["ctk"] == "f16" and not r.get("aborted")]),
-        ("v=f16", [2, 3], [r for r in sorted_runs if r["ctv"] == "f16" and not r.get("aborted")]),
+        (
+            "k=f16",
+            [6, 3],
+            [r for r in sorted_runs if r["ctk"] == "f16" and not r.get("aborted")],
+        ),
+        (
+            "v=f16",
+            [2, 3],
+            [r for r in sorted_runs if r["ctv"] == "f16" and not r.get("aborted")],
+        ),
     ]:
         if not subset_runs:
             continue
         for stat_label, key, base_color, _ in stat_specs:
-            r_, g_, b_ = int(base_color[1:3], 16), int(base_color[3:5], 16), int(base_color[5:7], 16)
+            r_, g_, b_ = (
+                int(base_color[1:3], 16),
+                int(base_color[3:5], 16),
+                int(base_color[5:7], 16),
+            )
             faint = f"rgba({r_}, {g_}, {b_}, 0.35)"
             pts = sorted(
-                [{"x": r["size"], "y": r[key] if r[key] > 0 else 1e-10, "_label": r["label"], "_suboptimal": id(r) in suboptimal_ids}
-                 for r in subset_runs],
-                key=lambda p: p["x"]
+                [
+                    {
+                        "x": r["size"],
+                        "y": r[key] if r[key] > 0 else 1e-10,
+                        "_label": r["label"],
+                        "_suboptimal": id(r) in suboptimal_ids,
+                    }
+                    for r in subset_runs
+                ],
+                key=lambda p: p["x"],
             )
             ds_parts.append(
                 "{ label: '%s %s', data: %s,"
@@ -463,27 +510,40 @@ def generate_html(runs: list[dict], common_params: str = "", chart_js_src: str =
                 " showLine: true, fill: false, tension: 0,"
                 " pointRadius: 4, pointHoverRadius: 6,"
                 " borderDash: %s }"
-                % (subset_name, stat_label, json.dumps(pts),
-                   faint, faint, json.dumps(dash_pat))
+                % (
+                    subset_name,
+                    stat_label,
+                    json.dumps(pts),
+                    faint,
+                    faint,
+                    json.dumps(dash_pat),
+                )
             )
 
     datasets_js = ",\n      ".join(ds_parts)
 
-
-
     # Compute y-axis range so smallest non-zero point sits at 1/3 from bottom
     # (baseline at y=1e-10 shoots out of plot)
-    max_y = max(r[key] for key in ["mean", "p999"]
-                for r in sorted_runs if r[key] is not None and r[key] > 0)
-    min_nonzero = min(r[key] for key in ["mean", "p999"]
-                      for r in sorted_runs if r[key] is not None and r[key] > 0)
+    max_y = max(
+        r[key]
+        for key in ["mean", "p999"]
+        for r in sorted_runs
+        if r[key] is not None and r[key] > 0
+    )
+    min_nonzero = min(
+        r[key]
+        for key in ["mean", "p999"]
+        for r in sorted_runs
+        if r[key] is not None and r[key] > 0
+    )
     import math
+
     # Position min_nonzero at 1/10 from bottom of log scale (90% down):
     # (log(min_nonzero) - log(y_min)) / (log(max_y) - log(y_min)) = 0.1
     log_max = math.log10(max_y)
     log_min = math.log10(min_nonzero)
     log_y_min = (10 * log_min - log_max) / 9
-    y_min = 10 ** log_y_min
+    y_min = 10**log_y_min
     y_max = max_y * 1.15  # 15% headroom above max
     x_max = max(r["size"] for r in sorted_runs)
 
@@ -491,13 +551,14 @@ def generate_html(runs: list[dict], common_params: str = "", chart_js_src: str =
     baseline_label_json = json.dumps(baseline_label) if baseline_label else "null"
 
     # Chunk count — same for all non-baseline runs
-    n_chunks = next((r["n_chunks"] for r in sorted_runs if r.get("n_chunks", 0) > 0), None)
+    n_chunks = next(
+        (r["n_chunks"] for r in sorted_runs if r.get("n_chunks", 0) > 0), None
+    )
     chunks_html = (
-            '<div class="common-params">'
-            '<h2>Chunks per run</h2>'
-            f'{n_chunks}'
-            '</div>\n'
-        ) if n_chunks else ""
+        (f'<div class="common-params"><h2>Chunks per run</h2>{n_chunks}</div>\n')
+        if n_chunks
+        else ""
+    )
 
     html = HTML_HEAD.replace("{chart_js_src}", chart_js_src)
     html += common_html
@@ -775,11 +836,12 @@ HTML_TAIL = """\
 # ---------------------------------------------------------------------------
 #  SVG plot (matplotlib)
 # ---------------------------------------------------------------------------
-def _frontier_groups(runs: list[dict], key: str, speed_cutoff_factor: float = 0.33
-                    ) -> tuple[set[int], set[int]]:
+def _frontier_groups(
+    runs: list[dict], key: str, speed_cutoff_factor: float = 0.33
+) -> tuple[set[int], set[int]]:
     """Return (frontier_ids, suboptimal_ids) for a given stat key."""
     from collections import defaultdict
-    
+
     # Only consider runs that are not too slow
     baseline_run = next((r for r in runs if r.get("baseline")), None)
     speed_cutoff = None
@@ -788,7 +850,9 @@ def _frontier_groups(runs: list[dict], key: str, speed_cutoff_factor: float = 0.
 
     eligible_runs = [r for r in runs if not r.get("aborted")]
     if speed_cutoff is not None:
-        eligible_runs = [r for r in eligible_runs if r["speed"] is None or r["speed"] >= speed_cutoff]
+        eligible_runs = [
+            r for r in eligible_runs if r["speed"] is None or r["speed"] >= speed_cutoff
+        ]
 
     by_size: dict[float, list[dict]] = defaultdict(list)
     for r in eligible_runs:
@@ -805,22 +869,23 @@ def _frontier_groups(runs: list[dict], key: str, speed_cutoff_factor: float = 0.
     return frontier, {id(r) for r in runs if id(r) not in frontier}
 
 
-def generate_plot_svg(runs: list[dict], width=1000, height=600, dpi=100,
-                      speed_cutoff_factor: float = 0.33) -> str:
+def generate_plot_svg(
+    runs: list[dict], width=1000, height=600, dpi=100, speed_cutoff_factor: float = 0.33
+) -> str:
     """Generate an SVG plot of KLD vs size using matplotlib."""
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import numpy as np
-    from matplotlib.patches import FancyBboxPatch
 
     sorted_runs = sorted(runs, key=lambda r: r["size"])
     sorted_runs = [r for r in sorted_runs if not r.get("aborted")]
 
     frontier_mean, _ = _frontier_groups(sorted_runs, "mean")
     frontier_p999, _ = _frontier_groups(sorted_runs, "p999")
-    suboptimal_ids = {id(r) for r in runs
-                      if id(r) not in frontier_mean and id(r) not in frontier_p999}
+    suboptimal_ids = {
+        id(r) for r in runs if id(r) not in frontier_mean and id(r) not in frontier_p999
+    }
 
     fig, ax = plt.subplots(figsize=(width / dpi, height / dpi), dpi=dpi)
     ax.set_xlabel("Size (bytes / parameter)", fontsize=11)
@@ -830,12 +895,15 @@ def generate_plot_svg(runs: list[dict], width=1000, height=600, dpi=100,
 
     # Y range: same logic as chart.js
     max_y = max(r[key] for key in ["mean", "p999"] for r in sorted_runs if r[key] > 0)
-    min_nonzero = min(r[key] for key in ["mean", "p999"] for r in sorted_runs if r[key] > 0)
+    min_nonzero = min(
+        r[key] for key in ["mean", "p999"] for r in sorted_runs if r[key] > 0
+    )
     import math
+
     log_max = math.log10(max_y)
     log_min = math.log10(min_nonzero)
     log_y_min = (10 * log_min - log_max) / 9
-    y_min = 10 ** log_y_min
+    y_min = 10**log_y_min
     ax.set_ylim(y_min, max_y * 1.5)
 
     ax.tick_params(labelsize=9)
@@ -847,8 +915,16 @@ def generate_plot_svg(runs: list[dict], width=1000, height=600, dpi=100,
     ]
 
     for label, key, color, frontier in stat_specs:
-        best_pts = [(r["size"], r[key] if r[key] > 0 else 1e-10, r) for r in sorted_runs if id(r) in frontier and id(r) not in suboptimal_ids]
-        sub_pts = [(r["size"], r[key] if r[key] > 0 else 1e-10, r) for r in sorted_runs if id(r) not in frontier or id(r) in suboptimal_ids]
+        best_pts = [
+            (r["size"], r[key] if r[key] > 0 else 1e-10, r)
+            for r in sorted_runs
+            if id(r) in frontier and id(r) not in suboptimal_ids
+        ]
+        sub_pts = [
+            (r["size"], r[key] if r[key] > 0 else 1e-10, r)
+            for r in sorted_runs
+            if id(r) not in frontier or id(r) in suboptimal_ids
+        ]
 
         # Sort by size for connected line
         best_pts.sort(key=lambda p: p[0])
@@ -856,8 +932,16 @@ def generate_plot_svg(runs: list[dict], width=1000, height=600, dpi=100,
         if best_pts:
             xs = [p[0] for p in best_pts]
             ys = [p[1] for p in best_pts]
-            ax.plot(xs, ys, color=color, linewidth=1.5, marker="o",
-                    markersize=6, label=label, zorder=5)
+            ax.plot(
+                xs,
+                ys,
+                color=color,
+                linewidth=1.5,
+                marker="o",
+                markersize=6,
+                label=label,
+                zorder=5,
+            )
 
         if sub_pts:
             xs = [p[0] for p in sub_pts]
@@ -868,13 +952,29 @@ def generate_plot_svg(runs: list[dict], width=1000, height=600, dpi=100,
         for pt_list, alpha in [(best_pts, 1.0), (sub_pts, 0.4)]:
             for x, y, r in pt_list:
                 if id(r) in suboptimal_ids and alpha < 1:
-                    ax.annotate(r["label"], (x, y), textcoords="offset points",
-                                xytext=(0, -12), fontsize=6, ha="center", va="top",
-                                alpha=alpha, zorder=10)
+                    ax.annotate(
+                        r["label"],
+                        (x, y),
+                        textcoords="offset points",
+                        xytext=(0, -12),
+                        fontsize=6,
+                        ha="center",
+                        va="top",
+                        alpha=alpha,
+                        zorder=10,
+                    )
                 else:
-                    ax.annotate(r["label"], (x, y), textcoords="offset points",
-                                xytext=(0, -12), fontsize=6.5, ha="center", va="top",
-                                alpha=alpha, zorder=10)
+                    ax.annotate(
+                        r["label"],
+                        (x, y),
+                        textcoords="offset points",
+                        xytext=(0, -12),
+                        fontsize=6.5,
+                        ha="center",
+                        va="top",
+                        alpha=alpha,
+                        zorder=10,
+                    )
 
     # Extra lines: k=f16 (dashed), v=f16 (dotted)
     for subset_name, dash_style, subset_runs_list in [
@@ -884,29 +984,51 @@ def generate_plot_svg(runs: list[dict], width=1000, height=600, dpi=100,
         if not subset_runs_list:
             continue
         for stat_label, key, base_color, _ in stat_specs:
-            r_, g_, b_ = int(base_color[1:3], 16), int(base_color[3:5], 16), int(base_color[5:7], 16)
+            r_, g_, b_ = (
+                int(base_color[1:3], 16),
+                int(base_color[3:5], 16),
+                int(base_color[5:7], 16),
+            )
             pts = sorted(
-                [(r["size"], r[key] if r[key] > 0 else 1e-10, r) for r in subset_runs_list],
-                key=lambda p: p[0]
+                [
+                    (r["size"], r[key] if r[key] > 0 else 1e-10, r)
+                    for r in subset_runs_list
+                ],
+                key=lambda p: p[0],
             )
             xs = [p[0] for p in pts]
             ys = [p[1] for p in pts]
-            ax.plot(xs, ys, color=(r_/255, g_/255, b_/255, 0.35),
-                    linewidth=1, linestyle=dash_style, marker="o",
-                    markersize=4, label=f"{subset_name} {stat_label}", zorder=4)
+            ax.plot(
+                xs,
+                ys,
+                color=(r_ / 255, g_ / 255, b_ / 255, 0.35),
+                linewidth=1,
+                linestyle=dash_style,
+                marker="o",
+                markersize=4,
+                label=f"{subset_name} {stat_label}",
+                zorder=4,
+            )
 
     # Baseline annotation
     baseline_label = next((r["label"] for r in sorted_runs if r.get("baseline")), None)
     if baseline_label:
-        ax.annotate(f"{baseline_label} (baseline) \u2193",
-                    xy=(0.98, 0.04), xycoords="axes fraction",
-                    fontsize=10, ha="right", va="bottom", color="#888",
-                    zorder=20)
+        ax.annotate(
+            f"{baseline_label} (baseline) \u2193",
+            xy=(0.98, 0.04),
+            xycoords="axes fraction",
+            fontsize=10,
+            ha="right",
+            va="bottom",
+            color="#888",
+            zorder=20,
+        )
 
     ax.legend(fontsize=8, loc="upper left", framealpha=0.9)
     fig.tight_layout()
 
     from io import StringIO
+
     buf = StringIO()
     fig.savefig(buf, format="svg", dpi=dpi, bbox_inches="tight")
     plt.close(fig)
@@ -916,19 +1038,23 @@ def generate_plot_svg(runs: list[dict], width=1000, height=600, dpi=100,
 # ---------------------------------------------------------------------------
 #  Markdown report
 # ---------------------------------------------------------------------------
-def generate_markdown(runs: list[dict], common_params: str = "",
-                      html_path: str | None = None,
-                      plot_path: str | None = None,
-                      repo: str | None = None,
-                      branch: str = "main",
-                      speed_cutoff_factor: float = 0.33) -> str:
+def generate_markdown(
+    runs: list[dict],
+    common_params: str = "",
+    html_path: str | None = None,
+    plot_path: str | None = None,
+    repo: str | None = None,
+    branch: str = "main",
+    speed_cutoff_factor: float = 0.33,
+) -> str:
     """Generate a Markdown report with table and SVG plot (image ref + xref)."""
     sorted_runs = sorted(runs, key=lambda r: r["size"], reverse=True)
 
     frontier_mean, _ = _frontier_groups(sorted_runs, "mean", speed_cutoff_factor)
     frontier_p999, _ = _frontier_groups(sorted_runs, "p999", speed_cutoff_factor)
-    suboptimal_ids = {id(r) for r in runs
-                      if id(r) not in frontier_mean and id(r) not in frontier_p999}
+    suboptimal_ids = {
+        id(r) for r in runs if id(r) not in frontier_mean and id(r) not in frontier_p999
+    }
 
     lines = []
     lines.append("# KLD Effect of Context Quantization")
@@ -942,12 +1068,16 @@ def generate_markdown(runs: list[dict], common_params: str = "",
         lines.append(f"`llama-perplexity {common_params}`")
         lines.append("")
 
-    n_chunks = next((r["n_chunks"] for r in sorted_runs if r.get("n_chunks", 0) > 0), None)
+    n_chunks = next(
+        (r["n_chunks"] for r in sorted_runs if r.get("n_chunks", 0) > 0), None
+    )
     if n_chunks:
         lines.append(f"**Chunks per run:** {n_chunks}")
         lines.append("")
 
-    lines.append("| ctk / ctv | Size (B/param) | Mean KLD | Median KLD | 90.0% KLD | 99.9% KLD | Speed (tok/s) | Speed (%) |")
+    lines.append(
+        "| ctk / ctv | Size (B/param) | Mean KLD | Median KLD | 90.0% KLD | 99.9% KLD | Speed (tok/s) | Speed (%) |"
+    )
     lines.append("|---|---|---|---|---|---|---|---|")
 
     for r in sorted(runs, key=lambda r: r["size"], reverse=True):
@@ -991,7 +1121,9 @@ def generate_markdown(runs: list[dict], common_params: str = "",
     baseline_run = next((r for r in runs if r.get("baseline")), None)
     if baseline_run and baseline_run["speed"] is not None:
         pct = speed_cutoff_factor * 100
-        lines.append(f"> Runs with speed < {pct:.0f}% of baseline excluded from frontier determination.")
+        lines.append(
+            f"> Runs with speed < {pct:.0f}% of baseline excluded from frontier determination."
+        )
         lines.append("")
 
     return "\n".join(lines)
@@ -1001,24 +1133,49 @@ def generate_markdown(runs: list[dict], common_params: str = "",
 #  CLI
 # ---------------------------------------------------------------------------
 def main():
-    ap = argparse.ArgumentParser(description="Generate KLD report from kv-perplexity output")
-    ap.add_argument("log", nargs="?", default="kv-perplexity.log", help="Input log (default: kv-perplexity.log)")
-    ap.add_argument("-o", "--output", default="kv-kld-report",
-                    help="Output basename (no extension). Generates BASENAME.html, BASENAME.md, BASENAME.svg (default: kv-kld-report)")
-    ap.add_argument("--whitelist", nargs="+", metavar="CTK/CTV",
-                    help="Only include these ctk/ctv combos (e.g. q4_0/q4_0). "
-                         "f16/f16 always included even if not listed.")
-    ap.add_argument("--repo", metavar="owner/repo",
-                    help="GitHub repository (e.g. crusaderky/pixi-llm-recipes). "
-                         "Auto-detected from git remote if omitted.  Generates "
-                         "raw.githubusercontent.com URLs for SVG and "
-                         "htmlpreview.github.io link for HTML report.")
-    ap.add_argument("--branch", default=None,
-                    help="GitHub branch (default: auto-detect from git, fallback main; "
-                         "used only with --repo or auto-detected repo)")
-    ap.add_argument("--speed-cutoff", type=float, default=0.33,
-                    help="Fraction of baseline speed; runs slower than this are excluded "
-                         "from frontier determination (default: 0.33)")
+    ap = argparse.ArgumentParser(
+        description="Generate KLD report from kv-perplexity output"
+    )
+    ap.add_argument(
+        "log",
+        nargs="?",
+        default="kv-perplexity.log",
+        help="Input log (default: kv-perplexity.log)",
+    )
+    ap.add_argument(
+        "-o",
+        "--output",
+        default="kv-kld-report",
+        help="Output basename (no extension). Generates BASENAME.html, BASENAME.md, BASENAME.svg (default: kv-kld-report)",
+    )
+    ap.add_argument(
+        "--whitelist",
+        nargs="+",
+        metavar="CTK/CTV",
+        help="Only include these ctk/ctv combos (e.g. q4_0/q4_0). "
+        "f16/f16 always included even if not listed.",
+    )
+    ap.add_argument(
+        "--repo",
+        metavar="owner/repo",
+        help="GitHub repository (e.g. crusaderky/pixi-llm-recipes). "
+        "Auto-detected from git remote if omitted.  Generates "
+        "raw.githubusercontent.com URLs for SVG and "
+        "htmlpreview.github.io link for HTML report.",
+    )
+    ap.add_argument(
+        "--branch",
+        default=None,
+        help="GitHub branch (default: auto-detect from git, fallback main; "
+        "used only with --repo or auto-detected repo)",
+    )
+    ap.add_argument(
+        "--speed-cutoff",
+        type=float,
+        default=0.33,
+        help="Fraction of baseline speed; runs slower than this are excluded "
+        "from frontier determination (default: 0.33)",
+    )
     args = ap.parse_args()
 
     # Auto-detect GitHub repo from git remote
@@ -1029,19 +1186,23 @@ def main():
         try:
             remote = subprocess.run(
                 ["git", "remote", "get-url", "origin"],
-                capture_output=True, text=True, timeout=5
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if remote.returncode == 0:
                 m = re.match(
                     r"(?:git@github\.com:|https://github\.com/)([^/]+/[^/.]+?)(?:\.git)?$",
-                    remote.stdout.strip()
+                    remote.stdout.strip(),
                 )
                 if m:
                     repo = m.group(1)
                     # Auto-detect branch too
                     br = subprocess.run(
                         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                        capture_output=True, text=True, timeout=5
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
                     )
                     if br.returncode == 0 and br.stdout.strip() != "HEAD":
                         branch = br.stdout.strip()
@@ -1052,7 +1213,9 @@ def main():
     try:
         toplevel = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=5
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if toplevel.returncode == 0:
             repo_root = Path(toplevel.stdout.strip())
@@ -1061,7 +1224,6 @@ def main():
 
     if repo:
         print(f"GitHub repo detected: {repo} (branch: {branch})")
-
 
     log_path = Path(args.log)
     if not log_path.exists():
@@ -1078,23 +1240,35 @@ def main():
         print(bar)
         print("!!! TURBOQUANT AUTO-ASYMMETRIC DETECTED — SKIPPING BOGUS RUNS !!!")
         print(bar)
-        print("The turboquant fork silently upgraded the K cache for the following runs")
-        print("(high-GQA auto-asymmetric). Their -ctk label and cache size are wrong, so")
+        print(
+            "The turboquant fork silently upgraded the K cache for the following runs"
+        )
+        print(
+            "(high-GQA auto-asymmetric). Their -ctk label and cache size are wrong, so"
+        )
         print("they are EXCLUDED from the table and the plot:")
         print("")
         for r in bogus:
             frm, to = r["auto_asymmetric"]
             print(f"    {r['label']:20s}  (K silently upgraded {frm} -> {to})")
         print("")
-        print("To measure these configs correctly, re-run kv-perplexity with the feature")
+        print(
+            "To measure these configs correctly, re-run kv-perplexity with the feature"
+        )
         print("disabled (and delete their stale sections from the log first):")
-        print("    TURBO_AUTO_ASYMMETRIC=0 pixi run kv-perplexity -c <your-config.yaml>")
+        print(
+            "    TURBO_AUTO_ASYMMETRIC=0 pixi run kv-perplexity -c <your-config.yaml>"
+        )
         print(bar)
         runs = [r for r in runs if not r.get("auto_asymmetric")]
 
     # Normalize speed to baseline (baseline = 100%)
     baseline_run = next((r for r in runs if r.get("baseline")), None)
-    b_speed = baseline_run["speed"] if baseline_run and baseline_run["speed"] is not None else None
+    b_speed = (
+        baseline_run["speed"]
+        if baseline_run and baseline_run["speed"] is not None
+        else None
+    )
     for r in runs:
         if b_speed is not None and r["speed"] is not None:
             r["speed_pct"] = (r["speed"] / b_speed) * 100.0
@@ -1106,17 +1280,27 @@ def main():
         whitelisted = set(args.whitelist)
         runs = [r for r in runs if r["label"] in whitelisted or r["label"] == "f16/f16"]
     if not runs:
-        print("No KLD runs found" + (" (none match whitelist)" if args.whitelist else ""), file=sys.stderr)
+        print(
+            "No KLD runs found" + (" (none match whitelist)" if args.whitelist else ""),
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    print(f"Parsed {len(runs)} KLD runs:" + (" (filtered by whitelist)" if args.whitelist and len(runs) != len(runs_unfiltered) else ""))
+    print(
+        f"Parsed {len(runs)} KLD runs:"
+        + (
+            " (filtered by whitelist)"
+            if args.whitelist and len(runs) != len(runs_unfiltered)
+            else ""
+        )
+    )
     for r in runs:
         speed_fmt = f"{r['speed']:.1f}" if r["speed"] is not None else "N/A"
         pct_fmt = f"{r['speed_pct']:.1f}%" if r["speed_pct"] is not None else "N/A"
-        mean_fmt = f"{r['mean']:.6f}" if r['mean'] is not None else "       -"
-        median_fmt = f"{r['median']:.6f}" if r['median'] is not None else "       -"
-        p90_fmt = f"{r['p90']:.6f}" if r['p90'] is not None else "       -"
-        p999_fmt = f"{r['p999']:.6f}" if r['p999'] is not None else "       -"
+        mean_fmt = f"{r['mean']:.6f}" if r["mean"] is not None else "       -"
+        median_fmt = f"{r['median']:.6f}" if r["median"] is not None else "       -"
+        p90_fmt = f"{r['p90']:.6f}" if r["p90"] is not None else "       -"
+        p999_fmt = f"{r['p999']:.6f}" if r["p999"] is not None else "       -"
         aborted_tag = " (aborted)" if r.get("aborted") else ""
         print(
             f"  {r['label']:25s}{aborted_tag}  size={r['size']:.4f} B/p  "
@@ -1145,10 +1329,6 @@ def main():
     html_repo_rel = _repo_rel(html_path)
     plot_repo_rel = _repo_rel(plot_path)
 
-    # Relative URL from markdown to HTML and SVG (sibling, both work locally + on github.com)
-    html_rel = str(html_path.relative_to(md_path.parent, walk_up=True))
-    plot_rel = str(plot_path.relative_to(md_path.parent, walk_up=True))
-
     # Generate HTML
     chart_js_src = _fetch_chart_js()
     speed_cutoff_factor = args.speed_cutoff
@@ -1161,9 +1341,15 @@ def main():
     plot_path.write_text(svg)
     print(f"SVG  -> {plot_path}")
 
-    md = generate_markdown(runs, common_params, html_path=html_repo_rel,
-                            plot_path=plot_repo_rel, repo=repo, branch=branch,
-                            speed_cutoff_factor=speed_cutoff_factor)
+    md = generate_markdown(
+        runs,
+        common_params,
+        html_path=html_repo_rel,
+        plot_path=plot_repo_rel,
+        repo=repo,
+        branch=branch,
+        speed_cutoff_factor=speed_cutoff_factor,
+    )
     md_path.write_text(md)
     print(f"MD   -> {md_path}")
 

@@ -5,12 +5,12 @@
 Don't do open-ended or specialized work inline when a subagent fits. Pick by
 task shape:
 
-| Task | Agent | Why |
-|---|---|---|
-| Open-ended research, multi-step search, locate code/symbol/string across files/repos/external sources, uncertain first match | `Explore` (read-only, cheap, compact return) or `general-purpose` if mutation likely | Keeps large search noise out of main context; returns concise finding |
-| Designing implementation strategy, identifying critical files, sequencing, trade-offs | `Plan` (read-only architect) | Returns step-by-step plan; you decide and verify, don't synthesize from scratch |
-| Implementing from a detailed, self-contained spec (paths, line numbers, exact change) | `programmer` (deepseek-v4-flash-free, has edit/write) | Offloads mechanical coding + test runs from main context |
-| Code review of a diff/changes, gate before reporting done or pushing | `reviewer` (read-only) | Independent pass; catches what the implementer missed |
+| Task                                                                                                                         | Agent                                                                                | Why                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Open-ended research, multi-step search, locate code/symbol/string across files/repos/external sources, uncertain first match | `Explore` (read-only, cheap, compact return) or `general-purpose` if mutation likely | Keeps large search noise out of main context; returns concise finding           |
+| Designing implementation strategy, identifying critical files, sequencing, trade-offs                                        | `Plan` (read-only architect)                                                         | Returns step-by-step plan; you decide and verify, don't synthesize from scratch |
+| Implementing from a detailed, self-contained spec (paths, line numbers, exact change)                                        | `programmer` (deepseek-v4-flash-free, has edit/write)                                | Offloads mechanical coding + test runs from main context                        |
+| Code review of a diff/changes, gate before reporting done or pushing                                                         | `reviewer` (read-only)                                                               | Independent pass; catches what the implementer missed                           |
 
 ## Signals that say "delegate, don't do it inline"
 

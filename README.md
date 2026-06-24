@@ -38,14 +38,14 @@ pixi r stop-server
 There are six pixi environments to choose from: three that compile llama.cpp from
 source, and three that just unpack the pre-built binaries from upstream releases.
 
-| Environment | Build | Backend | Linux x64 | Linux ARM | Windows x64 |
-|---|---|---|---|---|---|
-| `llamacpp-source-cpu` | from sources | CPU only | ✅ | ✅ | 🔴 |
-| `llamacpp-source-cuda` | from sources | CPU + CUDA | ✅ | 🔴 | 🔴 |
-| `llamacpp-source-vulkan` | from sources | CPU + Vulkan | ✅ | ✅ | 🔴 |
-| `llamacpp-binary-cpu` | pre-built binary | CPU only | ✅ | ✅ | ✅ |
-| `llamacpp-binary-vulkan` | pre-built binary | CPU + Vulkan | ✅ | ✅ | ✅ |
-| `llamacpp-binary-rocm` | pre-built binary | CPU + ROCm | ✅ | 🔴 | 🔴 |
+| Environment              | Build            | Backend      | Linux x64 | Linux ARM | Windows x64 |
+| ------------------------ | ---------------- | ------------ | --------- | --------- | ----------- |
+| `llamacpp-source-cpu`    | from sources     | CPU only     | ✅        | ✅        | 🔴          |
+| `llamacpp-source-cuda`   | from sources     | CPU + CUDA   | ✅        | 🔴        | 🔴          |
+| `llamacpp-source-vulkan` | from sources     | CPU + Vulkan | ✅        | ✅        | 🔴          |
+| `llamacpp-binary-cpu`    | pre-built binary | CPU only     | ✅        | ✅        | ✅          |
+| `llamacpp-binary-vulkan` | pre-built binary | CPU + Vulkan | ✅        | ✅        | ✅          |
+| `llamacpp-binary-rocm`   | pre-built binary | CPU + ROCm   | ✅        | 🔴        | 🔴          |
 
 The binary environments are much faster to set up since they skip compilation entirely.
 The source environments are the only option to get CUDA (which on my hardware is faster
@@ -76,19 +76,19 @@ pixi r -e llamacpp-source-cuda start-server
 Models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Model | Variant | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup> | Speed<sup>3</sup> | Notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | 256k q8/q8 | 7.4 GB | ~56 tok/s | best quality that performs well; the daily driver |
-| Qwen3.6-27B | Unsloth Q4_K_M MTP | 18 GB | 256k q8/q8 | ~28 GB | ~2 tok/s | doesn't fit |
-| Qwen3.5-9B | Unsloth Q4_K_M MTP | 6.4 GB | 64k q8/q8 | 8.2 GB | 163 tok/s | limited context in VRAM |
-| MiniCPM5-1B | Q4_K_M | 0.7 GB | 128k q8/q8 | 2.7 GB q8/q8 | ~455 tok/s | [tool calls don't work yet](https://github.com/ggml-org/llama.cpp/pulls?q=MiniCPM5) |
-| Gemma4-E2B | Unsloth QAT MTP | 3.5 GB | 128k q8/q8 | 3.8 GB | ~290 tok/s | |
-| Gemma4-E4B | Unsloth QAT | 5.0 GB | 128k q8/q8 | 5.8 GB | ~143 tok/s | [MTP doesn't support quantized V-cache](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF/blob/main/MTP/README.md) |
-| | Unsloth QAT MTP | 5.0 GB | 64k f16/f16 | 7.2 GB | ~221 tok/s | full unquantized context doesn't fit |
-| Gemma4-12B | Unsloth QAT MTP | 6.7 GB | 256k q8/q8 | 8.0 GB | ~19 tok/s | full context in host RAM |
-| | Unsloth QAT MTP | 6.7 GB | 32k q8/q8 | 8.2 GB | ~104 tok/s | limited context in VRAM |
-| Gemma4-26B-A4B | Unsloth QAT MTP | 15 GB | 256k q8/q8 | 8.2 GB | ~32 tok/s | |
-| Gemma4-31B | Unsloth QAT MTP | 18 GB | 256k q8/q8 | ~31 GB | ~2 tok/s | doesn't fit |
+| Model           | Variant                      | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup> | Speed<sup>3</sup> | Notes                                                                                                                   |
+| --------------- | ---------------------------- | ------------ | ------------------- | ---------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB        | 256k q8/q8          | 7.4 GB           | ~56 tok/s         | best quality that performs well; the daily driver                                                                       |
+| Qwen3.6-27B     | Unsloth Q4_K_M MTP           | 18 GB        | 256k q8/q8          | ~28 GB           | ~2 tok/s          | doesn't fit                                                                                                             |
+| Qwen3.5-9B      | Unsloth Q4_K_M MTP           | 6.4 GB       | 64k q8/q8           | 8.2 GB           | 163 tok/s         | limited context in VRAM                                                                                                 |
+| MiniCPM5-1B     | Q4_K_M                       | 0.7 GB       | 128k q8/q8          | 2.7 GB q8/q8     | ~455 tok/s        | [tool calls don't work yet](https://github.com/ggml-org/llama.cpp/pulls?q=MiniCPM5)                                     |
+| Gemma4-E2B      | Unsloth QAT MTP              | 3.5 GB       | 128k q8/q8          | 3.8 GB           | ~290 tok/s        |                                                                                                                         |
+| Gemma4-E4B      | Unsloth QAT                  | 5.0 GB       | 128k q8/q8          | 5.8 GB           | ~143 tok/s        | [MTP doesn't support quantized V-cache](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF/blob/main/MTP/README.md) |
+|                 | Unsloth QAT MTP              | 5.0 GB       | 64k f16/f16         | 7.2 GB           | ~221 tok/s        | full unquantized context doesn't fit                                                                                    |
+| Gemma4-12B      | Unsloth QAT MTP              | 6.7 GB       | 256k q8/q8          | 8.0 GB           | ~19 tok/s         | full context in host RAM                                                                                                |
+|                 | Unsloth QAT MTP              | 6.7 GB       | 32k q8/q8           | 8.2 GB           | ~104 tok/s        | limited context in VRAM                                                                                                 |
+| Gemma4-26B-A4B  | Unsloth QAT MTP              | 15 GB        | 256k q8/q8          | 8.2 GB           | ~32 tok/s         |                                                                                                                         |
+| Gemma4-31B      | Unsloth QAT MTP              | 18 GB        | 256k q8/q8          | ~31 GB           | ~2 tok/s          | doesn't fit                                                                                                             |
 
 **Notes:**
 
@@ -116,18 +116,18 @@ All extensions are installed ephimerally in your pixi environment.
 The `pi-extensions` conda package installs a pinned selection of pi plugins, so the
 agent setup is versioned and reproducible:
 
-| Extension | Purpose |
-|---|---|
-| [pi-autoresearch](https://pi.dev/packages/pi-autoresearch) | autonomous experiment loops for optimization |
-| [pi-btw](https://pi.dev/packages/pi-btw) | build-time workspace tooling |
-| [pi-llama-cpp](https://pi.dev/packages/pi-llama-cpp) | zero-config llama.cpp integration |
-| [pi-ollama-cloud](https://pi.dev/packages/pi-ollama-cloud) | Ollama cloud model provider + web search / web fetch |
-| [rpiv-ask-user-question](https://pi.dev/packages/@juicesharp/rpiv-ask-user-question) | stop and ask the user when in doubt |
-| [pi-token-speed](https://pi.dev/packages/pi-token-speed) | token throughput monitoring |
-| [pi-usage-extension](https://pi.dev/packages/@tmustier/pi-usage-extension) | tokens usage tracking |
-| [caveman](https://github.com/JuliusBrussee/caveman) | drastically reduce output tokens consumed |
-| [rtk](https://github.com/rtk-ai/rtk) | drastically reduce input tokens consumed |
-| [@tintinweb/pi-subagents](https://github.com/tintinweb/pi-subagents) | spawn sub-agents for complex tasks *(tweaked)* |
+| Extension                                                                            | Purpose                                              |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| [pi-autoresearch](https://pi.dev/packages/pi-autoresearch)                           | autonomous experiment loops for optimization         |
+| [pi-btw](https://pi.dev/packages/pi-btw)                                             | build-time workspace tooling                         |
+| [pi-llama-cpp](https://pi.dev/packages/pi-llama-cpp)                                 | zero-config llama.cpp integration                    |
+| [pi-ollama-cloud](https://pi.dev/packages/pi-ollama-cloud)                           | Ollama cloud model provider + web search / web fetch |
+| [rpiv-ask-user-question](https://pi.dev/packages/@juicesharp/rpiv-ask-user-question) | stop and ask the user when in doubt                  |
+| [pi-token-speed](https://pi.dev/packages/pi-token-speed)                             | token throughput monitoring                          |
+| [pi-usage-extension](https://pi.dev/packages/@tmustier/pi-usage-extension)           | tokens usage tracking                                |
+| [caveman](https://github.com/JuliusBrussee/caveman)                                  | drastically reduce output tokens consumed            |
+| [rtk](https://github.com/rtk-ai/rtk)                                                 | drastically reduce input tokens consumed             |
+| [@tintinweb/pi-subagents](https://github.com/tintinweb/pi-subagents)                 | spawn sub-agents for complex tasks _(tweaked)_       |
 
 ### Sandboxed vs. unsandboxed
 

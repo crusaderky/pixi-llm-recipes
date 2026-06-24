@@ -58,6 +58,7 @@ Run each check with a single Bash call and collect results before doing anything
    - Fail: `not logged into` or `No token` → `~/.config/gh` was not bound (missing `--with-git`) or the host is not authenticated.
 
 **After all six checks**, produce a pre-flight table (see Phase 4 report format) and decide whether to continue:
+
 - If checks 1–4 all pass → proceed with git push test.
 - If checks 5–6 pass → proceed with gh test.
 - If any check fails → still attempt the corresponding test (the error may be a false alarm), but highlight the failure in the report with a `→ did you forget --with-git?` hint for any check that maps directly to a missing bind.
@@ -167,6 +168,7 @@ Summarise the outcome:
 Checks 1, 4, and 6 map directly to missing `--with-git` binds. If any of them fail, add a prominent note:
 
 > **Likely cause:** the sandbox was started without `--with-git`. Re-launch with:
+>
 > ```
 > pixi run -e claude claude --with-git
 > # or
