@@ -76,10 +76,11 @@ pixi r -e llamacpp-source-cuda start-server
 Models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Model | Variant | Size on disk | Context | VRAM<sup>1</sup> | Speed<sup>2</sup> | Notes |
-|---|---|---|---|---|---|---|
+| Model | Variant | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup> | Speed<sup>3</sup> | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
 | Qwen3.6-35B-A3B | ByteShape MTP IQ4_XS-3.97bpw | 18 GB | 256k q8/q8 | 7.4 GB | ~56 tok/s | best quality that performs well; the daily driver |
 | Qwen3.6-27B | Unsloth Q4_K_M MTP | 18 GB | 256k q8/q8 | ~28 GB | ~2 tok/s | doesn't fit |
+| Qwen3.5-9B | Unsloth Q4_K_M MTP | 6.4 GB | 64k q8/q8 | 8.2 GB | 163 tok/s | limited context in VRAM |
 | MiniCPM5-1B | Q4_K_M | 0.7 GB | 128k q8/q8 | 2.7 GB q8/q8 | ~455 tok/s | [tool calls don't work yet](https://github.com/ggml-org/llama.cpp/pulls?q=MiniCPM5) |
 | Gemma4-E2B | Unsloth QAT MTP | 3.5 GB | 128k q8/q8 | 3.8 GB | ~290 tok/s | |
 | Gemma4-E4B | Unsloth QAT | 5.0 GB | 128k q8/q8 | 5.8 GB | ~143 tok/s | [MTP doesn't support quantized V-cache](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF/blob/main/MTP/README.md) |
@@ -91,17 +92,15 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 **Notes:**
 
-- <sup>1</sup>When sizing video card VRAM, you must add 1~2 GiB for your desktop (unless you're
+- <sup>1</sup>[Turboquant](https://github.com/TheTom/llama-cpp-turboquant) cache compression is not
+  available in the main branch and not necessary with the above models/VRAM
+  configuration. [turbo4 is not particularly better than q4_0](perplexity/README.md).
+  You can enable Turboquant by uncommenting it in
+  `pixi-recipes/llama-cpp-source/*/recipe.yaml`.
+- <sup>2</sup>When sizing video card VRAM, you must add ~2 GiB for your desktop (unless you're
   running on an integrated video card and your discrete card is detached from the X
   server)
-- <sup>2</sup> As measured on the RTX 3080
-- <sup>3</sup> 256k context offloaded to host RAM
-- <sup>4</sup> 32k context in VRAM
-- KV cache quantized to `q8_0` for all models.
-- [Turboquant](https://github.com/TheTom/llama-cpp-turboquant) cache compression is not
-  available in the main branch and not necessary with the above models/VRAM
-  configuration. You can enable Turboquant by uncommenting it in
-  `pixi-recipes/llama-cpp-source/*/recipe.yaml`.
+- <sup>3</sup> Decode speed measured on the RTX 3080
 
 ### Tweaking models
 
