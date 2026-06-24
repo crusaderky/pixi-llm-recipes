@@ -7,6 +7,18 @@ platforms = ["linux-64", "linux-aarch64", "win-64"]
 stop-server = "bash scripts/stop-server.sh"
 restart-server = { depends-on = ["stop-server", "start-server"] }
 
+[target.linux-64.tasks]
+install-apparmor = "bash scripts/install-apparmor.sh"
+install-bin = "mkdir -p ~/.local/bin && ln -fsv $PWD/scripts/pi $PWD/scripts/claude ~/.local/bin/"
+install = { depends-on = ["install-apparmor", "install-bin"] }
+uninstall = "rm -f ~/.local/bin/pi ~/.local/bin/claude"
+
+[target.linux-aarch64.tasks]
+install-apparmor = "bash scripts/install-apparmor.sh"
+install-bin = "mkdir -p ~/.local/bin && ln -fsv $PWD/scripts/pi $PWD/scripts/claude ~/.local/bin/"
+install = { depends-on = ["install-apparmor", "install-bin"] }
+uninstall = "rm -f ~/.local/bin/pi ~/.local/bin/claude"
+
 # Tasks invoke `bash scripts/*.sh`. On Windows, a plain `bash` from PATH would
 # resolve to WSL (C:\Windows\System32\bash.exe), which discards the pixi
 # environment; ship MSYS2 bash and the utilities the scripts need instead.
@@ -18,6 +30,7 @@ m2-sed = "*"
 
 [feature.llamacpp-source-cpu]
 platforms = ["linux-64", "linux-aarch64"]
+
 [feature.llamacpp-source-cpu.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source/cpu" }
 
@@ -67,16 +80,18 @@ start-server = "bash scripts/start-server.sh"
 # You should modify scripts/kv-perplexity-config.yaml before you start.
 kv-perplexity = "scripts/kv-perplexity.py"
 
+[feature.sandbox.target.win-64.dependencies]
+
+[feature.sandbox.target.linux-64.dependencies]
+bubblewrap = "*"
+
+[feature.sandbox.target.linux-aarch64.dependencies]
+bubblewrap = "*"
+
 [feature.pi.dependencies]
 pi-coding-agent = "*"
 pi-extensions = { path = "pixi-recipes/pi-extensions" }
 pi-home = { path = "pixi-recipes/pi-home" }
-
-[feature.pi.target.linux-64.dependencies]
-bubblewrap = "*"
-
-[feature.pi.target.linux-aarch64.dependencies]
-bubblewrap = "*"
 
 [feature.pi.tasks]
 pi-unsafe.cmd = "bash scripts/pi-unsafe.sh {{ root_dir }}"
@@ -86,12 +101,10 @@ pi-export = "pi --export"
 [feature.pi.target.linux-64.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
-install-apparmor = "bash scripts/install-apparmor.sh"
 
 [feature.pi.target.linux-aarch64.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
-install-apparmor = "bash scripts/install-apparmor.sh"
 
 [feature.claude.dependencies]
 claude = { path = "pixi-recipes/claude" }
@@ -99,12 +112,6 @@ claude = { path = "pixi-recipes/claude" }
 [feature.claude.tasks]
 claude-unsafe.cmd = "bash scripts/claude-unsafe.sh {{ root_dir }}"
 claude-unsafe.args = [{ arg = "root_dir", default = "-" }]
-
-[feature.claude.target.linux-64.dependencies]
-bubblewrap = "*"
-
-[feature.claude.target.linux-aarch64.dependencies]
-bubblewrap = "*"
 
 [feature.claude.target.linux-64.tasks]
 claude.cmd = "bash scripts/bwrap-claude.sh {{ root_dir }}"
@@ -169,7 +176,7 @@ llamacpp-source-vulkan = ["llamacpp", "llamacpp-source-vulkan"]
 llamacpp-binary-cpu = ["llamacpp", "llamacpp-binary-cpu"]
 llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
-pi = ["pi", "git"]
-claude = ["claude", "git"]
+pi = ["pi", "sandbox", "git"]
+claude = ["claude", "sandbox", "git"]
 pytools = ["pytools"]
 lint = { features = ["lint"], no-default-feature = true }

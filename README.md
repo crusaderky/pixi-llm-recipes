@@ -18,18 +18,21 @@ models.
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | sh  # One-off installation
-pixi r install-apparmor  # One-off installation
-pixi r start-server
-pixi r pi /path/to/workspace
+pixi r install  # One-off installation (apparmor + ~/.local/bin)
+pixi r start-server  # Start llama.cpp server for local models
+cd /path/to/workspace && pi  # Just like regular pi, but managed by pixi and sandboxed
+cd /path/to/workspace && claude
 pixi r stop-server
+pixi r uninstall
 ```
 
 ### Windows
 
 ```bash
 powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | iex"  # One-off installation
-pixi r start-server
-pixi r pi-unsafe /path/to/workspace
+pixi r start-server  # Start llama.cpp server for local models
+pixi r pi-unsafe /path/to/workspace  # Just like regular pi, but managed by pixi
+pixi r claude-unsafe /path/to/workspace
 pixi r stop-server
 ```
 
@@ -129,6 +132,9 @@ agent setup is versioned and reproducible:
 | [rtk](https://github.com/rtk-ai/rtk)                                                 | drastically reduce input tokens consumed             |
 | [@tintinweb/pi-subagents](https://github.com/tintinweb/pi-subagents)                 | spawn sub-agents for complex tasks _(tweaked)_       |
 
+**Note:** The effects of `pi install` will be wiped the next time your pixi environment is regenerated!
+You should update `pixi-recipes/pi-extension/recipe.yaml` instead.
+
 ### Sandboxed vs. unsandboxed
 
 By default pi runs inside a bubblewrap container: read-only root filesystem and no
@@ -136,53 +142,42 @@ access to /home beyond the workspace directory you point it at.
 This is the recommended way to run it (Linux only).
 
 ```bash
-pixi r install-apparmor                     # one-off: install AppArmor profile for BubbleWrap
-pixi r pi /path/to/workspace                # sandboxed
-pixi r pi                                   # sandboxed in a temporary directory (just for chatting)
-pixi r pi /path/to/workspace -- -p "Hello"  # Pass arbitrary parameters
-pixi r pi - -- -p "Hello"                   # In a temporary directory; pass arbitrary parameters
-pixi r pi /workspace -- --bind /data --bind /models  # Bind extra directories into the sandbox
+pixi r install                        # One-off: install AppArmor profile for BubbleWrap and executables in ~/.local/bin/
+cd /path/to/workspace && pi           # Sandboxed
+pi --bind /data                       # Bind extra directories into the sandbox
+pi --with-git                         # Enable `git push`, `git` pull/fetch from private repos, and `gh`
 ```
 
 If you need full host access for development or debugging, or if you are on Windows,
 there's an escape hatch:
 
 ```bash
-pixi r pi-unsafe /path/to/workspace
-pixi r pi-unsafe                                   # In a temporary directory
-                                                   # (useful to run with no AGENTS.md)
-pixi r pi-unsafe /path/to/workspace -- -p "Hello"  # Pass arbitrary parameters
-pixi r pi-unsafe - -- -p "Hello"                   # In a temporary directory; pass arbitrary parameters
+pi --no-sandbox                                    # Linux
+pixi r pi-unsafe /path/to/workspace                # Windows
+pixi r pi-unsafe /path/to/workspace -- -p "Hello"  # Windows; pass arbitrary parameters (note --)
 ```
 
 ## Claude Code
 
-[Claude Code](https://claude.ai/code) is installed as part of the `agents` pixi
-environment — no separate system-wide installation needed. Just `pixi install` and run.
+[Claude Code](https://claude.ai/code) is deployed and managed exactly like Pi;
+no separate system-wide installation needed.
 
-### Sandboxed usage
+Linux:
 
 ```bash
-pixi r claude /path/to/workspace                   # sandboxed
-pixi r claude                                      # sandboxed in a temporary directory
-pixi r claude /path/to/workspace -- --with-git     # also allow git push and gh CLI
-pixi r claude /path/to/workspace -- --bind /data   # bind an extra directory read-write
-pixi r claude /path/to/workspace -- --resume       # pass arbitrary parameters to claude after --
+pixi r install                        # One-off: install AppArmor profile for BubbleWrap and executables in ~/.local/bin/
+cd /path/to/workspace && claude       # Sandboxed
+claude --no-sandbox                   # Full system access
+claude --bind /data                   # Bind extra directories into the sandbox
+claude --with-git                     # Enable `git push`, `git` pull/fetch from private repos, and `gh`
 ```
 
-The sandbox uses the same AppArmor profile as Pi. Install it once with:
+Windows:
 
 ```bash
-pixi r install-apparmor
-```
-
-If you need full host access for development or debugging, or if you are on Windows,
-there's an escape hatch:
-
-```bash
-pixi r claude-unsafe /path/to/workspace
-pixi r claude-unsafe                                      # in a temporary directory
-pixi r claude-unsafe /path/to/workspace -- --resume       # pass arbitrary parameters to claude after --
+pixi r claude-unsafe /path/to/workspace              # Full system access
+pixi r claude-unsafe                                 # in a temporary directory
+pixi r claude-unsafe /path/to/workspace -- --resume  # pass arbitrary parameters to claude after --
 ```
 
 ## git and GitHub CLI
@@ -204,14 +199,14 @@ open and interact on PRs, etc). Pass `--with-git` to allow the agent to act as y
 your GitHub account.
 
 ```bash
-pixi r pi /path/to/workspace -- --with-git
-pixi r claude /path/to/workspace -- --with-git
+pi --with-git
+claude --with-git
 ```
 
 To verify everything is wired up correctly before starting real work, run either:
 
-- `pixi r pi . -- --with-git "run the test-git-auth skill"`
-- `pixi r claude . -- --with-git "run the test-git-auth skill"`
+- `pi --with-git "run the test-git-auth skill"`
+- `claude --with-git "run the test-git-auth skill"`
 
 ## Benchmarking
 
