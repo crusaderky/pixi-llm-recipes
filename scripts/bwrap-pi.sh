@@ -58,6 +58,21 @@ fi
 _PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
 _CONDA_PREFIX="$CONDA_PREFIX"
 
+# If the working directory is a git worktree, bind the main repository's .git
+# directory read-write so git can read shared objects and update worktree admin
+# files (refs, locks) without exposing the main worktree's checked-out files.
+WORKTREE_BINDS=""
+if [ "$1" != "-" ]; then
+  if GD="$(git -C "$DIR" rev-parse --git-dir 2>/dev/null)" \
+     && GC="$(git -C "$DIR" rev-parse --git-common-dir 2>/dev/null)"; then
+    GD_ABS="$(cd "$DIR" && cd "$GD" && pwd)"
+    GC_ABS="$(cd "$DIR" && cd "$GC" && pwd)"
+    if [ "$GD_ABS" != "$GC_ABS" ]; then
+      WORKTREE_BINDS="--bind $GC_ABS $GC_ABS"
+    fi
+  fi
+fi
+
 mkdir -p ~/.cache/ccache
 mkdir -p ~/.cache/pip
 mkdir -p ~/.cache/pre-commit
@@ -108,6 +123,7 @@ bwrap \
   --bind "$HOME/.pi/agent/sessions"       "$HOME/.pi/agent/sessions" \
   --ro-bind "$_PIXI_ROOT"                 "$_PIXI_ROOT" \
   $EXTRA_BINDS \
+  $WORKTREE_BINDS \
   $GIT_BINDS \
   $ARGS \
   --die-with-parent \
