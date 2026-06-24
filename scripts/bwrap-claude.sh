@@ -25,6 +25,7 @@ mkdir -p ~/.cache/pip
 mkdir -p ~/.cache/pre-commit
 mkdir -p ~/.cache/rattler
 mkdir -p ~/.cache/uv
+mkdir -p ~/.config/herdr
 
 # Parse --bind <dir> pairs and --with-git flag from remaining args
 EXTRA_BINDS=""
@@ -53,6 +54,9 @@ done
 # lives under /run/ (typical for gnome-keyring/systemd). If it's under /tmp, bind it too.
 _CONDA_PREFIX="$CONDA_PREFIX"
 _PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
+
+# Inject conda-packaged Claude Code extensions into ~/.claude
+bash "$(dirname "$0")/inject-claude-extensions.sh"
 
 # If the working directory is a git worktree, bind the main repository's .git
 # directory read-write so git can read shared objects and update worktree admin
@@ -95,6 +99,7 @@ exec bwrap \
   --bind    "$HOME/.cache/pre-commit"        "$HOME/.cache/pre-commit" \
   --bind    "$HOME/.cache/rattler"           "$HOME/.cache/rattler" \
   --bind    "$HOME/.cache/uv"                "$HOME/.cache/uv" \
+  --bind    "$HOME/.config/herdr"            "$HOME/.config/herdr" \
   --ro-bind "$_CONDA_PREFIX"                 "$_CONDA_PREFIX" \
   --bind    "$HOME/.claude"                  "$HOME/.claude" \
   --bind    "$HOME/.claude.json"             "$HOME/.claude.json" \

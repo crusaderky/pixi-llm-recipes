@@ -1,0 +1,12 @@
+package:
+  name: claude-home
+  version: "1"
+
+source:
+  - path: .
+
+build:
+  number: 0
+  script:
+    # Extension-less: resolves to build.sh on Linux and build.bat on Windows
+    file: build

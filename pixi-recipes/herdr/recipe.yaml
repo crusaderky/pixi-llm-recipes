@@ -1,0 +1,37 @@
+context:
+  # Stable release (Linux — from latest.json)
+  version_stable: "0.7.1"
+  sha256_stable_x86_64: b965acaffc2c22f54b6e6c64af7cf8e98a3f4ac2622630a0599c67a4b9d8a654
+  sha256_stable_aarch64: 3d757ac30c631e79dc45038c3ecc6423fe13a89f9cffa0f415aedd2c27f1576c
+  # Preview release (Windows — from preview.json; Windows builds are preview-only)
+  version_preview: preview-2026-06-22-24c7377de01c
+  sha256_preview_win_64: 9eb8b028d92770c0b0c39e8c5e3edd75a8ea8592473c4d1e4396e84d769a9781
+
+package:
+  name: herdr
+  version: ${{ version_stable }}
+
+build:
+  number: 0
+  string: h${{ build_number }}
+  dynamic_linking:
+    binary_relocation: false
+  script:
+    # Extension-less: resolves to build.sh on Linux and build.bat on Windows
+    file: build
+    env:
+      VERSION_STABLE: ${{ version_stable }}
+      SHA256_STABLE_X86_64: ${{ sha256_stable_x86_64 }}
+      SHA256_STABLE_AARCH64: ${{ sha256_stable_aarch64 }}
+      VERSION_PREVIEW: ${{ version_preview }}
+      SHA256_PREVIEW_WIN_64: ${{ sha256_preview_win_64 }}
+
+requirements:
+  build:
+    - curl
+
+about:
+  homepage: https://herdr.dev
+  repository: https://github.com/ogulcancelik/herdr
+  license: LicenseRef-herdr
+  summary: Agent-first terminal multiplexer and coding-agent orchestrator

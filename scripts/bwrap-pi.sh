@@ -79,6 +79,7 @@ mkdir -p ~/.cache/pre-commit
 mkdir -p ~/.cache/rattler
 mkdir -p ~/.cache/uv
 mkdir -p ~/.pi/agent/sessions
+mkdir -p ~/.config/herdr
 mkdir -p ~/.config/rpiv-web-tools
 mkdir -p ~/.config/rtk
 
@@ -114,6 +115,7 @@ bwrap \
   --bind "$HOME/.cache/pre-commit"        "$HOME/.cache/pre-commit" \
   --bind "$HOME/.cache/rattler"           "$HOME/.cache/rattler" \
   --bind "$HOME/.cache/uv"                "$HOME/.cache/uv" \
+  --bind "$HOME/.config/herdr"            "$HOME/.config/herdr" \
   --bind "$HOME/.config/rpiv-web-tools"   "$HOME/.config/rpiv-web-tools" \
   --bind "$HOME/.config/rtk"              "$HOME/.config/rtk" \
   --bind "$_CONDA_PREFIX/home/.pi"        "$HOME/.pi" \

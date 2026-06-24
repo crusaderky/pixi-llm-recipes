@@ -8,6 +8,9 @@ if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
   export HOME="$USERPROFILE"
 fi
 
+# Inject conda-packaged Claude Code extensions (hooks, skills, settings)
+bash "$(dirname "$0")/inject-claude-extensions.sh"
+
 if [ "$1" == "-" ]; then
   echo "Running in empty temporary directory"
   echo "Use \`pixi run claude-unsafe <directory>\` to move to a specific directory."

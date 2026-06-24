@@ -9,15 +9,15 @@ restart-server = { depends-on = ["stop-server", "start-server"] }
 
 [target.linux-64.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
-install-bin = "mkdir -p ~/.local/bin && ln -fsv $PWD/scripts/pi $PWD/scripts/claude ~/.local/bin/"
+install-bin = "mkdir -p ~/.local/bin && ln -fsv $PWD/scripts/pi $PWD/scripts/claude $PWD/scripts/herdr ~/.local/bin/"
 install = { depends-on = ["install-apparmor", "install-bin"] }
-uninstall = "rm -f ~/.local/bin/pi ~/.local/bin/claude"
+uninstall = "rm -f ~/.local/bin/pi ~/.local/bin/claude ~/.local/bin/herdr"
 
 [target.linux-aarch64.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
-install-bin = "mkdir -p ~/.local/bin && ln -fsv $PWD/scripts/pi $PWD/scripts/claude ~/.local/bin/"
+install-bin = "mkdir -p ~/.local/bin && ln -fsv $PWD/scripts/pi $PWD/scripts/claude $PWD/scripts/herdr ~/.local/bin/"
 install = { depends-on = ["install-apparmor", "install-bin"] }
-uninstall = "rm -f ~/.local/bin/pi ~/.local/bin/claude"
+uninstall = "rm -f ~/.local/bin/pi ~/.local/bin/claude ~/.local/bin/herdr"
 
 # Tasks invoke `bash scripts/*.sh`. On Windows, a plain `bash` from PATH would
 # resolve to WSL (C:\Windows\System32\bash.exe), which discards the pixi
@@ -108,6 +108,8 @@ pi.args = [{ arg = "root_dir", default = "-" }]
 
 [feature.claude.dependencies]
 claude = { path = "pixi-recipes/claude" }
+claude-extensions = { path = "pixi-recipes/claude-extensions" }
+claude-home = { path = "pixi-recipes/claude-home" }
 
 [feature.claude.tasks]
 claude-unsafe.cmd = "bash scripts/claude-unsafe.sh {{ root_dir }}"
@@ -120,6 +122,12 @@ claude.args = [{ arg = "root_dir", default = "-" }]
 [feature.claude.target.linux-aarch64.tasks]
 claude.cmd = "bash scripts/bwrap-claude.sh {{ root_dir }}"
 claude.args = [{ arg = "root_dir", default = "-" }]
+
+[feature.herdr.dependencies]
+herdr = { path = "pixi-recipes/herdr" }
+
+[feature.herdr.tasks]
+herdr = "herdr"
 
 [feature.git.dependencies]
 git = "*"
@@ -176,7 +184,6 @@ llamacpp-source-vulkan = ["llamacpp", "llamacpp-source-vulkan"]
 llamacpp-binary-cpu = ["llamacpp", "llamacpp-binary-cpu"]
 llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
-pi = ["pi", "sandbox", "git"]
-claude = ["claude", "sandbox", "git"]
+agents = ["pi", "claude", "sandbox", "git", "herdr"]
 pytools = ["pytools"]
 lint = { features = ["lint"], no-default-feature = true }

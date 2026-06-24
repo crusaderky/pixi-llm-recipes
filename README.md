@@ -22,6 +22,7 @@ pixi r install  # One-off installation (apparmor + ~/.local/bin)
 pixi r start-server  # Start llama.cpp server for local models
 cd /path/to/workspace && pi  # Just like regular pi, but managed by pixi and sandboxed
 cd /path/to/workspace && claude
+herdr                              # Terminal multiplexer / agent orchestrator
 pixi r stop-server
 pixi r uninstall
 ```
@@ -180,6 +181,39 @@ pixi r claude-unsafe                                 # in a temporary directory
 pixi r claude-unsafe /path/to/workspace -- --resume  # pass arbitrary parameters to claude after --
 ```
 
+## herdr
+
+[herdr](https://herdr.dev) is an agent-first terminal multiplexer and coding-agent
+orchestrator. It is packaged as a conda recipe in `pixi-recipes/herdr/` and installed
+alongside pi and claude.
+
+Linux:
+
+```bash
+pixi r install      # One-off: deploys herdr wrapper to ~/.local/bin
+herdr               # Launch herdr
+```
+
+Windows:
+
+```bash
+pixi r herdr        # Launch herdr
+```
+
+### herdr integration in pi and claude
+
+pi and claude know how to control the herdr they run inside of. Try:
+
+```bash
+herdr     # or pixi r herdr
+```
+
+Then from the terminal inside herdr:
+
+```bash
+pi "split panes and echo 'hello world' in the new pane"
+```
+
 ## git and GitHub CLI
 
 The `agents` environment bundles `git` and the [GitHub CLI](https://cli.github.com/)
@@ -264,7 +298,7 @@ for why, and how to read the numbers without over-interpreting them.
 There are skills available; you can ask pi to
 
 - _"Summarize changes in the latest llama.cpp"_ (installed version vs. latest upstream)
-- _"Update everything"_ (llama.cpp recipes, pixi extensions recipes, pixi environments)
+- _"Update everything"_ (llama.cpp recipes, pi-extensions, Claude Code, herdr, pixi environments)
 
 ## Missing features
 

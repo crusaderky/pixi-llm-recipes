@@ -1,6 +1,6 @@
 ---
 name: update-all
-description: Update everything — llama.cpp (source + binary recipes), pi-extensions npm packages, Claude Code conda recipe, and run `pixi update` to refresh the lockfile. Triggered by "update yourself", "update everything", or "do a full update".
+description: Update everything — llama.cpp (source + binary recipes), pi-extensions npm packages, Claude Code conda recipe, herdr (stable+preview) recipe, and run `pixi update` to refresh the lockfile. Triggered by "update yourself", "update everything", or "do a full update".
 compatibility: Requires network access to api.github.com and registry.npmjs.org. Designed for the pixi-llm-recipes project.
 allowed-tools: Bash, Read, Edit, WebFetch
 ---
@@ -42,7 +42,16 @@ Run the **update-claude** skill:
 3. If a newer version is available, download the tarball, compute its sha256, and update the recipe.
 4. Report old → new version.
 
-### Phase 4 — Refresh pixi lockfile
+### Phase 4 — Update herdr
+
+Run the **update-herdr** skill:
+
+1. Read the current pinned versions from `pixi-recipes/herdr/recipe.yaml`.
+2. Fetch the latest stable manifest from `https://herdr.dev/latest.json` and preview manifest from `https://herdr.dev/preview.json`.
+3. If a newer stable or preview build is available, update the recipe.
+4. Report old → new versions.
+
+### Phase 5 — Refresh pixi lockfile
 
 Run `pixi update` from the project root:
 
@@ -52,7 +61,7 @@ pixi update
 
 This refreshes the `pixi.lock` file with the latest resolved versions of all dependencies.
 
-### Phase 5 — Final summary
+### Phase 6 — Final summary
 
 Present a consolidated report:
 
@@ -69,6 +78,10 @@ Present a consolidated report:
 
 ### Claude Code
 - <old> → <new>   (or "already at stable <version>")
+
+### herdr
+- Stable: <old> → <new>   (or "already at latest stable <version>")
+- Preview: <old> → <new>   (or "already at latest preview <tag>")
 
 ### pixi.lock
 - Refreshed via `pixi update`.

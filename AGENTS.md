@@ -6,10 +6,11 @@
 
 1. **Builds and packages llama.cpp** (with opt-in turboquant KV cache optimizations) as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan), or using pre-built binaries from upstream releases (CPU, Vulkan, ROCm).
 2. **Packages pi-extensions** — a curated set of pi coding agent plugins.
-3. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
-4. **Benchmarks LLM inference** via `llama-benchy`.
-5. **Benchmarks long-context recall** (and how it degrades under quantized KV cache) via the `context-bench` harness in `sample-data/context-bench/`.
-6. **Analyzes KV cache quantization quality** via `kv-perplexity` (KL-divergence sweep over K/V quant combos) and `kv-kld-report` (HTML/Markdown report with plots) in `scripts/`.
+3. **Packages herdr** — an agent-first terminal multiplexer and coding-agent orchestrator.
+4. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
+5. **Benchmarks LLM inference** via `llama-benchy`.
+6. **Benchmarks long-context recall** (and how it degrades under quantized KV cache) via the `context-bench` harness in `sample-data/context-bench/`.
+7. **Analyzes KV cache quantization quality** via `kv-perplexity` (KL-divergence sweep over K/V quant combos) and `kv-kld-report` (HTML/Markdown report with plots) in `scripts/`.
 
 ## Key Technologies
 
@@ -20,6 +21,7 @@
 - **pi-coding-agent** — The pi coding agent framework (installed via npm)
 - **pi-extensions** — Curated pi plugins installed via a conda package
 - **claude** — Claude Code CLI (`@anthropic-ai/claude-code`) installed via a conda package (fetches from npm)
+- **herdr** — Agent-first terminal multiplexer and coding-agent orchestrator (packaged from pre-built GitHub releases)
 
 ## Project Structure
 
@@ -40,11 +42,13 @@ pixi-llm-recipes/
 │   ├── bwrap-pi.sh                   # Bubblewrap sandbox wrapper for pi agent
 │   ├── diff-llama-cpp-variants.sh    # Compare llama-cpp recipe variants
 │   ├── inject-pi-extensions.sh       # Merge pi-extensions packages into settings.json
+│   ├── inject-claude-extensions.sh    # Deploy packaged Claude Code extensions into ~/.claude
 │   ├── install-apparmor.sh           # Install AppArmor profile for bwrap (sudo/CI)
 │   ├── kv-kld-report.py                 # Parse perplexity log → HTML/Markdown KLD report
 │   ├── kv-perplexity.py              # KLD sweep over cartesian product of K/V quant combos
 │   ├── start-server.sh               # Background llama-server with logging
 │   ├── stop-server.sh                # Graceful llama-server shutdown
+│   ├── herdr                         # Naked `herdr` wrapper (installed to ~/.local/bin by `pixi r install`)
 │   └── pi-unsafe.sh                  # Unsandboxed pi wrapper (full host access)
 ├── .agents/skills/                   # Agent skills (discovered by pi agent)
 │   ├── llama-cpp-changelog/SKILL.md  # Summarize llama.cpp changelog
@@ -52,7 +56,8 @@ pixi-llm-recipes/
 │   ├── update-all/SKILL.md           # Update everything
 │   ├── update-claude/SKILL.md        # Update Claude Code recipe
 │   ├── update-llama-cpp/SKILL.md     # Update llama.cpp recipes
-│   └── update-pi-extensions/SKILL.md # Update pi-extensions versions
+│   ├── update-pi-extensions/SKILL.md # Update pi-extensions versions
+│   └── update-herdr/SKILL.md         # Update herdr recipe
 ├── perplexity/                       # Historical KLD sweep outputs
 ├── sample-data/
 │   ├── wiki.test.raw                 # Wikitext-2 test corpus for perplexity/KLD
@@ -83,6 +88,10 @@ pixi-llm-recipes/
     │   ├── recipe.yaml               # Claude Code conda package (fetches from npm)
     │   ├── build.sh                  # Linux: npm install --global into prefix
     │   └── build.bat                 # Windows: npm install --global into prefix
+    ├── claude-extensions/
+    │   ├── recipe.yaml               # Claude Code extensions (herdr integration)
+    │   ├── build.sh                  # Linux: downloads herdr, runs herdr integration install claude
+    │   └── build.bat                 # Windows: same
     ├── pi-extensions/
     │   ├── recipe.yaml               # Packages curated pi plugins (pins in PLUGINS env var)
     │   ├── build.sh                  # Linux: runs `pi install` for each plugin
@@ -98,8 +107,19 @@ pixi-llm-recipes/
         │   │   ├── Programmer.md     # Programmer agent instructions
         │   │   ├── Reviewer.md       # Reviewer agent instructions
         │   │   └── general-purpose.md # General-purpose agent instructions
-        │   └── skills/               # Skill directories (currently use-gh-cli)
+        │   └── skills/               # Skill directories
+        │       ├── herdr/SKILL.md     # Skill: control herdr from inside it
         │       └── use-gh-cli/SKILL.md # Skill: use gh CLI instead of web fetch for GitHub
+    └── herdr/
+            ├── recipe.yaml           # herdr conda recipe (downloads pre-built binary from GitHub releases)
+            ├── build.sh              # Linux: download herdr binary to $PREFIX/bin
+            └── build.bat             # Windows: download herdr.exe to %PREFIX%\bin
+    └── claude-home/
+            ├── recipe.yaml           # Claude Code skill directories (copied into prefix)
+            ├── build.sh              # Linux: flat copy skills/ into $PREFIX/home/.claude/skills
+            ├── build.bat             # Windows: same
+            └── skills/               # Skill directories
+                └── herdr/SKILL.md     # Skill: control herdr from inside it
 ```
 
 ## Core Concepts
@@ -187,19 +207,20 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 
 ### Root `pixi.toml` — Features & Environments
 
-| Feature                  | Dependencies                                                                                                                               | Key Tasks                                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                          | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `kv-perplexity` |
-| `llamacpp-source-cpu`    | `llama-cpp` (cpu compiled from sources)                                                                                                    | —                                                                                                   |
-| `llamacpp-source-cuda`   | `llama-cpp` (cuda compiled from sources)                                                                                                   | —                                                                                                   |
-| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                 | —                                                                                                   |
-| `llamacpp-binary-cpu`    | `llama-cpp` (cpu pre-built binary)                                                                                                         | —                                                                                                   |
-| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary)                                                                                                      | —                                                                                                   |
-| `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                        | —                                                                                                   |
-| `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-home` (from `pixi-recipes/pi-home`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                         |
-| `claude`                 | `claude` (from `pixi-recipes/claude`), `bubblewrap` (Linux only)                                                                           | `claude` (Linux only), `claude-unsafe`                                                              |
-| `git`                    | `git` and `gh` (GitHub CLI from conda-forge)                                                                                               | `git`, `gh`                                                                                         |
-| `pytools`                | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc.                                         | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report`                   |
+| Feature                  | Dependencies                                                                                                                                                                   | Key Tasks                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                                                              | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `kv-perplexity` |
+| `llamacpp-source-cpu`    | `llama-cpp` (cpu compiled from sources)                                                                                                                                        | —                                                                                                   |
+| `llamacpp-source-cuda`   | `llama-cpp` (cuda compiled from sources)                                                                                                                                       | —                                                                                                   |
+| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                                                     | —                                                                                                   |
+| `llamacpp-binary-cpu`    | `llama-cpp` (cpu pre-built binary)                                                                                                                                             | —                                                                                                   |
+| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary)                                                                                                                                          | —                                                                                                   |
+| `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                                                            | —                                                                                                   |
+| `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-home` (from `pixi-recipes/pi-home`), `bubblewrap` (Linux only)                                     | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                         |
+| `claude`                 | `claude` (from `pixi-recipes/claude`), `claude-extensions` (from `pixi-recipes/claude-extensions`), `claude-home` (from `pixi-recipes/claude-home`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe`                                                              |
+| `herdr`                  | `herdr` (from `pixi-recipes/herdr`)                                                                                                                                            | `herdr`                                                                                             |
+| `git`                    | `git` and `gh` (GitHub CLI from conda-forge)                                                                                                                                   | `git`, `gh`                                                                                         |
+| `pytools`                | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc.                                                                             | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report`                   |
 
 | Environment              | Feature(s)                            |
 | ------------------------ | ------------------------------------- |
@@ -210,6 +231,7 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 | `llamacpp-binary-vulkan` | `llamacpp` + `llamacpp-binary-vulkan` |
 | `llamacpp-binary-rocm`   | `llamacpp` + `llamacpp-binary-rocm`   |
 | `agents`                 | `pi` + `claude` + `git` + `pytools`   |
+| `herdr`                  | `herdr`                               |
 
 ### `models.ini` — llama-server Preset Configuration
 
@@ -268,6 +290,7 @@ Wraps Claude Code (`claude`) in a bubblewrap container using the current working
 - Read-only root filesystem; `/tmp`, `/home`, `/root` are `tmpfs`
 - Binds the target working directory read-write (or a temp dir at `/tmp/claude` if `-` is passed)
 - Binds `~/.claude`, `~/.claude.json` (Claude Code config/auth)
+- Calls `inject-claude-extensions.sh` before the sandbox starts to deploy packaged extensions (herdr hook scripts, settings) from `$CONDA_PREFIX/home/.claude/` into the host's `~/.claude/`
 - Binds caches: `~/.cache/{ccache,claude,claude-cli-nodejs,pip,pre-commit,rattler,uv}`
 - Binds `$CONDA_PREFIX` read-only (claude binary and Node.js runtime); also binds the pixi root read-only for shared packages
 - Uses `--unshare-all --share-net --die-with-parent` for isolation; runs `claude --dangerously-skip-permissions`
@@ -301,11 +324,23 @@ Installs a pinned set of pi plugins into `$PREFIX/home/.pi/agent` during the con
 
 `@juicesharp/rpiv-web-tools` is excluded from the plugin list — it is redundant with `pi-ollama-cloud`.
 
+Also installs the herdr pi integration by downloading the herdr binary at build time and running `herdr integration install pi`. The output (a TypeScript extension) is deployed to `${PREFIX}/home/.pi/agent/extensions/`.
+
+### `pixi-recipes/claude-extensions` — Claude Code Plugin Package
+
+Installs the herdr Claude Code integration by downloading the herdr binary at build time and running `herdr integration install claude`. The output (hook scripts and settings) is deployed to `${PREFIX}/home/.claude/`.
+
+At runtime, `scripts/inject-claude-extensions.sh` merges these packaged files into the host's `~/.claude/` before the sandbox starts (analogous to `scripts/inject-pi-extensions.sh` for pi).
+
+### `pixi-recipes/claude-home` — Packaged ~/.claude
+
+Packages Claude Code skill directories into `${PREFIX}/home/.claude/skills/`. These are deployed to the host's `~/.claude/skills/` by `scripts/inject-claude-extensions.sh` before the sandbox starts (same pattern as `pixi-recipes/pi-home` for pi).
+
 ### `pixi-recipes/pi-home` — Packaged ~/.pi
 
 Uses conda-build to package a fixed
 
-- `~/.pi/skills`
+- `~/.pi/skills` (currently `herdr` and `use-gh-cli`)
 - `~/.pi/AGENTS.md`
 - `~/.pi/keybindings.json`
 - `~/.pi/agents` (for the `pi-subagents` extension)
@@ -316,6 +351,22 @@ These files are deployed to `$CONDA_PREFIX/home/.pi` and are deployed on the fly
 back to `pixi-recipes/pi-home` so that they can be reviewed and committed to git. Note:
 rsync is configured not to change any timestamps when contents don't change, so that
 pixi-build won't rebuild the recipe at every launch.
+
+### `pixi-recipes/herdr` — herdr Terminal Multiplexer
+
+Packages [herdr](https://herdr.dev) from pre-built GitHub release binaries.
+
+- **Linux**: `build.sh` downloads the stable release binary from `https://herdr.dev/latest.json` (tag `v{version_stable}`) into `${PREFIX}/bin/herdr`.
+- **Windows**: `build.bat` downloads the preview release binary from `https://herdr.dev/preview.json` (tag `preview-{build_id}`) into `%PREFIX%\bin\herdr.exe`. Windows builds are preview-only.
+
+The recipe stores:
+
+- `version_stable` — plain version string without `v` prefix (e.g. `"0.7.1"`) for Linux. The `v` prefix is added by `build.sh` in the download URL.
+- `sha256_stable_x86_64` / `sha256_stable_aarch64` — expected sha256 for each Linux arch binary. Verified by `build.sh` after download.
+- `version_preview` — full preview release tag (e.g. `preview-2026-06-22-24c7377de01c`) for Windows.
+- `sha256_preview_win_64` — expected sha256 for the Windows binary. Verified by `build.bat` after download.
+
+See the **update-herdr** skill for the update procedure.
 
 ## Build System
 
@@ -340,7 +391,7 @@ version = "*"
 
 ## Working with This Project
 
-**`-e <env>` is only required when a task name exists in multiple environments.** Tasks that belong to exactly one environment (e.g. `pi`, `claude`, `gh`, `llama-benchy`) can be invoked with plain `pixi run <task>` — pixi selects the environment automatically. The llamacpp tasks (`start-server`, `llama-help`, etc.) exist in all six `llamacpp-*` environments, so `-e` is mandatory there to pick the right backend.
+**`-e <env>` is only required when a task name exists in multiple environments.** Tasks that belong to exactly one environment (e.g. `pi`, `claude`, `herdr`, `gh`, `llama-benchy`) can be invoked with plain `pixi run <task>` — pixi selects the environment automatically. The llamacpp tasks (`start-server`, `llama-help`, etc.) exist in all six `llamacpp-*` environments, so `-e` is mandatory there to pick the right backend.
 
 ### Building Packages
 
@@ -413,6 +464,16 @@ run `cd <workspace> && claude <args>` from any directory. The wrapper resolves `
 paths against your cwd before forwarding (the sandbox runs with the repo as its cwd). Pass
 `--no-sandbox` to route to the `claude-unsafe` task instead (full host access).
 
+### Running herdr
+
+```bash
+# Launch herdr (no sandbox needed — it's a terminal multiplexer)
+pixi run herdr
+```
+
+**Naked wrapper:** `pixi r install` deploys `scripts/herdr` to `~/.local/bin`. After that you can
+run `herdr` from any directory.
+
 ### Running Benchmarks
 
 ```bash
@@ -448,6 +509,15 @@ Source builds currently tracks mainline llama.cpp. Binary builds still track mai
 
 See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 
+### Version Updates (herdr)
+
+herdr uses one context variable per release channel:
+
+- `version_stable` — plain version string for Linux stable builds (e.g. `"0.7.1"`). Source: `https://herdr.dev/latest.json`. The `v` prefix is added by `build.sh` in the download URL.
+- `version_preview` — full preview release tag for Windows (e.g. `preview-2026-06-22-24c7377de01c`). Source: `https://herdr.dev/preview.json`. Windows builds are preview-only.
+
+See the **update-herdr** skill for the detailed step-by-step procedure.
+
 ## File Reference
 
 | File                                                       | Purpose                                                                                                            |
@@ -467,8 +537,9 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 | `scripts/claude`                                           | Naked `claude` wrapper (installed to ~/.local/bin by `pixi r install`); resolves --bind relative paths against cwd |
 | `scripts/diff-llama-cpp-variants.sh`                       | Compare llama-cpp recipe variants                                                                                  |
 | `scripts/inject-pi-extensions.sh`                          | Merge pi-extensions packages into settings.json                                                                    |
+| `scripts/inject-claude-extensions.sh`                      | Deploy packaged Claude Code extensions (hooks, settings) into host's ~/.claude                                     |
 | `scripts/install-apparmor.sh`                              | Install/load AppArmor profile for bwrap (local sudo or CI)                                                         |
-| `scripts/install.sh`                                       | Backs the `install` task; symlinks `scripts/pi` and `scripts/claude` into ~/.local/bin                             |
+| `scripts/install.sh`                                       | Backs the `install` task; symlinks `scripts/pi`, `scripts/claude`, and `scripts/herdr` into ~/.local/bin           |
 | `scripts/stop-server.sh`                                   | Graceful llama-server shutdown (SIGTERM → SIGKILL)                                                                 |
 | `scripts/start-server.sh`                                  | Background llama-server with logging                                                                               |
 | `scripts/pi`                                               | Naked `pi` wrapper (installed to ~/.local/bin by `pixi r install`); resolves --bind relative paths against cwd     |
@@ -496,6 +567,13 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 | `pixi-recipes/claude/recipe.yaml`                          | Claude Code conda package recipe                                                                                   |
 | `pixi-recipes/claude/build.sh`                             | Linux: `npm install --global` into prefix                                                                          |
 | `pixi-recipes/claude/build.bat`                            | Windows: `npm install --global` into prefix                                                                        |
+| `pixi-recipes/claude-extensions/recipe.yaml`               | Claude Code extensions conda recipe (herdr integration)                                                            |
+| `pixi-recipes/claude-extensions/build.sh`                  | Linux: downloads herdr, runs `herdr integration install claude`                                                    |
+| `pixi-recipes/claude-extensions/build.bat`                 | Windows: same                                                                                                      |
+| `pixi-recipes/claude-home/recipe.yaml`                     | Packages Claude Code skill directories                                                                             |
+| `pixi-recipes/claude-home/build.sh`                        | Linux: copies skills/ into $PREFIX/home/.claude/skills                                                             |
+| `pixi-recipes/claude-home/build.bat`                       | Windows: same                                                                                                      |
+| `pixi-recipes/claude-home/skills/herdr/SKILL.md`           | Skill: control herdr from inside it (pi + claude)                                                                  |
 | `pixi-recipes/pi-extensions/recipe.yaml`                   | Packages pi plugin set                                                                                             |
 | `pixi-recipes/pi-extensions/build.sh`                      | Linux: runs `pi install` for each plugin in `PLUGINS`                                                              |
 | `pixi-recipes/pi-extensions/build.bat`                     | Windows: runs `pi install` for each plugin in `PLUGINS`                                                            |
@@ -503,9 +581,15 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 | `pixi-recipes/pi-home/build.sh`                            | Linux: copies skills/ into $PREFIX/home/.pi/agent/skills                                                           |
 | `pixi-recipes/pi-home/build.bat`                           | Windows: same                                                                                                      |
 | `pixi-recipes/pi-home/skills/use-gh-cli/SKILL.md`          | Skill: use gh CLI instead of web fetch for GitHub                                                                  |
+| `pixi-recipes/pi-home/skills/herdr/SKILL.md`               | Skill: control herdr from inside it (pi + claude)                                                                  |
 | `pixi-recipes/pi-home/AGENTS.md`                           | Global agent instructions (mirrors root AGENTS.md)                                                                 |
 | `pixi-recipes/pi-home/agents/*.md`                         | Agent-specific instruction files (Explore, Plan, Programmer, Reviewer, general-purpose)                            |
 | `.agents/skills/*/SKILL.md`                                | Agent skills discovered by pi agent (llama-cpp-changelog, test-git-auth, update-*)                                 |
+| `.agents/skills/update-herdr/SKILL.md`                     | Skill: update herdr recipe to latest stable+preview releases                                                       |
+| `pixi-recipes/herdr/recipe.yaml`                           | herdr conda recipe (downloads pre-built binary from GitHub releases)                                               |
+| `pixi-recipes/herdr/build.sh`                              | Linux: download herdr binary to `$PREFIX/bin`                                                                      |
+| `pixi-recipes/herdr/build.bat`                             | Windows: download herdr.exe to `%PREFIX%\bin`                                                                      |
+| `scripts/herdr`                                            | Naked `herdr` wrapper (installed to ~/.local/bin by `pixi r install`)                                              |
 | `sample-data/context-bench/README.md`                      | Context-bench documentation                                                                                        |
 | `sample-data/context-bench/aggregate_benchmark_results.py` | Aggregates multiple context-benchmark runs (`aggregate-context-bench` task)                                        |
 
@@ -532,11 +616,12 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 - **Models file per environment**: the sandbox looks for `models.$PIXI_ENVIRONMENT_NAME.json`; if absent it falls back to nothing — create it when running a non-default pi environment
 - **`pi-unsafe.sh` calls `inject-pi-extensions.sh`** to merge pi-extensions packages, symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows), and always cleans up on exit via `trap`
 - **AppArmor is required for bwrap** — run `pixi run install-apparmor` to install and load the profile before running the sandboxed pi agent (works locally with sudo and unattended on GitHub Actions; no-op where unprivileged user namespaces are unrestricted)
-- **`pixi r install` deploys naked `pi`/`claude` wrappers to `~/.local/bin`** — `scripts/install.sh` symlinks `scripts/pi` and `scripts/claude` into `~/.local/bin`; re-run after moving the repo so the symlinks stay correct. The wrappers resolve `--bind` relative paths against the caller's cwd (the sandbox task runs with the repo as cwd) and accept `--no-sandbox` to route to the `*-unsafe` task (full host access).
-- **`pixi r uninstall` removes the `pi`/`claude` symlinks from `~/.local/bin`.
+- **`pixi r install` deploys naked `pi`/`claude`/`herdr` wrappers to `~/.local/bin`** — `scripts/install.sh` symlinks `scripts/pi`, `scripts/claude`, and `scripts/herdr` into `~/.local/bin`; re-run after moving the repo so the symlinks stay correct. The wrappers resolve `--bind` relative paths against the caller's cwd (the sandbox task runs with the repo as cwd) and accept `--no-sandbox` to route to the `*-unsafe` task (full host access).
+- **`pixi r uninstall` removes the `pi`/`claude`/`herdr` symlinks from `~/.local/bin`.
 - **`pi-extensions` pins plugin versions explicitly** — bump versions in the `PLUGINS` list in `recipe.yaml` (shared by `build.sh` and `build.bat`) and update the `recipe.yaml` package version when adding or upgrading plugins
 - **`claude` recipe packages Claude Code from npm** — update `context.version` and `source.sha256` in `pixi-recipes/claude/recipe.yaml` when bumping the version; use the `stable` dist-tag from the npm registry
 - **Windows scripts run under MSYS2 bash shipped by the environment** — the default feature pins `m2-bash`, `m2-coreutils`, and `m2-grep` on win-64, because a plain `bash` from PATH on vanilla Windows resolves to WSL, which discards the pixi environment. Don't use `jq` (not packaged for win-64 on conda-forge), `nc`, `pkill`/`pgrep`, or `ln -s` in scripts that must run on Windows; use `node -e` for JSON, `curl` for port checks (Windows ships it in System32), `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` (files) or an NTFS junction via `cmd //c 'mklink /J <link> <target>'` (directories; needs no admin rights) instead of symlinks. If a script needs another external command on Windows, add the corresponding `m2-*` package
 - **`CLAUDE.md` is a symlink** to `AGENTS.md` for Claude Code compatibility
 - **`.claude/skills` is a symlink** to `.agents/skills/` for Claude Code compatibility
 - **Always run `pixi r lint` after changing files** — fix any resulting issues immediately. This invalidates your memory of file contents; re-read from disk before making further changes.
+- **After changing anything under `pixi-recipes/`, test by running `pixi install -e <env>`** for every environment that uses the changed recipe. Resolve errors like "no candidates were found" or "invalid value" before calling the work done. A green lint does not mean the recipe builds.

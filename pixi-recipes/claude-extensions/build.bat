@@ -1,26 +1,22 @@
 @echo off
 setlocal
 
-rem pi resolves the home directory through USERPROFILE on Windows
+rem Install herdr integration for Claude Code.
+rem Downloads the herdr binary from its latest preview release (Windows builds
+rem are preview-only), runs `herdr integration install claude`, then deploys
+rem the output to the prefix.
+
 set "HOME=%PREFIX%\home"
 set "USERPROFILE=%PREFIX%\home"
+if not exist "%HOME%\.claude\hooks" mkdir "%HOME%\.claude\hooks"
 
-if exist "%PREFIX%\home\.pi\agent\npm" rmdir /s /q "%PREFIX%\home\.pi\agent\npm"
-if exist "%PREFIX%\home\.pi\agent\settings.json" del /q "%PREFIX%\home\.pi\agent\settings.json"
-
-rem PLUGINS is set in recipe.yaml
-for %%P in (%PLUGINS%) do (
-    call pi install npm:%%P
-    if errorlevel 1 exit /b 1
-)
-
-rem Install herdr integration. Download the herdr binary from its latest preview
-rem release (Windows builds are preview-only), run the integration install, then
-rem discard the binary.
+rem Download herdr binary via the preview manifest
 curl -fsSL --retry 3 --connect-timeout 10 --max-time 20 "https://herdr.dev/preview.json" -o "%TEMP%\herdr-manifest.json" || exit /b 1
 for /f "delims=" %%U in ('node -e "process.stdin.setEncoding('utf8');let d='';process.stdin.on('data',c=^>d+=c);process.stdin.on('end',()=^>console.log(JSON.parse(d).assets['windows-x86_64'].url))" ^< "%TEMP%\herdr-manifest.json"') do set "HERDR_URL=%%U"
 del "%TEMP%\herdr-manifest.json"
+
 echo Downloading herdr from %HERDR_URL%
 curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "%HERDR_URL%" -o "%TEMP%\herdr.exe" || exit /b 1
-"%TEMP%\herdr.exe" integration install pi || exit /b 1
+
+"%TEMP%\herdr.exe" integration install claude || exit /b 1
 del "%TEMP%\herdr.exe"
