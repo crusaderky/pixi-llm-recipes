@@ -70,7 +70,7 @@ kv-perplexity = "scripts/kv-perplexity.py"
 [feature.pi.dependencies]
 pi-coding-agent = "*"
 pi-extensions = { path = "pixi-recipes/pi-extensions" }
-pi-skills = { path = "pixi-recipes/pi-skills" }
+pi-home = { path = "pixi-recipes/pi-home" }
 
 [feature.pi.target.linux-64.dependencies]
 bubblewrap = "*"

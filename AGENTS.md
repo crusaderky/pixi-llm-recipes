@@ -87,7 +87,7 @@ pixi-llm-recipes/
     │   ├── recipe.yaml               # Packages curated pi plugins (pins in PLUGINS env var)
     │   ├── build.sh                  # Linux: runs `pi install` for each plugin
     │   └── build.bat                 # Windows: runs `pi install` for each plugin
-    ├── pi-skills/
+    ├── pi-home/
         │   ├── recipe.yaml           # Bundles pi skill directories (copied into prefix)
         │   ├── build.sh              # Linux: flat copy skills/ into $PREFIX/home/.pi/agent/skills
         │   ├── build.bat             # Windows: same
@@ -187,19 +187,19 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 
 ### Root `pixi.toml` — Features & Environments
 
-| Feature                  | Dependencies                                                                                                                                   | Key Tasks                                                                                           |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                              | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `kv-perplexity` |
-| `llamacpp-source-cpu`    | `llama-cpp` (cpu compiled from sources)                                                                                                        | —                                                                                                   |
-| `llamacpp-source-cuda`   | `llama-cpp` (cuda compiled from sources)                                                                                                       | —                                                                                                   |
-| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                     | —                                                                                                   |
-| `llamacpp-binary-cpu`    | `llama-cpp` (cpu pre-built binary)                                                                                                             | —                                                                                                   |
-| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary)                                                                                                          | —                                                                                                   |
-| `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                            | —                                                                                                   |
-| `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-skills` (from `pixi-recipes/pi-skills`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                         |
-| `claude`                 | `claude` (from `pixi-recipes/claude`), `bubblewrap` (Linux only)                                                                               | `claude` (Linux only), `claude-unsafe`                                                              |
-| `git`                    | `git` and `gh` (GitHub CLI from conda-forge)                                                                                                   | `git`, `gh`                                                                                         |
-| `pytools`                | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc.                                             | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report`                   |
+| Feature                  | Dependencies                                                                                                                               | Key Tasks                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                          | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `kv-perplexity` |
+| `llamacpp-source-cpu`    | `llama-cpp` (cpu compiled from sources)                                                                                                    | —                                                                                                   |
+| `llamacpp-source-cuda`   | `llama-cpp` (cuda compiled from sources)                                                                                                   | —                                                                                                   |
+| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                 | —                                                                                                   |
+| `llamacpp-binary-cpu`    | `llama-cpp` (cpu pre-built binary)                                                                                                         | —                                                                                                   |
+| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary)                                                                                                      | —                                                                                                   |
+| `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                        | —                                                                                                   |
+| `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-home` (from `pixi-recipes/pi-home`), `bubblewrap` (Linux only) | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                         |
+| `claude`                 | `claude` (from `pixi-recipes/claude`), `bubblewrap` (Linux only)                                                                           | `claude` (Linux only), `claude-unsafe`                                                              |
+| `git`                    | `git` and `gh` (GitHub CLI from conda-forge)                                                                                               | `git`, `gh`                                                                                         |
+| `pytools`                | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc.                                         | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report`                   |
 
 | Environment              | Feature(s)                            |
 | ------------------------ | ------------------------------------- |
@@ -301,9 +301,21 @@ Installs a pinned set of pi plugins into `$PREFIX/home/.pi/agent` during the con
 
 `@juicesharp/rpiv-web-tools` is excluded from the plugin list — it is redundant with `pi-ollama-cloud`.
 
-### `pixi-recipes/pi-skills` — Pi Skills Package
+### `pixi-recipes/pi-home` — Packaged ~/.pi
 
-Bundles skill directories (each containing `SKILL.md`) into `$PREFIX/home/.pi/agent/skills/` during the conda build. The `skills/` directory in the recipe is flat-copied so pi discovers each skill from `~/.pi/agent/skills/<name>/SKILL.md`. See `skills/use-gh-cli/SKILL.md` for the first bundled skill.
+Uses conda-build to package a fixed
+
+- `~/.pi/skills`
+- `~/.pi/AGENTS.md`
+- `~/.pi/keybindings.json`
+- `~/.pi/agents` (for the `pi-subagents` extension)
+
+These files are deployed to `$CONDA_PREFIX/home/.pi` and are deployed on the fly to
+`~/.pi` by `scripts/bwrap-pi.sh` and `scripts/pi-unsafe.sh` (with symlinks on Linux and
+`cp` on Linux). When pi exits, any changed performed from inside pi itself are rsync'ed
+back to `pixi-recipes/pi-home` so that they can be reviewed and committed to git. Note:
+rsync is configured not to change any timestamps when contents don't change, so that
+pixi-build won't rebuild the recipe at every launch.
 
 ## Build System
 
@@ -474,12 +486,12 @@ See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 | `pixi-recipes/pi-extensions/recipe.yaml`                   | Packages pi plugin set                                                                  |
 | `pixi-recipes/pi-extensions/build.sh`                      | Linux: runs `pi install` for each plugin in `PLUGINS`                                   |
 | `pixi-recipes/pi-extensions/build.bat`                     | Windows: runs `pi install` for each plugin in `PLUGINS`                                 |
-| `pixi-recipes/pi-skills/recipe.yaml`                       | Packages pi skill directories                                                           |
-| `pixi-recipes/pi-skills/build.sh`                          | Linux: copies skills/ into $PREFIX/home/.pi/agent/skills                                |
-| `pixi-recipes/pi-skills/build.bat`                         | Windows: same                                                                           |
-| `pixi-recipes/pi-skills/skills/use-gh-cli/SKILL.md`        | Skill: use gh CLI instead of web fetch for GitHub                                       |
-| `pixi-recipes/pi-skills/AGENTS.md`                         | Global agent instructions (mirrors root AGENTS.md)                                      |
-| `pixi-recipes/pi-skills/agents/*.md`                       | Agent-specific instruction files (Explore, Plan, Programmer, Reviewer, general-purpose) |
+| `pixi-recipes/pi-home/recipe.yaml`                         | Packages pi skill directories                                                           |
+| `pixi-recipes/pi-home/build.sh`                            | Linux: copies skills/ into $PREFIX/home/.pi/agent/skills                                |
+| `pixi-recipes/pi-home/build.bat`                           | Windows: same                                                                           |
+| `pixi-recipes/pi-home/skills/use-gh-cli/SKILL.md`          | Skill: use gh CLI instead of web fetch for GitHub                                       |
+| `pixi-recipes/pi-home/AGENTS.md`                           | Global agent instructions (mirrors root AGENTS.md)                                      |
+| `pixi-recipes/pi-home/agents/*.md`                         | Agent-specific instruction files (Explore, Plan, Programmer, Reviewer, general-purpose) |
 | `.agents/skills/*/SKILL.md`                                | Agent skills discovered by pi agent (llama-cpp-changelog, test-git-auth, update-*)      |
 | `sample-data/context-bench/README.md`                      | Context-bench documentation                                                             |
 | `sample-data/context-bench/aggregate_benchmark_results.py` | Aggregates multiple context-benchmark runs (`aggregate-context-bench` task)             |

@@ -21,7 +21,7 @@ fi
 
 function cleanup {
   if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
-    rsync -avcO --no-perms --no-times ~/.pi/agent/{agents,skills,AGENTS.md,keybindings.json} pixi-recipes/pi-skills/
+    rsync -avcO --no-perms --no-times ~/.pi/agent/{agents,skills,AGENTS.md,keybindings.json} pixi-recipes/pi-home/
   fi
   rm -rf ~/.pi/agent/{agents,npm,skills,AGENTS.md,keybindings.json}
 }

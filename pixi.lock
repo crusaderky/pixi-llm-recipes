@@ -790,7 +790,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.6.17-hbd8a1cb_0.conda
       - conda_source: pi-extensions[6ab533cd] @ pixi-recipes/pi-extensions
-      - conda_source: pi-skills[dfe604c6] @ pixi-recipes/pi-skills
+      - conda_source: pi-home[22d44637] @ pixi-recipes/pi-home
       linux-aarch64:
       - conda: https://prefix.dev/conda-forge/linux-aarch64/_openmp_mutex-4.5-20_gnu.conda
       - conda: https://prefix.dev/conda-forge/linux-aarch64/bubblewrap-0.11.2-h9367005_0.conda
@@ -831,7 +831,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-aarch64/zstd-1.5.7-h85ac4a6_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.6.17-hbd8a1cb_0.conda
       - conda_source: pi-extensions[2a2f1275] @ pixi-recipes/pi-extensions
-      - conda_source: pi-skills[0f9c087d] @ pixi-recipes/pi-skills
+      - conda_source: pi-home[1784e166] @ pixi-recipes/pi-home
       win-64:
       - conda: https://prefix.dev/conda-forge/noarch/m2-bash-5.2.037.2-hc364b38_6.conda
       - conda: https://prefix.dev/conda-forge/noarch/m2-coreutils-8.32.5-hc364b38_6.conda
@@ -855,7 +855,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/win-64/vc14_runtime-14.51.36231-h1b9f54f_39.conda
       - conda: https://prefix.dev/conda-forge/win-64/vcomp14-14.51.36231-h1b9f54f_39.conda
       - conda_source: pi-extensions[cb85904f] @ pixi-recipes/pi-extensions
-      - conda_source: pi-skills[ff9838ce] @ pixi-recipes/pi-skills
+      - conda_source: pi-home[0daa1012] @ pixi-recipes/pi-home
   pytools:
     channels:
     - url: https://prefix.dev/conda-forge/
@@ -11008,15 +11008,15 @@ packages:
   - conda: https://prefix.dev/conda-forge/win-64/vc-14.5-h1b7c187_39.conda
   - conda: https://prefix.dev/conda-forge/win-64/vc14_runtime-14.51.36231-h1b9f54f_39.conda
   - conda: https://prefix.dev/conda-forge/win-64/vcomp14-14.51.36231-h1b9f54f_39.conda
-- conda_source: pi-skills[0f9c087d] @ pixi-recipes/pi-skills
-  variants:
-    target_platform: linux-aarch64
-- conda_source: pi-skills[dfe604c6] @ pixi-recipes/pi-skills
-  variants:
-    target_platform: linux-64
-- conda_source: pi-skills[ff9838ce] @ pixi-recipes/pi-skills
+- conda_source: pi-home[0daa1012] @ pixi-recipes/pi-home
   variants:
     target_platform: win-64
+- conda_source: pi-home[1784e166] @ pixi-recipes/pi-home
+  variants:
+    target_platform: linux-aarch64
+- conda_source: pi-home[22d44637] @ pixi-recipes/pi-home
+  variants:
+    target_platform: linux-64
 - pypi: https://files.pythonhosted.org/packages/14/c0/9fd6b925d4a6b8cdfdc5c919eb446978bf3f80db9d94f7563dcfaecd2eac/llama_benchy-0.3.8-py3-none-any.whl
   name: llama-benchy
   version: 0.3.8
