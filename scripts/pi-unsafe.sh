@@ -33,7 +33,7 @@ bash "$(dirname "$0")/inject-pi-extensions.sh"
 # below would resolve to the ~/.local/bin wrapper and re-enter this script.
 PI_BIN="$(command -v pi)"
 
-# Unset all PIXI_* and CONDA_* environment variables, and remove
+# Unset all PIXI_*/CONDA_* and the pixi-activation env vars, and remove
 # $CONDA_PREFIX/bin from $PATH so children resolve the ~/.local/bin wrappers
 # instead of the raw conda binaries.
 if [ -n "${CONDA_PREFIX:-}" ]; then
@@ -47,7 +47,7 @@ fi
 while IFS= read -r var; do
   unset "$var"
 done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
-unset INIT_CWD
+unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 
 if [ "$1" == "-" ]; then
   echo "Running in empty temporary directory"

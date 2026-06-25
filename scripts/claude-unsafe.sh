@@ -53,5 +53,12 @@ if [ -n "${CONDA_PREFIX:-}" ]; then
   unset _strip _path
 fi
 
+# Unset all PIXI_*/CONDA_* and the pixi-activation env vars so they don't leak
+# into Claude Code and its children.
+while IFS= read -r var; do
+  unset "$var"
+done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
+unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
+
 cd "$DIR"
 "$CLAUDE_BIN" "${CLAUDE_ARGS[@]}"

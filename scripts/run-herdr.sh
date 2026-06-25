@@ -18,9 +18,9 @@ set -o nounset
 
 HERDR_BIN="$(command -v herdr)"
 
-# Unset all CONDA_* environment variables and remove $CONDA_PREFIX/bin from
-# $PATH, so `pi`/`claude` spawned inside herdr resolve the ~/.local/bin
-# wrappers (sandbox + arg handling) instead of the raw conda binaries.
+# Remove $CONDA_PREFIX/bin from $PATH so `pi`/`claude` spawned inside herdr
+# resolve the ~/.local/bin wrappers (sandbox + arg handling) instead of the raw
+# conda binaries.
 if [ -n "${CONDA_PREFIX:-}" ]; then
   _strip=":$CONDA_PREFIX/bin:"
   _path=":$PATH:"
@@ -29,9 +29,16 @@ if [ -n "${CONDA_PREFIX:-}" ]; then
   PATH="${_path%:}"
   unset _strip _path
 fi
+# Unset all PIXI_*/CONDA_* and the pixi-activation env vars so herdr panes (which
+# inherit this environment) don't leak the pixi env into shells run inside them.
 while IFS= read -r var; do
   unset "$var"
-done < <(env | grep -oE '^CONDA_[^=]+')
-unset INIT_CWD
+done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
+unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
+
+# Launch herdr from $HOME so panes it spawns start in ~ rather than in the repo
+# root (the cwd of `pixi r herdr`). herdr uses its own launch cwd as the default
+# working directory for new terminals (exported as HERDR_STARTUP_CWD).
+cd "$HOME"
 
 exec "$HERDR_BIN" "$@"

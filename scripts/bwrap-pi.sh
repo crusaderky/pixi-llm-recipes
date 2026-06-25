@@ -127,11 +127,11 @@ function cleanup {
 }
 trap cleanup EXIT
 
-# Unset all PIXI_* and CONDA_* environment variables
+# Unset all PIXI_*/CONDA_* and the pixi-activation env vars
 while IFS= read -r var; do
   unset "$var"
 done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
-unset INIT_CWD
+unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 
 bwrap \
   --ro-bind / / \

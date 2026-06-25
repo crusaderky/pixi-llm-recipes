@@ -116,6 +116,13 @@ if [ "$WITH_HERDR" = true ]; then
   HERDR_BINDS="--bind $HOME/.config/herdr $HOME/.config/herdr"
 fi
 
+# Unset all PIXI_*/CONDA_* and the pixi-activation env vars so they don't leak
+# into the sandboxed Claude Code process.
+while IFS= read -r var; do
+  unset "$var"
+done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
+unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
+
 exec bwrap \
   --ro-bind / / \
   --dev /dev \
