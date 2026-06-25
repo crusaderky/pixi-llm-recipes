@@ -46,6 +46,7 @@ pixi-llm-recipes/
 │   ├── install-apparmor.sh           # Install AppArmor profile for bwrap (sudo/CI)
 │   ├── kv-kld-report.py                 # Parse perplexity log → HTML/Markdown KLD report
 │   ├── kv-perplexity.py              # KLD sweep over cartesian product of K/V quant combos
+│   ├── llama-cpp-changelog.py        # Deterministic llama.cpp changelog dumper (tags + PRs + commits)
 │   ├── start-server.sh               # Background llama-server with logging
 │   ├── stop-server.sh                # Graceful llama-server shutdown
 │   ├── herdr                         # Naked `herdr` wrapper (installed to ~/.local/bin by `pixi r install`)
@@ -278,6 +279,17 @@ pixi run -e llamacpp-source-cuda kv-perplexity -c kv-perplexity.yaml
 ### `scripts/kv-kld-report.py` — KLD Report Generator
 
 Parses a `perplexity.log` produced by `kv-perplexity.py`, extracts per-chunk KL divergence for each `-ctk`/`-ctv` combo, and generates an HTML report (interactive Chart.js plot) and a Markdown report (static SVG via matplotlib). Embeds Chart.js inline (fetched from CDN; falls back to CDN `<script>` tag on failure).
+
+### `scripts/llama-cpp-changelog.py` — Deterministic llama.cpp Changelog Dumper
+
+Dumps a deterministic markdown changelog between two git refs of `ggml-org/llama.cpp`. Defaults `from` from `pixi-recipes/llama-cpp-source/cpu/recipe.yaml` (`# Last sync with main at bNNNN` comment, else active main `version`, else commented-out `# version: bNNNN`); defaults `to` to the latest upstream release tag. Both overridable via positional or `--from`/`--to` args.
+
+Output sections: header (refs, dates, counts), tags in range with release dates + URLs, PRs merged in range (number, title, URL, body excerpt up to 1200 chars, filtered by merge-commit SHA), and direct commits with no PR (short hash, subject, URL). PRs are fetched via GraphQL and require authenticated `gh` CLI (or `GITHUB_TOKEN`/`GH_TOKEN`); tags/commits work unauthenticated but are rate-limited. Used by the `llama-cpp-changelog` and `update-llama-cpp` skills.
+
+```bash
+pixi r llama-cpp-changelog [from] [to]
+pixi r llama-cpp-changelog --from b9688 --to b9789
+```
 
 ```bash
 pixi run kv-kld-report perplexity.log -o kv-kld-report.html
@@ -548,6 +560,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `scripts/pi-unsafe.sh`                                     | Unsandboxed pi wrapper (dev/debug only)                                                                                                                 |
 | `scripts/kv-perplexity.py`                                 | KLD sweep over cartesian product of K/V quant combos (`kv-perplexity` task)                                                                             |
 | `scripts/kv-kld-report.py`                                 | Parse perplexity log → HTML/Markdown KLD report with plots (`kv-kld-report` task)                                                                       |
+| `scripts/llama-cpp-changelog.py`                           | Deterministic llama.cpp changelog dumper: tags + PRs (title/desc/URL) + commits (`llama-cpp-changelog` task)                                            |
 | `sample-data/wiki.test.raw`                                | Wikitext-2 test corpus for KLD/perplexity benchmarks                                                                                                    |
 | `sample-data/wiki.train.head-10k.raw`                      | First 10k lines of wiki.train.raw (~674k tokens; larger KLD baseline)                                                                                   |
 | `sample-data/describe-me.jpg`                              | Image for multimodal testing                                                                                                                            |

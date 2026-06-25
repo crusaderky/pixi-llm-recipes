@@ -164,6 +164,7 @@ hf = "hf"
 context-bench = "python sample-data/context-bench/run_benchmark.py"
 aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_results.py"
 kv-kld-report = "python scripts/kv-kld-report.py"
+llama-cpp-changelog = "python scripts/llama-cpp-changelog.py"
 
 [feature.lint.dependencies]
 lefthook = "*"
@@ -187,6 +188,5 @@ llamacpp-source-vulkan = ["llamacpp", "llamacpp-source-vulkan"]
 llamacpp-binary-cpu = ["llamacpp", "llamacpp-binary-cpu"]
 llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
-agents = ["pi", "claude", "sandbox", "git", "herdr"]
-pytools = ["pytools"]
+agents = ["pi", "claude", "sandbox", "git", "herdr", "pytools"]
 lint = { features = ["lint"], no-default-feature = true }

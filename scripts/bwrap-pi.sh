@@ -105,6 +105,7 @@ if [ "$1" != "-" ]; then
 fi
 
 mkdir -p ~/.cache/ccache
+mkdir -p ~/.cache/llama-cpp-changelog
 mkdir -p ~/.cache/pip
 mkdir -p ~/.cache/pre-commit
 mkdir -p ~/.cache/rattler
@@ -140,8 +141,9 @@ bwrap \
   --tmpfs /home \
   --tmpfs /root \
   --ro-bind "$_CONDA_PREFIX"              "$_CONDA_PREFIX" \
-  --bind "$HOME/.cache/ccache"            "$HOME/.cache/ccache" \
-  --bind "$HOME/.cache/pip"               "$HOME/.cache/pip" \
+  --bind "$HOME/.cache/ccache"                 "$HOME/.cache/ccache" \
+  --bind "$HOME/.cache/llama-cpp-changelog"    "$HOME/.cache/llama-cpp-changelog" \
+  --bind "$HOME/.cache/pip"                     "$HOME/.cache/pip" \
   --bind "$HOME/.cache/pre-commit"        "$HOME/.cache/pre-commit" \
   --bind "$HOME/.cache/rattler"           "$HOME/.cache/rattler" \
   --bind "$HOME/.cache/uv"                "$HOME/.cache/uv" \

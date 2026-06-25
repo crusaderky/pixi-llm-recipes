@@ -21,6 +21,7 @@ fi
 
 mkdir -p ~/.cache/ccache
 mkdir -p ~/.cache/claude
+mkdir -p ~/.cache/llama-cpp-changelog
 mkdir -p ~/.cache/claude-cli-nodejs
 mkdir -p ~/.cache/pip
 mkdir -p ~/.cache/pre-commit
@@ -122,8 +123,9 @@ exec bwrap \
   --tmpfs /tmp \
   --tmpfs /home \
   --tmpfs /root \
-  --bind    "$HOME/.cache/ccache"            "$HOME/.cache/ccache" \
-  --bind    "$HOME/.cache/claude"            "$HOME/.cache/claude" \
+  --bind    "$HOME/.cache/ccache"                 "$HOME/.cache/ccache" \
+  --bind    "$HOME/.cache/claude"                 "$HOME/.cache/claude" \
+  --bind    "$HOME/.cache/llama-cpp-changelog"    "$HOME/.cache/llama-cpp-changelog" \
   --bind    "$HOME/.cache/claude-cli-nodejs" "$HOME/.cache/claude-cli-nodejs" \
   --bind    "$HOME/.cache/pip"               "$HOME/.cache/pip" \
   --bind    "$HOME/.cache/pre-commit"        "$HOME/.cache/pre-commit" \
