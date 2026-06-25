@@ -18,7 +18,7 @@ models.
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | sh  # One-off installation
-pixi r install  # One-off installation (apparmor + ~/.local/bin)
+pixi r install  # One-off installation (apparmor, ~/.local/bin, herdr desktop launcher)
 pixi r start-server  # Start llama.cpp server for local models
 cd /path/to/workspace && pi  # Just like regular pi, but managed by pixi and sandboxed
 cd /path/to/workspace && claude
@@ -143,7 +143,7 @@ access to /home beyond the workspace directory you point it at.
 This is the recommended way to run it (Linux only).
 
 ```bash
-pixi r install                        # One-off: install AppArmor profile for BubbleWrap and executables in ~/.local/bin/
+pixi r install                        # One-off
 cd /path/to/workspace && pi           # Sandboxed
 pi --bind /data                       # Bind extra directories into the sandbox
 pi --with-git                         # Enable `git push`, `git` pull/fetch from private repos, and `gh`
@@ -166,7 +166,7 @@ no separate system-wide installation needed.
 Linux:
 
 ```bash
-pixi r install                        # One-off: install AppArmor profile for BubbleWrap and executables in ~/.local/bin/
+pixi r install                        # One-off
 cd /path/to/workspace && claude       # Sandboxed
 claude --no-sandbox                   # Full system access
 claude --bind /data                   # Bind extra directories into the sandbox
@@ -190,9 +190,12 @@ alongside pi and claude.
 Linux:
 
 ```bash
-pixi r install      # One-off: deploys herdr wrapper to ~/.local/bin
+pixi r install      # One-off
 herdr               # Launch herdr
 ```
+
+After `pixi r install` you can also launch herdr directly from your
+Gnome/Unity start menu.
 
 Windows:
 

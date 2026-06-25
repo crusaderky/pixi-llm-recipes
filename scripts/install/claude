@@ -1,5 +1,5 @@
 #!/bin/bash
-# `pi` wrapper — run `cd <workspace> && pi <extra args>` from anywhere.
+# `claude` wrapper — run `cd <workspace> && claude <extra args>` from anywhere.
 #
 # Installed to ~/.local/bin as a symlink to this script by `pixi r install`
 # so it always runs the source tree of this repo.
@@ -9,15 +9,15 @@
 #   --bind <dir>       Bind an extra directory read-write. Relative paths are
 #                      made absolute against your cwd BEFORE forwarding, because
 #                      the sandbox task runs with the repo as its cwd.
-#   --no-sandbox       Skip the bubblewrap sandbox; route to the `pi-unsafe` task
+#   --no-sandbox       Skip the bubblewrap sandbox; route to the `claude-unsafe` task
 #                      (full host access, for development/debugging).
-# All other args are forwarded verbatim to pi.
+# All other args are forwarded verbatim to claude.
 set -o errexit
 set -o nounset
 
-REPO="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-TASK=pi
-TASK_UNSAFE=pi-unsafe
+REPO="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
+TASK=claude
+TASK_UNSAFE=claude-unsafe
 
 # --no-sandbox routes to {pi,claude}-unsafe
 # --bind paths made absolute (sandbox runs with the repo as its cwd).

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=herdr
+Comment=Agent multiplexer that lives in your terminal
+Exec=gnome-terminal --title="herdr" -- herdr
+Icon=/home/crusaderky/.local/share/icons/herdr.png
+Type=Application
+Terminal=false
+Categories=Development;TerminalEmulator;
+StartupNotify=true
+StartupWMClass=gnome-terminal-server

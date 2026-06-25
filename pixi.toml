@@ -9,9 +9,9 @@ restart-server = { depends-on = ["stop-server", "start-server"] }
 
 [target.linux-64.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
-install-bin = "mkdir -p ~/.local/bin && ln -fsv $PWD/scripts/pi $PWD/scripts/claude $PWD/scripts/herdr ~/.local/bin/"
+install-bin = "bash scripts/install-bin.sh"
 install = { depends-on = ["install-apparmor", "install-bin"] }
-uninstall = "rm -f ~/.local/bin/pi ~/.local/bin/claude ~/.local/bin/herdr"
+uninstall = "bash scripts/uninstall-bin.sh"
 
 [target.linux-aarch64.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
