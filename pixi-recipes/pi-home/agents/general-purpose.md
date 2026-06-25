@@ -3,5 +3,5 @@ description: "General-purpose agent for researching complex questions, searching
 display_name: Agent
 tools: all
 prompt_mode: append
-model: opencode-go/deepseek-v4-pro
+model: opencode-go/mimo-v2.5-pro
 ---
