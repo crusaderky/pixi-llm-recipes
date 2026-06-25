@@ -25,12 +25,13 @@ TASK_UNSAFE=pi-unsafe
 ARGS=()
 i=1
 while [ "$i" -le $# ]; do
-  eval "arg=\${$i}"
+  arg="${!i}"
   if [ "$arg" = "--no-sandbox" ]; then
     TASK=$TASK_UNSAFE
     i=$((i + 1))
   elif [ "$arg" = "--bind" ]; then
-    eval "bd=\${$((i + 1))}"
+    next=$((i + 1))
+    bd="${!next}"
     case "$bd" in /*) ;; *) bd="$PWD/$bd" ;; esac
     ARGS+=("--bind" "$bd")
     i=$((i + 2))
@@ -42,4 +43,7 @@ done
 
 WORKDIR="$PWD"
 cd "$REPO"
-exec pixi r $TASK "$WORKDIR" -- "${ARGS[@]+"${ARGS[@]}"}"
+if [ ${#ARGS[@]} -gt 0 ]; then
+  export _FWD_ARGS=$(printf '%s\0' "${ARGS[@]}" | base64 -w0)
+fi
+exec pixi r "$TASK" "$WORKDIR"

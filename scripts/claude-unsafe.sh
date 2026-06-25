@@ -20,5 +20,21 @@ else
   DIR="$(realpath "$1")"
 fi
 
+
+# Decode forwarded args from env var (base64 encoded, null-separated).
+# Avoids pixi shell-parser mangling of single-quote characters.
+# Falls back to positional args ($2 onward) when _FWD_ARGS is not set,
+# for direct `pixi r claude-unsafe -- <args>` invocations that bypass scripts/claude.
+FWD_ARGS=()
+if [ -n "${_FWD_ARGS:-}" ]; then
+  while IFS= read -r -d '' arg; do
+    FWD_ARGS+=("$arg")
+  done < <(printf '%s' "$_FWD_ARGS" | base64 -d)
+  unset _FWD_ARGS
+elif [ $# -ge 2 ]; then
+  FWD_ARGS=("${@:2}")
+fi
+
+CLAUDE_ARGS=("${FWD_ARGS[@]}")
 cd "$DIR"
-claude "${@:2}"
+claude "${CLAUDE_ARGS[@]}"

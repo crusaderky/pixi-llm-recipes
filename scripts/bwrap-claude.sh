@@ -4,8 +4,9 @@
 # `pixi run install-apparmor` (see scripts/install-apparmor.sh).
 #
 # Usage: bwrap-claude.sh <dir|-> [--with-git] [--bind <dir>] ... [-- claude-args...]
-#   --with-git  Bind ~/.ssh, ~/.gitconfig, ~/.config/git, ~/.git-credentials,
-#               and ~/.config/gh (rw) so git push and gh commands work.
+#   Forwarded args are read from _FWD_ARGS env var (base64-encoded, null-separated,
+#   set by the scripts/claude wrapper) or, as a fallback, from positional args $2 onward
+#   (for direct `pixi r claude -- <args>` invocations).
 set -o errexit
 set -o nounset
 
@@ -27,15 +28,30 @@ mkdir -p ~/.cache/rattler
 mkdir -p ~/.cache/uv
 mkdir -p ~/.config/herdr
 
-# Parse --bind <dir> pairs and --with-git flag from remaining args
+
+# Decode forwarded args from env var (base64 encoded, null-separated).
+# Avoids pixi shell-parser mangling of single-quote characters.
+# Falls back to positional args ($2 onward) when _FWD_ARGS is not set,
+# for direct `pixi r claude -- <args>` invocations that bypass scripts/claude.
+FWD_ARGS=()
+if [ -n "${_FWD_ARGS:-}" ]; then
+  while IFS= read -r -d '' arg; do
+    FWD_ARGS+=("$arg")
+  done < <(printf '%s' "$_FWD_ARGS" | base64 -d)
+  unset _FWD_ARGS
+elif [ $# -ge 2 ]; then
+  FWD_ARGS=("${@:2}")
+fi
+
+# Parse --bind <dir> pairs and --with-git flag from forwarded args
 EXTRA_BINDS=""
 WITH_GIT=false
 CLAUDE_ARGS=()
-i=2
-while [ $i -le $# ]; do
-  eval "arg=\${$i}"
+i=0
+while [ $i -lt ${#FWD_ARGS[@]} ]; do
+  arg="${FWD_ARGS[$i]}"
   if [ "$arg" = "--bind" ]; then
-    eval "bind_dir=\${$((i+1))}"
+    bind_dir="${FWD_ARGS[$((i+1))]}"
     ABS_BIND="$(realpath "$bind_dir")"
     EXTRA_BINDS="$EXTRA_BINDS --bind $ABS_BIND $ABS_BIND"
     i=$((i + 2))
