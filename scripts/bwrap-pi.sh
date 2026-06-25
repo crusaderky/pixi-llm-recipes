@@ -3,7 +3,7 @@
 # Needs an AppArmor profile at /etc/apparmor.d/bwrap; install it with
 # `pixi run install-apparmor` (see scripts/install-apparmor.sh).
 #
-# Usage: bwrap-pi.sh <dir|-> [--with-git] [--bind <dir>] ... [-- pi-args...]
+# Usage: bwrap-pi.sh <dir|-> [--with-git] [--with-herdr] [--bind <dir>] ... [-- pi-args...]
 #   Forwarded args are read from _FWD_ARGS env var (base64-encoded, null-separated,
 #   set by the scripts/pi wrapper) or, as a fallback, from positional args $2 onward
 #   (for direct `pixi r pi -- <args>` invocations).
@@ -34,9 +34,10 @@ elif [ $# -ge 2 ]; then
   FWD_ARGS=("${@:2}")
 fi
 
-# Parse --bind <dir> pairs and --with-git flag from forwarded args
+# Parse --bind <dir> pairs and --with-git / --with-herdr flags from forwarded args
 EXTRA_BINDS=""
 WITH_GIT=false
+WITH_HERDR=false
 PI_ARGS=()
 i=0
 while [ $i -lt ${#FWD_ARGS[@]} ]; do
@@ -48,6 +49,9 @@ while [ $i -lt ${#FWD_ARGS[@]} ]; do
     i=$((i + 2))
   elif [ "$arg" = "--with-git" ]; then
     WITH_GIT=true
+    i=$((i + 1))
+  elif [ "$arg" = "--with-herdr" ]; then
+    WITH_HERDR=true
     i=$((i + 1))
   else
     PI_ARGS+=("$arg")
@@ -69,6 +73,17 @@ if [ "$WITH_GIT" = true ]; then
   if [ -n "${SSH_AUTH_SOCK:-}" ] && [[ "$SSH_AUTH_SOCK" == /tmp/* ]]; then
     GIT_BINDS="$GIT_BINDS --ro-bind $SSH_AUTH_SOCK $SSH_AUTH_SOCK"
   fi
+fi
+
+# --with-herdr: bind ~/.config/herdr (which holds herdr.sock) into the sandbox so the
+# agent can drive the herdr instance it runs inside. SECURITY: herdr.sock is a
+# full-control socket and herdr runs OUTSIDE the sandbox, so an agent with access can
+# spawn unsandboxed host-side shells via the socket — a full sandbox escape. Only pass
+# this when you trust the agent with full host access.
+HERDR_BINDS=""
+if [ "$WITH_HERDR" = true ]; then
+  mkdir -p ~/.config/herdr
+  HERDR_BINDS="--bind $HOME/.config/herdr $HOME/.config/herdr"
 fi
 
 _PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
@@ -95,7 +110,6 @@ mkdir -p ~/.cache/pre-commit
 mkdir -p ~/.cache/rattler
 mkdir -p ~/.cache/uv
 mkdir -p ~/.pi/agent/sessions
-mkdir -p ~/.config/herdr
 mkdir -p ~/.config/rpiv-web-tools
 mkdir -p ~/.config/rtk
 
@@ -131,7 +145,6 @@ bwrap \
   --bind "$HOME/.cache/pre-commit"        "$HOME/.cache/pre-commit" \
   --bind "$HOME/.cache/rattler"           "$HOME/.cache/rattler" \
   --bind "$HOME/.cache/uv"                "$HOME/.cache/uv" \
-  --bind "$HOME/.config/herdr"            "$HOME/.config/herdr" \
   --bind "$HOME/.config/rpiv-web-tools"   "$HOME/.config/rpiv-web-tools" \
   --bind "$HOME/.config/rtk"              "$HOME/.config/rtk" \
   --bind "$_CONDA_PREFIX/home/.pi"        "$HOME/.pi" \
@@ -143,6 +156,7 @@ bwrap \
   $EXTRA_BINDS \
   $WORKTREE_BINDS \
   $GIT_BINDS \
+  $HERDR_BINDS \
   $ARGS \
   --die-with-parent \
   --unshare-all --share-net \

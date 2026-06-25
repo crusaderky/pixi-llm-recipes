@@ -296,6 +296,7 @@ Wraps Claude Code (`claude`) in a bubblewrap container using the current working
 - Uses `--unshare-all --share-net --die-with-parent` for isolation; runs `claude --dangerously-skip-permissions`
 - Requires AppArmor profile at `/etc/apparmor.d/bwrap` — same profile used by `bwrap-pi.sh`
 - Optional `--with-git` flag: binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` (read-only) and `~/.config/gh` (read-write) so that `git push` and the `gh` CLI work inside the sandbox. The SSH agent socket (`SSH_AUTH_SOCK`) is accessible automatically when it lives under `/run/` (gnome-keyring/systemd default); if it lives under `/tmp` it is also bound automatically. The conda-forge `gh` from the `agents` environment is on `PATH` inside the sandbox (via `$CONDA_PREFIX/bin`), shadowing any system-installed snap version.
+- Optional `--with-herdr` flag: binds `~/.config/herdr` (which holds `herdr.sock`) read-write so the agent can drive the herdr instance it runs inside. **This is a full sandbox escape**: `herdr.sock` is herdr's full-control JSON-RPC socket and herdr runs outside the sandbox, so an agent with socket access can spawn an unsandboxed host-side pane and run arbitrary commands in it. The socket is therefore not bound by default — pass `--with-herdr` only when you would also be comfortable running with `--no-sandbox`.
 
 ### `scripts/bwrap-pi.sh` — Bubblewrap Sandbox
 
@@ -313,6 +314,7 @@ Wraps the pi coding agent in a bubblewrap container:
 - Models config file: `models.$PIXI_ENVIRONMENT_NAME.json` (per-environment override; create this file next to `models.ini` if needed)
 - Requires AppArmor profile at `/etc/apparmor.d/bwrap` — install it with `pixi run install-apparmor` (see `scripts/install-apparmor.sh`)
 - Optional `--with-git` flag: binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` (read-only) and `~/.config/gh` (read-write) so that `git push` and the `gh` CLI work inside the sandbox. The SSH agent socket (`SSH_AUTH_SOCK`) is accessible automatically when it lives under `/run/` (gnome-keyring/systemd default); if it lives under `/tmp` it is also bound automatically. The conda-forge `gh` from the `agents` environment is on `PATH` inside the sandbox (via `$CONDA_PREFIX/bin`), shadowing any system-installed snap version.
+- Optional `--with-herdr` flag: binds `~/.config/herdr` (which holds `herdr.sock`) read-write so the agent can drive the herdr instance it runs inside. **This is a full sandbox escape**: `herdr.sock` is herdr's full-control JSON-RPC socket and herdr runs outside the sandbox, so an agent with socket access can spawn an unsandboxed host-side pane and run arbitrary commands in it. The socket is therefore not bound by default — pass `--with-herdr` only when you would also be comfortable running with `--no-sandbox`.
 
 ### `scripts/pi-unsafe.sh` — Unsandboxed Pi Wrapper
 
