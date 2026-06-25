@@ -36,5 +36,22 @@ elif [ $# -ge 2 ]; then
 fi
 
 CLAUDE_ARGS=("${FWD_ARGS[@]}")
+
+# Resolve the real claude binary before stripping PATH, otherwise the bare
+# `claude` below would resolve to the ~/.local/bin wrapper and re-enter this
+# script.
+CLAUDE_BIN="$(command -v claude)"
+
+# Remove $CONDA_PREFIX/bin from $PATH so children resolve the ~/.local/bin
+# wrappers instead of the raw conda binaries.
+if [ -n "${CONDA_PREFIX:-}" ]; then
+  _strip=":$CONDA_PREFIX/bin:"
+  _path=":$PATH:"
+  _path="${_path//"$_strip"/:}"
+  _path="${_path#:}"
+  PATH="${_path%:}"
+  unset _strip _path
+fi
+
 cd "$DIR"
-claude "${CLAUDE_ARGS[@]}"
+"$CLAUDE_BIN" "${CLAUDE_ARGS[@]}"

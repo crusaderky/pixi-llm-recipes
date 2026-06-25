@@ -127,7 +127,10 @@ claude.args = [{ arg = "root_dir", default = "-" }]
 herdr = { path = "pixi-recipes/herdr" }
 
 [feature.herdr.tasks]
-herdr = "herdr"
+# Route through run-herdr.sh so children spawned inside herdr see the
+# `~/.local/bin/{pi,claude}` sandbox wrappers ($CONDA_PREFIX/bin comes first
+# after pixi activation and would otherwise shadow them).
+herdr = "bash scripts/run-herdr.sh"
 
 [feature.git.dependencies]
 git = "*"

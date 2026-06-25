@@ -8,6 +8,14 @@
 set -o errexit
 set -o nounset
 
+# Desktop launches (e.g. ~/.local/share/applications/herdr.desktop via
+# `gnome-terminal -- herdr`) run a non-interactive shell that never sources
+# ~/.bashrc, so $HOME/.pixi/bin is missing from PATH and `pixi` is not found.
+# Add it ourselves if pixi isn't already on PATH.
+if ! command -v pixi >/dev/null 2>&1; then
+    export PATH="$HOME/.pixi/bin:$PATH"
+fi
+
 REPO="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 cd "$REPO"
 exec pixi r herdr "$@"

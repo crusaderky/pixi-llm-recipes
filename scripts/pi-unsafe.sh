@@ -29,7 +29,21 @@ trap cleanup EXIT
 
 bash "$(dirname "$0")/inject-pi-extensions.sh"
 
-# Unset all PIXI_* and CONDA_* environment variables
+# Resolve the real pi binary before stripping PATH, otherwise the bare `pi`
+# below would resolve to the ~/.local/bin wrapper and re-enter this script.
+PI_BIN="$(command -v pi)"
+
+# Unset all PIXI_* and CONDA_* environment variables, and remove
+# $CONDA_PREFIX/bin from $PATH so children resolve the ~/.local/bin wrappers
+# instead of the raw conda binaries.
+if [ -n "${CONDA_PREFIX:-}" ]; then
+  _strip=":$CONDA_PREFIX/bin:"
+  _path=":$PATH:"
+  _path="${_path//"$_strip"/:}"
+  _path="${_path#:}"
+  PATH="${_path%:}"
+  unset _strip _path
+fi
 while IFS= read -r var; do
   unset "$var"
 done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
@@ -61,4 +75,4 @@ fi
 
 PI_ARGS=("${FWD_ARGS[@]}")
 cd "$DIR"
-pi "${PI_ARGS[@]}"
+"$PI_BIN" "${PI_ARGS[@]}"
