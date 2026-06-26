@@ -37,20 +37,16 @@ fi
 
 CLAUDE_ARGS=("${FWD_ARGS[@]}")
 
-# Resolve the real claude binary before stripping PATH, otherwise the bare
-# `claude` below would resolve to the ~/.local/bin wrapper and re-enter this
-# script.
+# Resolve the real claude binary before prepending ~/.local/bin to PATH,
+# otherwise the bare `claude` below would resolve to that wrapper and re-enter.
 CLAUDE_BIN="$(command -v claude)"
 
-# Remove $CONDA_PREFIX/bin from $PATH so children resolve the ~/.local/bin
-# wrappers instead of the raw conda binaries.
-if [ -n "${CONDA_PREFIX:-}" ]; then
-  _strip=":$CONDA_PREFIX/bin:"
-  _path=":$PATH:"
-  _path="${_path//"$_strip"/:}"
-  _path="${_path#:}"
-  PATH="${_path%:}"
-  unset _strip _path
+# Prepend ~/.local/bin to $PATH so children resolve the naked pi/claude
+# wrappers instead of the raw conda binaries, while keeping $CONDA_PREFIX/bin
+# available so tools with no wrapper (e.g. rtk, gh) still resolve. Stripping
+# $CONDA_PREFIX/bin entirely breaks extensions/CLIs that only live there.
+if [ -d "$HOME/.local/bin" ]; then
+  PATH="$HOME/.local/bin:$PATH"
 fi
 
 # Unset all PIXI_*/CONDA_* and the pixi-activation env vars so they don't leak

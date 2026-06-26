@@ -37,20 +37,16 @@ trap cleanup EXIT
 
 bash "$(dirname "$0")/inject-pi-extensions.sh"
 
-# Resolve the real pi binary before stripping PATH, otherwise the bare `pi`
-# below would resolve to the ~/.local/bin wrapper and re-enter this script.
+# Resolve the real pi binary before prepending ~/.local/bin to PATH,
+# otherwise the bare `pi` below would resolve to that wrapper and re-enter.
 PI_BIN="$(command -v pi)"
 
-# Unset all PIXI_*/CONDA_* and the pixi-activation env vars, and remove
-# $CONDA_PREFIX/bin from $PATH so children resolve the ~/.local/bin wrappers
-# instead of the raw conda binaries.
-if [ -n "${CONDA_PREFIX:-}" ]; then
-  _strip=":$CONDA_PREFIX/bin:"
-  _path=":$PATH:"
-  _path="${_path//"$_strip"/:}"
-  _path="${_path#:}"
-  PATH="${_path%:}"
-  unset _strip _path
+# Prepend ~/.local/bin to $PATH so children resolve the naked pi/claude
+# wrappers instead of the raw conda binaries, while keeping $CONDA_PREFIX/bin
+# available so tools with no wrapper (e.g. rtk, gh) still resolve. Stripping
+# $CONDA_PREFIX/bin entirely breaks the rtk extension ("rtk binary not found").
+if [ -d "$HOME/.local/bin" ]; then
+  PATH="$HOME/.local/bin:$PATH"
 fi
 while IFS= read -r var; do
   unset "$var"
