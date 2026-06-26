@@ -23,6 +23,5 @@ del "%TEMP%\herdr-manifest.json"
 echo Downloading herdr from %HERDR_URL%
 curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "%HERDR_URL%" -o "%TEMP%\herdr.exe" || exit /b 1
 rem herdr integration install pi is not supported on Windows — skip without failing.
-if not exist "%PREFIX%\home\.pi\agent\extensions" mkdir "%PREFIX%\home\.pi\agent\extensions"
 "%TEMP%\herdr.exe" integration install pi || echo WARNING: herdr pi integration skipped (Windows not supported)
 del "%TEMP%\herdr.exe"
