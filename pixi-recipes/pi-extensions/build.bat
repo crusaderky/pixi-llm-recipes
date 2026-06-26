@@ -14,13 +14,14 @@ for %%P in (%PLUGINS%) do (
     if errorlevel 1 exit /b 1
 )
 
-rem Install herdr integration. Download the herdr binary from its latest preview
+rem Install herdr integration for pi. Download the herdr binary from its latest preview
 rem release (Windows builds are preview-only), run the integration install, then
 rem discard the binary.
 curl -fsSL --retry 3 --connect-timeout 10 --max-time 20 "https://herdr.dev/preview.json" -o "%TEMP%\herdr-manifest.json" || exit /b 1
-for /f "delims=" %%U in ('node -e "process.stdin.setEncoding('utf8');let d='';process.stdin.on('data',c=^>d+=c);process.stdin.on('end',()=^>console.log(JSON.parse(d).assets['windows-x86_64'].url))" ^< "%TEMP%\herdr-manifest.json"') do set "HERDR_URL=%%U"
+for /f "delims=" %%U in ('node -e "process.stdin.setEncoding('utf8');let d='';process.stdin.on('data',function(c){d+=c});process.stdin.on('end',function(){console.log(JSON.parse(d).assets['windows-x86_64'].url)})" ^< "%TEMP%\herdr-manifest.json"') do set "HERDR_URL=%%U"
 del "%TEMP%\herdr-manifest.json"
 echo Downloading herdr from %HERDR_URL%
 curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "%HERDR_URL%" -o "%TEMP%\herdr.exe" || exit /b 1
-"%TEMP%\herdr.exe" integration install pi || exit /b 1
+rem herdr integration install pi is not supported on Windows — skip without failing.
+"%TEMP%\herdr.exe" integration install pi || echo WARNING: herdr pi integration skipped (Windows not supported)
 del "%TEMP%\herdr.exe"

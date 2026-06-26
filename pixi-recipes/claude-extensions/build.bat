@@ -12,7 +12,7 @@ if not exist "%HOME%\.claude\hooks" mkdir "%HOME%\.claude\hooks"
 
 rem Download herdr binary via the preview manifest
 curl -fsSL --retry 3 --connect-timeout 10 --max-time 20 "https://herdr.dev/preview.json" -o "%TEMP%\herdr-manifest.json" || exit /b 1
-for /f "delims=" %%U in ('node -e "process.stdin.setEncoding('utf8');let d='';process.stdin.on('data',c=^>d+=c);process.stdin.on('end',()=^>console.log(JSON.parse(d).assets['windows-x86_64'].url))" ^< "%TEMP%\herdr-manifest.json"') do set "HERDR_URL=%%U"
+for /f "delims=" %%U in ('node -e "process.stdin.setEncoding('utf8');let d='';process.stdin.on('data',function(c){d+=c});process.stdin.on('end',function(){console.log(JSON.parse(d).assets['windows-x86_64'].url)})" ^< "%TEMP%\herdr-manifest.json"') do set "HERDR_URL=%%U"
 del "%TEMP%\herdr-manifest.json"
 
 echo Downloading herdr from %HERDR_URL%
