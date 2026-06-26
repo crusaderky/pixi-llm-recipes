@@ -17,11 +17,8 @@ if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
   # Use backslash path separator for Windows conda prefix
   _WIN_PREFIX="${CONDA_PREFIX//\//\\}"
   _WIN_SRC="${_WIN_PREFIX}/home/.pi/agent"
-  # extensions may not exist (herdr pi integration unsupported on Windows)
-  for _item in agents skills AGENTS.md keybindings.json npm; do
-    if [ -d "${_WIN_SRC}/${_item}" ]; then
-      cp -r "${_WIN_SRC}/${_item}" ~/.pi/agent/
-    fi
+  for _item in agents extensions skills AGENTS.md keybindings.json npm; do
+    cp -r "${_WIN_SRC}/${_item}" ~/.pi/agent/
   done
 else
   ln -s "$CONDA_PREFIX"/home/.pi/agent/{agents,extensions,npm,skills,AGENTS.md,keybindings.json} ~/.pi/agent/
