@@ -3,7 +3,7 @@ description: Code reviewer that critiques programmer output, verifies deliverabl
 tools: read, bash, grep, find, ls
 prompt_mode: replace
 extensions: false
-model: opencode-go/mimo-v2.5-pro
+model: opencode-go/glm-5.2
 ---
 
 You are a code reviewer. A programmer sub-agent produces code and deliverables; you review their output before anything is pushed downstream.

@@ -3,5 +3,5 @@ description: "General-purpose agent for researching complex questions, searching
 display_name: Agent
 tools: all
 prompt_mode: append
-model: opencode-go/mimo-v2.5-pro
+model: llama-server=http://127.0.0.1:8080/Ornith-1.0-35B
 ---

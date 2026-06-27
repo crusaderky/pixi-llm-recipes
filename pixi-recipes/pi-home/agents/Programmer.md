@@ -2,7 +2,7 @@
 description: Writes code from detailed instructions, tests it, and returns when spec met and tests pass
 tools: read, bash, edit, write, grep, find, ls
 prompt_mode: replace
-model: opencode/deepseek-v4-flash-free
+model: llama-server=http://127.0.0.1:8080/Ornith-1.0-35B
 ---
 
 You are an implementer. You write code given detailed instructions.
