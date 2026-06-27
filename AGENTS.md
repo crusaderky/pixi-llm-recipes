@@ -236,21 +236,9 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 
 ### `models.ini` — llama-server Preset Configuration
 
-The `models.ini` file uses the native llama-server preset format (`--models-preset`). It defines multiple named model profiles served on demand:
-
-| Section           | Model                                                             | disk size | Speed                       |
-| ----------------- | ----------------------------------------------------------------- | --------- | --------------------------- |
-| `Qwen3.6-35B-A3B` | byteshape/Qwen3.6-35B-A3B-MTP-GGUF:Qwen3.6-35B-A3B-IQ4_XS-3.97bpw | 18 GiB    | ~56 tok/s                   |
-| `Qwen3.6-27B`     | unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M                               | 18 GiB    | 2 tok/s (does not fit)      |
-| `Qwen3.5-9B`      | unsloth/Qwen3.5-9B-MTP-GGUF:Q4_K_M                                | 6.4 GiB   | 163 tok/s (limited context) |
-| `MiniCPM5-1B`     | openbmb/MiniCPM5-1B-GGUF:Q4_K_M                                   | 0.7 GiB   | 455 tok/s                   |
-| `Gemma4-E2B`      | unsloth/gemma-4-E2B-it-qat-GGUF:UD-Q4_K_XL                        | 3.5 GiB   | 290 tok/s                   |
-| `Gemma4-E4B`      | unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL                        | 5.0 GiB   | 143 tok/s (limited context) |
-| `Gemma4-12B`      | unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL                        | 6.7 GiB   | 104 tok/s (limited context) |
-| `Gemma4-26B-A4B`  | unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL                    | 15 GiB    | 32 tok/s                    |
-| `Gemma4-31B`      | unsloth/gemma-4-31B-it-qat-GGUF:UD-Q4_K_XL                        | 18 GB     | 2 tok/s (does not fit)      |
-
-Global settings include Jinja templating, flash attention, KV cache quantization (`q8_0`), reasoning budgets, and `models-max = 1`.
+The `models.ini` file uses the native llama-server preset format (`--models-preset`). It defines multiple named model profiles served on demand.
+See `README.md` for the disk size, VRAM size, and decode speed.
+Global settings include Jinja templating, flash attention, KV cache quantization (`q8_0`), and reasoning budgets.
 
 ### `sample-data/context-bench/` — Long-Context Recall Benchmark
 
