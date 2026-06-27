@@ -101,13 +101,7 @@ pixi-llm-recipes/
         │   ├── recipe.yaml           # Bundles pi skill directories (copied into prefix)
         │   ├── build.sh              # Linux: flat copy skills/ into $PREFIX/home/.pi/agent/skills
         │   ├── build.bat             # Windows: same
-        │   ├── AGENTS.md             # Global agent instructions (mirrors root AGENTS.md)
-        │   ├── agents/               # Agent-specific instruction files
-        │   │   ├── Explore.md        # Explore agent instructions
-        │   │   ├── Plan.md           # Plan agent instructions
-        │   │   ├── Programmer.md     # Programmer agent instructions
-        │   │   ├── Reviewer.md       # Reviewer agent instructions
-        │   │   └── general-purpose.md # General-purpose agent instructions
+        │   ├── AGENTS.md             # Global agent instructions for all workspaces
         │   └── skills/               # Skill directories
         │       ├── herdr/SKILL.md     # Skill: control herdr from inside it
         │       └── use-gh-cli/SKILL.md # Skill: use gh CLI instead of web fetch for GitHub
@@ -585,8 +579,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `pixi-recipes/pi-home/build.bat`                           | Windows: same                                                                                                                                           |
 | `pixi-recipes/pi-home/skills/use-gh-cli/SKILL.md`          | Skill: use gh CLI instead of web fetch for GitHub                                                                                                       |
 | `pixi-recipes/pi-home/skills/herdr/SKILL.md`               | Skill: control herdr from inside it (pi + claude)                                                                                                       |
-| `pixi-recipes/pi-home/AGENTS.md`                           | Global agent instructions (mirrors root AGENTS.md)                                                                                                      |
-| `pixi-recipes/pi-home/agents/*.md`                         | Agent-specific instruction files (Explore, Plan, Programmer, Reviewer, general-purpose)                                                                 |
+| `pixi-recipes/pi-home/AGENTS.md`                           | Global agent instructions for all workspaces                                                                                                     |
 | `.agents/skills/*/SKILL.md`                                | Agent skills discovered by pi agent (llama-cpp-changelog, test-git-auth, update-*)                                                                      |
 | `.agents/skills/update-herdr/SKILL.md`                     | Skill: update herdr recipe to latest stable+preview releases                                                                                            |
 | `pixi-recipes/herdr/recipe.yaml`                           | herdr conda recipe (downloads pre-built binary from GitHub releases)                                                                                    |

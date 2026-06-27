@@ -20,9 +20,9 @@ build:
         pi-caveman@1.0.7
         pi-llama-cpp@0.7.2
         pi-ollama-cloud@0.6.0
+        pi-subagents@0.31.0
         pi-token-speed@0.5.1
         @juicesharp/rpiv-ask-user-question@1.20.0
-        @tintinweb/pi-subagents@0.12.0
         @tmustier/pi-usage-extension@0.3.2
 
 requirements:

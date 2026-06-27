@@ -127,12 +127,12 @@ agent setup is versioned and reproducible:
 | [pi-btw](https://pi.dev/packages/pi-btw)                                             | build-time workspace tooling                         |
 | [pi-llama-cpp](https://pi.dev/packages/pi-llama-cpp)                                 | zero-config llama.cpp integration                    |
 | [pi-ollama-cloud](https://pi.dev/packages/pi-ollama-cloud)                           | Ollama cloud model provider + web search / web fetch |
-| [rpiv-ask-user-question](https://pi.dev/packages/@juicesharp/rpiv-ask-user-question) | stop and ask the user when in doubt                  |
+| [pi-subagents](https://github.com/nicobailon/pi-subagents)                          | spawn sub-agents for complex tasks        |
 | [pi-token-speed](https://pi.dev/packages/pi-token-speed)                             | token throughput monitoring                          |
 | [pi-usage-extension](https://pi.dev/packages/@tmustier/pi-usage-extension)           | tokens usage tracking                                |
+| [rpiv-ask-user-question](https://pi.dev/packages/@juicesharp/rpiv-ask-user-question) | stop and ask the user when in doubt                  |
 | [caveman](https://github.com/JuliusBrussee/caveman)                                  | drastically reduce output tokens consumed            |
 | [rtk](https://github.com/rtk-ai/rtk)                                                 | drastically reduce input tokens consumed             |
-| [@tintinweb/pi-subagents](https://github.com/tintinweb/pi-subagents)                 | spawn sub-agents for complex tasks _(tweaked)_       |
 
 **Note:** The effects of `pi install` will be wiped the next time your pixi environment is regenerated!
 You should update `pixi-recipes/pi-extension/recipe.yaml` instead.
