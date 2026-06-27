@@ -4,8 +4,8 @@ context:
   sha256_stable_x86_64: b965acaffc2c22f54b6e6c64af7cf8e98a3f4ac2622630a0599c67a4b9d8a654
   sha256_stable_aarch64: 3d757ac30c631e79dc45038c3ecc6423fe13a89f9cffa0f415aedd2c27f1576c
   # Preview release (Windows — from preview.json; Windows builds are preview-only)
-  version_preview: preview-2026-06-22-24c7377de01c
-  sha256_preview_win_64: 9eb8b028d92770c0b0c39e8c5e3edd75a8ea8592473c4d1e4396e84d769a9781
+  version_preview: preview-2026-06-25-7811d84f15f1
+  sha256_preview_win_64: 6d45a5dacd471877b4c34ca4a6a33e3cd1e3ecf2adc72f1216eb15e6e7c5a0f6
 
 package:
   name: herdr
