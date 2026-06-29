@@ -31,7 +31,9 @@ else
 fi
 
 function cleanup {
-  if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+  # rsync in-session edits back to the recipe for review. rsync is not packaged
+  # for Windows, so this is skipped there rather than spamming "command not found".
+  if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && command -v rsync >/dev/null 2>&1; then
     for _item in bin extensions skills AGENTS.md keybindings.json; do
       # extensions/ may be absent on Windows (see copy step above).
       if [ -e ~/.pi/agent/"$_item" ]; then

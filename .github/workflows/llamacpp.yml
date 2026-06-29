@@ -79,6 +79,15 @@ jobs:
       - name: Restart server
         run: pixi r -e llamacpp-${{ matrix.backend }} restart-server
 
+      - name: Seed llama-benchy book cache
+        # Avoid the flaky www.gutenberg.org download (intermittent connection
+        # timeouts from CI runners) by pre-populating llama-benchy's cache with
+        # a bundled public-domain text. The cache is keyed on md5(book-url).
+        run: |
+          mkdir -p ~/.cache/llama-benchy
+          hash=$(printf '%s' "https://www.gutenberg.org/files/1661/1661-0.txt" | md5sum | cut -d' ' -f1)
+          cp sample-data/wiki.test.raw ~/.cache/llama-benchy/"$hash".txt
+
       - name: llama-benchy
         run: pixi r llama-benchy --model LFM2.5-230M --runs 1
 
