@@ -27,6 +27,7 @@ mkdir -p ~/.cache/pip
 mkdir -p ~/.cache/pre-commit
 mkdir -p ~/.cache/rattler
 mkdir -p ~/.cache/uv
+mkdir -p ~/.config/rtk
 
 
 # Decode forwarded args from env var (base64 encoded, null-separated).
@@ -138,6 +139,7 @@ exec bwrap \
   --bind    "$HOME/.cache/pre-commit"        "$HOME/.cache/pre-commit" \
   --bind    "$HOME/.cache/rattler"           "$HOME/.cache/rattler" \
   --bind    "$HOME/.cache/uv"                "$HOME/.cache/uv" \
+  --bind    "$HOME/.config/rtk"              "$HOME/.config/rtk" \
   --ro-bind "$_CONDA_PREFIX"                 "$_CONDA_PREFIX" \
   --bind    "$HOME/.claude"                  "$HOME/.claude" \
   --bind    "$HOME/.claude.json"             "$HOME/.claude.json" \

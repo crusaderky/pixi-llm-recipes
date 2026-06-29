@@ -20,3 +20,10 @@ curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "%HERDR_URL%" -o "%TEMP
 
 "%TEMP%\herdr.exe" integration install claude || exit /b 1
 del "%TEMP%\herdr.exe"
+
+rem Install the rtk integration last, so its PreToolUse hook merges into the
+rem settings.json that herdr just wrote rather than being clobbered by it.
+rem --auto-patch patches settings.json without the interactive prompt (the
+rem conda build has no TTY). rtk leaves a settings.json.bak we don't want to package.
+rtk init -g --auto-patch || exit /b 1
+if exist "%HOME%\.claude\settings.json.bak" del "%HOME%\.claude\settings.json.bak"

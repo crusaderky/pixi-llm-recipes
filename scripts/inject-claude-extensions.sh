@@ -38,6 +38,21 @@ if [ -d "$SRC/skills" ]; then
         fi
     done
 fi
+# Copy rtk's command reference (RTK.md) from the package if it doesn't exist.
+if [ -f "$SRC/RTK.md" ] && [ ! -f "$DST/RTK.md" ]; then
+    cp "$SRC/RTK.md" "$DST/RTK.md"
+fi
+
+# Ensure ~/.claude/CLAUDE.md pulls in RTK.md via rtk's @RTK.md include. Don't
+# clobber an existing host CLAUDE.md — append the reference only if it's missing.
+if [ -f "$SRC/CLAUDE.md" ]; then
+    if [ ! -f "$DST/CLAUDE.md" ]; then
+        cp "$SRC/CLAUDE.md" "$DST/CLAUDE.md"
+    elif ! grep -qF '@RTK.md' "$DST/CLAUDE.md"; then
+        printf '\n@RTK.md\n' >> "$DST/CLAUDE.md"
+    fi
+fi
+
 if [ -f "$SRC/settings.json" ]; then
     if [ ! -f "$DST/settings.json" ]; then
         cp "$SRC/settings.json" "$DST/settings.json"

@@ -8,6 +8,10 @@ source:
 requirements:
   host:
     - nodejs
+    - rtk-cli
+  run:
+    - nodejs
+    - rtk-cli
 
 build:
   number: 0

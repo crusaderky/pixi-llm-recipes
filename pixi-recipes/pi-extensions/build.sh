@@ -10,7 +10,10 @@ for plugin in ${PLUGINS}; do
     pi install "npm:${plugin}"
 done
 
-rtk init -g --agent pi
+npm approve-scripts --allow-scripts-pending
+
+# Install rtk integration for pi
+rtk init -g --agent pi --auto-patch
 
 # Install herdr integration. Download the herdr binary from its latest GitHub
 # release via the manifest, run the integration install, then discard the binary.

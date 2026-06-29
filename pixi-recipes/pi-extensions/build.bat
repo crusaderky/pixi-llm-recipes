@@ -14,6 +14,11 @@ for %%P in (%PLUGINS%) do (
     if errorlevel 1 exit /b 1
 )
 
+npm approve-scripts --allow-scripts-pending
+
+rem Install rtk integration for pi
+rtk init -g --agent pi --auto-patch
+
 rem Install herdr integration for pi. Download the herdr binary from its latest preview
 rem release (Windows builds are preview-only), run the integration install, then
 rem discard the binary.

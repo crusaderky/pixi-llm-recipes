@@ -24,3 +24,10 @@ chmod +x /tmp/herdr
 
 /tmp/herdr integration install claude
 rm /tmp/herdr
+
+# Install the rtk integration last, so its PreToolUse hook merges into the
+# settings.json that herdr just wrote rather than being clobbered by it.
+# --auto-patch patches settings.json without the interactive prompt (the conda
+# build has no TTY). rtk leaves a settings.json.bak we don't want to package.
+rtk init -g --auto-patch
+rm -f "${HOME}/.claude/settings.json.bak"
