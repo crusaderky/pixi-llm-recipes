@@ -50,7 +50,7 @@ jobs:
         run: pixi r -e llamacpp-binary-cpu start-server
 
       - name: pi-unsafe Hello world
-        run: pixi r pi-unsafe -- --model LFM2.5-230M -p 'Hello world'
+        run: pixi r pi-unsafe -- --model LFM2.5-230M -p "Hello world"
 
       - name: Prepare dummy workspace
         run: mkdir -p ../dummy && touch ../dummy/hello123
@@ -66,7 +66,7 @@ jobs:
 
       - name: pi Hello world
         if: matrix.os != 'windows-latest'
-        run: pixi r pi -- --model LFM2.5-230M -p 'Hello world'
+        run: pixi r pi -- --model LFM2.5-230M -p "Hello world"
 
       - name: pi workspace
         run: |
@@ -75,11 +75,11 @@ jobs:
 
       - name: pi --with-git --with-herdr Hello world
         if: matrix.os != 'windows-latest'
-        run: pixi r pi -- --with-git --with-herdr --model LFM2.5-230M -p 'Hello world'
+        run: pixi r pi -- --with-git --with-herdr --model LFM2.5-230M -p "Hello world"
 
       - name: pi Hello world (global start script)
         if: matrix.os != 'windows-latest'
-        run: pi --model LFM2.5-230M -p 'Hello world'
+        run: pi --model LFM2.5-230M -p "Hello world"
 
       - name: pi workspace (global start script)
         if: matrix.os != 'windows-latest'
@@ -90,11 +90,11 @@ jobs:
 
       - name: pi --with-git --with-herdr Hello world (global start script)
         if: matrix.os != 'windows-latest'
-        run: pi --with-git --with-herdr --model LFM2.5-230M -p 'Hello world'
+        run: pi --with-git --with-herdr --model LFM2.5-230M -p "Hello world"
 
       - name: pi --no-sandbox Hello world (global start script)
         if: matrix.os != 'windows-latest'
-        run: pi --no-sandbox --model LFM2.5-230M -p 'Hello world'
+        run: pi --no-sandbox --model LFM2.5-230M -p "Hello world"
 
       - name: pi --no-sandbox workspace + rtk integration (global start script)
         if: matrix.os != 'windows-latest'
