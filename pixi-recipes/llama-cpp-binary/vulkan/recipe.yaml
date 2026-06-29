@@ -1,6 +1,6 @@
 context:
   backend: vulkan
-  version: b9827
+  version: b9838
 
 package:
   name: llama-cpp
