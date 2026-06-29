@@ -79,4 +79,4 @@ done
 # Add missing libgomp symlink
 mkdir -p ${PREFIX}/lib
 cd ${PREFIX}/lib
-ln -s libgomp.so.1.0.0 libgomp.so.1
+ln -fs libgomp.so.1.0.0 libgomp.so.1
