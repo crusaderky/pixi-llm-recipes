@@ -57,7 +57,7 @@ jobs:
 
       - name: pi-unsafe workspace
         run: |
-          pixi r pi-unsafe ../dummy -- --model LFM2.5-230M -p 'Use bash tool to run `ls`. Return output.' | tee out.txt
+          pixi r pi-unsafe ../dummy -- --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: Global install
@@ -70,7 +70,7 @@ jobs:
 
       - name: pi workspace
         run: |
-          pixi r pi ../dummy -- --model LFM2.5-230M -p 'Use bash tool to run `ls`. return tool output and nothing else.' | tee out.txt
+          pixi r pi ../dummy -- --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: pi --with-git --with-herdr Hello world
@@ -85,7 +85,7 @@ jobs:
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         run: |
-          pi --model LFM2.5-230M -p 'Use bash tool to run `ls`. return tool output and nothing else.' | tee out.txt
+          pi --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: pi --with-git --with-herdr Hello world (global start script)
@@ -100,7 +100,7 @@ jobs:
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         run: |
-          pi --no-sandbox --model LFM2.5-230M -p 'Use bash tool to run `ls`. return tool output and nothing else.' | tee out.txt
+          pi --no-sandbox --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: Stop server
