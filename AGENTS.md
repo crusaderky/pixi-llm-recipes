@@ -11,6 +11,7 @@
 5. **Benchmarks LLM inference** via `llama-benchy`.
 6. **Benchmarks long-context recall** (and how it degrades under quantized KV cache) via the `context-bench` harness in `sample-data/context-bench/`.
 7. **Analyzes KV cache quantization quality** via `kv-perplexity` (KL-divergence sweep over K/V quant combos) and `kv-kld-report` (HTML/Markdown report with plots) in `scripts/`.
+8. **Inspects GGUF model metadata** — estimates on-disk weight size and KV-cache VRAM without downloading the weights — via `gguf-meta-extract` in `scripts/`.
 
 ## Key Technologies
 
@@ -41,6 +42,7 @@ pixi-llm-recipes/
 │   ├── bwrap-claude.sh               # Bubblewrap sandbox wrapper for Claude Code
 │   ├── bwrap-pi.sh                   # Bubblewrap sandbox wrapper for pi agent
 │   ├── diff-llama-cpp-variants.sh    # Compare llama-cpp recipe variants
+│   ├── gguf-meta-extract.py          # Header-only GGUF tensor/VRAM inspector (no weight download)
 │   ├── inject-pi-extensions.sh       # Merge pi-extensions packages into settings.json
 │   ├── inject-claude-extensions.sh    # Deploy packaged Claude Code extensions into ~/.claude
 │   ├── install-apparmor.sh           # Install AppArmor profile for bwrap (sudo/CI)
@@ -202,20 +204,20 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 
 ### Root `pixi.toml` — Features & Environments
 
-| Feature                  | Dependencies                                                                                                                                                                   | Key Tasks                                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                                                              | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `kv-perplexity` |
-| `llamacpp-source-cpu`    | `llama-cpp` (cpu compiled from sources)                                                                                                                                        | —                                                                                                   |
-| `llamacpp-source-cuda`   | `llama-cpp` (cuda compiled from sources)                                                                                                                                       | —                                                                                                   |
-| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                                                     | —                                                                                                   |
-| `llamacpp-binary-cpu`    | `llama-cpp` (cpu pre-built binary)                                                                                                                                             | —                                                                                                   |
-| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary)                                                                                                                                          | —                                                                                                   |
-| `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                                                            | —                                                                                                   |
-| `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-home` (from `pixi-recipes/pi-home`), `bubblewrap` (Linux only)                                     | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                         |
-| `claude`                 | `claude` (from `pixi-recipes/claude`), `claude-extensions` (from `pixi-recipes/claude-extensions`), `claude-home` (from `pixi-recipes/claude-home`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe`                                                              |
-| `herdr`                  | `herdr` (from `pixi-recipes/herdr`)                                                                                                                                            | `herdr`                                                                                             |
-| `git`                    | `git` and `gh` (GitHub CLI from conda-forge)                                                                                                                                   | `git`, `gh`                                                                                         |
-| `pytools`                | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc.                                                                             | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report`                   |
+| Feature                  | Dependencies                                                                                                                                                                   | Key Tasks                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                                                              | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `kv-perplexity`                           |
+| `llamacpp-source-cpu`    | `llama-cpp` (cpu compiled from sources)                                                                                                                                        | —                                                                                                                             |
+| `llamacpp-source-cuda`   | `llama-cpp` (cuda compiled from sources)                                                                                                                                       | —                                                                                                                             |
+| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                                                     | —                                                                                                                             |
+| `llamacpp-binary-cpu`    | `llama-cpp` (cpu pre-built binary)                                                                                                                                             | —                                                                                                                             |
+| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary)                                                                                                                                          | —                                                                                                                             |
+| `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                                                            | —                                                                                                                             |
+| `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-home` (from `pixi-recipes/pi-home`), `bubblewrap` (Linux only)                                     | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                                                   |
+| `claude`                 | `claude` (from `pixi-recipes/claude`), `claude-extensions` (from `pixi-recipes/claude-extensions`), `claude-home` (from `pixi-recipes/claude-home`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe`                                                                                        |
+| `herdr`                  | `herdr` (from `pixi-recipes/herdr`)                                                                                                                                            | `herdr`                                                                                                                       |
+| `git`                    | `git` and `gh` (GitHub CLI from conda-forge)                                                                                                                                   | `git`, `gh`                                                                                                                   |
+| `pytools`                | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc.                                                                             | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report`, `llama-cpp-changelog`, `gguf-meta-extract` |
 
 | Environment              | Feature(s)                            |
 | ------------------------ | ------------------------------------- |
@@ -275,6 +277,16 @@ pixi r llama-cpp-changelog --from b9688 --to b9789
 
 ```bash
 pixi run kv-kld-report perplexity.log -o kv-kld-report.html
+```
+
+### `scripts/gguf-meta-extract.py` — GGUF Header Inspector / VRAM Estimator
+
+Points at a Hugging Face GGUF repo directory, a single `.gguf` blob/resolve URL, or a glob pattern, and dumps per-tensor metadata to CSV **without downloading the weights**. It fetches only the header of each `.gguf` via HTTP Range requests (starts at 8 MiB, grows until the tensor table parses, capped at 512 MiB), parsing the GGUF header directly rather than via `gguf.GGUFReader` (which eagerly materialises tensor data and has no header-only mode). The CSV has one row per tensor: `layer, tensor_name, geometry, n_points, quant, bytes_per_point, total_bytes`. Split GGUFs are merged (split 0's hparams win); output defaults to `gguf_tensors.csv` (gitignored); `--token`/`$HF_TOKEN` for private/gated repos.
+
+To stderr it also prints: dense-vs-routed-expert (`*_exps.*`) weight split, plus activated experts per token on MoE models; a KV-cache VRAM estimate at 256k tokens across cache quants (`f16`, `q8_0`, `kvarn4`, `kvarn3`) derived from hparams (GQA, per-layer head counts, SWA, MLA/latent caches, with a tensor-shape fallback); fixed CUDA + logits overhead; the lightning-indexer key cache (DeepSeek-V3.2 DSA / MiniMax MSA sparse attention); and the `--cpu-moe`/`--n-cpu-moe` expert-offload prefill scratch. Recognises both mainline ggml and ik_llama.cpp/DFlash quant type ids.
+
+```bash
+pixi r gguf-meta-extract https://huggingface.co/unsloth/GLM-5.2-GGUF/tree/main/UD-IQ1_S -o glm.csv
 ```
 
 ### `scripts/bwrap-claude.sh` — Claude Code Bubblewrap Sandbox
@@ -541,6 +553,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `scripts/kv-perplexity.py`                                 | KLD sweep over cartesian product of K/V quant combos (`kv-perplexity` task)                                                                             |
 | `scripts/kv-kld-report.py`                                 | Parse perplexity log → HTML/Markdown KLD report with plots (`kv-kld-report` task)                                                                       |
 | `scripts/llama-cpp-changelog.py`                           | Deterministic llama.cpp changelog dumper: tags + PRs (title/desc/URL) + commits (`llama-cpp-changelog` task)                                            |
+| `scripts/gguf-meta-extract.py`                             | Header-only GGUF tensor/VRAM inspector: per-tensor CSV + dense/expert & KV-cache VRAM summary, no weight download (`gguf-meta-extract` task)            |
 | `sample-data/wiki.test.raw`                                | Wikitext-2 test corpus for KLD/perplexity benchmarks                                                                                                    |
 | `sample-data/wiki.train.head-10k.raw`                      | First 10k lines of wiki.train.raw (~674k tokens; larger KLD baseline)                                                                                   |
 | `sample-data/describe-me.jpg`                              | Image for multimodal testing                                                                                                                            |

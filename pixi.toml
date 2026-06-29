@@ -165,6 +165,7 @@ context-bench = "python sample-data/context-bench/run_benchmark.py"
 aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_results.py"
 kv-kld-report = "python scripts/kv-kld-report.py"
 llama-cpp-changelog = "python scripts/llama-cpp-changelog.py"
+gguf-meta-extract = "python scripts/gguf-meta-extract.py"
 
 [feature.lint.dependencies]
 lefthook = "*"

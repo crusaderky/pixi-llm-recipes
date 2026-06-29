@@ -111,6 +111,29 @@ served on demand. All models were carefully cherry-picked and tuned.
 - <sup>3</sup> Speed measured on the RTX 3080
 - <sup>4</sup> Experts offloaded to host RAM. Speed is capped by PCIe bandwidth for prefill and by host RAM bandwidth for decode.
 
+### Estimating model size and VRAM
+
+`gguf-meta-extract` inspects a GGUF model on Hugging Face **without downloading it**: it
+fetches only the header (a few MB, never the multi-GB tensor payload), parses the tensor
+table, and writes a per-tensor CSV file (layer, tensor_name, geometry, n_points, quant,
+bytes_per_point, total_bytes). It also prints a summary to stderr:
+
+- model weights split into dense vs. routed-expert (`*_exps.*`) bytes, plus the fraction
+  of expert weight actually activated per token on MoE models;
+- a KV-cache size estimate at 256k tokens across several cache quantizations (`f16`,
+  `q8_0`, `kvarn4`, `kvarn3`), derived from the model's hyperparameters (handles GQA,
+  per-layer head counts, sliding-window attention, and MLA/latent caches);
+- various overheads in VRAM
+
+Set `HF_TOKEN` for private/gated repos.
+
+```bash
+# Whole quant directory:
+pixi r gguf-meta-extract https://huggingface.co/unsloth/GLM-5.2-GGUF/tree/main/UD-IQ1_S
+# A single file or * glob pattern, when several variants share one folder:
+pixi r gguf-meta-extract 'https://huggingface.co/YanissAmz/Hy3-295B-A21B-GGUF/blob/main/Hy3-UD128*'
+```
+
 ### Tweaking models
 
 `models.ini` is heavily commented. You should read it and tweak it for your needs.

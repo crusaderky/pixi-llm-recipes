@@ -1,2 +1,2 @@
 [tool.codespell]
-skip = "pixi.lock,perplexity,sample-data"
+skip = "pixi.lock,perplexity,sample-data,llama-server.log"
