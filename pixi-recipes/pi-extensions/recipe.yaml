@@ -17,10 +17,10 @@ build:
         pi-autoresearch@1.6.0
         pi-btw@0.4.1
         pi-caveman@1.0.7
-        pi-llama-cpp@0.7.2
+        pi-llama-cpp@0.8.1
         pi-ollama-cloud@0.6.0
         pi-subagents@0.31.0
-        pi-token-speed@0.5.1
+        pi-token-speed@0.6.0
         @juicesharp/rpiv-ask-user-question@1.20.0
         @tmustier/pi-usage-extension@0.3.2
 
