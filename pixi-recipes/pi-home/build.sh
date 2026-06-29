@@ -9,3 +9,4 @@ touch "${PREFIX}/home/.pi/agent/bin/.keep"
 cp -a skills "${PREFIX}/home/.pi/agent/"
 cp -a AGENTS.md "${PREFIX}/home/.pi/agent/"
 cp -a keybindings.json "${PREFIX}/home/.pi/agent/"
+cp -a web-search.json "${PREFIX}/home/.pi/"  # Not a typo

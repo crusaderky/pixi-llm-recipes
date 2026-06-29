@@ -1,13 +1,13 @@
 ---
 name: use-gh-cli
-description: Use `gh` CLI for GitHub operations (CI logs, PRs, issues, releases) instead of HTTP web fetch. GitHub API requires authentication; `ollama_web_fetch` returns limited/empty data. The `gh` CLI is pre-authenticated and available in the sandbox.
+description: Use `gh` CLI for GitHub operations (CI logs, PRs, issues, releases) instead of HTTP web fetch. GitHub API requires authentication; `web_fetch` returns limited/empty data. The `gh` CLI is pre-authenticated and available in the sandbox.
 ---
 
 # Use gh CLI for GitHub
 
 ## Problem
 
-`ollama_web_fetch` / HTTP GET to `github.com` or `api.github.com` returns empty or limited data — GitHub requires authentication for most API endpoints and even web pages. This means CI logs, PR diffs, issue details, and release assets all fail via plain web fetch.
+`web_fetch` / HTTP GET to `github.com` or `api.github.com` returns empty or limited data — GitHub requires authentication for most API endpoints and even web pages. This means CI logs, PR diffs, issue details, and release assets all fail via plain web fetch.
 
 The `gh` CLI is on `PATH` inside the sandbox, but **only `pixi run pi -- --with-git` (note the `--`) binds auth credentials**. Unsandboxed (`pi-unsafe`) works too.
 
@@ -17,13 +17,13 @@ Before any `gh` command, run `gh auth status`. If it fails, **stop immediately**
 
 > `gh` CLI is not authenticated. Restart pi with `pixi run pi <path-to-workspace> -- --with-git` to bind GitHub auth credentials. Re-run with `--with-git` and try again.
 
-Do not fall back to `ollama_web_fetch` or other methods.
+Do not fall back to `web_fetch` or other methods.
 
 ## Use `gh` Instead
 
 ### CI Logs (most common failure)
 
-**When user pastes a CI log URL** — do NOT use `ollama_web_fetch`. Extract owner/repo, run ID, and optional job ID from the URL, then use `gh`:
+**When user pastes a CI log URL** — do NOT use `web_fetch`. Extract owner/repo, run ID, and optional job ID from the URL, then use `gh`:
 
 | URL                                                          | Pattern                            | `gh` command                          |
 | ------------------------------------------------------------ | ---------------------------------- | ------------------------------------- |

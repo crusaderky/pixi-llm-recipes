@@ -20,15 +20,17 @@ if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
   for _item in bin extensions npm skills AGENTS.md keybindings.json; do
     cp -r "${_WIN_SRC}/${_item}" ~/.pi/agent/
   done
+  cp "${_WIN_PREFIX}/home/.pi/web-search.json"
 else
   ln -fs "$CONDA_PREFIX"/home/.pi/agent/{bin,extensions,npm,skills,AGENTS.md,keybindings.json} ~/.pi/agent/
+  ln -fs "$CONDA_PREFIX"/home/.pi/web-search.json ~/.pi/
 fi
 
 function cleanup {
   if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
     rsync -avcO --no-perms --no-times ~/.pi/agent/{bin,extensions,skills,AGENTS.md,keybindings.json} pixi-recipes/pi-home/
   fi
-  rm -rf ~/.pi/agent/{bin,extensions,npm,skills,AGENTS.md,keybindings.json}
+  rm -rf ~/.pi/agent/{bin,extensions,npm,skills,AGENTS.md,keybindings.json} ~/.pi/web-search.json
 }
 trap cleanup EXIT
 
