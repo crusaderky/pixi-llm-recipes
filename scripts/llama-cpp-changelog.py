@@ -153,7 +153,7 @@ def _ensure_git_cache() -> None:
             "--filter=tree:0",
             "origin",
             "+refs/tags/*:refs/tags/*",
-            "refs/heads/*:refs/heads/*",
+            "+refs/heads/*:refs/heads/*",
         ],
         check=True,
         capture_output=True,
