@@ -122,7 +122,7 @@ done
 bash "$(dirname "$0")/inject-pi-extensions.sh"
 
 function cleanup {
-  rsync -avcO --no-perms --no-times "$_CONDA_PREFIX"/home/.pi/agent/{agents,skills,AGENTS.md,keybindings.json} pixi-recipes/pi-home/
+  rsync -avcO --no-perms --no-times "$_CONDA_PREFIX"/home/.pi/agent/{skills,AGENTS.md,keybindings.json} pixi-recipes/pi-home/
 }
 trap cleanup EXIT
 

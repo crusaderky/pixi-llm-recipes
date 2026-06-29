@@ -17,18 +17,18 @@ if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
   # Use backslash path separator for Windows conda prefix
   _WIN_PREFIX="${CONDA_PREFIX//\//\\}"
   _WIN_SRC="${_WIN_PREFIX}/home/.pi/agent"
-  for _item in agents bin extensions skills AGENTS.md keybindings.json npm; do
+  for _item in bin extensions npm skills AGENTS.md keybindings.json; do
     cp -r "${_WIN_SRC}/${_item}" ~/.pi/agent/
   done
 else
-  ln -fs "$CONDA_PREFIX"/home/.pi/agent/{agents,bin,extensions,npm,skills,AGENTS.md,keybindings.json} ~/.pi/agent/
+  ln -fs "$CONDA_PREFIX"/home/.pi/agent/{bin,extensions,npm,skills,AGENTS.md,keybindings.json} ~/.pi/agent/
 fi
 
 function cleanup {
   if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
-    rsync -avcO --no-perms --no-times ~/.pi/agent/{agents,bin,extensions,skills,AGENTS.md,keybindings.json} pixi-recipes/pi-home/
+    rsync -avcO --no-perms --no-times ~/.pi/agent/{bin,extensions,skills,AGENTS.md,keybindings.json} pixi-recipes/pi-home/
   fi
-  rm -rf ~/.pi/agent/{agents,bin,extensions,npm,skills,AGENTS.md,keybindings.json}
+  rm -rf ~/.pi/agent/{bin,extensions,npm,skills,AGENTS.md,keybindings.json}
 }
 trap cleanup EXIT
 
