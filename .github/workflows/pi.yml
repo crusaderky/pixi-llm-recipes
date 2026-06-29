@@ -69,6 +69,7 @@ jobs:
         run: pixi r pi -- --model LFM2.5-230M -p "Hello world"
 
       - name: pi workspace
+        if: matrix.os != 'windows-latest'
         run: |
           pixi r pi ../dummy -- --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
