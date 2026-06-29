@@ -63,7 +63,7 @@ for f in *; do
         *.so|*.so.*)
             cp -v "$f" "${PREFIX}/opt/llama/"
             ;;
-        llama*|rpc-server)
+        llama*|*rpc-server)
             cp -v "$f" "${PREFIX}/opt/llama/"
             if [ -x "${PREFIX}/opt/llama/$f" ]; then
                 ln -svf "../opt/llama/${f}" "${PREFIX}/bin/${f}"
