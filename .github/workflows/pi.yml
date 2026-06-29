@@ -1,0 +1,124 @@
+name: pi
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["*"]
+  workflow_dispatch: # allows you to trigger manually
+
+# When this workflow is queued, automatically cancel any previous running
+# or pending jobs from the same branch
+concurrency:
+  group: pi-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: prefix-dev/setup-pixi@v0
+        with:
+          pixi-version: v0.71.2
+          environments: llamacpp-binary-cpu agents
+          cache: true
+          locked: true
+
+      - name: Cache downloaded models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: huggingface-${{ matrix.os }}
+
+      - name: Start server
+        run: pixi r -e llamacpp-binary-cpu start-server
+
+      - name: pi-unsafe Hello world
+        run: pixi r pi-unsafe -- --model MiniCPM5-1B -p 'Hello world'
+
+      - name: pi-unsafe web_search
+        run: |
+          pixi r pi-unsafe -- --model MiniCPM5-1B -p 'Search weather in Tokyo. Only respond with OK if you get the info from the search engine or FAIL if you fail' > out.txt
+          cat out.txt
+          grep OK out.txt
+          if grep FAIL out.txt; then exit 1; fi
+
+      - name: Prepare dummy workspace
+        run: mkdir -p ../dummy && touch ../dummy/hello.txt
+
+      - name: pi-unsafe workspace + rtk integration
+        run: pixi r pi-unsafe ../dummy -- --model MiniCPM5-1B -p 'List current directory contents' | grep hello.txt
+
+      - name: Global install
+        if: matrix.os != 'windows-latest'
+        run: pixi r install
+
+      - name: pi Hello world
+        if: matrix.os != 'windows-latest'
+        run: pixi r pi -- --model MiniCPM5-1B -p 'Hello world'
+
+      - name: pi web_search
+        if: matrix.os != 'windows-latest'
+        run: |
+          pixi r pi -- --model MiniCPM5-1B -p 'Search weather in Tokyo. Only respond with OK if you get the info from the search engine or FAIL if you fail' > out.txt
+          cat out.txt
+          grep OK out.txt
+          if grep FAIL out.txt; then exit 1; fi
+
+      - name: pi workspace + rtk integration
+        run: pixi r pi ../dummy -- --model MiniCPM5-1B -p 'List current directory contents' | grep hello.txt
+
+      - name: pi --with-git --with-herdr Hello world
+        if: matrix.os != 'windows-latest'
+        run: pixi r pi -- --with-git --with-herdr --model MiniCPM5-1B -p 'Hello world'
+
+      - name: pi Hello world (global start script)
+        if: matrix.os != 'windows-latest'
+        run: pi --model MiniCPM5-1B -p 'Hello world'
+
+      - name: pi workspace + rtk integration (global start script)
+        if: matrix.os != 'windows-latest'
+        working-directory: ../dummy
+        run: |
+          pi --model MiniCPM5-1B -p 'List current directory contents' > out.txt
+          cat out.txt
+          grep hello out.txt
+
+      - name: pi --with-git --with-herdr Hello world (global start script)
+        if: matrix.os != 'windows-latest'
+        run: pi --with-git --with-herdr --model MiniCPM5-1B -p 'Hello world'
+
+      - name: pi --no-sandbox Hello world (global start script)
+        if: matrix.os != 'windows-latest'
+        run: pi --no-sandbox --model MiniCPM5-1B -p 'Hello world'
+
+      - name: pi --no-sandbox workspace + rtk integration (global start script)
+        if: matrix.os != 'windows-latest'
+        working-directory: ../dummy
+        run: |
+          pi --no-sandbox --model MiniCPM5-1B -p 'List current directory contents' > out.txt
+          cat out.txt
+          grep hello out.txt
+
+      - name: Stop server
+        run: pixi r stop-server
+
+      - name: Dump server log
+        if: always()
+        run: cat llama-server.log

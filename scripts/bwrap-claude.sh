@@ -28,7 +28,8 @@ mkdir -p ~/.cache/pre-commit
 mkdir -p ~/.cache/rattler
 mkdir -p ~/.cache/uv
 mkdir -p ~/.config/rtk
-
+mkdir -p ~/.claude
+if [ ! -e ~/.claude.json ]; then touch ~/.claude.json; fi
 
 # Decode forwarded args from env var (base64 encoded, null-separated).
 # Avoids pixi shell-parser mangling of single-quote characters.

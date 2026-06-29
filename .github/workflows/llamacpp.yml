@@ -50,7 +50,7 @@ jobs:
 
       - uses: prefix-dev/setup-pixi@v0
         with:
-          pixi-version: v0.71.0
+          pixi-version: v0.71.2
           environments: llamacpp-${{ matrix.backend }} agents
           cache: true
           locked: true
@@ -73,16 +73,8 @@ jobs:
       - name: Start server
         run: pixi r -e llamacpp-${{ matrix.backend }} start-server
 
-      - name: pi-unsafe Hello world
-        run: pixi r pi-unsafe -- --model MiniCPM5-1B -p 'Hello world'
-
-      - name: Install AppArmor profile for bwrap
-        if: matrix.os != 'windows-latest'
-        run: pixi r install-apparmor
-
       - name: pi Hello world
-        if: matrix.os != 'windows-latest'
-        run: pixi r pi -- --model MiniCPM5-1B -p 'Hello world'
+        run: pixi r pi-unsafe -- --model MiniCPM5-1B -p 'Hello world'
 
       - name: Restart server
         run: pixi r -e llamacpp-${{ matrix.backend }} restart-server
@@ -94,4 +86,5 @@ jobs:
         run: pixi r stop-server
 
       - name: Dump server log
+        if: always()
         run: cat llama-server.log

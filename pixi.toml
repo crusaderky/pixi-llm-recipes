@@ -70,7 +70,7 @@ TURBO_AUTO_ASYMMETRIC = "0"
 [feature.llamacpp.tasks]
 llama-help = "llama-server --help"
 llama-version = "llama-server --version"
-llama-hello.cmd = "llama-cli -hf {{ model }} -st -p 'Hello world'"
+llama-hello.cmd = "llama-cli -hf {{ model }} --reasoning off -st -p 'Hello world'"
 llama-hello.args = [{ arg = "model", default = "openbmb/MiniCPM5-1B-GGUF:Q4_K_M" }]
 llama-list-devices = "llama-server --list-devices"
 start-server = "bash scripts/start-server.sh"
