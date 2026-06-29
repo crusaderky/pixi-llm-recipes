@@ -87,7 +87,6 @@ served on demand. All models were carefully cherry-picked and tuned.
 | Qwen3.5-9B      | Q4_K_M MTP               | 6.4 GB       | 64k q8/q8           | 8.2 GB           | 163 tok/s                | limited context in VRAM                                                                                                 |
 | Ornith-1.0-35B  | APEX I-Balanced (Q5) MTP | 26 GB        | 256k q8/q8          | 8.0 GB           | 38 tok/s                 |                                                                                                                         |
 | Ornith-1.0-9B   | Q4_K_M MTP               | 5.4 GB       | 64k q8/q8           | 7.9 GB           | 160 tok/s                | limited context in VRAM                                                                                                 |
-| MiniCPM5-1B     | Q4_K_M                   | 0.7 GB       | 128k q8/q8          | 2.7 GB q8/q8     | 455 tok/s                | Tool calls not yet supported in llama.cpp Turboquant fork                                                               |
 | Gemma4-E2B      | QAT MTP                  | 3.5 GB       | 128k q8/q8          | 3.8 GB           | 290 tok/s                |                                                                                                                         |
 | Gemma4-E4B      | QAT                      | 5.0 GB       | 128k q8/q8          | 5.8 GB           | 143 tok/s                | [MTP doesn't support quantized V-cache](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF/blob/main/MTP/README.md) |
 |                 | QAT MTP                  | 5.0 GB       | 64k f16/f16         | 7.2 GB           | 221 tok/s                | full unquantized context doesn't fit                                                                                    |
@@ -95,6 +94,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 |                 | QAT MTP                  | 6.7 GB       | 32k q8/q8           | 8.2 GB           | 104 tok/s                | limited context in VRAM                                                                                                 |
 | Gemma4-26B-A4B  | QAT MTP                  | 15 GB        | 256k q8/q8          | 8.2 GB           | 32 tok/s                 |                                                                                                                         |
 | Gemma4-31B      | QAT MTP                  | 18 GB        | 256k q8/q8          | ~31 GB           | 2 tok/s                  | doesn't fit                                                                                                             |
+| LFM2.5-230M     | Q4_K_M                   | 219 MB       | 32k q8/q8           | 712 MB           | 693 tok/s                | for smoke testing purposes                                                                                              |
 
 **Notes:**
 

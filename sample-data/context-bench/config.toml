@@ -25,9 +25,6 @@ url = "http://localhost:8080/v1"
 # Must be higher than the server-side setting `reasoning-budget = 8192`.
 max_tokens = 9000
 
-# [MiniCPM5-1B]  # Don't bother with this one, it scores abysmally
-# ctx-size = ["16k", "32k", "64k", "128k"]
-
 [Gemma4-E2B]
 ctx-size = ["16k", "32k", "64k", "128k"]
 

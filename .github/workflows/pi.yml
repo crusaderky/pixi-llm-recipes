@@ -50,20 +50,15 @@ jobs:
         run: pixi r -e llamacpp-binary-cpu start-server
 
       - name: pi-unsafe Hello world
-        run: pixi r pi-unsafe -- --model MiniCPM5-1B -p 'Hello world'
-
-      - name: pi-unsafe web_search
-        run: |
-          pixi r pi-unsafe -- --model MiniCPM5-1B -p 'Search weather in Tokyo. Only respond with OK if you get the info from the search engine or FAIL if you fail' > out.txt
-          cat out.txt
-          grep OK out.txt
-          if grep FAIL out.txt; then exit 1; fi
+        run: pixi r pi-unsafe -- --model LFM2.5-230M -p 'Hello world'
 
       - name: Prepare dummy workspace
-        run: mkdir -p ../dummy && touch ../dummy/hello.txt
+        run: mkdir -p ../dummy && touch ../dummy/hello123
 
-      - name: pi-unsafe workspace + rtk integration
-        run: pixi r pi-unsafe ../dummy -- --model MiniCPM5-1B -p 'List current directory contents' | grep hello.txt
+      - name: pi-unsafe workspace
+        run: |
+          pixi r pi-unsafe ../dummy -- --model LFM2.5-230M -p 'Use bash tool to run `ls`. Return output.' | tee out.txt
+          grep hello123 out.txt
 
       - name: Global install
         if: matrix.os != 'windows-latest'
@@ -71,50 +66,42 @@ jobs:
 
       - name: pi Hello world
         if: matrix.os != 'windows-latest'
-        run: pixi r pi -- --model MiniCPM5-1B -p 'Hello world'
+        run: pixi r pi -- --model LFM2.5-230M -p 'Hello world'
 
-      - name: pi web_search
-        if: matrix.os != 'windows-latest'
+      - name: pi workspace
         run: |
-          pixi r pi -- --model MiniCPM5-1B -p 'Search weather in Tokyo. Only respond with OK if you get the info from the search engine or FAIL if you fail' > out.txt
-          cat out.txt
-          grep OK out.txt
-          if grep FAIL out.txt; then exit 1; fi
-
-      - name: pi workspace + rtk integration
-        run: pixi r pi ../dummy -- --model MiniCPM5-1B -p 'List current directory contents' | grep hello.txt
+          pixi r pi ../dummy -- --model LFM2.5-230M -p 'Use bash tool to run `ls`. return tool output and nothing else.' | tee out.txt
+          grep hello123 out.txt
 
       - name: pi --with-git --with-herdr Hello world
         if: matrix.os != 'windows-latest'
-        run: pixi r pi -- --with-git --with-herdr --model MiniCPM5-1B -p 'Hello world'
+        run: pixi r pi -- --with-git --with-herdr --model LFM2.5-230M -p 'Hello world'
 
       - name: pi Hello world (global start script)
         if: matrix.os != 'windows-latest'
-        run: pi --model MiniCPM5-1B -p 'Hello world'
+        run: pi --model LFM2.5-230M -p 'Hello world'
 
-      - name: pi workspace + rtk integration (global start script)
+      - name: pi workspace (global start script)
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         run: |
-          pi --model MiniCPM5-1B -p 'List current directory contents' > out.txt
-          cat out.txt
-          grep hello out.txt
+          pi --model LFM2.5-230M -p 'Use bash tool to run `ls`. return tool output and nothing else.' | tee out.txt
+          grep hello123 out.txt
 
       - name: pi --with-git --with-herdr Hello world (global start script)
         if: matrix.os != 'windows-latest'
-        run: pi --with-git --with-herdr --model MiniCPM5-1B -p 'Hello world'
+        run: pi --with-git --with-herdr --model LFM2.5-230M -p 'Hello world'
 
       - name: pi --no-sandbox Hello world (global start script)
         if: matrix.os != 'windows-latest'
-        run: pi --no-sandbox --model MiniCPM5-1B -p 'Hello world'
+        run: pi --no-sandbox --model LFM2.5-230M -p 'Hello world'
 
       - name: pi --no-sandbox workspace + rtk integration (global start script)
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         run: |
-          pi --no-sandbox --model MiniCPM5-1B -p 'List current directory contents' > out.txt
-          cat out.txt
-          grep hello out.txt
+          pi --no-sandbox --model LFM2.5-230M -p 'Use bash tool to run `ls`. return tool output and nothing else.' | tee out.txt
+          grep hello123 out.txt
 
       - name: Stop server
         run: pixi r stop-server

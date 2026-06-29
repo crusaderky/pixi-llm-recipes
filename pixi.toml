@@ -71,7 +71,7 @@ TURBO_AUTO_ASYMMETRIC = "0"
 llama-help = "llama-server --help"
 llama-version = "llama-server --version"
 llama-hello.cmd = "llama-cli -hf {{ model }} --reasoning off -st -p 'Hello world'"
-llama-hello.args = [{ arg = "model", default = "openbmb/MiniCPM5-1B-GGUF:Q4_K_M" }]
+llama-hello.args = [{ arg = "model", default = "unsloth/LFM2.5-230M-GGUF:Q4_K_M" }]
 llama-list-devices = "llama-server --list-devices"
 start-server = "bash scripts/start-server.sh"
 

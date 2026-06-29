@@ -74,13 +74,13 @@ jobs:
         run: pixi r -e llamacpp-${{ matrix.backend }} start-server
 
       - name: pi Hello world
-        run: pixi r pi-unsafe -- --model MiniCPM5-1B -p 'Hello world'
+        run: pixi r pi-unsafe -- --model LFM2.5-230M -p 'Hello world'
 
       - name: Restart server
         run: pixi r -e llamacpp-${{ matrix.backend }} restart-server
 
       - name: llama-benchy
-        run: pixi r llama-benchy --model MiniCPM5-1B --runs 1
+        run: pixi r llama-benchy --model LFM2.5-230M --runs 1
 
       - name: Stop server
         run: pixi r stop-server
