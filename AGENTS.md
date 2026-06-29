@@ -299,7 +299,7 @@ Wraps the pi coding agent in a bubblewrap container:
 - Read-only root filesystem; `/tmp`, `/home`, `/root` are `tmpfs`
 - Binds the target working directory read-write (or a temp dir if `-` is passed)
 - Binds `$CONDA_PREFIX` read-only; mounts `$CONDA_PREFIX/home/.pi` as `~/.pi` inside the sandbox
-- Binds caches: `~/.cache/{ccache,pip,pre-commit,rattler,uv}` and `~/.config/rpiv-web-tools`
+- Binds caches: `~/.cache/{ccache,pip,pre-commit,rattler,uv}`
 - Creates and bind-mounts `~/.pi/agent/sessions`, `auth.json`, `trust.json`, and `settings.json`
 - Calls `inject-pi-extensions.sh` to merge pi-extensions packages into `settings.json`
 - Bind-mounts `$PIXI_ROOT` (typically `~/.pixi`) read-only
@@ -317,8 +317,6 @@ Runs pi with full host access. Calls `inject-pi-extensions.sh` to merge pi-exten
 ### `pixi-recipes/pi-extensions` — Pi Plugin Package
 
 Installs a pinned set of pi plugins into `$PREFIX/home/.pi/agent` during the conda build. The plugin pins live in the `PLUGINS` env var in `recipe.yaml`, which is consumed by both `build.sh` (Linux) and `build.bat` (Windows) via the extension-less `script.file: build` mechanism. See `recipe.yaml` for the current plugin list and versions.
-
-`@juicesharp/rpiv-web-tools` is excluded from the plugin list — it is redundant with `pi-ollama-cloud`.
 
 Also installs the herdr pi integration by downloading the herdr binary at build time and running `herdr integration install pi`. The output (a TypeScript extension) is deployed to `${PREFIX}/home/.pi/agent/extensions/`.
 

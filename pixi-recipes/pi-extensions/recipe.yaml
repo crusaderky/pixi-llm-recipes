@@ -13,7 +13,6 @@ build:
     env:
       # Single source of truth for the plugin pins, consumed by both
       # build.sh and build.bat (space-separated <package>@<version> list).
-      # @juicesharp/rpiv-web-tools is excluded: redundant with pi-ollama-cloud.
       PLUGINS: >-
         pi-autoresearch@1.6.0
         pi-btw@0.4.1

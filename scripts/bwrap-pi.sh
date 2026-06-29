@@ -111,7 +111,6 @@ mkdir -p ~/.cache/pre-commit
 mkdir -p ~/.cache/rattler
 mkdir -p ~/.cache/uv
 mkdir -p ~/.pi/agent/sessions
-mkdir -p ~/.config/rpiv-web-tools
 mkdir -p ~/.config/rtk
 
 for f in auth trust settings; do
@@ -141,13 +140,12 @@ bwrap \
   --tmpfs /home \
   --tmpfs /root \
   --ro-bind "$_CONDA_PREFIX"              "$_CONDA_PREFIX" \
-  --bind "$HOME/.cache/ccache"                 "$HOME/.cache/ccache" \
+  --bind "$HOME/.cache/ccache"            "$HOME/.cache/ccache" \
   --bind "$HOME/.cache/llama-cpp-changelog"    "$HOME/.cache/llama-cpp-changelog" \
-  --bind "$HOME/.cache/pip"                     "$HOME/.cache/pip" \
+  --bind "$HOME/.cache/pip"               "$HOME/.cache/pip" \
   --bind "$HOME/.cache/pre-commit"        "$HOME/.cache/pre-commit" \
   --bind "$HOME/.cache/rattler"           "$HOME/.cache/rattler" \
   --bind "$HOME/.cache/uv"                "$HOME/.cache/uv" \
-  --bind "$HOME/.config/rpiv-web-tools"   "$HOME/.config/rpiv-web-tools" \
   --bind "$HOME/.config/rtk"              "$HOME/.config/rtk" \
   --bind "$_CONDA_PREFIX/home/.pi"        "$HOME/.pi" \
   --bind "$HOME/.pi/agent/auth.json"      "$HOME/.pi/agent/auth.json" \
