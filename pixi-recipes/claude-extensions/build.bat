@@ -6,13 +6,14 @@ rem Downloads the herdr binary from its latest preview release (Windows builds
 rem are preview-only), runs `herdr integration install claude`, then deploys
 rem the output to the prefix.
 
-rem rtk -g writes to the real Windows user profile (C:\Users\runneradmin\.claude),
-rem not to %PREFIX%\home. Capture it before we redirect USERPROFILE.
-set "REAL_USERPROFILE=%USERPROFILE%"
+rem On Windows rtk -g ignores HOME/USERPROFILE and resolves the Claude config
+rem dir via the real user profile (C:\Users\runneradmin\.claude), which the
+rem conda build must not touch. CLAUDE_CONFIG_DIR overrides that resolution so
+rem rtk writes into the prefix instead. herdr honours HOME/USERPROFILE.
 set "HOME=%PREFIX%\home"
 set "USERPROFILE=%PREFIX%\home"
+set "CLAUDE_CONFIG_DIR=%PREFIX%\home\.claude"
 if not exist "%HOME%\.claude\hooks" mkdir "%HOME%\.claude\hooks"
-if not exist "%REAL_USERPROFILE%\.claude" mkdir "%REAL_USERPROFILE%\.claude"
 
 rem Download herdr binary via the preview manifest
 curl -fsSL --retry 3 --connect-timeout 10 --max-time 20 "https://herdr.dev/preview.json" -o "%TEMP%\herdr-manifest.json" || exit /b 1

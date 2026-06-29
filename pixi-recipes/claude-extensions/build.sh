@@ -6,6 +6,9 @@ set -euo pipefail
 # `herdr integration install claude`, then deploys the output to the prefix.
 
 export HOME="${PREFIX}/home"
+# Pin rtk's global Claude config dir to the prefix (rather than relying on
+# $HOME resolution) so it writes RTK.md/CLAUDE.md/settings.json into the package.
+export CLAUDE_CONFIG_DIR="${PREFIX}/home/.claude"
 mkdir -p "${HOME}/.claude/hooks"
 
 # Download herdr binary from the latest stable manifest
