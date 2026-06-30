@@ -80,21 +80,21 @@ pixi r -e llamacpp-source-cuda start-server
 Models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Model           | Variant                  | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup> | Decode speed<sup>3</sup> | Notes                                                                                                                   |
-| --------------- | ------------------------ | ------------ | ------------------- | ---------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Qwen3.6-35B-A3B | IQ4_XS MTP               | 18 GB        | 256k q8/q8          | 7.4 GB           | 56 tok/s                 | best quality that performs well; the daily driver                                                                       |
-| Qwen3.6-27B     | Q4_K_M MTP               | 18 GB        | 256k q8/q8          | ~28 GB           | 2 tok/s                  | doesn't fit                                                                                                             |
-| Qwen3.5-9B      | Q4_K_M MTP               | 6.4 GB       | 64k q8/q8           | 8.2 GB           | 163 tok/s                | limited context in VRAM                                                                                                 |
-| Ornith-1.0-35B  | APEX I-Balanced (Q5) MTP | 26 GB        | 256k q8/q8          | 8.0 GB           | 38 tok/s                 |                                                                                                                         |
-| Ornith-1.0-9B   | Q4_K_M MTP               | 5.4 GB       | 64k q8/q8           | 7.9 GB           | 160 tok/s                | limited context in VRAM                                                                                                 |
-| Gemma4-E2B      | QAT MTP                  | 3.5 GB       | 128k q8/q8          | 3.8 GB           | 290 tok/s                |                                                                                                                         |
-| Gemma4-E4B      | QAT                      | 5.0 GB       | 128k q8/q8          | 5.8 GB           | 143 tok/s                | [MTP doesn't support quantized V-cache](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF/blob/main/MTP/README.md) |
-|                 | QAT MTP                  | 5.0 GB       | 64k f16/f16         | 7.2 GB           | 221 tok/s                | full unquantized context doesn't fit                                                                                    |
-| Gemma4-12B      | QAT MTP                  | 6.7 GB       | 256k q8/q8          | 8.0 GB           | 19 tok/s                 | full context in host RAM                                                                                                |
-|                 | QAT MTP                  | 6.7 GB       | 32k q8/q8           | 8.2 GB           | 104 tok/s                | limited context in VRAM                                                                                                 |
-| Gemma4-26B-A4B  | QAT MTP                  | 15 GB        | 256k q8/q8          | 8.2 GB           | 32 tok/s                 |                                                                                                                         |
-| Gemma4-31B      | QAT MTP                  | 18 GB        | 256k q8/q8          | ~31 GB           | 2 tok/s                  | doesn't fit                                                                                                             |
-| LFM2.5-230M     | Q4_K_M                   | 219 MB       | 32k q8/q8           | 712 MB           | 693 tok/s                | for smoke testing purposes                                                                                              |
+| Model           | Variant             | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>   | Prefill<sup>3</sup>   | Decode<sup>3</sup>   | Notes                                                                                                                   |
+| --------------- | ------------------- | ------------ | ------------------- | ------------------ | --------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Qwen3.6-35B-A3B | IQ4_XS MTP          | 18 GB        | 256k q8/q8          | 7.4 GB<sup>4</sup> | 458 tok/s<sup>4</sup> | 57 tok/s<sup>4</sup> | best quality that performs well; the daily driver                                                                       |
+| Qwen3.6-27B     | Q4_K_M MTP          | 18 GB        | 256k q8/q8          | ~28 GB             |                       | 2 tok/s              | doesn't fit                                                                                                             |
+| Qwen3.5-9B      | Q4_K_M MTP          | 6.4 GB       | 64k q8/q8           | 8.2 GB             |                       | 163 tok/s            | limited context in VRAM                                                                                                 |
+| Ornith-1.0-35B  | APEX I-Balanced MTP | 26 GB        | 256k q8/q8          | 8.0 GB<sup>4</sup> | 318 tok/s<sup>4</sup> | 43 tok/s<sup>4</sup> |                                                                                                                         |
+| Ornith-1.0-9B   | Q4_K_M MTP          | 5.4 GB       | 64k q8/q8           | 7.9 GB             | 2634 tok/s            | 165 tok/s            | limited context in VRAM                                                                                                 |
+| Gemma4-E2B      | QAT MTP             | 3.5 GB       | 128k q8/q8          | 3.8 GB             |                       | 290 tok/s            |                                                                                                                         |
+| Gemma4-E4B      | QAT                 | 5.0 GB       | 128k q8/q8          | 5.8 GB             |                       | 143 tok/s            | [MTP doesn't support quantized V-cache](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF/blob/main/MTP/README.md) |
+|                 | QAT MTP             | 5.0 GB       | 64k f16/f16         | 7.2 GB             |                       | 221 tok/s            | full unquantized context doesn't fit                                                                                    |
+| Gemma4-12B      | QAT MTP             | 6.7 GB       | 256k q8/q8          | 8.0 GB             |                       | 19 tok/s             | full context in host RAM                                                                                                |
+|                 | QAT MTP             | 6.7 GB       | 32k q8/q8           | 8.2 GB             |                       | 104 tok/s            | limited context in VRAM                                                                                                 |
+| Gemma4-26B-A4B  | QAT MTP             | 15 GB        | 256k q8/q8          | 8.2 GB<sup>4</sup> | <sup>4</sup>          | 32 tok/s<sup>4</sup> |                                                                                                                         |
+| Gemma4-31B      | QAT MTP             | 18 GB        | 256k q8/q8          | ~31 GB             |                       | 2 tok/s              | doesn't fit                                                                                                             |
+| LFM2.5-230M     | Q4_K_M              | 219 MB       | 32k q8/q8           | 712 MB             |                       | 693 tok/s            | for smoke testing purposes                                                                                              |
 
 **Notes:**
 
@@ -103,10 +103,11 @@ served on demand. All models were carefully cherry-picked and tuned.
   configuration. [turbo4 is not particularly better than q4_0](perplexity/README.md).
   You can enable Turboquant by uncommenting it in
   `pixi-recipes/llama-cpp-source/*/recipe.yaml`.
-- <sup>2</sup>When sizing video card VRAM, you must add ~2 GiB for your desktop (unless you're
-  running on an integrated video card and your discrete card is detached from the X
-  server)
-- <sup>3</sup> Decode speed measured on the RTX 3080
+- <sup>2</sup>Process total measured by nvidia-smi. When sizing video card VRAM, you
+  must add ~2 GiB for your desktop (unless you're running on an integrated video card
+  and your discrete card is detached from the X server)
+- <sup>3</sup> Speed measured on the RTX 3080
+- <sup>4</sup> Experts offloaded to host RAM. Speed is capped by PCIe bandwidth for prefill and by host RAM bandwidth for decode.
 
 ### Tweaking models
 
