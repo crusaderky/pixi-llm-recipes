@@ -1,12 +1,12 @@
 context:
   # Main branch
   fork: ggml-org/llama.cpp
-  version: b9838
+  version: b9936
 
   # Turboquant fork
   # Last sync with main at b9688 (2026-06-17)
   # fork: TheTom/llama-cpp-turboquant
-  # version: feature-turboquant-kv-cache-b9907-a33ef00
+  # version: feature-turboquant-kv-cache-b9914-0c8fcfe
 
   # https://github.com/ggml-org/llama.cpp/pull/21067
   # Forked from main at b8533 (2026-03-26)

@@ -8,6 +8,7 @@ case "${BACKEND}" in
         ;;
     cuda)
         EXTRA_CMAKE_ARGS+=(-DGGML_CUDA=ON)
+        EXTRA_CMAKE_ARGS+=(-DGGML_CUDA_FA_ALL_QUANTS=ON)
         ;;
     vulkan)
         EXTRA_CMAKE_ARGS+=(-DGGML_VULKAN=ON)
