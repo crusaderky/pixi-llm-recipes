@@ -150,13 +150,13 @@ numpy = "*"
 pydantic = "*"
 safetensors = "*"
 tokenizers = "*"
-transformers = "*"
+transformers = ">=5.2.0"
 # context-bench runner dependencies
 openai = "*"
 tomli-w = "*"
 
 [feature.pytools.pypi-dependencies]
-llama-benchy = "*"
+llama-benchy = ">=0.4.0"
 
 [feature.pytools.tasks]
 llama-benchy = "python -m llama_benchy --base-url http://localhost:8080/v1 --no-cache --runs 7"
