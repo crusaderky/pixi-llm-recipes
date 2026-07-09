@@ -95,6 +95,8 @@ served on demand. All models were carefully cherry-picked and tuned.
 | Gemma4-26B-A4B  | QAT MTP            | 15 GB        | 256k q8/q8          | 8.2 GB<sup>4</sup> | <sup>4</sup>          | 32 tok/s<sup>4</sup> |                                                                                                                         |
 | Gemma4-31B      | QAT MTP            | 18 GB        | 256k q8/q8          | ~31 GB             |                       | 2 tok/s              | doesn't fit                                                                                                             |
 | LFM2.5-230M     | Q4_K_M             | 147 MB       | 32k q8/q8           | 712 MB             | 42,495 tok/s          | 700 tok/s            | for smoke testing purposes                                                                                              |
+| LFM2.5-8B-A1B   | APEX I-Quality     | 5.7 GB       | 128k q8/q8          | 7.3 GB             | 9,444 tok/s           | 256 tok/s            |                                                                                                                         |
+|                 | APEX I-Quality     | 5.7 GB       | 128k q8/q8          | 2.1 GB             | 1,104 tok/s           | 37 tok/s             | cpu-moe; best model that fits on 4GB VRAM desktops                                                                      |
 
 **Notes:**
 
