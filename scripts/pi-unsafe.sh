@@ -10,8 +10,9 @@ if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
 fi
 
 mkdir -p ~/.pi/agent
+rm -rf ~/.pi/agent/{bin,extensions,npm,skills,AGENTS.md,keybindings.json}
+rm -f ~/.pi/web-search.json
 
-rm -rf ~/.pi/agent/{extensions,npm}
 if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
   # git-bash can't create symlinks; copy instead
   # Use backslash path separator for Windows conda prefix
