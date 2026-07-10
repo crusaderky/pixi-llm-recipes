@@ -39,6 +39,8 @@ jobs:
         include:
           - os: ubuntu-latest
             backend: binary-rocm
+          - os: ubuntu-26.04
+            backend: source-rocm
           - os: windows-latest
             backend: binary-cpu
           - os: windows-latest
@@ -47,6 +49,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      # hipBLAS/rocBLAS and the HIP runtime are not on conda-forge, so the
+      # source-rocm variant compiles against the distro's system ROCm. Ubuntu
+      # 26.04 ships it in the archive (ROCm 7.1, clang-21) — no third-party AMD
+      # apt repo needed. Restrict device codegen to one widely-supported arch to
+      # keep the GPU-less CI build fast (inference falls back to CPU anyway).
+      - name: Install system ROCm (source-rocm only)
+        if: matrix.backend == 'source-rocm'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            hipcc clang-21 libamdhip64-dev librocblas-dev libhipblas-dev rocm-device-libs-21
+          echo "LLAMA_GPU_TARGETS=gfx1030" >> "$GITHUB_ENV"
 
       - uses: prefix-dev/setup-pixi@v0
         with:

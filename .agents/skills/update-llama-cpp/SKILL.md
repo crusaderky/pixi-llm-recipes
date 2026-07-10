@@ -7,7 +7,7 @@ allowed-tools: Bash Read Edit
 
 ## Context
 
-Each `pixi-recipes/llama-cpp-source/{cpu,cuda,vulkan}/recipe.yaml` has a `context:` block with multiple entries:
+Each `pixi-recipes/llama-cpp-source/{cpu,cuda,vulkan,rocm}/recipe.yaml` has a `context:` block with multiple entries:
 
 - **Main branch** — `fork: ggml-org/llama.cpp`, `version: bNNNN`.
 - **Turboquant fork** — `fork: TheTom/llama-cpp-turboquant`, `version: feature-turboquant-kv-cache-bNNNN-XXXXXXX`.
@@ -56,11 +56,14 @@ When a new upstream merge occurred on the turboquant fork, you must also update 
 
 5. If it already equals `LATEST_MAIN`, report "Main branch version already up to date" and skip.
 
-6. Otherwise update the `# version:` line under `# Main branch` in all **three** source recipes:
+6. Otherwise update the `# version:` line under `# Main branch` in all **four** source recipes:
    - `pixi-recipes/llama-cpp-source/cpu/recipe.yaml`
    - `pixi-recipes/llama-cpp-source/cuda/recipe.yaml`
    - `pixi-recipes/llama-cpp-source/vulkan/recipe.yaml`
+   - `pixi-recipes/llama-cpp-source/rocm/recipe.yaml`
      Only change that one `# version:` line — do NOT uncomment it or touch other commented-out forks.
+     The `rocm` recipe has the **same** `context:` version block as the others (only its
+     `backend`, `gpu_targets`, and `dynamic_linking` differ), so it takes the identical edit.
 
 7. Report: `Main branch version (commented out): bOLD → bNEW`
 
@@ -70,7 +73,7 @@ When a new upstream merge occurred on the turboquant fork, you must also update 
 
 9. If it already equals `LATEST_TURBO`, report "Turboquant fork already up to date" and skip the version bump (but still check the last-sync comment in step 11).
 
-10. Update the active `version:` line (the one with `fork: TheTom/llama-cpp-turboquant`) in all three source recipes.
+10. Update the active `version:` line (the one with `fork: TheTom/llama-cpp-turboquant`) in all four source recipes.
 
 11. **Update the `# Last sync with main at bNNNN` comment** only if Phase 1 step 3 found a new upstream merge. Set it to the upstream main tag that the merge pulled in (`LATEST_MAIN` when the merge PR's body/reference indicates main was synced to the latest). Otherwise leave the comment unchanged. Keep the `(YYYY-MM-DD)` date in sync with that tag's release date (from the changelog script's Tags section).
 

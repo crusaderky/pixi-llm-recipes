@@ -48,6 +48,16 @@ platforms = ["linux-64", "linux-aarch64"]
 [feature.llamacpp-source-vulkan.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source/vulkan" }
 
+[feature.llamacpp-source-rocm]
+platforms = ["linux-64"] # ROCm/HIP is x86-64 only
+[feature.llamacpp-source-rocm.dependencies]
+llama-cpp = { path = "pixi-recipes/llama-cpp-source/rocm" }
+[feature.llamacpp-source-rocm.activation.env]
+# Ubuntu 26.04: `apt install rocm` does not install
+# /usr/lib/x86_64-linux-gnu/rocblas/*/library/*gfx1150*
+# See matching hack in pixi-recipes/llama-cpp-source/rocm/build.sh
+HSA_OVERRIDE_GFX_VERSION="11.5.1"
+
 [feature.llamacpp-binary-cpu.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary/cpu" }
 
@@ -58,6 +68,10 @@ llama-cpp = { path = "pixi-recipes/llama-cpp-binary/vulkan" }
 platforms = ["linux-64"]
 [feature.llamacpp-binary-rocm.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary/rocm" }
+[feature.llamacpp-binary-rocm.activation.env]
+# Ubuntu 26.04: `apt install rocm` does not install
+# /usr/lib/x86_64-linux-gnu/rocblas/*/library/*gfx1150*
+HSA_OVERRIDE_GFX_VERSION="11.5.1"
 
 [feature.llamacpp.dependencies]
 # kv-perplexity dependencies
@@ -191,6 +205,7 @@ lint = { cmd = "lefthook run pre-commit --all-files --force", description = "Run
 llamacpp-source-cpu = ["llamacpp", "llamacpp-source-cpu"]
 llamacpp-source-cuda = ["llamacpp", "llamacpp-source-cuda"]
 llamacpp-source-vulkan = ["llamacpp", "llamacpp-source-vulkan"]
+llamacpp-source-rocm = ["llamacpp", "llamacpp-source-rocm"]
 llamacpp-binary-cpu = ["llamacpp", "llamacpp-binary-cpu"]
 llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]

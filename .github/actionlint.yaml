@@ -1,0 +1,7 @@
+# actionlint 1.7.12 predates the ubuntu-26.04 GitHub-hosted runner image (public
+# preview since 2026-06), so it rejects the label as unknown. Declaring it here
+# tells actionlint it is a valid `runs-on` target. Drop this once the bundled
+# runner-label database includes ubuntu-26.04.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

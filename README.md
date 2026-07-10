@@ -39,7 +39,7 @@ pixi r stop-server
 
 ## llama.cpp variants
 
-There are six pixi environments to choose from: three that compile llama.cpp from
+There are seven pixi environments to choose from: four that compile llama.cpp from
 source, and three that just unpack the pre-built binaries from upstream releases.
 
 | Environment              | Build            | Backend      | Linux x64 | Linux ARM | Windows x64 |
@@ -47,6 +47,7 @@ source, and three that just unpack the pre-built binaries from upstream releases
 | `llamacpp-source-cpu`    | from sources     | CPU only     | ✅        | ✅        | 🔴          |
 | `llamacpp-source-cuda`   | from sources     | CPU + CUDA   | ✅        | 🔴        | 🔴          |
 | `llamacpp-source-vulkan` | from sources     | CPU + Vulkan | ✅        | ✅        | 🔴          |
+| `llamacpp-source-rocm`   | from sources     | CPU + ROCm   | ✅        | 🔴        | 🔴          |
 | `llamacpp-binary-cpu`    | pre-built binary | CPU only     | ✅        | ✅        | ✅          |
 | `llamacpp-binary-vulkan` | pre-built binary | CPU + Vulkan | ✅        | ✅        | ✅          |
 | `llamacpp-binary-rocm`   | pre-built binary | CPU + ROCm   | ✅        | 🔴        | 🔴          |
@@ -57,6 +58,14 @@ than Vulkan) and can be easily adapted to compile PRs and forks. By default they
 from the main branch, but you can trivially change the recipes to switch to the
 [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant) fork with
 KV cache optimizations for improved long-context compression.
+
+Unlike the CUDA and Vulkan source builds, `llamacpp-source-rocm` compiles against the
+**system** ROCm rather than conda packages, because conda-forge does not ship
+hipBLAS/rocBLAS. Ubuntu 26.04 provides a complete ROCm 7.1 in the standard archive
+(`hipcc clang-21 libamdhip64-dev librocblas-dev libhipblas-dev rocm-device-libs-21`);
+no third-party AMD apt repo is needed. It targets `gfx1150;gfx1151` by default —
+override with `LLAMA_GPU_TARGETS=<gfx…> pixi install -e llamacpp-source-rocm` for other
+GPUs — and requires a matching system ROCm at runtime.
 
 To start llama-cpp interactively (you will be asked on which environment you want to run):
 

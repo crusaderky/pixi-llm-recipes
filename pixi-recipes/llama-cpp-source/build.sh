@@ -13,6 +13,22 @@ case "${BACKEND}" in
     vulkan)
         EXTRA_CMAKE_ARGS+=(-DGGML_VULKAN=ON)
         ;;
+    rocm)
+        # System ROCm (hipBLAS/rocBLAS) is not available on conda-forge, so this
+        # backend links against the ROCm install on the build host (Ubuntu ships
+        # it under /usr; AMD's installer uses /opt/rocm). HIP_PATH/HIPCXX are
+        # discovered via hipconfig unless already set in the environment.
+        export HIP_PATH="${HIP_PATH:-$(hipconfig -R)}"
+        if [ -z "${HIPCXX:-}" ]; then
+            export HIPCXX="$(hipconfig -l)/clang++"
+        fi
+        # GPU_TARGETS (semicolon-separated gfx list) comes from recipe.yaml; keep
+        # GPU detection out of the build so it also compiles on GPU-less CI hosts.
+        EXTRA_CMAKE_ARGS+=(-DGGML_HIP=ON)
+        EXTRA_CMAKE_ARGS+=(-DAMDGPU_TARGETS="${GPU_TARGETS}")
+        EXTRA_CMAKE_ARGS+=(-DGPU_TARGETS="${GPU_TARGETS}")
+        EXTRA_CMAKE_ARGS+=(-DCMAKE_HIP_COMPILER="${HIPCXX}")
+        ;;
     *)
         echo "Unknown backend: ${BACKEND}"
         exit 1
