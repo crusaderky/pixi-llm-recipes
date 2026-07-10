@@ -46,4 +46,4 @@ cd "$REPO"
 if [ ${#ARGS[@]} -gt 0 ]; then
   export _FWD_ARGS=$(printf '%s\0' "${ARGS[@]}" | base64 -w0)
 fi
-exec pixi r "$TASK" "$WORKDIR"
+exec pixi r -q "$TASK" "$WORKDIR"

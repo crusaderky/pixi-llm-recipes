@@ -1,0 +1,14 @@
+#!/bin/bash
+# `gh` wrapper — run `gh` from anywhere.
+#
+# Installed to ~/.local/bin as a symlink to this script by `pixi r install`
+# so it always runs the source tree of this repo.
+#
+# All args are forwarded verbatim to gh.
+set -o errexit
+set -o nounset
+
+REPO="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
+cd "$REPO"
+exec pixi r -q gh "$@"
+
