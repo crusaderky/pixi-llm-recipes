@@ -25,9 +25,12 @@ build:
         @tmustier/pi-usage-extension@0.3.2
 
 requirements:
-  host:
+  build:
     - pi-coding-agent
     - rtk-cli
+    - if: linux
+      then:
+      - patchelf
   run:
     - pi-coding-agent
     - rtk-cli
