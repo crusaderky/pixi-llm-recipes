@@ -46,6 +46,7 @@ pixi-llm-recipes/
 │   ├── inject-pi-extensions.sh       # Merge pi-extensions packages into settings.json
 │   ├── inject-claude-extensions.sh    # Deploy packaged Claude Code extensions into ~/.claude
 │   ├── install-apparmor.sh           # Install AppArmor profile for bwrap (sudo/CI)
+│   ├── install-memlock.sh            # Raise locked-memory ulimit for llama-server mlock (sudo/CI)
 │   ├── kv-kld-report.py                 # Parse perplexity log → HTML/Markdown KLD report
 │   ├── kv-perplexity.py              # KLD sweep over cartesian product of K/V quant combos
 │   ├── llama-cpp-changelog.py        # Deterministic llama.cpp changelog dumper (tags + PRs + commits)
@@ -546,6 +547,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `scripts/inject-claude-extensions.sh`                      | Deploy packaged Claude Code extensions (hooks, settings) into host's ~/.claude                                                                          |
 | `scripts/install-apparmor.sh`                              | Install/load AppArmor profile for bwrap (local sudo or CI)                                                                                              |
 | `scripts/install-clipboard.sh`                             | Install wl-clipboard (apt) so herdr copy-on-select can write the system clipboard; sudo only if wl-copy missing                                         |
+| `scripts/install-memlock.sh`                               | Raise the locked-memory ulimit (`/etc/security/limits.d/99-memlock.conf`) so llama-server `--mlock` can lock multi-GiB weights; sudo, idempotent        |
 | `scripts/install.sh`                                       | Backs the `install` task; symlinks `scripts/pi`, `scripts/claude`, and `scripts/herdr` into ~/.local/bin                                                |
 | `scripts/stop-server.sh`                                   | Graceful llama-server shutdown (SIGTERM → SIGKILL)                                                                                                      |
 | `scripts/start-server.sh`                                  | Background llama-server with logging                                                                                                                    |

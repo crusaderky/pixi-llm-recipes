@@ -18,7 +18,7 @@ models.
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | sh  # One-off installation
-pixi r install  # One-off installation (apparmor, ~/.local/bin, herdr desktop launcher)
+pixi r install  # One-off installation (apparmor, memlock limit, ~/.local/bin, herdr desktop launcher)
 pixi r start-server  # Start llama.cpp server for local models
 cd /path/to/workspace && pi  # Just like regular pi, but managed by pixi and sandboxed
 cd /path/to/workspace && claude
@@ -137,6 +137,24 @@ pixi r gguf-meta-extract 'https://huggingface.co/YanissAmz/Hy3-295B-A21B-GGUF/bl
 ### Tweaking models
 
 `models.ini` is heavily commented. You should read it and tweak it for your needs.
+
+### Locked-memory limit (`mlock`)
+
+`models.ini` sets `mlock = true` so llama-server locks the model weights into
+RAM and the kernel can never page them out. Even in absence of memory pressure
+from other applications, this drastically speed prefill of partially spilled MoE
+models, as it prevents an extra copy when transferring tensors to VRAM. This
+flag needs a high locked-memory limit; the stock Ubuntu default of `ulimit -l`
+can be as low as 8192 (8 MiB) which is far too small for multi-GiB models.
+
+`pixi r install` (specifically `pixi r install-memlock`) raises the limit to
+unlimited by writing `/etc/security/limits.d/99-memlock.conf` (needs sudo). PAM
+only applies that at login, so **log out and back in (or reboot)** afterwards.
+Verify with:
+
+```bash
+ulimit -l  # should print "unlimited"
+```
 
 ## The pi coding agent
 
