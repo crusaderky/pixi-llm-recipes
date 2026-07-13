@@ -132,6 +132,13 @@ while IFS= read -r var; do
 done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
 unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 
+# pi-intercom setup note:
+# ~/.pi/agent/intercom is a fresh tmpfs per sandbox: the pi-intercom broker, its unix
+# socket, and all of its runtime state stay private to this sandbox. Sessions inside the
+# same sandbox (pi and all its pi-subagents children) can message each other;
+# independent sandboxes or unsandboxed pi instances on the host cannot be reached.
+# Parallel sandboxes don't conflict: each has its own broker on its own private socket.
+
 bwrap \
   --ro-bind / / \
   --dev /dev \
@@ -152,6 +159,7 @@ bwrap \
   --bind "$HOME/.pi/agent/trust.json"     "$HOME/.pi/agent/trust.json" \
   --bind "$HOME/.pi/agent/settings.json"  "$HOME/.pi/agent/settings.json" \
   --bind "$HOME/.pi/agent/sessions"       "$HOME/.pi/agent/sessions" \
+  --tmpfs "$HOME/.pi/agent/intercom" \
   --ro-bind "$_PIXI_ROOT"                 "$_PIXI_ROOT" \
   $EXTRA_BINDS \
   $WORKTREE_BINDS \

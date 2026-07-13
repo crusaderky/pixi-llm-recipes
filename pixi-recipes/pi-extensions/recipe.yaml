@@ -17,6 +17,7 @@ build:
         pi-autoresearch@1.6.2
         pi-btw@0.4.1
         pi-caveman@1.0.7
+        pi-intercom@0.6.0
         pi-llama-cpp@0.8.1
         pi-web-access@0.13.0
         pi-subagents@0.34.0

@@ -179,6 +179,7 @@ agent setup is versioned and reproducible:
 | ------------------------------------------------------------------------------------ | ---------------------------------------------------- |
 | [pi-autoresearch](https://pi.dev/packages/pi-autoresearch)                           | autonomous experiment loops for optimization         |
 | [pi-btw](https://pi.dev/packages/pi-btw)                                             | build-time workspace tooling                         |
+| [pi-intercom](https://pi.dev/packages/pi-intercom)                                   | messaging between pi sessions in the same sandbox    |
 | [pi-llama-cpp](https://pi.dev/packages/pi-llama-cpp)                                 | zero-config llama.cpp integration                    |
 | [pi-ollama-cloud](https://pi.dev/packages/pi-ollama-cloud)                           | Ollama cloud model provider + web search / web fetch |
 | [pi-subagents](https://github.com/nicobailon/pi-subagents)                           | spawn sub-agents for complex tasks                   |

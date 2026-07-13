@@ -58,7 +58,7 @@ llama-cpp = { path = "pixi-recipes/llama-cpp-source/rocm" }
 # See matching hack in pixi-recipes/llama-cpp-source/rocm/build.sh
 HSA_OVERRIDE_GFX_VERSION = "11.5.1"
 # iGPU only
-GGML_CUDA_ENABLE_UNIFIED_MEMORY = "1" 
+GGML_CUDA_ENABLE_UNIFIED_MEMORY = "1"
 
 [feature.llamacpp-binary-cpu.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary/cpu" }
@@ -75,7 +75,7 @@ llama-cpp = { path = "pixi-recipes/llama-cpp-binary/rocm" }
 # /usr/lib/x86_64-linux-gnu/rocblas/*/library/*gfx1150*
 HSA_OVERRIDE_GFX_VERSION = "11.5.1"
 # iGPU only
-GGML_CUDA_ENABLE_UNIFIED_MEMORY = "1" 
+GGML_CUDA_ENABLE_UNIFIED_MEMORY = "1"
 
 [feature.llamacpp.dependencies]
 # kv-perplexity dependencies

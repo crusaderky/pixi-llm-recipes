@@ -338,6 +338,7 @@ Wraps the pi coding agent in a bubblewrap container:
 - Binds `$CONDA_PREFIX` read-only; mounts `$CONDA_PREFIX/home/.pi` as `~/.pi` inside the sandbox
 - Binds caches: `~/.cache/{ccache,pip,pre-commit,rattler,uv}`
 - Creates and bind-mounts `~/.pi/agent/sessions`, `auth.json`, `trust.json`, and `settings.json`
+- Mounts a fresh `tmpfs` at `~/.pi/agent/intercom` so the pi-intercom broker, its unix socket, and all of its runtime state stay private to the sandbox. A pi session and its pi-subagents children (subprocesses in the same sandbox) can message each other; independent sandboxes and the host cannot be reached — no sandbox escape. Parallel sandboxes don't conflict: each runs its own broker on its own private socket (filesystem path, no TCP ports). Without this mount the extension would write shared runtime state into `$CONDA_PREFIX/home/.pi/agent/intercom` through the rw `~/.pi` bind.
 - Calls `inject-pi-extensions.sh` to merge pi-extensions packages into `settings.json`
 - Bind-mounts `$PIXI_ROOT` (typically `~/.pixi`) read-only
 - Unsets all `PIXI_*`, `CONDA_*`, and `INIT_CWD` env vars before exec to isolate the pi agent from the host environment
