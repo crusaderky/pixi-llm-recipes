@@ -11,16 +11,18 @@ restart-server = { depends-on = ["stop-server", "start-server"] }
 install-apparmor = "bash scripts/install-apparmor.sh"
 install-bin = "bash scripts/install-bin.sh"
 install-clipboard = "bash scripts/install-clipboard.sh"
+install-file-viewer-renderers = "bash scripts/install-file-viewer-renderers.sh"
 install-memlock = "bash scripts/install-memlock.sh"
-install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-memlock"] }
+install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-memlock"] }
 uninstall = "bash scripts/uninstall-bin.sh"
 
 [target.linux-aarch64.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
 install-bin = "bash scripts/install-bin.sh"
 install-clipboard = "bash scripts/install-clipboard.sh"
+install-file-viewer-renderers = "bash scripts/install-file-viewer-renderers.sh"
 install-memlock = "bash scripts/install-memlock.sh"
-install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-memlock"] }
+install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-memlock"] }
 uninstall = "bash scripts/uninstall-bin.sh"
 
 # Tasks invoke `bash scripts/*.sh`. On Windows, a plain `bash` from PATH would
@@ -147,6 +149,14 @@ claude.args = [{ arg = "root_dir", default = "-" }]
 
 [feature.herdr.dependencies]
 herdr = { path = "pixi-recipes/herdr" }
+
+# herdr-file-viewer ships prebuilts only for linux-64 (x86_64-musl) and win-64
+# (x86_64-msvc); no linux-aarch64 prebuilt exists upstream, so gate the dep.
+[feature.herdr.target.linux-64.dependencies]
+herdr-file-viewer = { path = "pixi-recipes/herdr-file-viewer" }
+
+[feature.herdr.target.win-64.dependencies]
+herdr-file-viewer = { path = "pixi-recipes/herdr-file-viewer" }
 
 [feature.herdr.tasks]
 # Route through run-herdr.sh so children spawned inside herdr see the

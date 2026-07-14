@@ -18,7 +18,7 @@ models.
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | sh  # One-off installation
-pixi r install  # One-off installation (apparmor, memlock limit, ~/.local/bin, herdr desktop launcher)
+pixi r install  # One-off installation of several components
 pixi r start-server  # Start llama.cpp server for local models
 cd /path/to/workspace && pi  # Just like regular pi, but managed by pixi and sandboxed
 cd /path/to/workspace && claude
@@ -275,6 +275,17 @@ Then from the terminal inside herdr:
 ```bash
 pi --with-herdr "split panes and echo 'hello world' in the new pane"
 ```
+
+### herdr-file-viewer plugin
+
+herdr comes with [herdr-file-viewer](https://github.com/smarzban/herdr-file-viewer)
+pre-installed and pre-configured, bound to the following keyboard shortcuts:
+
+- Ctrl+F: open it in a split pane
+- Alt+F: open it in a new tab
+
+`pixi r install` also installs its optional Markdown/terminal renderers (`delta`, `bat`,
+`glow`) when missing, so files render nicely inside the viewer.
 
 ### ⚠️ Security: `--with-herdr` is a sandbox escape ⚠️
 

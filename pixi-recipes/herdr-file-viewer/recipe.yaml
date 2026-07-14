@@ -1,0 +1,38 @@
+context:
+  version: "1.12.0"
+  # Prebuilt binaries ship from the GitHub release (SHA-256-verified below).
+  # Linux aarch64 has no prebuilt upstream (only x86_64-unknown-linux-musl), so
+  # this recipe is gated to linux-64 + win-64 in pixi.toml.
+  sha256_linux_x86_64: ff041cee0e5330082d38521ab8f0cc7c97602aa4add9cce8c6e896d3c83881f5
+  sha256_win_64: 735bb021b2d827e98c6783b04c409223301b99de950fde2fb415e6314476c5d2
+
+package:
+  name: herdr-file-viewer
+  version: ${{ version }}
+
+build:
+  number: 0
+  string: h${{ build_number }}
+  dynamic_linking:
+    # The upstream Linux prebuilt is a static-pie musl binary. rattler-build's
+    # default relocation runs patchelf on every ELF in the prefix, and patchelf
+    # corrupts static-pie executables (adds an RPATH + PT_LOAD segment; the
+    # result segfaults on startup). Nothing to relocate in a static binary.
+    binary_relocation: false
+  script:
+    # Extension-less: resolves to build.sh on Linux and build.bat on Windows
+    file: build
+    env:
+      VERSION: ${{ version }}
+      SHA256_LINUX_X86_64: ${{ sha256_linux_x86_64 }}
+      SHA256_WIN_64: ${{ sha256_win_64 }}
+
+requirements:
+  build:
+    - curl
+
+about:
+  homepage: https://github.com/smarzban/herdr-file-viewer
+  repository: https://github.com/smarzban/herdr-file-viewer
+  license: MIT
+  summary: A git-aware, read-only file viewer that lives in a herdr pane

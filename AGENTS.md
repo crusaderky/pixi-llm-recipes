@@ -113,6 +113,10 @@ pixi-llm-recipes/
             ├── recipe.yaml           # herdr conda recipe (downloads pre-built binary from GitHub releases)
             ├── build.sh              # Linux: download herdr binary to $PREFIX/bin
             └── build.bat             # Windows: download herdr.exe to %PREFIX%\bin
+    └── herdr-file-viewer/
+            ├── recipe.yaml           # herdr-file-viewer plugin recipe (prebuilt binary + manifest/scripts)
+            ├── build.sh              # Linux: lay down plugin root under $PREFIX/home/.config/herdr/plugins/herdr-file-viewer
+            └── build.bat             # Windows: same (.exe)
     └── claude-home/
             ├── recipe.yaml           # Claude Code skill directories (copied into prefix)
             ├── build.sh              # Linux: flat copy skills/ into $PREFIX/home/.claude/skills
@@ -239,7 +243,7 @@ The binary recipes use `file: ../build` (extension-less) so rattler-build resolv
 | `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                                                            | —                                                                                                                             |
 | `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-home` (from `pixi-recipes/pi-home`), `bubblewrap` (Linux only)                                     | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                                                   |
 | `claude`                 | `claude` (from `pixi-recipes/claude`), `claude-extensions` (from `pixi-recipes/claude-extensions`), `claude-home` (from `pixi-recipes/claude-home`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe`                                                                                        |
-| `herdr`                  | `herdr` (from `pixi-recipes/herdr`)                                                                                                                                            | `herdr`                                                                                                                       |
+| `herdr`                  | `herdr` (from `pixi-recipes/herdr`), `herdr-file-viewer` (from `pixi-recipes/herdr-file-viewer`, linux-64 + win-64 only)                                                       | `herdr`                                                                                                                       |
 | `git`                    | `git` and `gh` (GitHub CLI from conda-forge)                                                                                                                                   | `git`, `gh`                                                                                                                   |
 | `pytools`                | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc.                                                                             | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report`, `llama-cpp-changelog`, `gguf-meta-extract` |
 
@@ -400,6 +404,17 @@ The recipe stores:
 
 See the **update-herdr** skill for the update procedure.
 
+### `pixi-recipes/herdr-file-viewer` — herdr file-viewer plugin
+
+Packages the [herdr-file-viewer](https://github.com/smarzban/herdr-file-viewer) herdr plugin (a git-aware, read-only file viewer TUI) from the upstream GitHub release into a herdr plugin root under `${PREFIX}/home/.config/herdr/plugins/herdr-file-viewer/`: the manifest (`herdr-plugin.toml`), the launcher scripts, the example config, and the prebuilt viewer binary at `target/release/`. No software is written into `~/` — only the registry file and the user's per-plugin `config.toml` live there.
+
+- **Linux** (`build.sh`): downloads the `x86_64-unknown-linux-musl` prebuilt, verifies its sha256, and fetches the manifest/scripts/example config from the tagged source on `raw.githubusercontent.com`.
+- **Windows** (`build.bat`): same for the `x86_64-pc-windows-msvc` `.exe` (sha256 via `certutil`).
+- Upstream ships no Linux aarch64 prebuilt, so the dependency is gated to `linux-64` + `win-64` in `pixi.toml`.
+- A portable `entry.json` (version, `min_herdr_version`, description — no absolute paths) is written next to the manifest; `scripts/inject-herdr-file-viewer.sh` reads it and merges the plugin entry into `~/.config/herdr/plugins.json` with `manifest_path`/`plugin_root` filled from `$CONDA_PREFIX` and `source = { kind = "local" }`. The inject runs from `scripts/run-herdr.sh` (before the PIXI/CONDA env is stripped), so herdr discovers and loads the plugin on launch.
+
+The recipe context pins `version` and the two sha256 values; bump them (and refresh `entry.json` ships automatically from `$VERSION`) to update. The pane command and launchers are read directly from the shipped manifest, so a new release's manifest is fetched on rebuild.
+
 ## Build System
 
 ### Configuration
@@ -506,6 +521,13 @@ pixi run herdr
 **Naked wrapper:** `pixi r install` deploys `scripts/herdr` to `~/.local/bin`. After that you can
 run `herdr` from any directory.
 
+The `herdr-file-viewer` plugin (git-aware read-only file viewer in a herdr pane) is registered
+automatically on launch by `scripts/inject-herdr-file-viewer.sh` (run from `run-herdr.sh`); its
+binary and scripts live in `$CONDA_PREFIX`, only the registry entry and your per-plugin
+`config.toml` live in `~/.config/herdr`. To summon it, bind a key in `~/.config/herdr/config.toml`
+(e.g. `prefix+f` → `herdr plugin action invoke open-file-viewer --plugin herdr-file-viewer`) and
+run `herdr server reload-config`. Optional renderers: `glow` / `delta` / `bat`.
+
 ### Running Benchmarks
 
 ```bash
@@ -571,6 +593,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `scripts/diff-llama-cpp-variants.sh`                       | Compare llama-cpp recipe variants                                                                                                                       |
 | `scripts/inject-pi-extensions.sh`                          | Merge pi-extensions packages into settings.json                                                                                                         |
 | `scripts/inject-claude-extensions.sh`                      | Deploy packaged Claude Code extensions (hooks, settings) into host's ~/.claude                                                                          |
+| `scripts/inject-herdr-file-viewer.sh`                      | Register the conda-packaged herdr-file-viewer plugin in `~/.config/herdr/plugins.json` (run from `run-herdr.sh`)                                        |
 | `scripts/install-apparmor.sh`                              | Install/load AppArmor profile for bwrap (local sudo or CI)                                                                                              |
 | `scripts/install-clipboard.sh`                             | Install wl-clipboard (apt) so herdr copy-on-select can write the system clipboard; sudo only if wl-copy missing                                         |
 | `scripts/install-memlock.sh`                               | Raise the locked-memory ulimit (`/etc/security/limits.d/99-memlock.conf`) so llama-server `--mlock` can lock multi-GiB weights; sudo, idempotent        |
@@ -626,6 +649,9 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `pixi-recipes/herdr/recipe.yaml`                           | herdr conda recipe (downloads pre-built binary from GitHub releases)                                                                                    |
 | `pixi-recipes/herdr/build.sh`                              | Linux: download herdr binary to `$PREFIX/bin`                                                                                                           |
 | `pixi-recipes/herdr/build.bat`                             | Windows: download herdr.exe to `%PREFIX%\bin`                                                                                                           |
+| `pixi-recipes/herdr-file-viewer/recipe.yaml`               | herdr-file-viewer plugin conda recipe (prebuilt binary + manifest/scripts from the tagged source release)                                               |
+| `pixi-recipes/herdr-file-viewer/build.sh`                  | Linux: lay down the plugin root (binary + manifest + scripts + `entry.json`) under `$PREFIX/home/.config/herdr/plugins/herdr-file-viewer`               |
+| `pixi-recipes/herdr-file-viewer/build.bat`                 | Windows: same plugin root layout (`.exe`)                                                                                                               |
 | `scripts/herdr`                                            | Naked `herdr` wrapper (installed to ~/.local/bin by `pixi r install`)                                                                                   |
 | `scripts/run-herdr.sh`                                     | Task-time launcher: reorders PATH so `~/.local/bin` precedes the conda prefix, otherwise `pi`/`claude` spawned inside herdr bypass the sandbox wrappers |
 | `sample-data/context-bench/README.md`                      | Context-bench documentation                                                                                                                             |
