@@ -242,6 +242,7 @@ environments:
       - conda_source: claude-extensions[d1fb946c] @ pixi-recipes/claude-extensions
       - conda_source: claude-home[1bc28daa] @ pixi-recipes/claude-home
       - conda_source: claude[ba7616f2] @ pixi-recipes/claude
+      - conda_source: herdr-file-viewer[42a2fdf4] @ pixi-recipes/herdr-file-viewer
       - conda_source: herdr[34dc605b] @ pixi-recipes/herdr
       - conda_source: pi-extensions[81a9246e] @ pixi-recipes/pi-extensions
       - conda_source: pi-home[77a9d247] @ pixi-recipes/pi-home
@@ -654,6 +655,7 @@ environments:
       - conda_source: claude-extensions[1a307585] @ pixi-recipes/claude-extensions
       - conda_source: claude-home[5c9f7cc9] @ pixi-recipes/claude-home
       - conda_source: claude[7f8437d3] @ pixi-recipes/claude
+      - conda_source: herdr-file-viewer[93598cc1] @ pixi-recipes/herdr-file-viewer
       - conda_source: herdr[eaf1f6c4] @ pixi-recipes/herdr
       - conda_source: pi-extensions[c987212e] @ pixi-recipes/pi-extensions
       - conda_source: pi-home[dfdf2b2d] @ pixi-recipes/pi-home
@@ -3025,6 +3027,21 @@ packages:
     - libpq >=18.4,<19.0a0
   size: 2709008
   timestamp: 1782580447454
+- conda: https://prefix.dev/conda-forge/linux-64/libpsl-0.22.0-h49b2146_1.conda
+  sha256: 71118885feab91c61bea4e9532ec46e0653b24f02e563681f822915aee8435bb
+  md5: af5ddfb52ad25d833c70c7511478d4eb
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - icu >=78.3,<79.0a0
+  - libgcc >=14
+  - libstdcxx >=14
+  license: MIT
+  license_family: MIT
+  run_exports:
+    weak:
+    - libpsl >=0.22.0,<0.23.0a0
+  size: 70092
+  timestamp: 1783936855082
 - conda: https://prefix.dev/conda-forge/linux-64/libpsl-0.22.0-hd9031aa_0.conda
   sha256: cd11890a2c1f14d0342bfcbd81f97152d61dc71c27c7085efc13705a8f64f7c9
   md5: e2834a423b3967e7b3b1e901c4a5f42f
@@ -4101,7 +4118,7 @@ packages:
   license: Apache-2.0
   license_family: Apache
   purls:
-  - pkg:pypi/tornado?source=compressed-mapping
+  - pkg:pypi/tornado?source=hash-mapping
   run_exports: {}
   size: 918368
   timestamp: 1781006801436
@@ -7354,8 +7371,7 @@ packages:
   depends:
   - python >=3.14
   license: BSD-3-Clause AND MIT AND EPL-2.0
-  purls:
-  - pkg:pypi/backports-zstd?source=compressed-mapping
+  purls: []
   run_exports: {}
   size: 7526
   timestamp: 1781450817767
@@ -8488,7 +8504,7 @@ packages:
   - ipywidgets >=6.0
   license: MPL-2.0 and MIT
   purls:
-  - pkg:pypi/tqdm?source=hash-mapping
+  - pkg:pypi/tqdm?source=compressed-mapping
   run_exports: {}
   size: 681392
   timestamp: 1783440259840
@@ -9489,6 +9505,21 @@ packages:
     - libpng >=1.6.58,<1.7.0a0
   size: 385227
   timestamp: 1776315248638
+- conda: https://prefix.dev/conda-forge/win-64/libpsl-0.22.0-h25e0afd_1.conda
+  sha256: 040d4adabae2634b13183203e383c21f74ed98028b5d50bf9bae4968dd05aaa5
+  md5: ba200e33e10ccf0d730c4ce87badbdf1
+  depends:
+  - icu >=78.3,<79.0a0
+  - ucrt >=10.0.20348.0
+  - vc >=14.3,<15
+  - vc14_runtime >=14.44.35208
+  license: MIT
+  license_family: MIT
+  run_exports:
+    weak:
+    - libpsl >=0.22.0,<0.23.0a0
+  size: 72405
+  timestamp: 1783937048984
 - conda: https://prefix.dev/conda-forge/win-64/libpsl-0.22.0-hc1744f7_0.conda
   sha256: b08fa3b66fbd9fea91c8d4cfa34568ea0b1e59636172e33349797fe7ef8a5611
   md5: 6865b9bb1584e633c436c1196bcc4ed0
@@ -10602,6 +10633,50 @@ packages:
   - conda: https://prefix.dev/conda-forge/linux-64/pnpm-licenses-2.4.2-h5585027_0.conda
   - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
   - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.6.17-hbd8a1cb_0.conda
+- conda_source: herdr-file-viewer[42a2fdf4] @ pixi-recipes/herdr-file-viewer
+  variants:
+    target_platform: linux-64
+  license: MIT
+  build_packages:
+  - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/c-ares-1.34.6-hb03c661_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/curl-8.21.0-hae6b9f4_2.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/icu-78.3-h33c6efd_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/keyutils-1.6.3-hb9d3cd8_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/krb5-1.22.2-hbde042b_1.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libcurl-8.21.0-hae6b9f4_2.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libedit-3.1.20250104-pl5321h7949ede_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libev-4.33-hd590300_2.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libgcc-15.2.0-he0feb66_19.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libgcc-ng-15.2.0-h69a702a_19.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libgomp-15.2.0-he0feb66_19.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libnghttp2-1.68.1-h877daf1_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libpsl-0.22.0-h49b2146_1.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libssh2-1.11.1-hcf80075_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libstdcxx-15.2.0-h934c35e_19.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/libzlib-1.3.2-h25fd6f3_2.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/ncurses-6.6-hdb14827_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/openssl-3.6.3-h35e630c_0.conda
+  - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
+  - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.6.17-hbd8a1cb_0.conda
+- conda_source: herdr-file-viewer[93598cc1] @ pixi-recipes/herdr-file-viewer
+  variants:
+    target_platform: win-64
+  license: MIT
+  build_packages:
+  - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.6.17-h4c7d964_0.conda
+  - conda: https://prefix.dev/conda-forge/win-64/curl-8.21.0-h51a1c48_2.conda
+  - conda: https://prefix.dev/conda-forge/win-64/icu-78.3-h637d24d_0.conda
+  - conda: https://prefix.dev/conda-forge/win-64/krb5-1.22.2-h719d79b_1.conda
+  - conda: https://prefix.dev/conda-forge/win-64/libcurl-8.21.0-h51a1c48_2.conda
+  - conda: https://prefix.dev/conda-forge/win-64/libpsl-0.22.0-h25e0afd_1.conda
+  - conda: https://prefix.dev/conda-forge/win-64/libssh2-1.11.1-h9aa295b_0.conda
+  - conda: https://prefix.dev/conda-forge/win-64/libzlib-1.3.2-hfd05255_2.conda
+  - conda: https://prefix.dev/conda-forge/win-64/openssl-3.6.3-hf411b9b_0.conda
+  - conda: https://prefix.dev/conda-forge/win-64/ucrt-10.0.26100.0-h57928b3_0.conda
+  - conda: https://prefix.dev/conda-forge/win-64/vc-14.5-h1b7c187_39.conda
+  - conda: https://prefix.dev/conda-forge/win-64/vc14_runtime-14.51.36231-h1b9f54f_39.conda
+  - conda: https://prefix.dev/conda-forge/win-64/vcomp14-14.51.36231-h1b9f54f_39.conda
 - conda_source: herdr[34dc605b] @ pixi-recipes/herdr
   variants:
     target_platform: linux-64

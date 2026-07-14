@@ -16,6 +16,12 @@
 set -o errexit
 set -o nounset
 
+# Register the conda-packaged herdr-file-viewer plugin (if installed in this
+# env) so herdr discovers it on launch. Runs before $CONDA_PREFIX is stripped.
+if [ -n "${CONDA_PREFIX:-}" ] && [ -x "${CONDA_PREFIX}/bin/herdr" ]; then
+    bash "$(dirname "${BASH_SOURCE[0]}")/inject-herdr-file-viewer.sh" || true
+fi
+
 HERDR_BIN="$(command -v herdr)"
 
 # Remove $CONDA_PREFIX/bin from $PATH so `pi`/`claude` spawned inside herdr

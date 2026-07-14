@@ -148,6 +148,14 @@ claude.args = [{ arg = "root_dir", default = "-" }]
 [feature.herdr.dependencies]
 herdr = { path = "pixi-recipes/herdr" }
 
+# herdr-file-viewer ships prebuilts only for linux-64 (x86_64-musl) and win-64
+# (x86_64-msvc); no linux-aarch64 prebuilt exists upstream, so gate the dep.
+[feature.herdr.target.linux-64.dependencies]
+herdr-file-viewer = { path = "pixi-recipes/herdr-file-viewer" }
+
+[feature.herdr.target.win-64.dependencies]
+herdr-file-viewer = { path = "pixi-recipes/herdr-file-viewer" }
+
 [feature.herdr.tasks]
 # Route through run-herdr.sh so children spawned inside herdr see the
 # `~/.local/bin/{pi,claude}` sandbox wrappers ($CONDA_PREFIX/bin comes first
