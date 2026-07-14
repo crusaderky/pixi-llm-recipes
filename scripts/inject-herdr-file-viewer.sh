@@ -78,5 +78,8 @@ inject_keybinding() {
 }
 
 mkdir -p "$(dirname "${CONFIG}")"
-inject_keybinding "ctrl+f"       "herdr plugin action invoke open-file-viewer --plugin herdr-file-viewer"     "herdr-file-viewer: open in a split beside your work"
-inject_keybinding "ctrl+alt+f" "herdr plugin action invoke open-file-viewer-tab --plugin herdr-file-viewer" "herdr-file-viewer: open in its own tab"
+# Gnome-terminal notes:
+# - Ctrl+Alt+<letter> requires Ubuntu >=24.10
+# - Ctrl+Shift+F is bound by default to "find"
+inject_keybinding "ctrl+f" "herdr plugin action invoke open-file-viewer --plugin herdr-file-viewer"     "herdr-file-viewer: open in a split beside your work"
+inject_keybinding "alt+f"  "herdr plugin action invoke open-file-viewer-tab --plugin herdr-file-viewer" "herdr-file-viewer: open in its own tab"
