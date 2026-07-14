@@ -33,7 +33,16 @@ Run the **update-pi-extensions** skill:
 3. Update any out-of-date versions in `recipe.yaml`.
 4. Report the summary of what was updated.
 
-### Phase 3 — Update Claude Code
+### Phase 3 — Update herdr-file-viewer
+
+Run the **update-herdr-file-viewer** skill:
+
+1. Read the current pinned version and SHA-256 digests from `pixi-recipes/herdr-file-viewer/recipe.yaml`.
+2. Fetch the latest GitHub release tag from `smarzban/herdr-file-viewer`.
+3. If a newer version is available, download the prebuilt Linux/Windows binaries, compute their SHA-256, and update the recipe.
+4. Report old → new version.
+
+### Phase 4 — Update Claude Code
 
 Run the **update-claude** skill:
 
@@ -42,7 +51,7 @@ Run the **update-claude** skill:
 3. If a newer version is available, download the tarball, compute its sha256, and update the recipe.
 4. Report old → new version.
 
-### Phase 4 — Update herdr
+### Phase 5 — Update herdr
 
 Run the **update-herdr** skill:
 
@@ -51,7 +60,7 @@ Run the **update-herdr** skill:
 3. If a newer stable or preview build is available, update the recipe.
 4. Report old → new versions.
 
-### Phase 5 — Refresh pixi lockfile
+### Phase 6 — Refresh pixi lockfile
 
 Run `pixi update` from the project root:
 
@@ -61,7 +70,7 @@ pixi update
 
 This refreshes the `pixi.lock` file with the latest resolved versions of all dependencies.
 
-### Phase 6 — Final summary
+### Phase 7 — Final summary
 
 Present a consolidated report:
 
@@ -75,6 +84,9 @@ Present a consolidated report:
 ### pi-extensions
 - Updated: <list of packages with version bumps>
 - Up to date: <list of packages>
+
+### herdr-file-viewer
+- <old> → <new>   (or "already at latest <version>")
 
 ### Claude Code
 - <old> → <new>   (or "already at stable <version>")

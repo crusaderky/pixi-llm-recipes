@@ -11,16 +11,18 @@ restart-server = { depends-on = ["stop-server", "start-server"] }
 install-apparmor = "bash scripts/install-apparmor.sh"
 install-bin = "bash scripts/install-bin.sh"
 install-clipboard = "bash scripts/install-clipboard.sh"
+install-file-viewer-renderers = "bash scripts/install-file-viewer-renderers.sh"
 install-memlock = "bash scripts/install-memlock.sh"
-install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-memlock"] }
+install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-memlock"] }
 uninstall = "bash scripts/uninstall-bin.sh"
 
 [target.linux-aarch64.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
 install-bin = "bash scripts/install-bin.sh"
 install-clipboard = "bash scripts/install-clipboard.sh"
+install-file-viewer-renderers = "bash scripts/install-file-viewer-renderers.sh"
 install-memlock = "bash scripts/install-memlock.sh"
-install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-memlock"] }
+install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-memlock"] }
 uninstall = "bash scripts/uninstall-bin.sh"
 
 # Tasks invoke `bash scripts/*.sh`. On Windows, a plain `bash` from PATH would
