@@ -8,12 +8,14 @@
 # Idempotent: re-runs replace any existing registry entry with the same plugin_id
 # (the conda package owns it) so version/path updates win. Runs from run-herdr.sh
 # before the PIXI/CONDA environment is stripped, so $CONDA_PREFIX and node are
-# available.
+# available. It also injects (once) the herdr keybindings that summon the viewer
+# into ~/.config/herdr/config.toml, but only when they are not already present.
 set -euo pipefail
 
 PLUGIN_ROOT="${CONDA_PREFIX}/home/.config/herdr/plugins/herdr-file-viewer"
 ENTRY_FILE="${PLUGIN_ROOT}/entry.json"
 REGISTRY="${HOME}/.config/herdr/plugins.json"
+CONFIG="${HOME}/.config/herdr/config.toml"
 
 if [ ! -f "${ENTRY_FILE}" ]; then
     echo "inject-herdr-file-viewer: ${ENTRY_FILE} not found (herdr-file-viewer package not installed in this env)" >&2
@@ -51,3 +53,30 @@ fs.writeFileSync(registry, JSON.stringify(list, null, 2) + "\n");
 ' "${ENTRY_FILE}" "${PLUGIN_ROOT}" "${REGISTRY}"
 
 echo "inject-herdr-file-viewer: registered ${PLUGIN_ROOT} in ${REGISTRY}"
+
+# --- inject the herdr keybindings that summon the viewer (once) ---------------------------
+# Append a [[keys.command]] entry only when its plugin action command is not already present
+# in config.toml, so user customizations are never clobbered. TOML appends array-of-tables
+# entries at end-of-file regardless of other [keys] content.
+inject_keybinding() {
+    local key="$1" cmd="$2" comment="$3"
+    if grep -qF "$cmd" "${CONFIG}" 2>/dev/null; then
+        echo "inject-herdr-file-viewer: keybinding for '${cmd}' already present in ${CONFIG}; skipping"
+        return
+    fi
+    # Separate from any prior content with a single blank line (don't prepend to an empty file).
+    if [ -s "${CONFIG}" ]; then
+        printf '\n' >> "${CONFIG}"
+    fi
+    {
+        printf '[[keys.command]]              # %s\n' "$comment"
+        printf 'key = "%s"\n' "$key"
+        printf 'type = "shell"\n'
+        printf 'command = "%s"\n' "$cmd"
+    } >> "${CONFIG}"
+    echo "inject-herdr-file-viewer: added keybinding '${key}' -> '${cmd}' to ${CONFIG}"
+}
+
+mkdir -p "$(dirname "${CONFIG}")"
+inject_keybinding "prefix+f"       "herdr plugin action invoke open-file-viewer --plugin herdr-file-viewer"     "herdr-file-viewer: open in a split beside your work"
+inject_keybinding "prefix+shift+f" "herdr plugin action invoke open-file-viewer-tab --plugin herdr-file-viewer" "herdr-file-viewer: open in its own tab"
