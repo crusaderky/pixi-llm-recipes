@@ -13,6 +13,12 @@ package:
 build:
   number: 0
   string: h${{ build_number }}
+  dynamic_linking:
+    # The upstream Linux prebuilt is a static-pie musl binary. rattler-build's
+    # default relocation runs patchelf on every ELF in the prefix, and patchelf
+    # corrupts static-pie executables (adds an RPATH + PT_LOAD segment; the
+    # result segfaults on startup). Nothing to relocate in a static binary.
+    binary_relocation: false
   script:
     # Extension-less: resolves to build.sh on Linux and build.bat on Windows
     file: build
