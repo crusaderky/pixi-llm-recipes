@@ -27,8 +27,9 @@ mkdir -p "${REGISTRY_DIR}"
 
 # Merge the plugin entry into the registry array, replacing any existing entry
 # with the same plugin_id. Use node (always present in the agents env) instead
-# of jq, which is not packaged for Windows on conda-forge.
-node -e '
+# of jq, which is not packaged for Windows on conda-forge. Prints CHANGED only
+# when the registry file actually changes.
+if node -e '
 const fs = require("fs");
 const [entryFile, pluginRoot, registry] = process.argv.slice(1);
 const base = JSON.parse(fs.readFileSync(entryFile, "utf8"));
@@ -47,12 +48,16 @@ try {
 } catch {
     list = [];
 }
-list = list.filter((p) => p.plugin_id !== entry.plugin_id);
-list.push(entry);
-fs.writeFileSync(registry, JSON.stringify(list, null, 2) + "\n");
-' "${ENTRY_FILE}" "${PLUGIN_ROOT}" "${REGISTRY}"
+const prev = JSON.stringify(list, null, 2) + "\n";
+const next = JSON.stringify(list.filter((p) => p.plugin_id !== entry.plugin_id).concat(entry), null, 2) + "\n";
+if (next !== prev) {
+    fs.writeFileSync(registry, next);
+    console.log("CHANGED");
+}
+' "${ENTRY_FILE}" "${PLUGIN_ROOT}" "${REGISTRY}" | grep -q CHANGED; then
+    echo "inject-herdr-file-viewer: registered ${PLUGIN_ROOT} in ${REGISTRY}"
+fi
 
-echo "inject-herdr-file-viewer: registered ${PLUGIN_ROOT} in ${REGISTRY}"
 
 # --- inject the herdr keybindings that summon the viewer (once) ---------------------------
 # Append a [[keys.command]] entry only when its plugin action command is not already present
@@ -61,7 +66,6 @@ echo "inject-herdr-file-viewer: registered ${PLUGIN_ROOT} in ${REGISTRY}"
 inject_keybinding() {
     local key="$1" cmd="$2" comment="$3"
     if grep -qF "$cmd" "${CONFIG}" 2>/dev/null; then
-        echo "inject-herdr-file-viewer: keybinding for '${cmd}' already present in ${CONFIG}; skipping"
         return
     fi
     # Separate from any prior content with a single blank line (don't prepend to an empty file).
