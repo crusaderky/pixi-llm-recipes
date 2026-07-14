@@ -282,7 +282,7 @@ herdr comes with [herdr-file-viewer](https://github.com/smarzban/herdr-file-view
 pre-installed and pre-configured, bound to the following keyboard shortcuts:
 
 - Ctrl+F: open it in a split pane
-- Ctrl+Shift+F: open it in a new tab
+- Ctrl+Alt+F: open it in a new tab
 
 `pixi r install` also installs its optional Markdown/terminal renderers (`delta`, `bat`,
 `glow`) when missing, so files render nicely inside the viewer.
