@@ -1,13 +1,13 @@
 ---
 name: llama-cpp-changelog
-description: Summarize changes between two versions of llama.cpp. Initial version defaults to the one pinned in pixi-recipes/llama-cpp-source/cpu/recipe.yaml (may be commented out — use that value anyway); final version defaults to the latest upstream release. Both can be overridden with arbitrary git refs via `from=<ref>` and `to=<ref>` args.
+description: Summarize changes between two versions of llama.cpp. Initial version defaults to the one pinned in pixi-recipes/llama-cpp-source/recipe.yaml (may be commented out — use that value anyway); final version defaults to the latest upstream release. Both can be overridden with arbitrary git refs via `from=<ref>` and `to=<ref>` args.
 compatibility: Deterministic script `scripts/llama-cpp-changelog.py` does all the work. No `gh` CLI or GitHub token needed — the script builds a local commits-only git clone (cached at `~/.cache/llama-cpp-changelog/llama.cpp.git`) and reads tags, commit subjects, and dates from git. The PR section is skipped without GitHub auth (it requires GraphQL); tags/commits still print.
 allowed-tools: Bash Read
 ---
 
 ## Arguments (space-separated, all optional)
 
-- `from=<ref>` — starting git ref (tag such as `b9518`, or a commit SHA). Default: resolved from `pixi-recipes/llama-cpp-source/cpu/recipe.yaml`:
+- `from=<ref>` — starting git ref (tag such as `b9518`, or a commit SHA). Default: resolved from `pixi-recipes/llama-cpp-source/recipe.yaml`:
   - `# Last sync with main at bNNNN` comment if present (use that `bNNNN`).
   - Else the active `version:` under `# Main branch` (`fork: ggml-org/llama.cpp`).
   - Else the commented-out `# version: bNNNN` under `# Main branch`.

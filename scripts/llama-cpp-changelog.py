@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Dump a deterministic llama.cpp changelog between two git refs.
 
-Resolves defaults from pixi-recipes/llama-cpp-source/cpu/recipe.yaml:
+Resolves defaults from pixi-recipes/llama-cpp-source/recipe.yaml:
   - from: the `# Last sync with main at bNNNN` comment, else the active
     main-branch `version`, else the commented-out `# version: bNNNN`.
   - to:   the latest upstream release tag.
@@ -47,7 +47,6 @@ RECIPE = (
     Path(__file__).resolve().parent.parent
     / "pixi-recipes"
     / "llama-cpp-source"
-    / "cpu"
     / "recipe.yaml"
 )
 

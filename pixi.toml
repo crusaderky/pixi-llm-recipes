@@ -38,40 +38,40 @@ m2-sed = "*"
 platforms = ["linux-64", "linux-aarch64"]
 
 [feature.llamacpp-source-cpu.dependencies]
-llama-cpp = { path = "pixi-recipes/llama-cpp-source/cpu" }
+llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["cpu"] }
 
 [feature.llamacpp-source-cuda]
 platforms = ["linux-64"] # FIXME Linux ARM fails to compile
 [feature.llamacpp-source-cuda.dependencies]
-llama-cpp = { path = "pixi-recipes/llama-cpp-source/cuda" }
+llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["cuda"] }
 
 [feature.llamacpp-source-vulkan]
 platforms = ["linux-64", "linux-aarch64"]
 [feature.llamacpp-source-vulkan.dependencies]
-llama-cpp = { path = "pixi-recipes/llama-cpp-source/vulkan" }
+llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["vulkan"] }
 
 [feature.llamacpp-source-rocm]
 platforms = ["linux-64"] # ROCm/HIP is x86-64 only
 [feature.llamacpp-source-rocm.dependencies]
-llama-cpp = { path = "pixi-recipes/llama-cpp-source/rocm" }
+llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["rocm"] }
 [feature.llamacpp-source-rocm.activation.env]
 # Ubuntu 26.04: `apt install rocm` does not install
 # /usr/lib/x86_64-linux-gnu/rocblas/*/library/*gfx1150*
-# See matching hack in pixi-recipes/llama-cpp-source/rocm/build.sh
+# See matching hack in pixi-recipes/llama-cpp-source/build.sh
 HSA_OVERRIDE_GFX_VERSION = "11.5.1"
 # iGPU only
 GGML_CUDA_ENABLE_UNIFIED_MEMORY = "1"
 
 [feature.llamacpp-binary-cpu.dependencies]
-llama-cpp = { path = "pixi-recipes/llama-cpp-binary/cpu" }
+llama-cpp = { path = "pixi-recipes/llama-cpp-binary", flags = ["cpu"] }
 
 [feature.llamacpp-binary-vulkan.dependencies]
-llama-cpp = { path = "pixi-recipes/llama-cpp-binary/vulkan" }
+llama-cpp = { path = "pixi-recipes/llama-cpp-binary", flags = ["vulkan"] }
 
 [feature.llamacpp-binary-rocm]
 platforms = ["linux-64"]
 [feature.llamacpp-binary-rocm.dependencies]
-llama-cpp = { path = "pixi-recipes/llama-cpp-binary/rocm" }
+llama-cpp = { path = "pixi-recipes/llama-cpp-binary", flags = ["rocm"] }
 [feature.llamacpp-binary-rocm.activation.env]
 # Ubuntu 26.04: `apt install rocm` does not install
 # /usr/lib/x86_64-linux-gnu/rocblas/*/library/*gfx1150*

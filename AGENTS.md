@@ -78,17 +78,14 @@ pixi-llm-recipes/
 │   └── README.md                     # Sample data documentation
 └── pixi-recipes/
     ├── llama-cpp-source/
-    │   ├── build.sh                  # Shared CMake build + install + symlink script
-    │   ├── cpu/recipe.yaml           # CPU build recipe
-    │   ├── cuda/recipe.yaml          # CUDA build recipe
-    │   ├── vulkan/recipe.yaml        # Vulkan build recipe
-    │   └── rocm/recipe.yaml          # ROCm/HIP build recipe (links system ROCm)
+    │   ├── recipe.yaml              # Source build recipe — all backends via `flags`
+    │   ├── variants.yaml            # Backend `variant` matrix (cpu/cuda/vulkan/rocm)
+    │   └── build.sh                 # Shared CMake build + install + symlink script
     ├── llama-cpp-binary/
-    │   ├── build.sh                  # Linux: copy files + create symlinks
-    │   ├── build.bat                 # Windows: copy exes + DLLs into bin
-    │   ├── cpu/recipe.yaml           # CPU binary recipe
-    │   ├── vulkan/recipe.yaml        # Vulkan binary recipe
-    │   └── rocm/recipe.yaml          # ROCm binary recipe
+    │   ├── recipe.yaml              # Binary build recipe — all backends via `flags`
+    │   ├── variants.yaml            # Backend `variant` matrix (cpu/vulkan/rocm)
+    │   ├── build.sh                 # Linux: copy files + create symlinks
+    │   └── build.bat                # Windows: copy exes + DLLs into bin
     ├── claude/
     │   ├── recipe.yaml               # Claude Code conda package (fetches from npm)
     │   ├── build.sh                  # Linux: npm install --global into prefix
@@ -131,15 +128,13 @@ pixi-llm-recipes/
 
 #### Source Builds
 
-Build variants are organized in `pixi-recipes/llama-cpp-source/` with separate recipe directories per backend:
+Build variants are organized in `pixi-recipes/llama-cpp-source/` as a single recipe whose backends (cpu, cuda, vulkan, rocm) are selected via the `variant` matrix in `variants.yaml` and exposed as build `flags`:
 
 ```
 llama-cpp-source/
-├── build.sh          # Shared CMake build script (reads BACKEND env var)
-├── cpu/recipe.yaml   # CPU variant
-├── cuda/recipe.yaml  # CUDA variant
-├── vulkan/recipe.yaml # Vulkan variant
-└── rocm/recipe.yaml  # ROCm/HIP variant (links the build host's system ROCm)
+├── recipe.yaml      # Source build recipe — all backends (cpu/cuda/vulkan/rocm) via `flags`
+├── variants.yaml    # Backend `variant` matrix
+└── build.sh         # Shared CMake build script (reads BACKEND env var)
 ```
 
 #### Binary Builds
@@ -148,14 +143,13 @@ Pre-built binaries from upstream GitHub releases (no build deps needed):
 
 ```
 llama-cpp-binary/
-├── build.sh          # Linux: copy files + create symlinks
-├── build.bat         # Windows: copy exes + DLLs into bin
-├── cpu/recipe.yaml   # CPU binary
-├── vulkan/recipe.yaml # Vulkan binary
-└── rocm/recipe.yaml  # ROCm binary
+├── recipe.yaml      # Binary build recipe — all backends (cpu/vulkan/rocm) via `flags`
+├── variants.yaml    # Backend `variant` matrix
+├── build.sh         # Linux: copy files + create symlinks
+└── build.bat        # Windows: copy exes + DLLs into bin
 ```
 
-The recipes reference the build script as an extension-less `file: ../build`:
+The recipes reference the build script as an extension-less `file: build`:
 rattler-build resolves it to `build.sh` (bash) on Linux and `build.bat`
 (cmd.exe) on Windows. Do not point `script.file` at the `.sh` file directly —
 rattler-build would then run it with bash on Windows too, and its generated
@@ -188,7 +182,7 @@ build links against the **system** ROCm install on the build host instead:
   `rocm-device-libs-21`) — no third-party AMD apt repo is needed. `build.sh`
   discovers `HIP_PATH`/`HIPCXX` via `hipconfig`.
 - Device codegen targets are set by the `gpu_targets` context var in
-  `rocm/recipe.yaml` (default `gfx1150;gfx1151` for this project owner's Strix
+  `recipe.yaml` (default `gfx1150;gfx1151` for this project owner's Strix
   Point iGPU), overridable at build time with
   `LLAMA_GPU_TARGETS=gfx1100 pixi install -e llamacpp-source-rocm`.
 - The system ROCm libraries (`librocblas.so`, `libhipblas.so`, `libamdhip64.so`,
@@ -197,9 +191,11 @@ build links against the **system** ROCm install on the build host instead:
   recipe. This also means the resulting package requires a matching system ROCm
   at **runtime** — it is not self-contained like the conda CUDA/Vulkan builds.
 
-### The Build Recipe (`pixi-recipes/llama-cpp-source/*/recipe.yaml`)
+### The Build Recipe (`pixi-recipes/llama-cpp-source/recipe.yaml`)
 
-Each recipe has a `context:` block with the active fork pinned and several alternative forks commented out for reference:
+All four backends (cpu, cuda, vulkan, rocm) live in a **single** recipe. The active backend is a `variant` (defined in `variants.yaml`) and is exposed to consumers as a build `flag` (the `build.flags` field), so the per-environment pixi.toml selects it with e.g. `llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["cuda"] }`. Backend-specific requirements and the ROCm `dynamic_linking` exemption are gated with `if: backend == "..."` selectors; platforms that cannot build a backend `skip` it.
+
+The recipe has a `context:` block with the active fork pinned and several alternative forks commented out for reference:
 
 | Status        | Fork                          | Notes                                 |
 | ------------- | ----------------------------- | ------------------------------------- |
@@ -208,9 +204,10 @@ Each recipe has a `context:` block with the active fork pinned and several alter
 
 The `source:` block uses `${{ fork }}` and `${{ version }}` template variables, so swapping forks is a one-line change.
 
-- **Build script**: `../build.sh` (shared across variants) runs CMake + Ninja
+- **Build script**: `build.sh` (shared across variants) runs CMake + Ninja
 - **Build string**: `${{ backend }}_${{ build_number }}`
 - **Output**: Conda package named `llama-cpp`
+- **Backends**: selected via `flags = ["cpu"|"cuda"|"vulkan"|"rocm"]` (see `variants.yaml`)
 
 ### The Build Script (`pixi-recipes/llama-cpp-source/build.sh`)
 
@@ -227,7 +224,7 @@ Copies pre-built binaries from upstream releases into `${PREFIX}/opt/llama`, the
 
 On Windows (`build.bat`): executables and DLLs are all copied into `%PREFIX%\bin`, which is on `PATH` in activated pixi environments.
 
-The binary recipes use `file: ../build` (extension-less) so rattler-build resolves to `build.sh` on Linux and `build.bat` on Windows.
+The binary recipe uses `file: build` (extension-less) so rattler-build resolves to `build.sh` on Linux and `build.bat` on Windows.
 
 ### Root `pixi.toml` — Features & Environments
 
@@ -295,7 +292,7 @@ Parses a `perplexity.log` produced by `kv-perplexity.py`, extracts per-chunk KL 
 
 ### `scripts/llama-cpp-changelog.py` — Deterministic llama.cpp Changelog Dumper
 
-Dumps a deterministic markdown changelog between two git refs of `ggml-org/llama.cpp`. Defaults `from` from `pixi-recipes/llama-cpp-source/cpu/recipe.yaml` (`# Last sync with main at bNNNN` comment, else active main `version`, else commented-out `# version: bNNNN`); defaults `to` to the latest upstream release tag. Both overridable via positional or `--from`/`--to` args.
+Dumps a deterministic markdown changelog between two git refs of `ggml-org/llama.cpp`. Defaults `from` from `pixi-recipes/llama-cpp-source/recipe.yaml` (`# Last sync with main at bNNNN` comment, else active main `version`, else commented-out `# version: bNNNN`); defaults `to` to the latest upstream release tag. Both overridable via positional or `--from`/`--to` args.
 
 Output sections: header (refs, dates, counts), tags in range with release dates + URLs, PRs merged in range (number, title, URL, body excerpt up to 1200 chars, filtered by merge-commit SHA), and direct commits with no PR (short hash, subject, URL). PRs are fetched via GraphQL and require authenticated `gh` CLI (or `GITHUB_TOKEN`/`GH_TOKEN`); tags/commits work unauthenticated but are rate-limited. Used by the `llama-cpp-changelog` and `update-llama-cpp` skills.
 
@@ -443,13 +440,15 @@ version = "*"
 ### Building Packages
 
 ```bash
-# Build from root (selects default variant via environment)
+# Build from root (builds all backends as separate flag variants)
 pixi build
 
-# Build a specific backend variant
-cd pixi-recipes/llama-cpp-source/cuda
-pixi build
+# Build a specific backend flag
+pixi build --path pixi-recipes/llama-cpp-source
 ```
+
+Each backend is selected via its build `flag` (`cpu`, `cuda`, `vulkan`, `rocm`),
+e.g. `pixi install -e llamacpp-source-cuda` pulls `llama-cpp` built with `flags = ["cuda"]`.
 
 ### Setting Up Environments
 
@@ -546,19 +545,19 @@ pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 
 ### Adding a New Backend (llama-cpp)
 
-1. Create a new directory `pixi-recipes/llama-cpp-source/<name>/` with a `recipe.yaml`
-2. The shared `build.sh` reads `BACKEND` env var — add a `case` branch with the relevant `-DGGML_*=ON` flag
-3. Add conditional dependencies in the recipe.yaml for `if: backend == "<name>"` blocks
-4. Add a `feature.llamacpp-source-<name>` + environment in `pixi.toml`, run `pixi lock`, then `pixi install -e llamacpp-source-<name>` to build and test
+1. Add the new backend name to the `variant:` list in `pixi-recipes/llama-cpp-source/variants.yaml` (and `pixi-recipes/llama-cpp-binary/variants.yaml` if it also ships pre-built binaries).
+2. The shared `build.sh` reads `BACKEND` env var — add a `case` branch with the relevant `-DGGML_*=ON` flag.
+3. Add conditional dependencies in `recipe.yaml` for `if: backend == "<name>"` blocks, plus a `skip` entry if the backend cannot build on some platforms.
+4. Add a `feature.llamacpp-source-<name>` + environment in `pixi.toml` that selects it with `llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["<name>"] }`, run `pixi lock`, then `pixi install -e llamacpp-source-<name>` to build and test.
 
 ### Version Updates (llama-cpp)
 
 Source builds currently tracks mainline llama.cpp. Binary builds still track mainline releases.
 
-1. **Main branch (active, source builds)**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `version:` under `# Main branch` in all four source recipe.yaml files (`cpu`, `cuda`, `vulkan`, `rocm`).
-2. **Turboquant fork (commented out, source builds)**: Check the latest tag on `TheTom/llama-cpp-turboquant` branch `feature/turboquant-kv-cache`. Update `context.version` in all four source recipe.yaml files.
+1. **Main branch (active, source builds)**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `version:` under `# Main branch` in the single `pixi-recipes/llama-cpp-source/recipe.yaml`.
+2. **Turboquant fork (commented out, source builds)**: Check the latest tag on `TheTom/llama-cpp-turboquant` branch `feature/turboquant-kv-cache`. Update `context.version` in the same source `recipe.yaml`.
 3. **Upstream merge**: If the turboquant fork merged upstream main since last update, also update the `# Last sync with main at bNNNN` comment.
-4. **Binary builds**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `context.version` in all three binary recipe.yaml files.
+4. **Binary builds**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `context.version` in the single `pixi-recipes/llama-cpp-binary/recipe.yaml`.
 5. Run `pixi lock` to regenerate the lockfile.
 6. Test all backends.
 
@@ -616,15 +615,13 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `sample-data/context-bench/<size>.txt`                     | Benchmark books (16k–256k) with 20 questions appended                                                                                                   |
 | `sample-data/context-bench/<size>.answers.txt`             | Reference answers with source line numbers                                                                                                              |
 | `pixi-recipes/llama-cpp-source/build.sh`                   | Shared CMake build + install + symlink script                                                                                                           |
-| `pixi-recipes/llama-cpp-source/cpu/recipe.yaml`            | CPU build recipe                                                                                                                                        |
-| `pixi-recipes/llama-cpp-source/cuda/recipe.yaml`           | CUDA build recipe                                                                                                                                       |
-| `pixi-recipes/llama-cpp-source/vulkan/recipe.yaml`         | Vulkan build recipe                                                                                                                                     |
-| `pixi-recipes/llama-cpp-source/rocm/recipe.yaml`           | ROCm/HIP build recipe (compiles against the build host's system ROCm)                                                                                   |
+| `pixi-recipes/llama-cpp-source/recipe.yaml`                | Source build recipe — all backends (cpu/cuda/vulkan/rocm) via `flags`                                                                                   |
+| `pixi-recipes/llama-cpp-source/variants.yaml`              | Backend `variant` matrix for the source recipe                                                                                                          |
+| `pixi-recipes/llama-cpp-source/build.sh`                   | Shared CMake build + install + symlink script (reads `BACKEND`/`GPU_TARGETS` env)                                                                       |
 | `pixi-recipes/llama-cpp-binary/build.sh`                   | Linux: copy pre-built binaries + create symlinks                                                                                                        |
 | `pixi-recipes/llama-cpp-binary/build.bat`                  | Windows: copy pre-built exes + DLLs into `bin`                                                                                                          |
-| `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml`            | CPU binary recipe                                                                                                                                       |
-| `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml`         | Vulkan binary recipe                                                                                                                                    |
-| `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml`           | ROCm binary recipe                                                                                                                                      |
+| `pixi-recipes/llama-cpp-binary/recipe.yaml`                | Binary build recipe — all backends (cpu/vulkan/rocm) via `flags`                                                                                        |
+| `pixi-recipes/llama-cpp-binary/variants.yaml`              | Backend `variant` matrix for the binary recipe                                                                                                          |
 | `pixi-recipes/claude/recipe.yaml`                          | Claude Code conda package recipe                                                                                                                        |
 | `pixi-recipes/claude/build.sh`                             | Linux: `npm install --global` into prefix                                                                                                               |
 | `pixi-recipes/claude/build.bat`                            | Windows: `npm install --global` into prefix                                                                                                             |
@@ -670,7 +667,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 ## Notes for Coding Agents
 
 - **Never edit `pixi.lock`** — regenerate with `pixi lock` or `pixi lock -e <env>`
-- **Never hardcode git revisions** — update `context.version` (the git tag) in all four source recipe.yaml files. The `source:` block uses template variables (`${{ fork }}`, `${{ version }}`), not a hardcoded commit SHA.
+- **Never hardcode git revisions** — update `context.version` (the git tag) in the single `pixi-recipes/llama-cpp-source/recipe.yaml`. The `source:` block uses template variables (`${{ fork }}`, `${{ version }}`), not a hardcoded commit SHA.
 - **`build.sh` uses `${PREFIX}`** — set by rattler-build; never reference it outside build scripts
 - **Symlinks use relative paths** (`../opt/llama/...`) — required for correct conda prefix portability
 - **All workspaces target `linux-64`, `linux-aarch64`, and `win-64`** — cross-platform support requires additional logic
