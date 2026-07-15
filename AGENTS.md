@@ -79,11 +79,11 @@ pixi-llm-recipes/
 └── pixi-recipes/
     ├── llama-cpp-source/
     │   ├── recipe.yaml              # Source build recipe — all backends via `flags`
-    │   ├── variants.yaml            # Backend `variant` matrix (cpu/cuda/vulkan/rocm)
+    │   ├── variants.yaml            # Backend `backend` matrix (cpu/cuda/vulkan/rocm)
     │   └── build.sh                 # Shared CMake build + install + symlink script
     ├── llama-cpp-binary/
     │   ├── recipe.yaml              # Binary build recipe — all backends via `flags`
-    │   ├── variants.yaml            # Backend `variant` matrix (cpu/vulkan/rocm)
+    │   ├── variants.yaml            # Backend `backend` matrix (cpu/vulkan/rocm)
     │   ├── build.sh                 # Linux: copy files + create symlinks
     │   └── build.bat                # Windows: copy exes + DLLs into bin
     ├── claude/
@@ -128,12 +128,12 @@ pixi-llm-recipes/
 
 #### Source Builds
 
-Build variants are organized in `pixi-recipes/llama-cpp-source/` as a single recipe whose backends (cpu, cuda, vulkan, rocm) are selected via the `variant` matrix in `variants.yaml` and exposed as build `flags`:
+Build variants are organized in `pixi-recipes/llama-cpp-source/` as a single recipe whose backends (cpu, cuda, vulkan, rocm) are selected via the `backend` matrix in `variants.yaml` and exposed as build `flags`:
 
 ```
 llama-cpp-source/
 ├── recipe.yaml      # Source build recipe — all backends (cpu/cuda/vulkan/rocm) via `flags`
-├── variants.yaml    # Backend `variant` matrix
+├── variants.yaml    # Backend `backend` matrix
 └── build.sh         # Shared CMake build script (reads BACKEND env var)
 ```
 
@@ -144,7 +144,7 @@ Pre-built binaries from upstream GitHub releases (no build deps needed):
 ```
 llama-cpp-binary/
 ├── recipe.yaml      # Binary build recipe — all backends (cpu/vulkan/rocm) via `flags`
-├── variants.yaml    # Backend `variant` matrix
+├── variants.yaml    # Backend `backend` matrix
 ├── build.sh         # Linux: copy files + create symlinks
 └── build.bat        # Windows: copy exes + DLLs into bin
 ```
@@ -193,7 +193,7 @@ build links against the **system** ROCm install on the build host instead:
 
 ### The Build Recipe (`pixi-recipes/llama-cpp-source/recipe.yaml`)
 
-All four backends (cpu, cuda, vulkan, rocm) live in a **single** recipe. The active backend is a `variant` (defined in `variants.yaml`) and is exposed to consumers as a build `flag` (the `build.flags` field), so the per-environment pixi.toml selects it with e.g. `llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["cuda"] }`. Backend-specific requirements and the ROCm `dynamic_linking` exemption are gated with `if: backend == "..."` selectors; platforms that cannot build a backend `skip` it.
+All four backends (cpu, cuda, vulkan, rocm) live in a **single** recipe. The active backend is a `backend` (defined in `variants.yaml`) and is exposed to consumers as a build `flag` (the `build.flags` field), so the per-environment pixi.toml selects it with e.g. `llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["cuda"] }`. Backend-specific requirements and the ROCm `dynamic_linking` exemption are gated with `if: backend == "..."` selectors; platforms that cannot build a backend `skip` it.
 
 The recipe has a `context:` block with the active fork pinned and several alternative forks commented out for reference:
 
@@ -545,7 +545,7 @@ pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 
 ### Adding a New Backend (llama-cpp)
 
-1. Add the new backend name to the `variant:` list in `pixi-recipes/llama-cpp-source/variants.yaml` (and `pixi-recipes/llama-cpp-binary/variants.yaml` if it also ships pre-built binaries).
+1. Add the new backend name to the `backend:` list in `pixi-recipes/llama-cpp-source/variants.yaml` (and `pixi-recipes/llama-cpp-binary/variants.yaml` if it also ships pre-built binaries).
 2. The shared `build.sh` reads `BACKEND` env var — add a `case` branch with the relevant `-DGGML_*=ON` flag.
 3. Add conditional dependencies in `recipe.yaml` for `if: backend == "<name>"` blocks, plus a `skip` entry if the backend cannot build on some platforms.
 4. Add a `feature.llamacpp-source-<name>` + environment in `pixi.toml` that selects it with `llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["<name>"] }`, run `pixi lock`, then `pixi install -e llamacpp-source-<name>` to build and test.
@@ -616,12 +616,12 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `sample-data/context-bench/<size>.answers.txt`             | Reference answers with source line numbers                                                                                                              |
 | `pixi-recipes/llama-cpp-source/build.sh`                   | Shared CMake build + install + symlink script                                                                                                           |
 | `pixi-recipes/llama-cpp-source/recipe.yaml`                | Source build recipe — all backends (cpu/cuda/vulkan/rocm) via `flags`                                                                                   |
-| `pixi-recipes/llama-cpp-source/variants.yaml`              | Backend `variant` matrix for the source recipe                                                                                                          |
+| `pixi-recipes/llama-cpp-source/variants.yaml`              | Backend `backend` matrix for the source recipe                                                                                                          |
 | `pixi-recipes/llama-cpp-source/build.sh`                   | Shared CMake build + install + symlink script (reads `BACKEND`/`GPU_TARGETS` env)                                                                       |
 | `pixi-recipes/llama-cpp-binary/build.sh`                   | Linux: copy pre-built binaries + create symlinks                                                                                                        |
 | `pixi-recipes/llama-cpp-binary/build.bat`                  | Windows: copy pre-built exes + DLLs into `bin`                                                                                                          |
 | `pixi-recipes/llama-cpp-binary/recipe.yaml`                | Binary build recipe — all backends (cpu/vulkan/rocm) via `flags`                                                                                        |
-| `pixi-recipes/llama-cpp-binary/variants.yaml`              | Backend `variant` matrix for the binary recipe                                                                                                          |
+| `pixi-recipes/llama-cpp-binary/variants.yaml`              | Backend `backend` matrix for the binary recipe                                                                                                          |
 | `pixi-recipes/claude/recipe.yaml`                          | Claude Code conda package recipe                                                                                                                        |
 | `pixi-recipes/claude/build.sh`                             | Linux: `npm install --global` into prefix                                                                                                               |
 | `pixi-recipes/claude/build.bat`                            | Windows: `npm install --global` into prefix                                                                                                             |

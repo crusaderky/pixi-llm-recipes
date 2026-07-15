@@ -8,7 +8,7 @@ allowed-tools: Bash Read Edit
 ## Context
 
 `pixi-recipes/llama-cpp-source/recipe.yaml` is a **single** recipe whose backends
-(cpu, cuda, vulkan, rocm) are selected via the `variant` matrix in
+(cpu, cuda, vulkan, rocm) are selected via the `backend` matrix in
 `variants.yaml` and exposed as build `flags`. The `context:` block therefore
 appears exactly once and pins the active fork plus several commented-out
 alternatives:

@@ -1,1 +1,1 @@
-variant: ["cpu", "cuda", "vulkan", "rocm"]
+backend: ["cpu", "cuda", "vulkan", "rocm"]

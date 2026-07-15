@@ -1,7 +1,7 @@
 context:
-  # The active backend is selected via the `variant` matrix in variants.yaml
+  # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
-  backend: ${{ variant }}
+  backend: ${{ backend }}
 
   # Upstream llama.cpp release tag whose pre-built binaries are downloaded.
   # Bump this in lockstep with the source recipes' `version`.

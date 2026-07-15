@@ -17,9 +17,9 @@ context:
   # fork: crusaderky/llama.cpp
   # version: b9698-bunch-moe-transfer
 
-  # The active backend is selected via the `variant` matrix in variants.yaml
+  # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
-  backend: ${{ variant }}
+  backend: ${{ backend }}
 
   # Semicolon-separated AMDGPU gfx targets to compile device code for. Defaults
   # to this project owner's hardware (Strix Point gfx1150 iGPU; gfx1151 matches
