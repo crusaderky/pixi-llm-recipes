@@ -11,8 +11,8 @@
 common: >
     llama-perplexity --kl-divergence-base /tmp/logits.dat
     --ctx-size 2048 -f sample-data/wiki.test.raw
-    -hf byteshape/Qwen3.6-35B-A3B-MTP-GGUF:Qwen3.6-35B-A3B-IQ4_XS-3.97bpw
-    -fa on -ngl 99 --cpu-moe
+    -hf prism-ml/Ternary-Bonsai-27B-gguf:Q2_g64
+    -fa on -ngl 99
 
 # K-quant types to test.
 # You'll need to switch to the Turboquant fork in
@@ -21,27 +21,27 @@ common: >
 k_quants:
   - f16
   - q8_0
-  # - q5_1  # Very slow
-  # - q5_0  # Very slow
-  # - q4_1  # Very slow
-  - q4_0
-  # - iq4_nl  # Very slow
-  - turbo4
-  - turbo3
-  - turbo2
+  # - q5_1
+  # - q5_0
+  # - q4_1
+  # - q4_0
+  # - iq4_nl
+  # - turbo4
+  # - turbo3
+  # - turbo2
 
 # V-quant types to test (cartesian product with k_quants).
 v_quants:
   - f16
   - q8_0
-  # - q5_1  # Very slow
-  # - q5_0  # Very slow
-  # - q4_1  # Very slow
+  - q5_1
+  - q5_0
+  - q4_1
   - q4_0
-  # - iq4_nl  # Very slow
-  - turbo4
-  - turbo3
-  - turbo2
+  # - iq4_nl  # Too slow
+  # - turbo4
+  # - turbo3
+  # - turbo2
 
 # Baseline combo that creates logits.dat (no --kl-divergence). Mandatory.
 # Must match an actual entry from the cartesian product / include list.
@@ -49,9 +49,20 @@ baseline: f16/f16
 
 # Extra kq/vq combos to add beyond the cartesian product.
 include:
+  - q5_1/q5_1
+  - q5_1/q5_0
+  - q5_1/q4_1
+  - q5_1/q4_0
+  - q5_0/q5_0
+  - q5_0/q4_1
+  - q5_0/q4_0
+  - q4_1/q4_1
+  - q4_1/q4_0
+  - q4_0/q4_0
 
 # kq/vq combos to remove from the cartesian product.
 exclude:
+  - q8_0/f16
 
 # Abort non-baseline runs whose ETA exceeds baseline_eta * max_eta_factor.
 # Set to 0 to disable the abort check entirely.

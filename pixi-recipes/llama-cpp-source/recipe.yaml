@@ -1,7 +1,7 @@
 context:
   # Main branch
   fork: ggml-org/llama.cpp
-  version: b10017
+  version: b10032
 
   # Turboquant fork
   # Last sync with main at b9688 (2026-06-17)
@@ -13,9 +13,15 @@ context:
   # fork: am17an/llama.cpp
   # version: 4d78c9d1826b9ee4f058a441c8d4ff9c079fd822
 
-  # PR#21067 + deltas b8533->9698
+  # PR#21067 + merge from master
   # fork: crusaderky/llama.cpp
-  # version: b9698-bunch-moe-transfer
+  # version: b10032-bunch-moe-transfer
+
+  # TernaryBonsai CUDA
+  # https://github.com/ggml-org/llama.cpp/pull/25707 
+  # Need to change `tag:` to `rev:` below
+  # fork: PrismML-Eng/llama.cpp
+  # version: 5eec79824b07cb01baf76339227ad2bb98e9ea8a
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
@@ -39,6 +45,7 @@ source:
   # an empty working tree when handed a tag, breaking the build.
   git: https://github.com/${{ fork }}
   tag: ${{ version }}
+  # rev: ${{ version }}
 
 build:
   number: 0

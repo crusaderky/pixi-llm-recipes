@@ -10,19 +10,20 @@ Lower KLD = closer to full-precision output. "Size" is bytes/parameter of the KV
 | --- | --- | --- | --- |
 | Qwen3.6-35B-A3B | [Static report](KV-KLD.Qwen36-35B-A3B.md) | [Interactive HTML](https://htmlpreview.github.io/?https://raw.githubusercontent.com/crusaderky/pixi-llm-recipes/main/perplexity/KV-KLD.Qwen36-35B-A3B.html) | [SVG](https://raw.githubusercontent.com/crusaderky/pixi-llm-recipes/refs/heads/main/perplexity/KV-KLD.Qwen36-35B-A3B.svg) |
 | Gemma4-E2B QAT | [Static report](KV-KLD.Gemma4-E2B.md) | [Interactive HTML](https://htmlpreview.github.io/?https://raw.githubusercontent.com/crusaderky/pixi-llm-recipes/main/perplexity/KV-KLD.Gemma4-E2B.html) | [SVG](https://raw.githubusercontent.com/crusaderky/pixi-llm-recipes/refs/heads/main/perplexity/KV-KLD.Gemma4-E2B.svg) |
+| Ternary-Bonsai-27B | [Static report](KV-KLD.Ternary-Bonsai-27B.md) | [Interactive HTML](https://htmlpreview.github.io/?https://raw.githubusercontent.com/crusaderky/pixi-llm-recipes/main/perplexity/KV-KLD.Ternary-Bonsai-27B.html) | [SVG](https://raw.githubusercontent.com/crusaderky/pixi-llm-recipes/refs/heads/main/perplexity/KV-KLD.Ternary-Bonsai-27B.svg) |
 
 ## Headline numbers (mean KLD, symmetric K=V)
 
-| K/V | Size | Qwen3.6 | Gemma4-E2B |
-| --- | --- | --- | --- |
-| f16/f16 | 4.00 | 0 | 0 |
-| q8_0/q8_0 | 2.12 | 0.0052 | 0.0028 |
-| q4_0/q4_0 | 1.12 | 0.0130 | **0.0504** |
-| turbo4/turbo4 | 1.06 | 0.0157 | 0.0635 |
+| K/V | Size | Qwen3.6 | Gemma4-E2B | Ternary-Bonsai-27B |
+| --- | --- | --- | --- | --- |
+| f16/f16 | 4.00 | 0 | 0 | 0 |
+| q8_0/q8_0 | 2.12 | 0.0052 | 0.0028 | 0.0003 |
+| q4_0/q4_0 | 1.12 | 0.0130 | 0.0504 | 0.0027 |
+| turbo4/turbo4 | 1.06 | 0.0157 | 0.0635 | n/a |
 
 ## Findings
 
-1. **q8/q8 is nearly free** on both models — negligible KLD for half the cache size. It's
+1. **q8/q8 is nearly free** on all models — negligible KLD for half the cache size. It's
    the default in [`models.ini`](../models.ini) and a safe choice everywhere.
 
 2. **turbo4 is *not* "almost q8".** Internet wisdom oversells it. On both models a true
@@ -41,7 +42,8 @@ Lower KLD = closer to full-precision output. "Size" is bytes/parameter of the KV
    `TURBO_AUTO_ASYMMETRIC=0` (in `pixi.toml`) so the numbers reflect what was actually
    requested.
 
-4. **q4/q4 is fine on Qwen, a disaster on Gemma.** Dropping from q8/q8 to q4/q4 halves the
+4. **q4/q4 is great on Ternary Bonsai, fine on Qwen, and disastrous on Gemma.**
+   Dropping from q8/q8 to q4/q4 halves the
    cache; on Qwen mean KLD only ~2.5×'s (0.0052 → 0.0130), but on Gemma it explodes ~18×
    (0.0028 → 0.0504, with the 99.9% tail going 0.11 → 1.37). Gemma's tiny KV-head count
    makes it far less tolerant of cache quantization.
@@ -71,7 +73,7 @@ Lower KLD = closer to full-precision output. "Size" is bytes/parameter of the KV
 
 ## Methodology
 
-These measured were acquired with the project as of 2026-06-22:
+Qwen and Gemma measures were acquired with the project as of 2026-06-22:
 
 - `TheTom/llama-cpp-turboquant` tag `feature-turboquant-kv-cache-b9905-4595fff`
   (last sync with main as of `b8533`)
