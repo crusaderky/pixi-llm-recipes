@@ -1,7 +1,7 @@
 ---
 name: llama-cpp-changelog
-description: Summarize changes between two versions of llama.cpp. Initial version defaults to the one pinned in pixi-recipes/llama-cpp-source/recipe.yaml (may be commented out — use that value anyway); final version defaults to the latest upstream release. Both can be overridden with arbitrary git refs via `from=<ref>` and `to=<ref>` args.
-compatibility: Deterministic script `scripts/llama-cpp-changelog.py` does all the work. No `gh` CLI or GitHub token needed — the script builds a local commits-only git clone (cached at `~/.cache/llama-cpp-changelog/llama.cpp.git`) and reads tags, commit subjects, and dates from git. The PR section is skipped without GitHub auth (it requires GraphQL); tags/commits still print.
+description: Summarize changes between two versions of llama.cpp. Initial version defaults to the one pinned in pixi-recipes/llama-cpp-source/recipe.yaml; final version defaults to the latest upstream release. Both can be overridden with arbitrary git refs.
+compatibility: Tags/commits print without GitHub auth; PRs skipped without github token (requires GraphQL).
 allowed-tools: Bash Read
 ---
 
@@ -14,7 +14,7 @@ allowed-tools: Bash Read
   - **Turboquant fork note**: the active fork's version string (e.g. `feature-turboquant-kv-cache-b9905-4595fff`) is NOT an upstream tag — never use it as `from`. Always use the `Last sync with main at bNNNN` value when the active fork is turboquant.
 - `to=<ref>` — ending git ref. Default: latest upstream release tag.
 
-Parse the args: each token is either `from=VALUE` or `to=VALUE`. Pass them to the script as positional or named args.
+Parse the args: each token is either `from=VALUE` or `to=VALUE`. Pass them to the script as positional or named args. **Tip: call the script once, dump stdout to a temp file, and parse that file for subsequent uses — the script takes a long time to run (it clones the full upstream repo).
 
 ## Steps
 
