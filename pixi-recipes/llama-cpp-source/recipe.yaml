@@ -35,7 +35,7 @@ package:
 
 source:
   # Use `tag:` (not `rev:`) when `version` is a tag name such as `b9754`;
-  # `rev:` expects a commit SHA and rattler-build's gix fetch silently leaves
+  # `rev:` expects a commit SHA and rattler-build's git fetch silently leaves
   # an empty working tree when handed a tag, breaking the build.
   git: https://github.com/${{ fork }}
   tag: ${{ version }}
