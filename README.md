@@ -113,7 +113,7 @@ served on demand. All models were carefully cherry-picked and tuned.
   available in the main branch and not necessary with the above models/VRAM
   configuration. [turbo4 is not particularly better than q4_0](perplexity/README.md).
   You can enable Turboquant by uncommenting it in
-  `pixi-recipes/llama-cpp-source/*/recipe.yaml`.
+  `pixi-recipes/llama-cpp-source/recipe.yaml`.
 - <sup>2</sup>Process total measured by nvidia-smi. When sizing video card VRAM, you
   must add ~2 GiB for your desktop (unless you're running on an integrated video card
   and your discrete card is detached from the X server)

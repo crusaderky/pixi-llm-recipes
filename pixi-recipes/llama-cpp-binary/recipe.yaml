@@ -1,0 +1,50 @@
+context:
+  # The active backend is selected via the `variant` matrix in variants.yaml
+  # and exposed to consumers as a build `flag` (see pixi.toml).
+  backend: ${{ variant }}
+
+  # Upstream llama.cpp release tag whose pre-built binaries are downloaded.
+  # Bump this in lockstep with the source recipes' `version`.
+  version: b10017
+
+package:
+  name: llama-cpp
+  version: 0
+
+build:
+  number: 0
+  string: ${{ backend }}_${{ build_number }}
+  script:
+    # Extension-less: resolves to build.sh on Linux and build.bat on Windows
+    file: build
+    env:
+      BACKEND: ${{ backend }}
+      VERSION: ${{ version }}
+  # Expose each backend as a selectable build flag, e.g. `flags = ["vulkan"]`.
+  flags:
+    - ${{ backend }}
+  # `cpu` is the preferred default when no flag is given.
+  variant:
+    down_prioritize_variant: ${{ 0 if backend == "cpu" else 1 }}
+  # The rocm binary is only published for linux-64 (Ubuntu x86-64); skip the
+  # rocm variant on every other platform.
+  skip:
+    - if: backend == "rocm"
+      then: "win"
+    - if: backend == "rocm"
+      then: "linux and aarch64"
+
+requirements:
+  build:
+    - curl
+    - if: linux
+      then:
+        - patchelf
+  run:
+    - libgomp
+
+about:
+  homepage: https://github.com/ggml-org/llama.cpp
+  license: MIT
+  license_file: LICENSE
+  summary: LLM inference in C/C++

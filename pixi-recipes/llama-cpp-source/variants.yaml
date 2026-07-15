@@ -1,0 +1,1 @@
+variant: ["cpu", "cuda", "vulkan", "rocm"]

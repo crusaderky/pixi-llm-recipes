@@ -1,13 +1,17 @@
 ---
 name: update-llama-cpp
-description: Update the llama-cpp conda recipes. Updates the active turboquant fork version + the commented-out main branch version + the last-sync comment in all recipe.yaml files. Use when the user wants to bump llama-cpp to a newer version, or asks to update/upgrade the llama-cpp recipe.
+description: Update the llama-cpp conda recipes. Updates the active turboquant fork version + the commented-out main branch version + the last-sync comment in the two recipe.yaml files. Use when the user wants to bump llama-cpp to a newer version, or asks to update/upgrade the llama-cpp recipe.
 compatibility: Uses `scripts/llama-cpp-changelog.py` for changelog/merge detection. No `gh` CLI or GitHub token needed — the script works from a local commits-only git clone (cached at `~/.cache/llama-cpp-changelog/llama.cpp.git`). The PR section is skipped without GitHub auth; tags/commits/dates come from git.
 allowed-tools: Bash Read Edit
 ---
 
 ## Context
 
-Each `pixi-recipes/llama-cpp-source/{cpu,cuda,vulkan,rocm}/recipe.yaml` has a `context:` block with multiple entries:
+`pixi-recipes/llama-cpp-source/recipe.yaml` is a **single** recipe whose backends
+(cpu, cuda, vulkan, rocm) are selected via the `variant` matrix in
+`variants.yaml` and exposed as build `flags`. The `context:` block therefore
+appears exactly once and pins the active fork plus several commented-out
+alternatives:
 
 - **Main branch** — `fork: ggml-org/llama.cpp`, `version: bNNNN`.
 - **Turboquant fork** — `fork: TheTom/llama-cpp-turboquant`, `version: feature-turboquant-kv-cache-bNNNN-XXXXXXX`.
@@ -46,34 +50,30 @@ When a new upstream merge occurred on the turboquant fork, you must also update 
    ```bash
    pixi r llama-cpp-changelog <old_last_sync> <LATEST_MAIN>
    ```
-   where `<old_last_sync>` is the current `# Last sync with main at bNNNN` value in `pixi-recipes/llama-cpp-source/cpu/recipe.yaml`. The script dumps tags, PRs (title + body excerpt + URL), and direct commits in that range. Inspect the PR list for a `Merge upstream/master into feature/turboquant-kv-cache` style entry — if present, the turboquant fork has synced up to `LATEST_MAIN` and the last-sync comment should be bumped to `LATEST_MAIN`. If no such merge PR appears in the range, the last-sync comment stays unchanged.
+   where `<old_last_sync>` is the current `# Last sync with main at bNNNN` value in `pixi-recipes/llama-cpp-source/recipe.yaml`. The script dumps tags, PRs (title + body excerpt + URL), and direct commits in that range. Inspect the PR list for a `Merge upstream/master into feature/turboquant-kv-cache` style entry — if present, the turboquant fork has synced up to `LATEST_MAIN` and the last-sync comment should be bumped to `LATEST_MAIN`. If no such merge PR appears in the range, the last-sync comment stays unchanged.
 
    The script is the single source of truth for "what changed since last sync" — do NOT run raw `curl` compare calls yourself; the script already does that deterministically.
 
 ### Phase 2 — Update the main branch version (commented out)
 
-4. Read `pixi-recipes/llama-cpp-source/cpu/recipe.yaml` and note the existing commented-out `# version: bNNNN` under `# Main branch`.
+4. Read `pixi-recipes/llama-cpp-source/recipe.yaml` and note the existing commented-out `# version: bNNNN` under `# Main branch`.
 
 5. If it already equals `LATEST_MAIN`, report "Main branch version already up to date" and skip.
 
-6. Otherwise update the `# version:` line under `# Main branch` in all **four** source recipes:
-   - `pixi-recipes/llama-cpp-source/cpu/recipe.yaml`
-   - `pixi-recipes/llama-cpp-source/cuda/recipe.yaml`
-   - `pixi-recipes/llama-cpp-source/vulkan/recipe.yaml`
-   - `pixi-recipes/llama-cpp-source/rocm/recipe.yaml`
-     Only change that one `# version:` line — do NOT uncomment it or touch other commented-out forks.
-     The `rocm` recipe has the **same** `context:` version block as the others (only its
-     `backend`, `gpu_targets`, and `dynamic_linking` differ), so it takes the identical edit.
+6. Otherwise update the `# version:` line under `# Main branch` in the single source recipe `pixi-recipes/llama-cpp-source/recipe.yaml`:
+   Only change that one `# version:` line — do NOT uncomment it or touch other commented-out forks.
+   The rocm backend's `gpu_targets` and `dynamic_linking` are gated with `if: backend == "rocm"`
+   selectors inside the same recipe, so they take no separate edit.
 
 7. Report: `Main branch version (commented out): bOLD → bNEW`
 
 ### Phase 3 — Update the turboquant fork version (active)
 
-8. Read one source recipe; note the active `fork: TheTom/llama-cpp-turboquant` and `version: feature-turboquant-kv-cache-bNNNN-XXXXXXX`.
+8. Read the source recipe `pixi-recipes/llama-cpp-source/recipe.yaml`; note the active `fork: TheTom/llama-cpp-turboquant` and `version: feature-turboquant-kv-cache-bNNNN-XXXXXXX`.
 
 9. If it already equals `LATEST_TURBO`, report "Turboquant fork already up to date" and skip the version bump (but still check the last-sync comment in step 11).
 
-10. Update the active `version:` line (the one with `fork: TheTom/llama-cpp-turboquant`) in all four source recipes.
+10. Update the active `version:` line (the one with `fork: TheTom/llama-cpp-turboquant`) in `pixi-recipes/llama-cpp-source/recipe.yaml`.
 
 11. **Update the `# Last sync with main at bNNNN` comment** only if Phase 1 step 3 found a new upstream merge. Set it to the upstream main tag that the merge pulled in (`LATEST_MAIN` when the merge PR's body/reference indicates main was synced to the latest). Otherwise leave the comment unchanged. Keep the `(YYYY-MM-DD)` date in sync with that tag's release date (from the changelog script's Tags section).
 
@@ -81,14 +81,11 @@ When a new upstream merge occurred on the turboquant fork, you must also update 
 
 ### Phase 4 — Update binary builds
 
-13. Read `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml` and note `context.version`.
+13. Read `pixi-recipes/llama-cpp-binary/recipe.yaml` and note `context.version`.
 
 14. If it already equals `LATEST_MAIN`, report "Binary version already up to date" and skip.
 
-15. Otherwise update `context.version` in all three binary recipes:
-    - `pixi-recipes/llama-cpp-binary/cpu/recipe.yaml`
-    - `pixi-recipes/llama-cpp-binary/vulkan/recipe.yaml`
-    - `pixi-recipes/llama-cpp-binary/rocm/recipe.yaml`
+15. Otherwise update `context.version` in the single binary recipe `pixi-recipes/llama-cpp-binary/recipe.yaml`.
 
 16. Report: `Binary version: bOLD → bNEW`
 

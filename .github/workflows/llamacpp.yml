@@ -65,7 +65,7 @@ jobs:
 
       - uses: prefix-dev/setup-pixi@v0
         with:
-          pixi-version: v0.71.2
+          pixi-version: v0.73.0
           environments: llamacpp-${{ matrix.backend }} agents
           cache: true
           locked: true

@@ -16,7 +16,7 @@ common: >
 
 # K-quant types to test.
 # You'll need to switch to the Turboquant fork in
-# pixi-recipes/llama-cpp-source/*/recipe.yaml
+# pixi-recipes/llama-cpp-source/recipe.yaml
 # to enable turbo4, turbo3, and turbo2.
 k_quants:
   - f16

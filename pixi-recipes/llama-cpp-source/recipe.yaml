@@ -17,13 +17,16 @@ context:
   # fork: crusaderky/llama.cpp
   # version: b9698-bunch-moe-transfer
 
-  backend: rocm
+  # The active backend is selected via the `variant` matrix in variants.yaml
+  # and exposed to consumers as a build `flag` (see pixi.toml).
+  backend: ${{ variant }}
 
   # Semicolon-separated AMDGPU gfx targets to compile device code for. Defaults
   # to this project owner's hardware (Strix Point gfx1150 iGPU; gfx1151 matches
   # the HSA_OVERRIDE_GFX_VERSION=11.5.1 runtime workaround for missing gfx1150
   # rocBLAS kernels). Override for other GPUs (or a broadly-supported arch on CI)
   # with e.g. `LLAMA_GPU_TARGETS=gfx1100 pixi install -e llamacpp-source-rocm`.
+  # Only consumed by the rocm backend; harmless for the others.
   gpu_targets: ${{ env.get("LLAMA_GPU_TARGETS", default="gfx1150;gfx1151") }}
 
 package:
@@ -41,16 +44,24 @@ build:
   number: 0
   string: ${{ backend }}_${{ build_number }}
   script:
-    file: ../build.sh
+    file: build.sh
     env:
       BACKEND: ${{ backend }}
       GPU_TARGETS: ${{ gpu_targets }}
+  # Expose each backend as a selectable build flag, e.g. `flags = ["cuda"]`.
+  flags:
+    - ${{ backend }}
+  # `cpu` is the preferred default when no flag is given.
+  variant:
+    down_prioritize_variant: ${{ 0 if backend == "cpu" else 1 }}
+  # hipBLAS/rocBLAS and the HIP runtime are not available on conda-forge, so
+  # the HIP backend links against the build host's system ROCm install. Those
+  # libraries are resolved at runtime via the system linker path (Ubuntu puts
+  # them on the default search path) rather than as conda run dependencies, so
+  # exempt them from the overlinking / missing-DSO checks. The allowlist only
+  # matches ROCm DSOs, so this is a no-op for the other backends; the
+  # `overlinking_behavior: ignore` is likewise lenient but harmless for them.
   dynamic_linking:
-    # hipBLAS/rocBLAS and the HIP runtime are not available on conda-forge, so
-    # the HIP backend links against the build host's system ROCm install. Those
-    # libraries are resolved at runtime via the system linker path (Ubuntu puts
-    # them on the default search path) rather than as conda run dependencies, so
-    # exempt them from the overlinking / missing-DSO checks.
     overlinking_behavior: ignore
     missing_dso_allowlist:
       - "**/libamdhip64.so*"
@@ -58,6 +69,13 @@ build:
       - "**/libhipblas.so*"
       - "**/libamd_comgr.so*"
       - "**/libhsa-runtime64.so*"
+  # Skip backends that cannot be built on the current platform.
+  skip:
+    - "win"
+    - if: backend == "cuda"
+      then: "linux and aarch64"
+    - if: backend == "rocm"
+      then: "linux and aarch64"
 
 requirements:
   build:
@@ -66,11 +84,38 @@ requirements:
     - cmake
     - ninja
     - pkg-config
+    - if: backend == "cuda"
+      then:
+        - cuda-nvcc
+        - cuda-version =12.6
+    - if: backend == "vulkan"
+      then:
+        - shaderc
   host:
     - libcurl
     - openssl
+    - if: backend == "cuda"
+      then:
+        - cuda-version =12.6
+        - cuda-cudart-dev
+        - libcublas-dev
+        - libcurand-dev
+    - if: backend == "vulkan"
+      then:
+        - libvulkan-headers
+        - libvulkan-loader
+        - spirv-headers
+        - spirv-tools
   run:
     - libcurl
+    - if: backend == "cuda"
+      then:
+        - cuda-cudart
+        - libcublas
+        - libcurand
+    - if: backend == "vulkan"
+      then:
+        - libvulkan-loader
 
 about:
   homepage: https://github.com/ggml-org/llama.cpp
