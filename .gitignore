@@ -2,6 +2,7 @@
 .pixi/*
 !.pixi/config.toml
 llama-server.log
+forge-proxy.log
 huggingface
 sample-data/context-bench/context-bench-results*.toml
 *.pyc

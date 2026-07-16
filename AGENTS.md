@@ -18,6 +18,7 @@
 - **pixi** — Cross-platform dependency/environment manager (conda-compatible)
 - **pixi-build / rattler-build** — Conda recipe building system
 - **llama.cpp** — Open-source LLM inference engine by ggml-org (MIT license), built from source with opt-in turboquant KV cache optimizations via [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant)
+- **forge-guardrails** — [Tool-calling reliability proxy](https://github.com/antoinezambelli/forge) (PyPI package) that sits in front of llama-server: validates tool calls, rescue-parses malformed ones, retries with corrective feedback
 - **bubblewrap (bwrap)** — Containerized sandbox for running the pi agent securely
 - **pi-coding-agent** — The pi coding agent framework (installed via npm)
 - **pi-extensions** — Curated pi plugins installed via a conda package
@@ -50,7 +51,9 @@ pixi-llm-recipes/
 │   ├── kv-kld-report.py                 # Parse perplexity log → HTML/Markdown KLD report
 │   ├── kv-perplexity.py              # KLD sweep over cartesian product of K/V quant combos
 │   ├── llama-cpp-changelog.py        # Deterministic llama.cpp changelog dumper (tags + PRs + commits)
+│   ├── start-forge-server.sh         # Background forge-proxy (guardrails) in front of llama-server
 │   ├── start-server.sh               # Background llama-server with logging
+│   ├── stop-forge-server.sh          # Graceful forge-proxy shutdown
 │   ├── stop-server.sh                # Graceful llama-server shutdown
 │   ├── herdr                         # Naked `herdr` wrapper (installed to ~/.local/bin by `pixi r install`)
 │   └── pi-unsafe.sh                  # Unsandboxed pi wrapper (full host access)
@@ -230,7 +233,7 @@ The binary recipe uses `file: build` (extension-less) so rattler-build resolves 
 
 | Feature                  | Dependencies                                                                                                                                                                   | Key Tasks                                                                                                                     |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                                                              | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `kv-perplexity`                           |
+| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                                                              | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `start-forge-server`, `kv-perplexity`     |
 | `llamacpp-source-cpu`    | `llama-cpp` (cpu compiled from sources)                                                                                                                                        | —                                                                                                                             |
 | `llamacpp-source-cuda`   | `llama-cpp` (cuda compiled from sources)                                                                                                                                       | —                                                                                                                             |
 | `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                                                     | —                                                                                                                             |
@@ -435,7 +438,7 @@ version = "*"
 
 ## Working with This Project
 
-**`-e <env>` is only required when a task name exists in multiple environments.** Tasks that belong to exactly one environment (e.g. `pi`, `claude`, `herdr`, `gh`, `llama-benchy`) can be invoked with plain `pixi run <task>` — pixi selects the environment automatically. The llamacpp tasks (`start-server`, `llama-help`, etc.) exist in all six `llamacpp-*` environments, so `-e` is mandatory there to pick the right backend.
+**`-e <env>` is only required when a task name exists in multiple environments.** Tasks that belong to exactly one environment (e.g. `pi`, `claude`, `herdr`, `gh`, `llama-benchy`) can be invoked with plain `pixi run <task>` — pixi selects the environment automatically. The llamacpp tasks (`start-server`, `start-forge-server`, `llama-help`, etc.) exist in all seven `llamacpp-*` environments, so `-e` is mandatory there to pick the right backend.
 
 ### Building Packages
 
@@ -466,6 +469,14 @@ pixi run -e llamacpp-source-cuda restart-server      # Stop + start in one comma
 pixi run -e llamacpp-source-cuda llama-list-devices  # List available compute devices
 pixi run -e llamacpp-source-cuda llama-help          # llama-server help
 pixi run -e llamacpp-source-cuda llama-hello         # Quick smoke test with llama-cli
+```
+
+With the [forge](https://github.com/antoinezambelli/forge) guardrails proxy in front (llama-server moves to port 8081; forge serves clients on port 8080, so consumers of `http://localhost:8080/v1` need no reconfiguration):
+
+```bash
+pixi run -e llamacpp-source-cuda start-forge-server    # llama-server on 8081 + forge-proxy on 8080 (logs to forge-proxy.log)
+pixi run -e llamacpp-source-cuda stop-forge-server     # Stop both forge-proxy and llama-server
+pixi run -e llamacpp-source-cuda restart-forge-server  # Stop + start in one command
 ```
 
 **Note**: Binary environments (`llamacpp-*-binary`) skip compilation entirely, making them much faster to set up. They provide pre-built binaries from upstream llama.cpp releases for CPU, Vulkan, and ROCm backends. (No Linux CUDA binary is provided upstream — use `llamacpp-source-cuda` for CUDA.)
@@ -585,6 +596,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `kv-perplexity.yaml`                                       | Sample config for `kv-perplexity.py`                                                                                                                    |
 | `models.ini`                                               | llama-server multi-model preset config                                                                                                                  |
 | `llama-server.log`                                         | Server log (gitignored)                                                                                                                                 |
+| `forge-proxy.log`                                          | forge-proxy log (gitignored)                                                                                                                            |
 | `scripts/bwrap-claude.sh`                                  | Bubblewrap sandbox wrapper for Claude Code                                                                                                              |
 | `scripts/claude-unsafe.sh`                                 | Unsandboxed Claude Code wrapper (dev/debug only)                                                                                                        |
 | `scripts/bwrap-pi.sh`                                      | Bubblewrap sandbox wrapper for pi agent                                                                                                                 |
@@ -598,7 +610,9 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `scripts/install-memlock.sh`                               | Raise the locked-memory ulimit (`/etc/security/limits.d/99-memlock.conf`) so llama-server `--mlock` can lock multi-GiB weights; sudo, idempotent        |
 | `scripts/install.sh`                                       | Backs the `install` task; symlinks `scripts/pi`, `scripts/claude`, and `scripts/herdr` into ~/.local/bin                                                |
 | `scripts/stop-server.sh`                                   | Graceful llama-server shutdown (SIGTERM → SIGKILL)                                                                                                      |
-| `scripts/start-server.sh`                                  | Background llama-server with logging                                                                                                                    |
+| `scripts/start-server.sh`                                  | Background llama-server with logging (`--port` to override the default 8080; other args forwarded to llama-server)                                      |
+| `scripts/stop-forge-server.sh`                             | Graceful forge-proxy shutdown (SIGTERM → SIGKILL)                                                                                                       |
+| `scripts/start-forge-server.sh`                            | Background forge-proxy on port 8080 forwarding to llama-server on port 8081                                                                             |
 | `scripts/pi`                                               | Naked `pi` wrapper (installed to ~/.local/bin by `pixi r install`); resolves --bind relative paths against cwd                                          |
 | `scripts/pi-unsafe.sh`                                     | Unsandboxed pi wrapper (dev/debug only)                                                                                                                 |
 | `scripts/kv-perplexity.py`                                 | KLD sweep over cartesian product of K/V quant combos (`kv-perplexity` task)                                                                             |
@@ -672,8 +686,9 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 - **Symlinks use relative paths** (`../opt/llama/...`) — required for correct conda prefix portability
 - **All workspaces target `linux-64`, `linux-aarch64`, and `win-64`** — cross-platform support requires additional logic
 - **`bwrap-pi.sh` unsets all `PIXI_*`/`CONDA_*`/`INIT_CWD` vars** before calling pi — the agent must not see conda internals
-- **`start-server.sh` starts llama-server in background** with logging to `llama-server.log`; use `stop-server` to gracefully kill it
+- **`start-server.sh` starts llama-server in background** with logging to `llama-server.log`; use `stop-server` to gracefully kill it. It accepts `--port` (default 8080) and forwards any other argument verbatim to llama-server
 - **`stop-server.sh` uses SIGTERM first, then SIGKILL after timeout** — graceful shutdown pattern
+- **`start-forge-server` (llamacpp feature) starts llama-server on port 8081 and the forge-proxy on port 8080** — the dependency task `start-server --port 8081` runs first, then `start-forge-server.sh` launches `python -m forge.proxy` logging to `forge-proxy.log`. `stop-forge-server` stops both; `restart-forge-server` chains the two.
 - **Models file per environment**: the sandbox looks for `models.$PIXI_ENVIRONMENT_NAME.json`; if absent it falls back to nothing — create it when running a non-default pi environment
 - **`pi-unsafe.sh` calls `inject-pi-extensions.sh`** to merge pi-extensions packages, symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows), and always cleans up on exit via `trap`
 - **AppArmor is required for bwrap** — run `pixi run install-apparmor` to install and load the profile before running the sandboxed pi agent (works locally with sudo and unattended on GitHub Actions; no-op where unprivileged user namespaces are unrestricted)

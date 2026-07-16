@@ -5,7 +5,9 @@ platforms = ["linux-64", "linux-aarch64", "win-64"]
 
 [tasks]
 stop-server = "bash scripts/stop-server.sh"
+stop-forge-server = "bash scripts/stop-forge-server.sh && bash scripts/stop-server.sh"
 restart-server = { depends-on = ["stop-server", "start-server"] }
+restart-forge-server = { depends-on = ["stop-forge-server", "start-forge-server"] }
 
 [target.linux-64.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
@@ -189,6 +191,8 @@ openai = "*"
 tomli-w = "*"
 
 [feature.pytools.pypi-dependencies]
+# forge-guardrails = "*"
+forge-guardrails = { git = "https://github.com/crusaderky/forge.git", branch = "models-passthrough" }
 llama-benchy = ">=0.4.0"
 
 [feature.pytools.tasks]
@@ -199,6 +203,10 @@ aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_
 kv-kld-report = "python scripts/kv-kld-report.py"
 llama-cpp-changelog = "python scripts/llama-cpp-changelog.py"
 gguf-meta-extract = "python scripts/gguf-meta-extract.py"
+
+[feature.pytools.tasks.start-forge-server]
+depends-on = [{ task = "start-server", args = ["--port", "8081"] }]
+cmd = "bash scripts/start-forge-server.sh"
 
 [feature.lint.dependencies]
 lefthook = "*"

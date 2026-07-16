@@ -84,6 +84,26 @@ Alternatively, you can select an environment non-interactively:
 pixi r -e llamacpp-source-cuda start-server
 ```
 
+## Forge guardrails proxy
+
+[forge](https://github.com/antoinezambelli/forge) is a transparent reliability layer for
+tool-calling: it validates every tool call in the model's response, rescue-parses
+malformed ones, and retries inference with corrective feedback when validation fails.
+
+`start-forge-server` starts the llama-server router on port **8081** and the forge
+proxy in front of it on port **8080** — the same port a bare `start-server` binds, so
+agents and benchmarks pointing at `http://localhost:8080/v1` pick up the guardrails
+without any reconfiguration.
+
+```bash
+pixi r start-forge-server    # Start llama-server on 8081 + forge on 8080
+pixi r stop-forge-server     # Stop both forge and llama-server
+pixi r restart-forge-server
+```
+
+It is a drop-in replacement for `start-server`, `stop-server`, and `restart-server`.
+Nothing else changes.
+
 ## Models
 
 Models are defined in `models.ini` (llama-server's native preset format) and are
