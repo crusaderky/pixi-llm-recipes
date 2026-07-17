@@ -259,7 +259,7 @@ down). **Every REPORT prints a one-line summary per arm**:
 
 followed, when `model.config` is non-empty, by a second line:
 
-`  config: <model.config>`
+`config: <model.config>`
 
 so the deployment (precision label in parentheses), the score, the **time per
 task**, and **any invisible `models.ini` tweaks** are all visible at a glance.
@@ -340,8 +340,7 @@ confidence, source, optional aliases) and re-run.
 - [ ] You configure a `models.ini` preset for benchmarking; the server starts
       on it and `/health` is green; a one-prompt smoke call returns a
       completion with thinking uncapped (response contains an unstripped
-      `</think>`` segment or equivalent). Record the preset name in
-      `model.preset` and any non-default settings in `model.config`.
+      `</think>` segment or equivalent). Record the preset name in``model.preset`and any non-default settings in`model.config`.
 - [ ] Docker present; scope guard check passes (`systemctl stop docker &&
       pixi r pi - -- -p "hello"` still works).
 - [ ] Calibration procedure executed once end-to-end (any 3 SciCode items via

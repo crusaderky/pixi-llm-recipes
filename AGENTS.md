@@ -42,7 +42,6 @@ pixi-llm-recipes/
 ├── scripts/
 │   ├── bwrap-claude.sh               # Bubblewrap sandbox wrapper for Claude Code
 │   ├── bwrap-pi.sh                   # Bubblewrap sandbox wrapper for pi agent
-│   ├── bench-sandbox.sh              # Untrusted-code exec sandbox for benchmark grading (doc 05 D2)
 │   ├── diff-llama-cpp-variants.sh    # Compare llama-cpp recipe variants
 │   ├── gguf-meta-extract.py          # Header-only GGUF tensor/VRAM inspector (no weight download)
 │   ├── inject-pi-extensions.sh       # Merge pi-extensions packages into settings.json
@@ -601,7 +600,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `scripts/bwrap-claude.sh`                                  | Bubblewrap sandbox wrapper for Claude Code                                                                                                              |
 | `scripts/claude-unsafe.sh`                                 | Unsandboxed Claude Code wrapper (dev/debug only)                                                                                                        |
 | `scripts/bwrap-pi.sh`                                      | Bubblewrap sandbox wrapper for pi agent                                                                                                                 |
-| `scripts/bench-sandbox.sh`                                 | Untrusted-code exec sandbox for benchmark grading (`docs/benchmarks/05-common-lightweight.md` D2); bwrap, no network, `/tmp`-only writable              |
+| `benchmarks/scripts/bench-sandbox.sh`                      | Untrusted-code exec sandbox for benchmark grading (`docs/benchmarks/05-common-lightweight.md` D2); bwrap, no network, `/tmp`-only writable              |
 | `scripts/claude`                                           | Naked `claude` wrapper (installed to ~/.local/bin by `pixi r install`); resolves --bind relative paths against cwd                                      |
 | `scripts/diff-llama-cpp-variants.sh`                       | Compare llama-cpp recipe variants                                                                                                                       |
 | `scripts/inject-pi-extensions.sh`                          | Merge pi-extensions packages into settings.json                                                                                                         |

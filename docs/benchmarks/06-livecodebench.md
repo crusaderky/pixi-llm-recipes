@@ -58,7 +58,7 @@ uv pip install livecodebench         # pin the version; record in ledger
 ```
 
 The harness invokes generation through an OpenAI-compatible endpoint and runs
-grading locally. **All code execution must go through `scripts/bench-sandbox.sh`
+grading locally. **All code execution must go through `benchmarks/scripts/bench-sandbox.sh`
 (doc 05 D2)** — wire the harness's test-runner subprocess through it, or run the
 whole `evaluate` step inside it. No network during grading.
 

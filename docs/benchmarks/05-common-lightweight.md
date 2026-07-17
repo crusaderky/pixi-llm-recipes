@@ -27,11 +27,11 @@ Status: DESIGN.
 
 ## What requires implementation (summary)
 
-| Deliverable                   | Kind                                    | Status                                                                             |
-| ----------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------- |
-| D1 endpoint plumbing          | pure convention (env vars), **no code** | documented here + in 06–09; needs a one-line smoke call against L2/L1 (runtime)    |
-| D2 `scripts/bench-sandbox.sh` | **new script**                          | **IMPLEMENTED** — `scripts/bench-sandbox.sh` exists; D2 smoke tests pass (see §D2) |
-| D3 ledger benchmark names     | one-line edit to `check_ledger.py`      | **DONE** — the repo's `results/check_ledger.py` already lists all six names        |
+| Deliverable                              | Kind                                    | Status                                                                                        |
+| ---------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------- |
+| D1 endpoint plumbing                     | pure convention (env vars), **no code** | documented here + in 06–09; needs a one-line smoke call against L2/L1 (runtime)               |
+| D2 `benchmarks/scripts/bench-sandbox.sh` | **new script**                          | **IMPLEMENTED** — `benchmarks/scripts/bench-sandbox.sh` exists; D2 smoke tests pass (see §D2) |
+| D3 ledger benchmark names                | one-line edit to `check_ledger.py`      | **DONE** — the repo's `results/check_ledger.py` already lists all six names                   |
 
 Prerequisite for: `06-livecodebench`, `07-ifbench`, `08-evalplus`, `09-cruxeval`.
 
@@ -66,7 +66,7 @@ runs **only two arms**:
 | Arm                   | Meaning here                                                                                                   |
 | --------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `L1-remote-canonical` | User-designated reference endpoint (precision labelled), the benchmark's native harness. Reference capability. |
-| `L2-local-canonical`  | Local bench preset (`models.ini`), the same native harness. Local-stack delta vs L1.                                      |
+| `L2-local-canonical`  | Local bench preset (`models.ini`), the same native harness. Local-stack delta vs L1.                           |
 
 No new arm IDs are introduced; the existing `check_ledger.py` `ARMS` set
 already permits L1/L2. The two arms are independent: L2 is free, runs first;
@@ -102,7 +102,7 @@ values from doc 00 (temp 0.6 / top-p 0.95 / top-k 20 / min-p 0); see
 **§Sampling** below for the leaderboard-parity caveat. This is pure
 convention — no code — and is shared verbatim by all four docs.
 
-### D2 — Untrusted-code execution sandbox (`scripts/bench-sandbox.sh`)
+### D2 — Untrusted-code execution sandbox (`benchmarks/scripts/bench-sandbox.sh`)
 
 Three of the four benchmarks **execute model-generated code** to grade it
 (LiveCodeBench, EvalPlus, and the input-prediction half of CRUXEval). That
@@ -111,7 +111,7 @@ execute model code and therefore does not depend on this deliverable.
 
 The repo already ships bubblewrap + an AppArmor profile (`pixi run
 install-apparmor`) for the pi/claude sandboxes. Reuse it. Contract for a
-shared `scripts/bench-sandbox.sh <cmd…>` wrapper:
+shared `benchmarks/scripts/bench-sandbox.sh <cmd…>` wrapper:
 
 - read-only root (entire host visible read-only, incl. the harness venv +
   repo, so the graded command can read inputs by their host absolute path);
@@ -131,7 +131,7 @@ shared `scripts/bench-sandbox.sh <cmd…>` wrapper:
 - `--die-with-parent`; non-zero exit propagates as a test failure;
 - same AppArmor profile as `bwrap-pi.sh` (no new profile).
 
-**Implemented:** `scripts/bench-sandbox.sh` exists and the D2 smoke tests
+**Implemented:** `benchmarks/scripts/bench-sandbox.sh` exists and the D2 smoke tests
 (see Pass criteria) pass. Usage:
 `bench-sandbox.sh [--stage <dir>] [--time <s>] [--mem <KB>] [--cpu <s>] -- <cmd…>`.
 Inside the sandbox the writable workspace is `/tmp` (fresh tmpfs, or the
@@ -244,7 +244,7 @@ doc 00 ──┐
 - [ ] D1: the `OPENAI_BASE_URL`/`OPENAI_API_KEY`/`BENCH_MODEL` convention is
       documented in each of 06–09 and a one-line OpenAI completion smoke call
       succeeds against both L2 and (when available) L1.
-- [x] D2: `scripts/bench-sandbox.sh` runs `python -c "print(2+2)"` → exit 0,
+- [x] D2: `benchmarks/scripts/bench-sandbox.sh` runs `python -c "print(2+2)"` → exit 0,
       and runs a snippet that opens a TCP socket → non-zero/blocked
       (`OSError: Network is unreachable` under `--unshare-all`). The script is
       bwrap-only — zero Docker dependency (verified by inspection: no `docker`

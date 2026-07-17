@@ -88,7 +88,9 @@ def validate_obj(o, ln):
         if k not in o["model"]:
             fail(ln, f"model missing {k!r}")
         if not isinstance(o["model"][k], str):
-            fail(ln, f"model.{k} should be a string, got {type(o['model'][k]).__name__}")
+            fail(
+                ln, f"model.{k} should be a string, got {type(o['model'][k]).__name__}"
+            )
     for k in ("metric", "value"):
         if k not in o["score"]:
             fail(ln, f"score missing {k!r}")

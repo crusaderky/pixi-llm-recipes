@@ -1,0 +1,28 @@
+# Isolated harness envs (doc 05 §Harness isolation) — never committed.
+.venv/
+.venv-*/
+*/.venv/
+*/.venv-*/
+
+# Upstream harness clones fetched by each setup.sh (pinned by commit/version in
+# the runner + recorded in the ledger; the working copy is a local artifact).
+*/vendor/
+*/upstream/
+scicode/SciCode/
+terminalbench/pi-terminal-bench/
+ifbench/IFBench/
+cruxeval/CRUXEval/
+
+# Datasets / generated samples / harness outputs.
+*/data/
+*/out/
+*/ep-out/
+*/crux-*/
+*.h5
+
+# Local secrets (copy .env.example -> .env and fill in for L1).
+.env
+
+# Python bytecode.
+__pycache__/
+*.pyc

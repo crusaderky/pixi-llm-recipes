@@ -51,7 +51,7 @@ uv pip install -r requirements.txt    # pin commit; record in ledger
 ```
 
 Generation via the OpenAI endpoint (doc 05 D1). **CRUXEval-I grading executes
-model-chosen inputs and MUST run through `scripts/bench-sandbox.sh` (doc 05
+model-chosen inputs and MUST run through `benchmarks/scripts/bench-sandbox.sh` (doc 05
 D2)**; CRUXEval-O grading is pure string match and needs no sandbox. Wire the
 harness's executor through the sandbox for the -I pass.
 
@@ -80,7 +80,7 @@ python -m cruxeval.generate --model openai/$BENCH_MODEL \
 
 # grade: -O is string match (no sandbox); -I executes (sandbox)
 python -m cruxeval.evaluate --task output_prediction --samples ./crux-O
-scripts/bench-sandbox.sh python -m cruxeval.evaluate \
+benchmarks/scripts/bench-sandbox.sh python -m cruxeval.evaluate \
   --task input_prediction --samples ./crux-I
 # (confirm exact entrypoints/flags against the pinned commit)
 ```

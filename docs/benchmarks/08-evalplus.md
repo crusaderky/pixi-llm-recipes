@@ -49,7 +49,7 @@ uv pip install "evalplus[vllm]"   # pin version; record in ledger. (vllm extra
 
 EvalPlus generates samples via a backend and then runs `evalplus.evaluate`,
 which **executes every sample against the augmented tests**. That execution is
-untrusted and **must run through `scripts/bench-sandbox.sh` (doc 05 D2)** — or
+untrusted and **must run through `benchmarks/scripts/bench-sandbox.sh` (doc 05 D2)** — or
 use EvalPlus's own isolation flags as long as they meet D2's no-network +
 resource-cap contract and pull in **no Docker** (doc 00 scope guard).
 
@@ -75,7 +75,7 @@ evalplus.codegen --dataset humaneval --backend openai \
   --base-url $OPENAI_BASE_URL --model $BENCH_MODEL \
   --temperature 0.6 --greedy false --root ./ep-out
 # 2) grade (untrusted execution -> bench-sandbox.sh)
-scripts/bench-sandbox.sh evalplus.evaluate --dataset humaneval \
+benchmarks/scripts/bench-sandbox.sh evalplus.evaluate --dataset humaneval \
   --samples ./ep-out/...jsonl
 ```
 
