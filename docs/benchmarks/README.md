@@ -93,8 +93,14 @@ deployment is not wired.
   task `agent_to` (all included tasks are 900/750), so it binds as a true
   ceiling; the old "overrides downward" wording was wrong (1200 > 900 never
   bound). 12 × 900 s ≈ 3 h worst case at n=1.
-- **Bench profile `spec-draft-n-max` aligned to 3** (matches the daily driver;
-  was 4 in the doc, a deviation from "same as daily driver").
+- **No prescribed `models.ini` bench preset.** The docs no longer mandate a
+  `[Qwen3.6-35B-A3B-bench]` preset; you configure `models.ini` yourself and
+  label each run with `model.preset` (the preset name) + `model.config`
+  (freeform string for any non-default tweaks the runner can't auto-detect —
+  e.g. `n-cpu-moe=20; ctx-size=131072; MTP off; froggeric template on`). The
+  REPORT prints `config: <model.config>` when non-empty. Named confounds
+  (froggeric template, reasoning-budget cap, KV quant, parallel slots) get
+  structured `toggles` fields; everything else goes in `model.config`.
 - **L1 reference endpoint = user-designated, precision explicitly labelled**
   (replaces the prior "remote BF16 vendor must document precision"). No vendor
   certification; the precision label (any value, incl. `unknown`) is recorded

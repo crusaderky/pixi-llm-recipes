@@ -27,11 +27,11 @@ Status: DESIGN.
 
 ## What requires implementation (summary)
 
-| Deliverable                   | Kind                                    | Status                                                                                         |
-| ----------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| D1 endpoint plumbing          | pure convention (env vars), **no code** | documented here + in 06–09; needs a one-line smoke call against L2/L1                          |
-| D2 `scripts/bench-sandbox.sh` | **new script**                          | **NOT YET IMPLEMENTED** — the file does not exist; the one concrete script this panel requires |
-| D3 ledger benchmark names     | one-line edit to `check_ledger.py`      | **DONE** — the repo's `results/check_ledger.py` already lists all six names                    |
+| Deliverable                   | Kind                                    | Status                                                                             |
+| ----------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------- |
+| D1 endpoint plumbing          | pure convention (env vars), **no code** | documented here + in 06–09; needs a one-line smoke call against L2/L1 (runtime)    |
+| D2 `scripts/bench-sandbox.sh` | **new script**                          | **IMPLEMENTED** — `scripts/bench-sandbox.sh` exists; D2 smoke tests pass (see §D2) |
+| D3 ledger benchmark names     | one-line edit to `check_ledger.py`      | **DONE** — the repo's `results/check_ledger.py` already lists all six names        |
 
 Prerequisite for: `06-livecodebench`, `07-ifbench`, `08-evalplus`, `09-cruxeval`.
 
@@ -46,8 +46,9 @@ of setup that must not be re-implemented four times. That shared setup is
 This doc does **not** redefine anything already in doc 00. Doc 00 owns:
 
 - the user-designated reference endpoint (precision explicitly labelled) and
-  the local `[Qwen3.6-35B-A3B-bench]` server profile (incl. sampling, MTP,
-  toggles T1/T2/T3, serving rules);
+  the local server profile (whatever `models.ini` preset you load; record its
+  name in `model.preset` and any non-default tweaks in `model.config`, doc 00)
+  incl. sampling, MTP, toggles T1/T2/T3, serving rules;
 - the run ledger (`results/runs.jsonl`) schema and `results/check_ledger.py`;
 - the calibration-probe + 4 h abort rule;
 - benchmark hygiene (no web, no advisor, unmanned-run rules);
@@ -65,7 +66,7 @@ runs **only two arms**:
 | Arm                   | Meaning here                                                                                                   |
 | --------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `L1-remote-canonical` | User-designated reference endpoint (precision labelled), the benchmark's native harness. Reference capability. |
-| `L2-local-canonical`  | Local `Qwen3.6-35B-A3B-bench`, the same native harness. Local-stack delta vs L1.                               |
+| `L2-local-canonical`  | Local bench preset (`models.ini`), the same native harness. Local-stack delta vs L1.                                      |
 
 No new arm IDs are introduced; the existing `check_ledger.py` `ARMS` set
 already permits L1/L2. The two arms are independent: L2 is free, runs first;
@@ -87,7 +88,7 @@ Standardize on the same two-variable switch already used in doc 01:
 # L2 local
 export OPENAI_BASE_URL="http://localhost:8080/v1"
 export OPENAI_API_KEY="sk-local"            # llama-server ignores the value
-export BENCH_MODEL="Qwen3.6-35B-A3B-bench"  # served preset name
+export BENCH_MODEL="Qwen3.6-35B-A3B"   # your models.ini preset; record in ledger model.preset
 
 # L1 remote anchor
 export OPENAI_BASE_URL="https://<vendor>/v1"
@@ -112,13 +113,17 @@ The repo already ships bubblewrap + an AppArmor profile (`pixi run
 install-apparmor`) for the pi/claude sandboxes. Reuse it. Contract for a
 shared `scripts/bench-sandbox.sh <cmd…>` wrapper:
 
-- read-only root; a fresh **tmpfs** mounted at a known path (e.g. `/sandbox`)
-  is the **only writable area** and the sandboxed process's working directory;
-  the harness **stages the model-generated snippet + any test inputs into the
-  tmpfs** (writes them before invoking the wrapper, or pipes via stdin), runs
-  `<cmd…>` there, and reads any result files back out of the tmpfs. `$PWD` is
-  bound read-only so the sandboxed step cannot mutate the harness's own tree —
-  all writes land in tmpfs;
+- read-only root (entire host visible read-only, incl. the harness venv +
+  repo, so the graded command can read inputs by their host absolute path);
+  a fresh **tmpfs** (or the `--stage` dir bind-mounted) at `/tmp` is the
+  **only writable area** and the sandboxed process's working directory —
+  `/tmp` is used (not `/sandbox`) because it always exists on the host so
+  bwrap can mount over it without creating a mountpoint on the read-only
+  root. The harness **stages the model-generated snippet + any test inputs**
+  into the `--stage` dir before invoking (it appears as `/tmp` inside), runs
+  `<cmd…>` there, and reads any result files back out of the dir after;
+  `$PWD` (the harness's own tree) is read-only via the root bind, so the
+  sandboxed step cannot mutate it — all writes land in `/tmp`;
 - **no network** (`--unshare-all`, no `--share-net`) — code grading must never
   reach out;
 - resource caps: wall `timeout` per process (harness passes its own per-task
@@ -126,8 +131,11 @@ shared `scripts/bench-sandbox.sh <cmd…>` wrapper:
 - `--die-with-parent`; non-zero exit propagates as a test failure;
 - same AppArmor profile as `bwrap-pi.sh` (no new profile).
 
-**Status: NOT YET IMPLEMENTED** — `scripts/bench-sandbox.sh` does not exist;
-creating it is the one concrete scripting deliverable this panel requires.
+**Implemented:** `scripts/bench-sandbox.sh` exists and the D2 smoke tests
+(see Pass criteria) pass. Usage:
+`bench-sandbox.sh [--stage <dir>] [--time <s>] [--mem <KB>] [--cpu <s>] -- <cmd…>`.
+Inside the sandbox the writable workspace is `/tmp` (fresh tmpfs, or the
+`--stage` dir); harnesses pass in-sandbox paths as `/tmp/<file>`.
 
 Implementations may instead use each harness's _own_ container/sandbox flag if
 it provides one (EvalPlus has execution-isolation options), **provided** the
@@ -236,9 +244,13 @@ doc 00 ──┐
 - [ ] D1: the `OPENAI_BASE_URL`/`OPENAI_API_KEY`/`BENCH_MODEL` convention is
       documented in each of 06–09 and a one-line OpenAI completion smoke call
       succeeds against both L2 and (when available) L1.
-- [ ] D2: `scripts/bench-sandbox.sh` runs `python -c "print(2+2)"` → exit 0,
-      and runs a snippet that opens a TCP socket → non-zero/blocked, with the
-      Docker daemon stopped (scope guard intact).
+- [x] D2: `scripts/bench-sandbox.sh` runs `python -c "print(2+2)"` → exit 0,
+      and runs a snippet that opens a TCP socket → non-zero/blocked
+      (`OSError: Network is unreachable` under `--unshare-all`). The script is
+      bwrap-only — zero Docker dependency (verified by inspection: no `docker`
+      calls), so it works with the Docker daemon stopped (the explicit
+      stop-Docker scope-guard check is a doc-00 runtime item). **Verified
+      2026-06-17.**
 - [ ] D3: `BENCHMARKS` in `check_ledger.py` includes the four panel names and a
       dummy entry for each validates.
 - [ ] The four harness envs install independently (no shared-env dependency

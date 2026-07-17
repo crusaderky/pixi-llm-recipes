@@ -68,9 +68,9 @@ reportable and the sandbox-free -O half can be done before D2 exists if desired.
 ### L2 — local canonical
 
 ```bash
-pixi r -e llamacpp-source-cuda start-server     # Qwen3.6-35B-A3B-bench
+pixi r -e llamacpp-source-cuda start-server     # your bench preset (models.ini)
 export OPENAI_BASE_URL="http://localhost:8080/v1" OPENAI_API_KEY="sk-local"
-export BENCH_MODEL="Qwen3.6-35B-A3B-bench"
+export BENCH_MODEL="Qwen3.6-35B-A3B"             # your models.ini preset; record in ledger model.preset
 
 # generate (run once per task: output / input)
 python -m cruxeval.generate --model openai/$BENCH_MODEL \

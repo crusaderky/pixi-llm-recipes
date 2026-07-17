@@ -106,14 +106,15 @@ harbor run \
 ### L2 — local canonical (bench profile)
 
 ```bash
-pixi r -e llamacpp-source-cuda start-server      # Qwen3.6-35B-A3B-bench, single slot
+pixi r -e llamacpp-source-cuda start-server      # your bench preset (models.ini), single slot
 # point LiteLLM at the local server (OpenAI-compatible):
 export OPENAI_API_KEY="sk-local"
 export OPENAI_BASE_URL="http://host.docker.internal:8080/v1"
+export BENCH_MODEL="Qwen3.6-35B-A3B"             # your models.ini preset; record in ledger model.preset
 harbor run \
   -d terminal-bench@2.0 \
   -a terminus-2 \
-  -m openai/Qwen3.6-35B-A3B-bench \
+  -m openai/$BENCH_MODEL \
   --task-ids-file docs/benchmarks/pins/tb2-quick.txt \
   -n 1 \
   --agent-timeout 900 \                           # runner-level per-task cap = default pin max task agent_to (doc 00 budget)

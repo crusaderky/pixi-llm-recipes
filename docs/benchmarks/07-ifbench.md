@@ -73,9 +73,9 @@ for a quick smoke). Same selection for L1 and L2. Use the **IFBench eval set**
 ### L2 — local canonical
 
 ```bash
-pixi r -e llamacpp-source-cuda start-server     # Qwen3.6-35B-A3B-bench
+pixi r -e llamacpp-source-cuda start-server     # your bench preset (models.ini)
 export OPENAI_BASE_URL="http://localhost:8080/v1" OPENAI_API_KEY="sk-local"
-export BENCH_MODEL="Qwen3.6-35B-A3B-bench"
+export BENCH_MODEL="Qwen3.6-35B-A3B"             # your models.ini preset; record in ledger model.preset
 python -m ifbench.eval \
   --model openai/$BENCH_MODEL \
   --input_data ifbench_eval \

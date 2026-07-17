@@ -66,9 +66,9 @@ cap for smoke). Run **HumanEval+ and MBPP+ as two separate ledger entries**
 ### L2 — local canonical (HumanEval+ shown; repeat with `--dataset mbpp`)
 
 ```bash
-pixi r -e llamacpp-source-cuda start-server     # Qwen3.6-35B-A3B-bench
+pixi r -e llamacpp-source-cuda start-server     # your bench preset (models.ini)
 export OPENAI_BASE_URL="http://localhost:8080/v1" OPENAI_API_KEY="sk-local"
-export BENCH_MODEL="Qwen3.6-35B-A3B-bench"
+export BENCH_MODEL="Qwen3.6-35B-A3B"             # your models.ini preset; record in ledger model.preset
 
 # 1) generate
 evalplus.codegen --dataset humaneval --backend openai \

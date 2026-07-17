@@ -88,11 +88,12 @@ document it. Connectivity proof (doc 02) is a prerequisite.
 ### L4 — vanilla pi (deliverable 04a)
 
 ```bash
-pixi r -e llamacpp-source-cuda start-server     # Qwen3.6-35B-A3B-bench, single slot
+pixi r -e llamacpp-source-cuda start-server     # your bench preset (models.ini), single slot
+export BENCH_MODEL="Qwen3.6-35B-A3B"             # your models.ini preset; record in ledger model.preset
 harbor run \
   -d terminal-bench@2.0 \
   --agent-import-path pi_terminal_bench:PiAgent \
-  -m openai/Qwen3.6-35B-A3B-bench \
+  -m openai/$BENCH_MODEL \
   --task-ids-file docs/benchmarks/pins/tb2-quick.txt \
   -n 1 \
   --agent-timeout 900 \
@@ -140,7 +141,7 @@ not a TUI extension — `pi-usage-extension` is DROP.
 harbor run \
   -d terminal-bench@2.0 \
   --agent-import-path pi_terminal_bench:PiAgent \
-  -m openai/Qwen3.6-35B-A3B-bench \
+  -m openai/$BENCH_MODEL \
   --task-ids-file docs/benchmarks/pins/tb2-quick.txt \
   -n 1 --agent-timeout 900 \
   --jobs-dir docs/benchmarks/results/tb2-L5

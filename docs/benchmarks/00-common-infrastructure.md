@@ -92,52 +92,47 @@ vendor, and the vendor is **not** required to certify its precision.
 
 ### Local bench profile (llama-server)
 
-Add a new preset to `models.ini`. It is the deployed Qwen profile with the
-two known benchmark-hostile customizations removed (per decision U3):
+You configure `models.ini` yourself before running benchmarks — the docs do
+not prescribe a preset. A reasonable starting point is your deployed Qwen
+profile with the two known benchmark-hostile customizations removed (per
+decision U3): the custom froggeric chat template and the reasoning-budget cap.
+But the exact weights, placement, context size, MTP, sampling, and KV quant are
+your call; tune them to your hardware and goals.
 
-```ini
-[Qwen3.6-35B-A3B-bench]
-# Same weights and placement as the daily-driver profile
-hf = byteshape/Qwen3.6-35B-A3B-MTP-GGUF:Qwen3.6-35B-A3B-IQ4_XS-3.97bpw
-ctx-size = 262144
-ngl = 99
-n-cpu-moe = 40
-image-min-tokens = 1024
-no-mmproj-offload = true
+What the runner needs from you, and what you record in the ledger:
 
-# MTP speculative decoding: speed-only, distribution-preserving. Keep ON,
-# but it is a calibration-phase verification item (see below) because its
-# interaction with --parallel is unverified.
-spec-type = draft-mtp
-spec-draft-n-max = 3
-spec-draft-ngl = 99
+- **`model.preset`** — the `models.ini` preset name the runner should load
+  (the value you pass as `BENCH_MODEL` / `--model openai/<preset>`).
+- **`model.config`** — a **freeform string labelling anything the runner can't
+  see** (this is the field you asked for). The runner auto-detects endpoint URL,
+  model id, and the sampling params you pass via the API; it cannot see
+  `models.ini` internals or server flags that are not exposed through the API.
+  So write down anything non-default here, e.g.:
+  `"n-cpu-moe=20; ctx-size=131072; MTP off; froggeric template on; KV q4_0"`.
+  There is no fixed schema — be concise and human-readable; future-you (or a
+  reviewer) needs to be able to reconstruct what was actually served.
 
-# Deployed sampling (kept identical to daily driver, per decision Q10)
-temperature = 0.6
-top-p = 0.95
-top-k = 20
-min-p = 0.0
-presence-penalty = 0.0
-repeat-penalty = 1.0
+**Named confounds (record in `toggles`, not `model.config`):** three settings
+materially affect cross-run comparability and get structured fields so they
+aren't buried in prose:
 
-# --- Deliberately ABSENT vs. the daily-driver profile ---
-# chat-template-file = chat-templates/qwen3.6-froggeric-v20.jinja
-#     TOGGLE T1 (default OFF for ladder runs): custom chat template.
-# reasoning-budget = 8192
-#     TOGGLE T2 (default OFF): thinking cap. Hard benchmark items are exactly
-#     where reasoning models want >8k thinking tokens; with the cap on, its
-#     effect can dominate and masquerade as quantization damage.
-# chat-template-kwargs = {"preserve_thinking":true}
-#     Belongs to the froggeric template; follows T1.
-```
+- **T1 — froggeric chat template** (`toggles.T1_froggeric: bool`). Default for
+  a clean baseline: off (use the GGUF's embedded template). On = custom
+  `chat-template-file`.
+- **T2 — reasoning-budget cap** (`toggles.T2_reasoning_budget: bool|int`).
+  Default off (uncapped thinking). Hard benchmark items are exactly where
+  reasoning models want >8k thinking tokens; with the cap on, its effect can
+  dominate and masquerade as quantization damage.
+- **T3 — KV cache quant** (`toggles.T3_kv: "q8_0"|"q4_0"|"f16"|…`). Default is
+  the global `q8_0` (part of the local stack under test); raising to `f16` is
+  a future goal-2 experiment.
+- **`parallel_slots`** (`toggles.parallel_slots: int`) — the `--parallel N`
+  value, since it divides the context pool.
 
-KV cache stays at the global `q8_0` (it is part of the local stack under
-test; raising it to f16 is a future goal-2 experiment, TOGGLE T3, default
-deployed value).
-
-Toggles T1/T2/T3 are flipped by editing `models.ini`; every run records the
-toggle state in the run ledger. A ladder run is only comparable to another
-ladder run with identical toggle state.
+A ladder run is only comparable to another with identical `toggles` **and**
+comparable `model.config`. If you tweak `models.ini` between two runs, say so
+in `model.config` — do not silently let two runs look identical when they
+aren't.
 
 ### Serving rules
 
@@ -230,7 +225,8 @@ the parent `docs/benchmarks/` dir and are committed. Required fields:
     "deployment": "remote|local",
     "endpoint": "…",
     "precision": "BF16 | FP16 | IQ4_XS+q8_0kv | Q4_K_M | unknown",
-    "preset": "Qwen3.6-35B-A3B-bench"
+    "preset": "<models.ini preset name you loaded>",
+    "config": "freeform: any models.ini / server tweaks not auto-detectable by the runner (e.g. 'n-cpu-moe=20; ctx-size=131072; MTP off')"
   },
   "toggles": { "T1_froggeric": false, "T2_reasoning_budget": false, "T3_kv": "q8_0", "parallel_slots": 1 },
   "pin": { "file": "pins/tb2-quick.txt", "sha256": "…", "n_items": 12 },
@@ -261,11 +257,17 @@ down). **Every REPORT prints a one-line summary per arm**:
 
 `<endpoint URL> / <model id> -> <score>  (mean <mean_s>s/item, n=<n>)`
 
-so the deployment (precision label in parentheses), the score, and the **time
-per task** are all visible at a glance. The endpoint is a user-supplied label,
-not an assumed BF16 vendor, so it must be shown explicitly; the per-item time is
-the throughput signal that is actually comparable across harnesses (unlike
-`wall_clock_h`, which includes unrelated overhead).
+followed, when `model.config` is non-empty, by a second line:
+
+`  config: <model.config>`
+
+so the deployment (precision label in parentheses), the score, the **time per
+task**, and **any invisible `models.ini` tweaks** are all visible at a glance.
+The endpoint is a user-supplied label, not an assumed BF16 vendor, so it must be
+shown explicitly; `model.config` is the label for everything the runner can't
+auto-detect (see §Local bench profile); the per-item time is the throughput
+signal that is actually comparable across harnesses (unlike `wall_clock_h`,
+which includes unrelated overhead).
 
 - SciCode → Artificial Analysis SciCode page for Qwen3.6-35B-A3B (subproblem
   scoring, with background), noting any subset/protocol differences.
@@ -318,20 +320,32 @@ confidence, source, optional aliases) and re-run.
 
 ## Pass criteria for this document (doc 00)
 
-- [ ] `models.ini` contains `[Qwen3.6-35B-A3B-bench]` as specified; server
-      starts and `/health` is green; a one-prompt smoke call returns a
+**Implemented (static, 2026-06-17):**
+
+- [x] The ledger schema carries `model.preset` + `model.config` so a run can
+      be labelled with the `models.ini` preset name **and** any non-default
+      tweaks the runner can't auto-detect (freeform string). `check_ledger.py`
+      validates both; the REPORT prints `config: <model.config>` when non-empty.
+      `models.ini` itself is user-managed — the docs do not prescribe a preset.
+- [x] `docs/benchmarks/results/` exists; a dummy ledger entry validates
+      against the schema — `python results/check_ledger.py --self-test` →
+      `OK: self-test example valid`. `check_ledger.py` validates the `timing`
+      field (n/mean_s/median_s/min_s/max_s) too.
+- [x] `docs/benchmarks/model-cutoffs.toml` + `lookup_cutoff.py` present; a
+      lookup for `Qwen3.6-35B-A3B` returns its cutoff (`2026-04-15`) and a
+      lookup for a missing id crashes (exit 2) with update instructions.
+
+**Runtime / user-input (pending — need a running server, Docker, or a human):**
+
+- [ ] You configure a `models.ini` preset for benchmarking; the server starts
+      on it and `/health` is green; a one-prompt smoke call returns a
       completion with thinking uncapped (response contains an unstripped
-      `</think>` segment or equivalent).
-- [ ] Toggles T1/T2 can be flipped by uncommenting documented lines only.
-- [ ] Docker present; scope guard check passes (pi works with daemon stopped).
-- [ ] `docs/benchmarks/results/` exists; a dummy ledger entry validates
-      against the schema (`results/check_ledger.py` is part of this
-      deliverable).
-- [ ] `docs/benchmarks/model-cutoffs.toml` + `lookup_cutoff.py` present; a
-      lookup for `Qwen3.6-35B-A3B-bench` returns its cutoff and a lookup for a
-      missing id crashes (exit 2) with update instructions.
+      `</think>`` segment or equivalent). Record the preset name in
+      `model.preset` and any non-default settings in `model.config`.
+- [ ] Docker present; scope guard check passes (`systemctl stop docker &&
+      pixi r pi - -- -p "hello"` still works).
 - [ ] Calibration procedure executed once end-to-end (any 3 SciCode items via
-      doc 01 tooling) and recorded.
+      doc 01 tooling) and recorded in the ledger `notes`.
 - [ ] An L1 reference endpoint is designated (endpoint URL + model id +
       precision label recorded in a ledger entry); the precision label is
       explicit (any value, including `unknown`, is acceptable — the

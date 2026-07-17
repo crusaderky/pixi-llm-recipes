@@ -94,11 +94,12 @@ inspect eval scicode.py \
 ### L2 — local canonical (bench profile)
 
 ```bash
-pixi r -e llamacpp-source-cuda start-server      # loads Qwen3.6-35B-A3B-bench
+pixi r -e llamacpp-source-cuda start-server      # loads your bench preset (models.ini)
 export OPENAI_BASE_URL="http://localhost:8080/v1"
 export OPENAI_API_KEY="sk-local"                 # llama-server ignores the value
+export BENCH_MODEL="Qwen3.6-35B-A3B"             # your models.ini preset; record in ledger model.preset
 inspect eval scicode.py \
-  --model openai/Qwen3.6-35B-A3B-bench \
+  --model openai/$BENCH_MODEL \
   -T split=test -T with_background=True -T mode=normal \
   --temperature 0.6 --top-p 0.95 \
   --max-connections 4                            # => 4 llama-server --parallel slots
