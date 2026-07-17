@@ -192,7 +192,7 @@ tomli-w = "*"
 
 [feature.pytools.pypi-dependencies]
 # forge-guardrails = "*"
-forge-guardrails = { git = "https://github.com/crusaderky/forge.git", branch = "models-passthrough" }
+forge-guardrails = { git = "https://github.com/crusaderky/forge.git", branch = "staging" }
 llama-benchy = ">=0.4.0"
 
 [feature.pytools.tasks]
