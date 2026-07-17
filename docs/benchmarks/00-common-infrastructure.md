@@ -1,52 +1,94 @@
 # 00 — Common Benchmark Infrastructure
 
-Status: DESIGN — to be implemented before any of docs 01–04.
+Status: DESIGN — to be implemented before any of docs 01–09.
+
+## Dependency chain
+
+- **Depends on:** nothing (root of the benchmark design tree).
+- **Unblocks:** `01`–`04` (heavy ladder), `05` (lightweight panel), and
+  transitively `06`–`09` via `05`.
+- Docs 01–09 must not redefine anything specified here; if a later doc seems
+  to contradict this one, this one wins.
+
+## External dependencies (require user input)
+
+These are **not** implementable from the repo alone; they need a human decision
+or off-repo asset before any arm can run. Each later doc inherits them.
+
+- **Reference endpoint (L1)** — at run time the user supplies an arbitrary
+  OpenAI-compatible endpoint: `OPENAI_BASE_URL` + `OPENAI_API_KEY` + a model id
+  - an **explicit precision label**. The endpoint may be a remote vendor OR a
+    second local `llama-server` — anything that speaks `/v1`. **Vendors are NOT
+    required to certify their precision**; the precision is whatever the user
+    asserts (e.g. `BF16`, `FP16`, `IQ4_XS+q8_0kv`, `unknown`) and is recorded
+    verbatim in the ledger `model.precision` and printed in every REPORT. The L1
+    arm is therefore "the user-designated reference endpoint, labelled with its
+    precision" — not specifically a BF16 vendor. Comparability comes from the
+    label being explicit, not from it being a particular value.
+- **API key / auth** — for whatever endpoint L1 points at.
+- **Model training-data cutoff** — looked up from the **static table**
+  `docs/benchmarks/model-cutoffs.toml` via `docs/benchmarks/lookup_cutoff.py`
+  (see §Model cutoff table). Needed by the contamination-controlled benchmarks
+  (doc 06 LiveCodeBench especially). If the model is missing from the table,
+  the lookup **crashes with instructions** on how to add it — it does not fall
+  back silently.
 
 ## Purpose
 
 Shared contracts for running SciCode and Terminal-Bench 2.0 against the local
-llama.cpp stack and against a remote full-precision endpoint, so that results
-from different harnesses and different model deployments are comparable with
-each other. Docs 01–04 all depend on this document and must not redefine
-anything specified here.
+llama.cpp stack and against a user-designated reference endpoint, so that
+results from different harnesses and different model deployments are
+comparable with each other.
 
 ## The experiment ladder
 
-Every benchmark is run as a sequence of *arms*. An arm = (model deployment,
+Every benchmark is run as a sequence of _arms_. An arm = (model deployment,
 harness, harness configuration). The canonical ladder:
 
-| Arm ID | Model deployment | Harness | Measures |
-|--------|-----------------|---------|----------|
-| `L1-remote-canonical` | Remote API, BF16/FP16 | Canonical (inspect_ai / Terminus 2) | Anchor: the model's reference capability |
-| `L2-local-canonical` | Local llama-server (bench profile) | Canonical | Local-stack delta vs L1 |
-| `L3-local-pi-bare` | Local llama-server (bench profile) | pi, minimal | Harness delta vs L2 (SciCode only; see doc 03 §Bare) |
-| `L4-local-pi-tools` | Local llama-server (bench profile) | pi, default tools | Agentic-tools delta |
-| `L5-local-pi-ext` | Local llama-server (bench profile) | pi + extension ladder | pi-augmented outcome |
+| Arm ID                | Model deployment                                                                              | Harness                             | Measures                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------- |
+| `L1-remote-canonical` | User-designated reference endpoint (any OpenAI-compatible URL; precision explicitly labelled) | Canonical (inspect_ai / Terminus 2) | Anchor: the reference capability at the labelled precision |
+| `L2-local-canonical`  | Local llama-server (bench profile)                                                            | Canonical                           | Local-stack delta vs L1                                    |
+| `L3-local-pi-bare`    | Local llama-server (bench profile)                                                            | pi, minimal                         | Harness delta vs L2 (SciCode only; see doc 03 §Bare)       |
+| `L4-local-pi-tools`   | Local llama-server (bench profile)                                                            | pi, default tools                   | Agentic-tools delta                                        |
+| `L5-local-pi-ext`     | Local llama-server (bench profile)                                                            | pi + extension ladder               | pi-augmented outcome                                       |
 
 Terminology note: L2 is the **local-stack delta**, not "quantization delta".
 It conflates at least: 4-bit weights, q8_0 KV cache, and any server-side
-config differences. Confounds that are *not* part of the bench profile
+config differences. Confounds that are _not_ part of the bench profile
 (custom chat template, reasoning budget) are individual toggles — see below.
 
 rpiv-advisor arms are explicitly **out of scope** for the initial
 implementation (deferred by decision 2026-06-12); docs 03/04 reserve the arm
-ID `L6-local-pi-advisor` for it.
+ID `L6-local-pi-advisor` for it. (Note: `rpiv-advisor` is not in the current
+`pixi-recipes/pi-extensions` recipe; the arm ID is reserved, the deployment is
+not wired.)
 
 ## Model deployments
 
-### Remote anchor endpoint
+### Reference endpoint (L1 — user-designated, precision explicitly labelled)
 
-- Must serve **Qwen3.6-35B-A3B** over an OpenAI-compatible API.
-- HARD REQUIREMENT: the vendor must document that the model is served at
-  **BF16 or FP16** weights. If the precision is not documented, the vendor is
-  not eligible. Record vendor, endpoint URL, documented precision, and date in
-  the run ledger before the first anchor run.
-- Selection hint: Artificial Analysis model pages list the endpoints they
-  benchmark and the precision per endpoint; preferring one of those buys
-  comparability with the AA-published SciCode score.
-- Sampling: same as local deployed sampling (temperature 0.6, top-p 0.95,
-  top-k 20, min-p 0) to the extent the vendor API accepts the parameters.
-  Record which parameters were accepted/dropped.
+The L1 arm is whatever OpenAI-compatible endpoint the user points at as the
+reference, labelled with its precision. It is **not** required to be a BF16
+vendor, and the vendor is **not** required to certify its precision.
+
+- Serves any model over an OpenAI-compatible `/v1` API. The model id is
+  user-supplied (it need not be Qwen3.6-35B-A3B — L1 can be a different model
+  family entirely, or a second local `llama-server`).
+- **Precision is an explicit label the user provides**, recorded verbatim in
+  the ledger `model.precision` (e.g. `BF16`, `FP16`, `IQ4_XS+q8_0kv`,
+  `Q4_K_M`, `unknown`). No verification is performed — the point is that the
+  label is written down, not that it is a particular value. A label of
+  `unknown` is valid and must be stated honestly.
+- Record endpoint URL, model id, precision label, and date in the run ledger
+  before the first L1 run. The REPORT prints the line **`<endpoint URL> / <model id> -> <score>`** for every arm so the deployment is visible at a glance.
+- Sampling: same as the local deployed sampling (temperature 0.6, top-p 0.95,
+  top-k 20, min-p 0) to the extent the endpoint accepts the parameters. Record
+  which parameters were accepted/dropped.
+- Selection hint (optional, not required): pointing L1 at a vendor endpoint
+  that Artificial Analysis benchmarks (and documenting that precision label)
+  buys comparability with the AA-published SciCode score — but this is a
+  convenience, not a hard requirement.
 
 ### Local bench profile (llama-server)
 
@@ -67,7 +109,7 @@ no-mmproj-offload = true
 # but it is a calibration-phase verification item (see below) because its
 # interaction with --parallel is unverified.
 spec-type = draft-mtp
-spec-draft-n-max = 4
+spec-draft-n-max = 3
 spec-draft-ngl = 99
 
 # Deployed sampling (kept identical to daily driver, per decision Q10)
@@ -103,7 +145,7 @@ ladder run with identical toggle state.
 - Exactly one model loaded during a benchmark run (`models-max = 1` already
   enforces this). No interactive use of the server during runs.
 - SciCode runs MAY use request concurrency via llama-server `--parallel N`
-  (N=4 recommended). This *divides* the existing 262144-token context into
+  (N=4 recommended). This _divides_ the existing 262144-token context into
   N slots (~64k each); it does not reduce quality as long as no request
   approaches the per-slot ceiling. The runner must log a warning for any
   request whose prompt+output exceeds 80% of the slot window.
@@ -127,12 +169,12 @@ ladder run with identical toggle state.
 
 ## Datasets and one-off downloads
 
-| Asset | Source | Notes |
-|-------|--------|-------|
-| SciCode problems | HuggingFace `SciCode1/SciCode` | pulled automatically by the inspect_ai task |
-| SciCode numeric test data | Google Drive link in SciCode README | save as `eval/data/test_data.h5`; ~required for scoring; record sha256 in ledger |
-| Terminal-Bench 2.0 tasks | Harbor registry `terminal-bench@2.0` | tasks pinned by Harbor to repo `laude-institute/terminal-bench-2` at commit `69671fba…` |
-| pi-terminal-bench adapter | github.com/badlogic/pi-terminal-bench | pin a commit at implementation time, record in ledger |
+| Asset                     | Source                                                  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SciCode problems          | HuggingFace `SciCode1/SciCode`                          | pulled automatically by the inspect_ai task                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| SciCode numeric test data | Google Drive folder `1W5GZW6_bdiDAiipuFMqdUhvUaHIj6-pR` | save as `eval/data/test_data.h5`; required for scoring. **Not actually gated** — `gdown` fetches it without sign-in (the web UI shows "Sign in" but gdown's confirm-token bypass works). One-liner: `pip install gdown && python -m gdown --folder "https://drive.google.com/drive/folders/1W5GZW6_bdiDAiipuFMqdUhvUaHIj6-pR" -O eval/data` (drops `eval/data/test_data.h5` in place). Expected sha256 `48b0272a88b17dbd29777c217e1b4fb2b019b92e11cc2add847409db9541b890` (~1.05 GB); record in ledger. |
+| Terminal-Bench 2.0 tasks  | Harbor registry `terminal-bench@2.0`                    | tasks pinned by Harbor to repo `laude-institute/terminal-bench-2` at commit `69671fbaac6d67a7ef0dfec016cc38a64ef7a77c` (2025-10-31, "update storage"); record the SHA in the ledger                                                                                                                                                                                                                                                                                                                     |
+| pi-terminal-bench adapter | github.com/badlogic/pi-terminal-bench                   | pin a commit at implementation time, record in ledger                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Version pins (decision A): Terminal-Bench **2.0**, not 2.1. Migration to 2.1
 is a one-line dataset-version change plus possible adapter patch; out of
@@ -150,7 +192,9 @@ Target: **1–4 hours per arm**. Enforcement is procedural, not aspirational:
 3. **Abort rule**: if the projection exceeds 4 h, do not start. Either shrink
    the pin (see per-doc pin files), reduce repeats to 1, or (SciCode) enable
    `--parallel`.
-4. Record probe numbers in the ledger even for aborted plans.
+4. Record probe numbers in the ledger `notes` (there is no dedicated
+   calibration field — the schema is intentionally minimal) even for aborted
+   plans.
 
 Repeats: default **1** for local arms; toggle to **3** for headline numbers.
 Remote anchor arms default to **3** (cheap and fast at provider concurrency).
@@ -171,30 +215,57 @@ Rules:
 ## Run ledger and results schema
 
 All runs append one JSON object to `docs/benchmarks/results/runs.jsonl`
-(directory is gitignored except for `.gitkeep`; the ledger itself is the
-implementer's choice to commit or not). Required fields:
+(directory contents are gitignored except `check_ledger.py`; the ledger itself
+is the implementer's choice to commit or not). The cutoff table
+`docs/benchmarks/model-cutoffs.toml` and its reader `lookup_cutoff.py` live in
+the parent `docs/benchmarks/` dir and are committed. Required fields:
 
 ```json
 {
   "run_id": "2026-06-15T09-12_scicode_L2",
-  "benchmark": "scicode | tb2",
-  "arm": "L1-remote-canonical | L2-local-canonical | L3 | L4 | L5",
-  "harness": {"name": "inspect_ai | harbor-terminus2 | pi | harbor-pi", "version": "…"},
-  "model": {"deployment": "remote|local", "endpoint": "…", "precision": "BF16|IQ4_XS+q8_0kv", "preset": "Qwen3.6-35B-A3B-bench"},
-  "toggles": {"T1_froggeric": false, "T2_reasoning_budget": false, "T3_kv": "q8_0", "parallel_slots": 1},
-  "pin": {"file": "pins/tb2-quick.txt", "sha256": "…", "n_items": 12},
+  "benchmark": "scicode | tb2 | livecodebench | ifbench | evalplus | cruxeval",
+  "arm": "L1-remote-canonical | L2-local-canonical | L3-local-pi-bare | L4-local-pi-tools | L5-local-pi-ext",
+  "harness": { "name": "inspect_ai | harbor-terminus2 | pi | harbor-pi", "version": "…" },
+  "model": {
+    "deployment": "remote|local",
+    "endpoint": "…",
+    "precision": "BF16 | FP16 | IQ4_XS+q8_0kv | Q4_K_M | unknown",
+    "preset": "Qwen3.6-35B-A3B-bench"
+  },
+  "toggles": { "T1_froggeric": false, "T2_reasoning_budget": false, "T3_kv": "q8_0", "parallel_slots": 1 },
+  "pin": { "file": "pins/tb2-quick.txt", "sha256": "…", "n_items": 12 },
   "repeats": 1,
-  "score": {"metric": "subproblem_pass@1 | task_pass@1", "value": 0.0, "raw": "path/to/harness/output"},
+  "score": { "metric": "subproblem_pass@1 | task_pass@1", "value": 0.0, "raw": "path/to/harness/output" },
+  "timing": { "n": 12, "mean_s": 0.0, "median_s": 0.0, "min_s": 0.0, "max_s": 0.0 },
   "wall_clock_h": 0.0,
-  "tokens": {"in": 0, "out": 0},
+  "tokens": { "in": 0, "out": 0 },
   "notes": ""
 }
 ```
 
+`timing` is the **per-item wall time** (seconds) the runner records for every
+graded item (a SciCode subproblem, a TB task, a LiveCodeBench problem, an
+IFBench prompt, an EvalPlus problem, a CRUXEval item). `n` = number of items
+timed (= `pin.n_items` × `repeats` unless the runner dropped items); `mean_s` /
+`median_s` / `min_s` / `max_s` are the per-item wall times. The harness measures
+this directly (per request/episode); for local arms it is also recoverable from
+`llama-server.log` prompt timings as a cross-check. `wall_clock_h` stays the
+total run wall clock (includes harness overhead, model loading, Docker pulls,
+grading — not comparable across harnesses, which is why per-item `timing` is the
+primary throughput signal).
+
 Each headline run additionally produces a short `REPORT-<run_id>.md` that
 states the score and **compares it against external references** (per
 decision Q8: no hard numeric tolerances, but the comparison must be written
-down):
+down). **Every REPORT prints a one-line summary per arm**:
+
+`<endpoint URL> / <model id> -> <score>  (mean <mean_s>s/item, n=<n>)`
+
+so the deployment (precision label in parentheses), the score, and the **time
+per task** are all visible at a glance. The endpoint is a user-supplied label,
+not an assumed BF16 vendor, so it must be shown explicitly; the per-item time is
+the throughput signal that is actually comparable across harnesses (unlike
+`wall_clock_h`, which includes unrelated overhead).
 
 - SciCode → Artificial Analysis SciCode page for Qwen3.6-35B-A3B (subproblem
   scoring, with background), noting any subset/protocol differences.
@@ -215,6 +286,36 @@ down):
 - The server log (`llama-server.log`) for local runs is retained alongside
   the harness output for each run_id.
 
+## Model cutoff table (contamination control)
+
+`docs/benchmarks/model-cutoffs.toml` is a **static, committed table** mapping
+model → training-data cutoff, covering every preset in `models.ini` plus the
+external reference models (Claude Sonnet 5, GPT-5.6, Kimi K3, GLM-5.2,
+MiniMax-M3, Hy3, MiMo-V2.5, DeepSeek-V4-Flash). `docs/benchmarks/lookup_cutoff.py`
+reads it.
+
+Contract (enforced by `lookup_cutoff.py`, which the benchmark runners call):
+
+- The runner normalizes the model id (lowercase; strip HF repo prefix, GGUF
+  `:quant` tag, and common suffixes like `-bench`/`-iq4_xs`/`-it`) and matches
+  it against each entry's `key` + `aliases`.
+- **If the model is not in the table, the lookup crashes (exit 2) with
+  instructions on how to append a `[[models]]` block.** It does not fall back
+  silently — a missing entry is a bug to fix, not a warning.
+- `cutoff` is the comparison bound: `window_start > cutoff` ⇒ contamination
+  posture holds. For vendor "year-level" claims (e.g. Qwen "2026") the cutoff
+  is set to the **release date** (a hard upper bound — a model cannot have
+  trained on data released after it) rather than 31 Dec of that year, which
+  would void contamination control for the whole year. For undocumented
+  cutoffs the release date is used as a proxy; `cutoff = "unknown"` means no
+  usable bound (the runner **warns** that the posture is void, but does not
+  crash — the model IS in the table).
+- `confidence` ∈ {documented, year-level, proxy, inherited, unknown}; `source`
+  records the URL/note. Last reviewed 2026-06-17.
+
+To add a model: append a `[[models]]` block (key, cutoff, released,
+confidence, source, optional aliases) and re-run.
+
 ## Pass criteria for this document (doc 00)
 
 - [ ] `models.ini` contains `[Qwen3.6-35B-A3B-bench]` as specified; server
@@ -224,12 +325,17 @@ down):
 - [ ] Toggles T1/T2 can be flipped by uncommenting documented lines only.
 - [ ] Docker present; scope guard check passes (pi works with daemon stopped).
 - [ ] `docs/benchmarks/results/` exists; a dummy ledger entry validates
-      against the schema (a 20-line Python checker script is part of this
+      against the schema (`results/check_ledger.py` is part of this
       deliverable).
+- [ ] `docs/benchmarks/model-cutoffs.toml` + `lookup_cutoff.py` present; a
+      lookup for `Qwen3.6-35B-A3B-bench` returns its cutoff and a lookup for a
+      missing id crashes (exit 2) with update instructions.
 - [ ] Calibration procedure executed once end-to-end (any 3 SciCode items via
       doc 01 tooling) and recorded.
-- [ ] Remote vendor selected; documented BF16/FP16 evidence (URL or doc
-      snapshot) stored under `docs/benchmarks/results/vendor-precision/`.
+- [ ] An L1 reference endpoint is designated (endpoint URL + model id +
+      precision label recorded in a ledger entry); the precision label is
+      explicit (any value, including `unknown`, is acceptable — the
+      requirement is that it is written down). No vendor certification needed.
 
 ## Open verification items (carried by later docs)
 

@@ -1,0 +1,203 @@
+# Static table of model training-data cutoff dates for contamination control.
+#
+# Used by the lightweight panel (docs/benchmarks/06-livecodebench.md especially)
+# to validate that the chosen LiveCodeBench date window starts AFTER the model's
+# training-data cutoff, so the score isn't dominated by memorization.
+#
+# Lookup contract (enforced by lookup_cutoff.py, which the runners call):
+#   - The runner normalizes the model id (lowercase; strip HF repo prefix,
+#     GGUF ":quant" tag, and common suffixes like -bench / -iq4_xs / -it).
+#   - It matches against each entry's `key` and `aliases`.
+#   - If NO entry matches, the runner CRASHES (exit 2) with instructions on how
+#     to add the model here. It does NOT silently fall back.
+#   - `cutoff` is the training-data cutoff, used as the comparison bound:
+#       window_start > cutoff  =>  contamination posture holds.
+#     - A precise documented date is used as-is.
+#     - A vendor "year-level" claim (e.g. Qwen "2026") is too coarse (it would
+#       void contamination control for the entire year), so `cutoff` is set to
+#       the RELEASE date instead — a hard upper bound (a model cannot have
+#       trained on data released after it). The year-level claim is recorded in
+#       `source`. Confidence = "year-level".
+#     - An UNDOCUMENTED cutoff with a known release date uses the release date
+#       as a proxy upper bound. Confidence = "proxy".
+#     - `cutoff = "unknown"` means no usable bound is known; the runner WARNS
+#       (contamination posture void) but does not crash — the model IS in the
+#       table. Confidence = "unknown".
+#   - `confidence` ∈ {documented, year-level, proxy, inherited, unknown}.
+#   - `inherited` = the model is a post-train of a documented base; cutoff is
+#     the base's cutoff.
+#
+# To add a model: append a [[models]] block (key, cutoff, released, confidence,
+# source, optional aliases) and re-run. Last reviewed 2026-06-17.
+
+# ---------------------------------------------------------------------------
+# Local models (every preset in models.ini)
+# ---------------------------------------------------------------------------
+
+[[models]]
+key = "qwen3.6-35b-a3b"
+aliases = ["qwen3.6-35b-a3b-bench", "qwen3.6-35b-a3b-iq4_xs", "qwen3.6-35b-a3b-mtp"]
+cutoff = 2026-04-15
+released = 2026-04-15
+confidence = "year-level"
+source = "DashScope system prompt claims 2026 (year-level); release 2026-04-15 used as safe upper bound. metehan.ai cutoff table 2026-06-17."
+
+[[models]]
+key = "qwen3.6-27b"
+cutoff = 2026-04-15
+released = 2026-04-15
+confidence = "year-level"
+source = "Qwen3.6 family (2026 year-level, DashScope); family release 2026-04-15."
+
+[[models]]
+key = "qwen3.5-9b"
+cutoff = 2026-02-23
+released = 2026-02-23
+confidence = "year-level"
+source = "Qwen3.5+ claims 2026 (DashScope, year-level); Qwen3.5 Flash released 2026-02-23 (metehan.ai)."
+
+[[models]]
+key = "ornith-1.0-35b"
+aliases = ["ornith-1.0-35b-moe"]
+cutoff = 2026-04-15
+released = 2026-06-21
+confidence = "inherited"
+source = "Post-trained on a Qwen3.6-35B-A3B base (35B-MoE); inherits Qwen3.6 cutoff. README family note also mentions Gemma 4, but 35B-MoE matches the Qwen base."
+
+[[models]]
+key = "ornith-1.0-9b"
+cutoff = 2026-02-23
+released = 2026-06-21
+confidence = "inherited"
+source = "Post-trained on a Qwen3.5-9B base; inherits Qwen3.5 cutoff."
+
+[[models]]
+key = "gemma4-e2b"
+cutoff = 2025-01-31
+released = "unknown"
+confidence = "documented"
+source = "Gemma 4 model card: 'cutoff date of January 2025' (ai.google.dev/gemma/docs/core/model_card_4)."
+
+[[models]]
+key = "gemma4-e4b"
+cutoff = 2025-01-31
+released = "unknown"
+confidence = "documented"
+source = "Gemma 4 model card: 'cutoff date of January 2025'."
+
+[[models]]
+key = "gemma4-12b"
+cutoff = 2025-01-31
+released = "unknown"
+confidence = "documented"
+source = "Gemma 4 model card: 'cutoff date of January 2025'."
+
+[[models]]
+key = "gemma4-26b-a4b"
+cutoff = 2025-01-31
+released = "unknown"
+confidence = "documented"
+source = "Gemma 4 model card: 'cutoff date of January 2025'."
+
+[[models]]
+key = "gemma4-31b"
+cutoff = 2025-01-31
+released = "unknown"
+confidence = "documented"
+source = "Gemma 4 model card: 'cutoff date of January 2025'."
+
+[[models]]
+key = "lfm2.5-230m"
+cutoff = 2024-06-30
+released = "unknown"
+confidence = "documented"
+source = "HF card: 'Knowledge cutoff: Mid-2024' (huggingface.co/LiquidAI/LFM2.5-230M)."
+
+[[models]]
+key = "lfm2.5-8b-a1b"
+cutoff = 2026-05-28
+released = 2026-05-28
+confidence = "unknown"
+source = "Card does not state a cutoff; extended pre-training (38T tokens). Sibling LFM2.5-230M documents Mid-2024 — NOT safe to inherit (the 8B has fresher pre-training). Treat as unknown until Liquid publishes."
+
+[[models]]
+key = "bonsai-27b"
+cutoff = 2026-04-15
+released = "unknown"
+confidence = "inherited"
+source = "Based on Qwen3.6-27B; inherits Qwen3.6 cutoff."
+
+[[models]]
+key = "ternary-bonsai-27b"
+cutoff = 2026-04-15
+released = "unknown"
+confidence = "inherited"
+source = "Ternary-weight Bonsai-27B; inherits Qwen3.6 cutoff."
+
+# ---------------------------------------------------------------------------
+# External reference models (user-specified)
+# ---------------------------------------------------------------------------
+
+[[models]]
+key = "claude-sonnet-5"
+aliases = ["sonnet 5", "sonnet-5"]
+cutoff = 2026-01-31
+released = 2026-06-30
+confidence = "documented"
+source = "Anthropic models overview: reliable + training-data cutoff Jan 2026 (platform.claude.com/docs/en/about-claude/models/overview)."
+
+[[models]]
+key = "gpt-5.6"
+aliases = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt 5.6"]
+cutoff = 2026-02-16
+released = 2026-07-09
+confidence = "documented"
+source = "OpenAI model page / allmo.ai cutoff list: knowledge cutoff Feb 16, 2026."
+
+[[models]]
+key = "kimi-k3"
+aliases = ["kimi k3"]
+cutoff = 2026-07-17
+released = 2026-07-17
+confidence = "proxy"
+source = "Cutoff not published (technical report forthcoming); release 2026-07-17 used as upper bound (kimi.com/blog/kimi-k3)."
+
+[[models]]
+key = "glm-5.2"
+aliases = ["glm 5.2"]
+cutoff = 2026-06-16
+released = 2026-06-16
+confidence = "year-level"
+source = "whichllm.io lists 'Knowledge cutoff 2026-' (year-level); release 2026-06-16 used as safe upper bound (z.ai/blog/glm-5.2)."
+
+[[models]]
+key = "minimax-m3"
+aliases = ["minimax m3"]
+cutoff = 2026-01-31
+released = 2026-06-01
+confidence = "documented"
+source = "HF chat template embeds Jan 2026 (metehan.ai, Tier 1)."
+
+[[models]]
+key = "hy3"
+aliases = ["hunyuan 3", "hunyuan-3", "tencent/hy3"]
+cutoff = 2026-07-02
+released = 2026-07-02
+confidence = "unknown"
+source = "HF card (huggingface.co/tencent/Hy3) does not state a cutoff; Hy3 Preview launched late April 2026. Fill in the final release date + cutoff when Tencent publishes."
+
+[[models]]
+key = "mimo-v2.5"
+aliases = ["mimo v2.5", "xiaomi-mimo-v2.5"]
+cutoff = 2026-04-22
+released = 2026-04-22
+confidence = "proxy"
+source = "Cutoff not published; release 2026-04-22 used as upper bound (mimo.xiaomi.com/mimo-v2-5/). NOT the Pro variant."
+
+[[models]]
+key = "deepseek-v4-flash"
+aliases = ["deepseek v4 flash", "deepseek-v4-flash-preview"]
+cutoff = 2026-04-22
+released = 2026-04-22
+confidence = "unknown"
+source = "Preview README (huggingface.co/deepseek-ai/DeepSeek-V4-Flash) does not state a cutoff; 2026 preview. Fill in when DeepSeek publishes."

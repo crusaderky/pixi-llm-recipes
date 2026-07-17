@@ -1,10 +1,32 @@
 # 02 — Terminal-Bench 2.0 via the canonical harness (Harbor + Terminus 2)
 
-Status: DESIGN. Depends on: `00-common-infrastructure.md`.
+Status: DESIGN.
+
+## Dependency chain
+
+- **Depends on:** `00-common-infrastructure.md` (Docker scope guard, bench
+  profile, ledger, calibration, hygiene).
+- **Shares with `04`:** the TB 2.0 pin (`pins/tb2-quick.txt`), Docker setup,
+  and host-networking (V2). Doc 04's pi-adapter arms run on the **identical
+  pinned task set** so the Terminus-vs-pi comparison is clean.
+- **Unblocks:** nothing (leaf); doc 04 inherits this doc's Docker/networking.
 
 Implements ladder arms **L1-remote-canonical** and **L2-local-canonical** for
 Terminal-Bench 2.0, using Terminus 2 as the model-agnostic agent. (pi-adapter
 arms are in doc 04.)
+
+## External dependencies (require user input)
+
+- **Docker daemon on the host** — required for TB task containers (decision C3
+  scopes it to the Harbor harness only; doc 00's scope guard ensures
+  day-to-day `pixi run pi` still works with the daemon stopped).
+- **Reference endpoint + API key** (L1 only) — per doc 00; user supplies
+  endpoint URL + model id + explicit precision label (no vendor certification).
+- **Harbor flag confirmation** — exact `harbor run` flag names
+  (`-a`/`--agent`, task-id input form, `--agent-timeout` behavior, jobs dir)
+  must be confirmed against the installed Harbor version at implementation
+  time; the names below match the pi-terminal-bench README and may need minor
+  adjustment. (Implementation item V2.)
 
 ## What TB 2.0 is, precisely
 
@@ -18,15 +40,15 @@ through LiteLLM, so any OpenAI-compatible endpoint works via `api_base`.
 
 External reference (decision U4): the **tbench.ai `terminal-bench@2.0`
 leaderboard**, Terminus-class entries. (Artificial Analysis's "Terminal-Bench
-Hard" is the *old 1.x* 44-task subset and is NOT comparable to TB 2.0 — cite it
+Hard" is the _old 1.x_ 44-task subset and is NOT comparable to TB 2.0 — cite it
 only as loose directional context if at all.)
 
 Pin: **TB 2.0** (decision A), tasks via Harbor registry
-`terminal-bench@2.0` → `laude-institute/terminal-bench-2` @ `69671fba…`.
+`terminal-bench@2.0` → `laude-institute/terminal-bench-2` @ `69671fbaac6d67a7ef0dfec016cc38a64ef7a77c` (2025-10-31).
 
 ## Why Docker is unavoidable here
 
-TB tasks *are* containerized environments with in-container verifiers; there is
+TB tasks _are_ containerized environments with in-container verifiers; there is
 no no-Docker path (decision C3 accepts a host Docker daemon, scoped to tests).
 The repo's no-Docker philosophy is preserved for everything else; doc 00's
 scope-guard check enforces that `pixi run pi` still works with the daemon down.
@@ -61,7 +83,7 @@ Then ensure Harbor passes the same host mapping (and the agent's
 `OPENAI_BASE_URL`/LiteLLM `api_base`) into the run. Document the exact flags
 once verified.
 
-### L1 — remote anchor (BF16/FP16)
+### L1 — reference endpoint (precision labelled)
 
 ```bash
 harbor run \
@@ -94,7 +116,7 @@ harbor run \
   -m openai/Qwen3.6-35B-A3B-bench \
   --task-ids-file docs/benchmarks/pins/tb2-quick.txt \
   -n 1 \
-  --agent-timeout 1200 \                          # runner-level per-task cap (doc 00)
+  --agent-timeout 900 \                           # runner-level per-task cap = default pin max task agent_to (doc 00 budget)
   --jobs-dir docs/benchmarks/results/tb2-L2
 ```
 
@@ -103,18 +125,24 @@ harbor run \
 - TB tasks run sequentially on one 10GB GPU. Default **1 repeat**; `--k 3`
   toggle for headline.
 - Use the **pinned subset** by default; uncomment the pin for the full 89.
-- `--agent-timeout 1200` bounds the worst case; confirm the flag name/behavior
-  in the installed Harbor (the intent is a downward per-task cap).
+- `--agent-timeout 900` bounds the worst case; it equals the default pin's
+  max task `agent_to` (all included tasks are 900/750), so it binds as a true
+  ceiling. Confirm the flag name/behavior in the installed Harbor.
 
 ## Wall-time plan
 
-- 12 pinned tasks × up to 20 min (1200s cap) = up to ~4h worst case at n=1 —
-  the top of budget. Most tasks finish sooner on success; *failing* tasks tend
-  to burn the full cap, and a 4-bit local 35B-A3B will fail a fair share of TB
-  tasks, so expect to sit near the cap.
+- 12 pinned tasks × up to 15 min (900s cap) = up to ~3 h worst case at n=1 —
+  inside the 1–4 h budget. Most tasks finish sooner on success; _failing_
+  tasks tend to burn the full cap, and a 4-bit local 35B-A3B will fail a fair
+  share of TB tasks, so expect to sit near the cap.
+- The 900 s runner cap equals the default pin's maximum task `agent_to` (all
+  included tasks are 900 or 750), so it binds as a true ceiling for the default
+  pin. If you uncomment heavier tasks with larger `agent_to`, raise the runner
+  cap to match or drop it and let the task's own `agent_to` bind — record the
+  choice in the ledger.
 - Mandatory calibration: run 2–3 of the shortest pinned tasks
   (`overfull-hbox`, `fix-git`, `prove-plus-comm`), measure wall time, and if
-  the per-task mean projects the 12-task set past 4h, cut the pin to ~8 tasks
+  the per-task mean projects the 12-task set past 4 h, cut the pin to ~8 tasks
   (comment out the heaviest-category mediums). Record the cut.
 - Docker image pulls/builds are one-time but can be slow on first run; do a
   warm-up pull of the pinned tasks' images before timing (the build/pull time
@@ -133,16 +161,20 @@ Arm-complete:
 - [ ] L2 pinned-subset run finishes within budget; per-task pass/fail + suite
       pass@1 recorded; ledger entry + `REPORT-<run_id>.md`.
 - [ ] L1 pinned-subset (or full, if time allows) run finishes; pass@1 recorded.
-- [ ] `REPORT` highlights obtained pass@1 and compares to the tbench.ai 2.0
-      leaderboard (Terminus-class) and notes the subset/model differences. No
-      numeric gate (decision Q8).
+- [ ] `REPORT` prints the one-line summary
+      `<URL> / <model> -> <task_pass@1>  (mean <mean_s>s/task, n=<N>)`
+      (doc 00) and compares the score to the tbench.ai 2.0 leaderboard
+      (Terminus-class), noting the subset/model differences. No numeric gate
+      (decision Q8).
 
 Sanity (narrative):
 
-- [ ] L1 (BF16) on the pinned subset is plausibly in line with where a model
-      of this class sits on the 2.0 board (directional only — subset ≠ full
-      suite). A large local-vs-remote gap (L2 ≪ L1) is the expected, reportable
-      effect of quantization + KV compression on long agentic episodes.
+- [ ] L1 (at the labelled precision) on the pinned subset is plausibly in
+      line with where a model of this class sits on the 2.0 board (directional
+      only — subset ≠ full suite, and only meaningful when L1 is the same
+      model at a comparable precision). A large local-vs-remote gap (L2 ≪ L1)
+      is the expected, reportable effect of quantization + KV compression on
+      long agentic episodes.
 
 ## Notes / gotchas
 

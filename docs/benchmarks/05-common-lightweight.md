@@ -1,6 +1,38 @@
 # 05 — Common infrastructure for the lightweight single-turn coding panel
 
-Status: DESIGN. Depends on: `00-common-infrastructure.md`.
+Status: DESIGN.
+
+## Dependency chain
+
+- **Depends on:** `00-common-infrastructure.md` (bench profile, ledger +
+  checker, calibration, hygiene, pin convention).
+- **Prerequisite for:** `06` (LiveCodeBench), `07` (IFBench), `08` (EvalPlus),
+  `09` (CRUXEval). Once this doc's three deliverables (D1/D2/D3) exist, 06–09
+  can be built in any order or in parallel; `07` needs only D1+D3 (no D2).
+- Does NOT redefine anything from doc 00; if a conflict seems to arise, doc 00
+  wins.
+
+## External dependencies (require user input)
+
+- **Reference endpoint + API key** (L1 arms of 06–09 only) — per doc 00;
+  user supplies endpoint URL + model id + explicit precision label (no vendor
+  certification). L2 (local) arms need no user input beyond a running
+  `llama-server`.
+- **Model training-data cutoff** — looked up from `docs/benchmarks/model-cutoffs.toml`
+  via `lookup_cutoff.py` (doc 00 §Model cutoff table). Needed by doc 06
+  (LiveCodeBench) to pick a post-cutoff date window. If the model is missing
+  from the table, `lookup_cutoff.py` **crashes with instructions** on how to
+  add it — it does not fall back silently. The resolved cutoff is recorded in
+  the ledger `notes`.
+
+## What requires implementation (summary)
+
+| Deliverable                   | Kind                                    | Status                                                                                         |
+| ----------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| D1 endpoint plumbing          | pure convention (env vars), **no code** | documented here + in 06–09; needs a one-line smoke call against L2/L1                          |
+| D2 `scripts/bench-sandbox.sh` | **new script**                          | **NOT YET IMPLEMENTED** — the file does not exist; the one concrete script this panel requires |
+| D3 ledger benchmark names     | one-line edit to `check_ledger.py`      | **DONE** — the repo's `results/check_ledger.py` already lists all six names                    |
+
 Prerequisite for: `06-livecodebench`, `07-ifbench`, `08-evalplus`, `09-cruxeval`.
 
 ## Why this doc exists (and what it is NOT)
@@ -13,8 +45,9 @@ of setup that must not be re-implemented four times. That shared setup is
 
 This doc does **not** redefine anything already in doc 00. Doc 00 owns:
 
-- the remote BF16/FP16 anchor endpoint and the local `[Qwen3.6-35B-A3B-bench]`
-  server profile (incl. sampling, MTP, toggles T1/T2/T3, serving rules);
+- the user-designated reference endpoint (precision explicitly labelled) and
+  the local `[Qwen3.6-35B-A3B-bench]` server profile (incl. sampling, MTP,
+  toggles T1/T2/T3, serving rules);
 - the run ledger (`results/runs.jsonl`) schema and `results/check_ledger.py`;
 - the calibration-probe + 4 h abort rule;
 - benchmark hygiene (no web, no advisor, unmanned-run rules);
@@ -29,10 +62,10 @@ arms (L3/L4/L5) from docs 01/03 are **not meaningful** here — there is no
 multi-turn task, no tool use, nothing for an agent loop to do — so this panel
 runs **only two arms**:
 
-| Arm | Meaning here |
-|-----|--------------|
-| `L1-remote-canonical` | Remote BF16/FP16 anchor, the benchmark's native harness. Reference capability. |
-| `L2-local-canonical`  | Local `Qwen3.6-35B-A3B-bench`, the same native harness. Local-stack delta vs L1. |
+| Arm                   | Meaning here                                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `L1-remote-canonical` | User-designated reference endpoint (precision labelled), the benchmark's native harness. Reference capability. |
+| `L2-local-canonical`  | Local `Qwen3.6-35B-A3B-bench`, the same native harness. Local-stack delta vs L1.                               |
 
 No new arm IDs are introduced; the existing `check_ledger.py` `ARMS` set
 already permits L1/L2. The two arms are independent: L2 is free, runs first;
@@ -79,9 +112,13 @@ The repo already ships bubblewrap + an AppArmor profile (`pixi run
 install-apparmor`) for the pi/claude sandboxes. Reuse it. Contract for a
 shared `scripts/bench-sandbox.sh <cmd…>` wrapper:
 
-- read-only root; a fresh **tmpfs** as the only writable area; `$PWD` bound
-  read-only (the harness writes results outside the sandbox, the sandboxed
-  step only *executes*);
+- read-only root; a fresh **tmpfs** mounted at a known path (e.g. `/sandbox`)
+  is the **only writable area** and the sandboxed process's working directory;
+  the harness **stages the model-generated snippet + any test inputs into the
+  tmpfs** (writes them before invoking the wrapper, or pipes via stdin), runs
+  `<cmd…>` there, and reads any result files back out of the tmpfs. `$PWD` is
+  bound read-only so the sandboxed step cannot mutate the harness's own tree —
+  all writes land in tmpfs;
 - **no network** (`--unshare-all`, no `--share-net`) — code grading must never
   reach out;
 - resource caps: wall `timeout` per process (harness passes its own per-task
@@ -89,7 +126,10 @@ shared `scripts/bench-sandbox.sh <cmd…>` wrapper:
 - `--die-with-parent`; non-zero exit propagates as a test failure;
 - same AppArmor profile as `bwrap-pi.sh` (no new profile).
 
-Implementations may instead use each harness's *own* container/sandbox flag if
+**Status: NOT YET IMPLEMENTED** — `scripts/bench-sandbox.sh` does not exist;
+creating it is the one concrete scripting deliverable this panel requires.
+
+Implementations may instead use each harness's _own_ container/sandbox flag if
 it provides one (EvalPlus has execution-isolation options), **provided** the
 no-network + resource-cap properties above hold and Docker is not pulled in
 (doc 00 scope guard: day-to-day `pixi run pi` must work with the Docker daemon
@@ -109,7 +149,7 @@ BENCHMARKS = {"scicode", "tb2",
               "livecodebench", "ifbench", "evalplus", "cruxeval"}
 ```
 
-That one-line change is the *only* edit to shared code this panel requires; the
+That one-line change is the _only_ edit to shared code this panel requires; the
 arm/score/required-field validation is unchanged. (This repo's copy of
 `check_ledger.py` already carries this extension — see the file.) Each
 benchmark doc specifies the `score.metric` string it writes.
@@ -130,14 +170,14 @@ calls and the ledger checker — never for the benchmark harnesses themselves.
 ## Sampling and repeats (panel-wide)
 
 - **Default: deployed sampling** (doc 00, decision Q10) — temp 0.6 etc. — for
-  both L1 and L2, because the project measures the *deployed* stack, not an
+  both L1 and L2, because the project measures the _deployed_ stack, not an
   idealized greedy decode. Consequence: pass@1 has run-to-run variance.
 - **Leaderboard-parity caveat:** public LiveCodeBench/EvalPlus/CRUXEval numbers
   are almost always **greedy (temp 0) pass@1**. Each REPORT must state that our
   default is sampled, not greedy, when comparing. An optional **greedy toggle**
   (temp 0 via the harness's generation config) is available for a closer apples-
   to-apples number; if used, record it in the ledger `toggles`.
-- **Repeats:** default **1** (doc 00). For these *fast* benchmarks, bumping to
+- **Repeats:** default **1** (doc 00). For these _fast_ benchmarks, bumping to
   **3** for a headline number is cheap and recommended where variance matters
   (LiveCodeBench small date-windows especially). Remote L1 defaults to 3.
 
@@ -152,7 +192,7 @@ the ledger `notes`) and states each benchmark's contamination posture:
   (doc 06). This is the panel's cleanest quant-delta signal.
 - CRUXEval / EvalPlus — moderate/weak: derived from public code; treat as
   capability + relative L1↔L2 delta, not as contamination-free absolutes.
-- IFBench — strong by design (held-out OOD constraints), but it is *not* a
+- IFBench — strong by design (held-out OOD constraints), but it is _not_ a
   coding score (doc 07).
 
 ## Selection / pins
@@ -166,9 +206,11 @@ given benchmark.
 ## Optional: combined panel report
 
 After any subset of 06–09 is run, an optional `REPORT-lightweight-panel.md` may
-tabulate L1 vs L2 for whichever benchmarks have completed. It is **not** a
-prerequisite for any single benchmark and imposes no ordering — unlike the
-SciCode ladder report (doc 03), each benchmark here stands alone.
+tabulate L1 vs L2 for whichever benchmarks have completed, one row per arm with
+the doc-00 one-line summary (`<URL> / <model> -> <score>  (mean <mean_s>s/item,
+n=<N>)`). It is **not** a prerequisite for any single benchmark and imposes no
+ordering — unlike the SciCode ladder report (doc 03), each benchmark here stands
+alone.
 
 ## Dependency graph (what unblocks what)
 

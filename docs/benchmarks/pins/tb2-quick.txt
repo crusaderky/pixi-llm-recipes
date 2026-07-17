@@ -22,10 +22,12 @@
 # agent_to below = the task's own agent timeout in seconds (from task.toml).
 # It is the WORST CASE per task; a capable run finishes far sooner, a failing
 # run can burn the whole budget. Doc 02 sets a runner-level per-task cap of
-# 1200s (overrides task defaults downward where allowed) to bound total time;
-# tasks whose work cannot plausibly fit in 1200s are excluded here regardless.
+# 900s, which EQUALS the default pin's maximum task agent_to (all included
+# tasks are 900 or 750) so it binds as a true ceiling. If you uncomment
+# heavier tasks with larger agent_to, raise the runner cap to match or drop
+# it and let the task's own agent_to bind — record the choice in the ledger.
 #
-# Calibrate before trusting totals: 12 tasks x up-to-20min = up-to-4h worst
+# Calibrate before trusting totals: 12 tasks x up-to-15min = up-to-3h worst
 # case at n=1. If calibration shows the model timing out on most tasks (likely
 # for a 4-bit 35B-A3B local model), reduce the pin to ~8 tasks.
 

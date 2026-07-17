@@ -1,7 +1,20 @@
 # 08 — EvalPlus (HumanEval+ / MBPP+, single-turn)
 
-Status: DESIGN. Depends on: `00`, `05` (deliverables **D1 + D2 + D3**).
-Independent of: docs 01–04, 06, 07, 09.
+Status: DESIGN.
+
+## Dependency chain
+
+- **Depends on:** `00` (bench profile, ledger, calibration, hygiene),
+  `05` (deliverables **D1 + D2 + D3**).
+- **Independent of:** docs 01–04, 06, 07, 09.
+- **Unblocks:** nothing (leaf).
+
+## External dependencies (require user input)
+
+- **Reference endpoint + API key** (L1 only) — per doc 00; user supplies
+  endpoint URL + model id + explicit precision label (no vendor certification).
+- **EvalPlus harness version pin** — pin the `evalplus` package version; record
+  in `harness.version`.
 
 Implements arms **L1-remote-canonical** and **L2-local-canonical** for
 EvalPlus. Role in the panel: a **cheap capability floor**, not a headline
@@ -70,16 +83,17 @@ scripts/bench-sandbox.sh evalplus.evaluate --dataset humaneval \
 - `score.metric = "pass@1_plus"` (headline). Also capture base `pass@1` in
   `score.raw` to show the base-vs-plus gap.
 
-### L1 — remote anchor
+### L1 — reference endpoint (precision labelled)
 
 Same two steps with the remote endpoint vars and `BENCH_MODEL=Qwen3.6-35B-A3B`;
-3 repeats. Vendor precision documented BF16/FP16 (doc 00).
+3 repeats. Record the endpoint's precision label in the ledger (doc 00); no
+vendor certification required.
 
 ## Sampling note (matters more here)
 
 Public EvalPlus leaderboard numbers are **greedy pass@1**. Our default is
 sampled (doc 05 §Sampling), which depresses pass@1 slightly and adds variance.
-Because EvalPlus is the *floor* benchmark, running the **greedy toggle** here is
+Because EvalPlus is the _floor_ benchmark, running the **greedy toggle** here is
 reasonable for the closest leaderboard parity — if used, set `--greedy true`
 and record `toggles.greedy=true` in the ledger. State the choice in the REPORT.
 
@@ -102,17 +116,19 @@ Arm-complete:
 - [ ] L2 produces HumanEval+ and MBPP+ `pass@1_plus` (two ledger entries) within
       budget; ledger (`benchmark=evalplus`) + `REPORT`.
 - [ ] L1 produces the same two numbers.
-- [ ] `REPORT` tabulates base vs plus pass@1 for both datasets at L1 and L2,
-      compares to the **EvalPlus leaderboard** (greedy) noting our sampling
-      choice, and explicitly frames EvalPlus as a floor/tripwire. No numeric
-      gate (Q8).
+- [ ] `REPORT` tabulates base vs plus pass@1 for both datasets at L1 and L2
+      with each arm's one-line summary (doc 00: `<URL> / <model> -> <pass@1_plus>
+      (mean <mean_s>s/problem, n=<N>)`), compares to the **EvalPlus leaderboard**
+      (greedy) noting our sampling choice, and explicitly frames EvalPlus as a
+      floor/tripwire. No numeric gate (Q8).
 
 Sanity (narrative):
 
-- [ ] At L1 (BF16) HumanEval+ should be high (this model class clears the base
+- [ ] At L1 (at the labelled precision) HumanEval+ should be high (this model
+      class clears the base
       set easily); a low L1 number means a harness/template bug, not model
       weakness — investigate before trusting L2.
-- [ ] L2 ≤ L1 expected and likely small (these are easy problems); a *large*
+- [ ] L2 ≤ L1 expected and likely small (these are easy problems); a _large_
       L2 drop on such easy tasks is a strong red flag for the local stack and
       should be chased down.
 

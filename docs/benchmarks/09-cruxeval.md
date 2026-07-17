@@ -1,11 +1,26 @@
 # 09 — CRUXEval (code reasoning, single-turn)
 
-Status: DESIGN. Depends on: `00`, `05` (deliverables **D1 + D2 + D3**).
-Independent of: docs 01–04, 06, 07, 08.
+Status: DESIGN.
+
+## Dependency chain
+
+- **Depends on:** `00` (bench profile, ledger, calibration, hygiene),
+  `05` (deliverables **D1 + D2 + D3**). The **-O half needs only D1 + D3**
+  (string-match grading, no sandbox) and can be done before D2 exists; only
+  the **-I half blocks on D2** (it executes model-chosen inputs).
+- **Independent of:** docs 01–04, 06, 07, 08.
+- **Unblocks:** nothing (leaf).
+
+## External dependencies (require user input)
+
+- **Reference endpoint + API key** (L1 only) — per doc 00; user supplies
+  endpoint URL + model id + explicit precision label (no vendor certification).
+- **CRUXEval commit pin** — clone github.com/crux-eval/CRUXEval and pin a
+  commit; record in `harness.version`.
 
 Implements arms **L1-remote-canonical** and **L2-local-canonical** for
 CRUXEval. Role in the panel: a **code-reasoning / execution-semantics** signal
-orthogonal to code *generation* — does the model understand what code *does*,
+orthogonal to code _generation_ — does the model understand what code _does_,
 not just how to write it.
 
 ## What CRUXEval is, precisely
@@ -73,10 +88,11 @@ scripts/bench-sandbox.sh python -m cruxeval.evaluate \
 - May use `--parallel 4` server-side. Default **1 repeat**.
 - `score.metric = "pass@1"` (one ledger entry per task).
 
-### L1 — remote anchor
+### L1 — reference endpoint (precision labelled)
 
 Same, with remote endpoint vars and `BENCH_MODEL=Qwen3.6-35B-A3B`; 3 repeats.
-Vendor precision documented BF16/FP16 (doc 00).
+Record the endpoint's precision label in the ledger (doc 00); no vendor
+certification required.
 
 ## Wall-time plan
 
@@ -98,13 +114,15 @@ Arm-complete:
 - [ ] L2 produces -I and -O `pass@1` (two ledger entries) within budget; ledger
       (`benchmark=cruxeval`) + `REPORT`.
 - [ ] L1 produces the same two numbers.
-- [ ] `REPORT` tabulates -I and -O pass@1 at L1 and L2, compares to the
-      **CRUXEval leaderboard** (matching the CoT/direct column used), and notes
-      sampled-vs-greedy (doc 05 §Sampling). No numeric gate (Q8).
+- [ ] `REPORT` tabulates -I and -O pass@1 at L1 and L2 with each arm's
+      one-line summary (doc 00: `<URL> / <model> -> <pass@1>  (mean <mean_s>s/item,
+      n=<N>)`), compares to the **CRUXEval leaderboard** (matching the
+      CoT/direct column used), and notes sampled-vs-greedy (doc 05 §Sampling).
+      No numeric gate (Q8).
 
 Sanity (narrative):
 
-- [ ] L2 ≤ L1 expected. CRUXEval stresses *reasoning about execution*; if the
+- [ ] L2 ≤ L1 expected. CRUXEval stresses _reasoning about execution_; if the
       local stack degrades reasoning more than surface code-gen, expect the
       L1→L2 drop here to exceed EvalPlus's — a reportable contrast.
 - [ ] -O ≥ -I is the usual pattern (output prediction is easier); a reversal is

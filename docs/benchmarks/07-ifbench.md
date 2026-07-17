@@ -1,9 +1,21 @@
 # 07 — IFBench (instruction-following, single-turn)
 
-Status: DESIGN. Depends on: `00`, `05` (deliverables **D1 + D3 only**).
-**Does NOT depend on D2** (executes no model code) — so this doc can be
-implemented before the execution sandbox exists.
-Independent of: docs 01–04, 06, 08, 09.
+Status: DESIGN.
+
+## Dependency chain
+
+- **Depends on:** `00` (bench profile, ledger, calibration, hygiene),
+  `05` (deliverables **D1 + D3 only** — **NOT D2**: IFBench executes no model
+  code, so this doc can be implemented before the execution sandbox exists).
+- **Independent of:** docs 01–04, 06, 08, 09.
+- **Unblocks:** nothing (leaf); the easiest panel benchmark to stand up first.
+
+## External dependencies (require user input)
+
+- **Reference endpoint + API key** (L1 only) — per doc 00; user supplies
+  endpoint URL + model id + explicit precision label (no vendor certification).
+- **IFBench commit pin** — clone github.com/allenai/IFBench and pin a commit;
+  record in `harness.version`.
 
 Implements arms **L1-remote-canonical** and **L2-local-canonical** for IFBench.
 
@@ -20,7 +32,7 @@ held-out WildChat prompts. It is in this panel because:
 2. Constraint/format adherence is exactly the brittle behavior that breaks
    tool-calling and edit-format compliance in the pi arms (docs 03/04), and it
    is a behavior **quantization tends to degrade early** — so it is a useful
-   *reliability* read on the L1→L2 local-stack delta, orthogonal to coding
+   _reliability_ read on the L1→L2 local-stack delta, orthogonal to coding
    capability.
 
 Every REPORT must label it as instruction-following, not coding.
@@ -35,7 +47,7 @@ verifier functions; the same models that clear 80% on IFEval score **<50%** on
 IFBench, so it still discriminates. 294 prompts. **Not** in `inspect_evals` —
 use the upstream **`allenai/IFBench`** harness.
 
-(Optional cheap cross-check: IFEval *is* in `inspect_evals` and trivial to run
+(Optional cheap cross-check: IFEval _is_ in `inspect_evals` and trivial to run
 as a saturated baseline — but it is not this doc's deliverable.)
 
 ## Setup (isolated env — doc 05 §Harness isolation)
@@ -76,7 +88,7 @@ python -m ifbench.eval \
   IFEval, also yields loose + instruction-level accuracies — record all four in
   `score.raw`, headline on strict prompt-level).
 
-### L1 — remote anchor
+### L1 — reference endpoint (precision labelled)
 
 ```bash
 export OPENAI_BASE_URL="https://<vendor>/v1" OPENAI_API_KEY="…"
@@ -86,7 +98,8 @@ python -m ifbench.eval --model openai/$BENCH_MODEL \
 # 3 repeats remotely (cheap)
 ```
 
-Vendor precision must be documented BF16/FP16 (doc 00).
+Record the endpoint's precision label in the ledger (doc 00); no vendor
+certification required.
 
 ## Wall-time plan
 
@@ -108,14 +121,16 @@ Arm-complete:
 - [ ] L2 full-set run finishes; strict prompt-level accuracy recorded; ledger
       (`benchmark=ifbench`, `score.metric=prompt_acc_strict`) + `REPORT`.
 - [ ] L1 full-set run finishes; accuracy recorded.
-- [ ] `REPORT` states L1/L2 strict + loose + instruction-level accuracies,
+- [ ] `REPORT` prints the one-line summary for each arm
+      (`<URL> / <model> -> <prompt_acc_strict>  (mean <mean_s>s/prompt, n=<N>)`,
+      doc 00), states L1/L2 strict + loose + instruction-level accuracies,
       **labels the benchmark as instruction-following (not coding)**, and
       compares to the IFBench paper's reported numbers for a comparable model
       class (noting frontier models sit <50%). No numeric gate (Q8).
 
 Sanity (narrative):
 
-- [ ] L2 ≤ L1 expected; a notable L1→L2 drop here is a clean *format-reliability*
+- [ ] L2 ≤ L1 expected; a notable L1→L2 drop here is a clean _format-reliability_
       signal of quantization damage and is worth flagging for the pi arms (a
       model that drops constraint adherence under quantization will also drop
       tool/edit-format adherence).

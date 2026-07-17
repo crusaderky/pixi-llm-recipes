@@ -2,20 +2,40 @@
 """Minimal validator for docs/benchmarks/results/runs.jsonl ledger entries.
 Usage: python check_ledger.py runs.jsonl
 Exits non-zero on the first malformed line. No deps beyond stdlib."""
-import json, sys
+
+import json
+import sys
 
 REQUIRED = {
-    "run_id": str, "benchmark": str, "arm": str, "harness": dict,
-    "model": dict, "toggles": dict, "pin": dict, "repeats": int,
-    "score": dict, "wall_clock_h": (int, float), "tokens": dict, "notes": str,
+    "run_id": str,
+    "benchmark": str,
+    "arm": str,
+    "harness": dict,
+    "model": dict,
+    "toggles": dict,
+    "pin": dict,
+    "repeats": int,
+    "score": dict,
+    "timing": dict,
+    "wall_clock_h": (int, float),
+    "tokens": dict,
+    "notes": str,
 }
-BENCHMARKS = {"scicode", "tb2",
-              "livecodebench", "ifbench", "evalplus", "cruxeval"}
-ARMS = {"L1-remote-canonical", "L2-local-canonical", "L3-local-pi-bare",
-        "L4-local-pi-tools", "L5-local-pi-ext", "L6-local-pi-advisor"}
+BENCHMARKS = {"scicode", "tb2", "livecodebench", "ifbench", "evalplus", "cruxeval"}
+ARMS = {
+    "L1-remote-canonical",
+    "L2-local-canonical",
+    "L3-local-pi-bare",
+    "L4-local-pi-tools",
+    "L5-local-pi-ext",
+    "L6-local-pi-advisor",
+}
+
 
 def fail(ln, msg):
-    print(f"line {ln}: {msg}", file=sys.stderr); sys.exit(1)
+    print(f"line {ln}: {msg}", file=sys.stderr)
+    sys.exit(1)
+
 
 def main(path):
     n = 0
@@ -40,7 +60,13 @@ def main(path):
         for k in ("metric", "value"):
             if k not in o["score"]:
                 fail(ln, f"score missing {k!r}")
+        for k in ("n", "mean_s", "median_s", "min_s", "max_s"):
+            if k not in o["timing"]:
+                fail(ln, f"timing missing {k!r}")
+            if not isinstance(o["timing"][k], (int, float)):
+                fail(ln, f"timing.{k} should be a number, got {type(o['timing'][k]).__name__}")
     print(f"OK: {n} ledger entry/entries valid")
+
 
 if __name__ == "__main__":
     main(sys.argv[1] if len(sys.argv) > 1 else "runs.jsonl")
