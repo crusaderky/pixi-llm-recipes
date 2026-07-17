@@ -47,6 +47,37 @@ def client(base_url: str | None = None, api_key: str | None = None):
     return OpenAI(base_url=base_url or e["base_url"], api_key=api_key or e["api_key"])
 
 
+def chat_once(
+    client,
+    model,
+    messages,
+    *,
+    temperature=0.6,
+    top_p=0.95,
+    max_tokens=8192,
+    no_think=False,
+):
+    """One chat completion. Returns (content, (prompt_tokens, completion_tokens)).
+
+    ``no_think=True`` passes chat_template_kwargs.enable_thinking=false — a FAST
+    smoke path for reasoning models on slow hardware (reasoning otherwise fills
+    the token budget before any answer content appears). It changes what is
+    measured, so it is a smoke/speed knob, not for headline runs; record it.
+    """
+    extra = {"chat_template_kwargs": {"enable_thinking": False}} if no_think else None
+    r = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        extra_body=extra,
+    )
+    content = r.choices[0].message.content or ""
+    u = getattr(r, "usage", None)
+    return content, ((u.prompt_tokens or 0, u.completion_tokens or 0) if u else (0, 0))
+
+
 def smoke(
     model: str | None = None, prompt: str = "Reply with exactly: OK", **kw
 ) -> str:

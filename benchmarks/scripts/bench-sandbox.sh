@@ -154,9 +154,14 @@ fi
 
 # Run: read-only root (host visible ro, incl. venv + repo), /dev + /proc for the
 # process, /tmp the only writable area (working dir), NO --share-net.
+# --tmpfs /dev/shm: `--dev /dev` mounts a minimal devtmpfs WITHOUT /dev/shm, but
+# graded code often uses Python multiprocessing / ProcessPoolExecutor (evalplus,
+# livecodebench, cruxeval), which needs POSIX shared memory there. A private
+# tmpfs keeps it isolated (no host access).
 exec "${WRAP[@]}" "$BWRAP" \
     --ro-bind / / \
     --dev /dev \
+    --tmpfs /dev/shm \
     --proc /proc \
     "${SANDBOX_ARGS[@]}" \
     --die-with-parent \
