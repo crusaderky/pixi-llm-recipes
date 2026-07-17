@@ -127,6 +127,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | LFM2.5-8B-A1B      | APEX I-Quality     | 5.7 GB       | 128k q8/q8          | 7.3 GB             | 9,444 tok/s           | 256 tok/s            |                                                                                                                         |
 |                    | APEX I-Quality     | 5.7 GB       | 128k q8/q8          | 2.1 GB             | 1,104 tok/s           | 37 tok/s             | cpu-moe; best model that fits on 4GB VRAM desktops                                                                      |
 | Ternary-Bonsai-27B | Q2_0               | 7.7 GB       | 32k q4/q4           | 8.6 GB             | 948 tok/s             | 46 tok/s             | limited context in VRAM; full ctx would require 16 GB; very tight fit                                                   |
+|                    | Q2_0               | 7.7 GB       | 256k q4/q4          | 8.8 GB             | 687 tok/s             | 11 tok/s             | full context in host RAM; even tighter fit                                                                              |
 | Bonsai-27B         | Q1_0               | 4.2 GB       | 128k q4/q4          | 7.3 GB             | 1003 tok/s            | 61 tok/s             | limited context in VRAM                                                                                                 |
 
 **Notes:**
