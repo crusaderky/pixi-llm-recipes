@@ -1,2 +1,5 @@
 [tool.codespell]
-skip = "pixi.lock,perplexity,sample-data,llama-server.log"
+# The last group are vendored harness clones + isolated venvs + generated run
+# outputs under benchmarks/ (all gitignored); codespell walks the tree and does
+# not honour .gitignore, so prune them by directory name here.
+skip = "pixi.lock,perplexity,sample-data,llama-server.log,.venv,IFBench,SciCode,CRUXEval,pi-terminal-bench,out"

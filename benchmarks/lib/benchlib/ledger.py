@@ -9,6 +9,7 @@ the ledger.
 import datetime
 import importlib.util
 import json
+import os
 
 from . import LEDGER_PATH, RESULTS_DIR
 
@@ -43,6 +44,37 @@ DEFAULT_TOGGLES = {
     "T3_kv": "q8_0",
     "parallel_slots": 1,
 }
+
+
+def toggles_from_env() -> dict:
+    """Read the doc-00 named confounds from env (the runner can't see models.ini).
+
+    The operator sets these to match the served preset:
+      BENCH_T1_FROGGERIC   truthy => custom froggeric chat template on (default off)
+      BENCH_T2_REASONING_BUDGET  int => capped at N thinking tokens; truthy => on;
+                                 unset/falsey => uncapped (default off)
+      BENCH_T3_KV          KV cache quant label (default 'q8_0')
+      BENCH_PARALLEL_SLOTS llama-server --parallel N (default 1)
+    """
+
+    def _truthy(v: str) -> bool:
+        return v.strip().lower() in ("1", "true", "yes", "on")
+
+    t2_raw = os.environ.get("BENCH_T2_REASONING_BUDGET")
+    if t2_raw is None or t2_raw.strip().lower() in ("", "0", "false", "no", "off"):
+        t2: bool | int = False
+    elif t2_raw.strip().isdigit():
+        t2 = int(t2_raw)
+    else:
+        t2 = True
+
+    t1_raw = os.environ.get("BENCH_T1_FROGGERIC", "")
+    return {
+        "T1_froggeric": _truthy(t1_raw),
+        "T2_reasoning_budget": t2,
+        "T3_kv": os.environ.get("BENCH_T3_KV", "q8_0"),
+        "parallel_slots": int(os.environ.get("BENCH_PARALLEL_SLOTS", "1")),
+    }
 
 
 def make_run_id(benchmark: str, arm: str, when=None) -> str:

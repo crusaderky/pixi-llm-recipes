@@ -31,6 +31,15 @@ def deployment() -> str:
     return "local" if ("localhost" in base or "127.0.0.1" in base) else "remote"
 
 
+def precision() -> str:
+    """Precision label for the ledger model.precision (doc 00), from BENCH_PRECISION.
+
+    Any value is valid incl. 'unknown' — the point is that it is recorded. For an
+    L1 remote arm set it to the reference endpoint's asserted precision.
+    """
+    return os.environ.get("BENCH_PRECISION", "unknown")
+
+
 def client(base_url: str | None = None, api_key: str | None = None):
     from openai import OpenAI  # lazy: only harnesses that generate directly need it
 

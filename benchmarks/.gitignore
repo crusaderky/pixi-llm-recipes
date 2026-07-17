@@ -13,7 +13,8 @@ terminalbench/pi-terminal-bench/
 ifbench/IFBench/
 cruxeval/CRUXEval/
 
-# Datasets / generated samples / harness outputs.
+# Datasets / generated samples / harness outputs. Runners write generated
+# artifacts (responses, samples, grading output) under benchmarks/<unit>/out/.
 */data/
 */out/
 */ep-out/
