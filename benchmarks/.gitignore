@@ -12,6 +12,7 @@ scicode/SciCode/
 terminalbench/pi-terminal-bench/
 ifbench/IFBench/
 cruxeval/CRUXEval/
+livecodebench/LiveCodeBench/
 
 # Datasets / generated samples / harness outputs. Runners write generated
 # artifacts (responses, samples, grading output) under benchmarks/<unit>/out/.
