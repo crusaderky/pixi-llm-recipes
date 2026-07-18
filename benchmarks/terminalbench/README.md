@@ -12,9 +12,11 @@ pass. Metric: **task_pass@1**. All arms share the **identical pin**
 - There is **no bare-pi L3** for TB (a pi with no bash scores zero); the
   harness-delta question is L2 (Terminus) vs L4 (pi) on the same pin.
 
-Pins: **TB 2.0**, dataset `terminal-bench-2@2.0` (repo `laude-institute/terminal-bench-2`
+Pins: **TB 2.0** — the latest published version (**no 2.1 exists** in the Harbor
+registry / the `terminal-bench-2` dataset repo as of 2026-07-18). Registry
+dataset name `terminal-bench@2.0` (source repo `laude-institute/terminal-bench-2`
 @ `69671fbaac6d67a7ef0dfec016cc38a64ef7a77c`). Harbor resolved to **0.19.x**
-(doc 02 V2): `-d terminal-bench-2@2.0`, `-a terminus-2` / `-a <import:Class>`,
+(doc 02 V2): `-d terminal-bench@2.0`, `-a terminus-2` / `-a <import:Class>`,
 `-i <task>` per pin, `--agent-env` to inject the endpoint, `-k` attempts, `-o`
 jobs-dir. Task `agent_to` (900/750 for the pinned set) binds via the default
 timeout multiplier.
@@ -59,7 +61,7 @@ parses per-task verdicts → `task_pass@1`, and writes a ledger entry + REPORT.
 
 - **Offline JobConfig (no Docker):** `run.py --arm L2 --dry` prints the resolved
   Harbor JobConfig — validates dataset/agent/model/task-filter wiring. (Validated:
-  `-d terminal-bench-2@2.0 -a terminus-2 -i <task>` resolves correctly.)
+  `-d terminal-bench@2.0 -a terminus-2 -i <task>` resolves correctly.)
 - **Connectivity proof** (above) before the first real run.
 - **Live (L2):** one short task, e.g. `--arm L2 --limit 1` on `overfull-hbox`.
 

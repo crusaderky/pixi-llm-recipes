@@ -13,7 +13,8 @@ http://host.docker.internal:8080/v1 (doc 02 V2). `--dry` prints the resolved
 Harbor JobConfig and exits (offline validation, no Docker).
 
 Harbor CLI resolved against the installed version (0.19.x): dataset
-`terminal-bench-2@2.0`, `-a terminus-2` / `-a <import:Class>`, `-i <task>` per
+`terminal-bench@2.0` (registry name; 2.0 is the latest — no 2.1 exists),
+`-a terminus-2` / `-a <import:Class>`, `-i <task>` per
 pin, `--agent-env` to inject the endpoint, `-k` attempts, `-o` jobs-dir. Task
 `agent_to` (900/750 for the pinned set) binds via the default timeout multiplier.
 """
@@ -30,8 +31,11 @@ ADAPTER = HERE / "pi-terminal-bench"
 OUT = HERE / "out"
 HARBOR = str(HERE / ".venv" / "bin" / "harbor")
 PIN_FILE = "pins/tb2-quick.txt"
-DATASET = "terminal-bench-2@2.0"
-DATASET_COMMIT = "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"  # doc 00 pinned SHA
+# Registry dataset NAME is `terminal-bench` version `2.0` (doc 00; confirmed via
+# `harbor dataset list --legacy`) — NOT `terminal-bench-2`, which is the source
+# REPO name. 2.0 is the latest published version (no 2.1 exists as of 2026-07-18).
+DATASET = "terminal-bench@2.0"
+DATASET_COMMIT = "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"  # repo laude-institute/terminal-bench-2 SHA (doc 00)
 ADAPTER_SHA = "0074c915dc7d8ceeba5f61b19e7b9aa078564fa3"
 PI_AGENT_IMPORT = "pi_terminal_bench.pi_agent:PiAgent"
 
@@ -210,7 +214,7 @@ def main():
             timing=tmg,
             notes=(
                 f"TB2.0 {'Terminus 2' if args.arm in ('L1', 'L2') else 'pi adapter'}; dataset "
-                f"terminal-bench-2@2.0 (commit {DATASET_COMMIT}); {n} tasks graded; agent endpoint {agent_base_url}"
+                f"terminal-bench@2.0 (repo commit {DATASET_COMMIT}); {n} tasks graded; agent endpoint {agent_base_url}"
             ),
         )
     )
