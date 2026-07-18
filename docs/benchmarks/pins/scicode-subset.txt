@@ -7,108 +7,79 @@
 # The SciCode test split has 65 main problems / 288 subproblems. inspect_ai
 # selects problems with `-T split=test` and `--limit N`, but --limit takes the
 # FIRST N problems, which is not a stratified sample. To honor this pin exactly,
-# the runner must pass an explicit problem-ID allowlist (see doc 01
-# §"Honoring the pin"); --limit alone is not sufficient.
+# benchmarks/scicode/run_canonical.py passes an explicit problem-ID allowlist and
+# ERRORS if a pinned ID is absent from the test split (see doc 01 §"Honoring the
+# pin"); --limit alone is not sufficient.
 #
-# DEFAULT PIN: 30 of 65 problems, stratified across the 6 domains so internal
-# ladder deltas (L1->L2->L3->L4->L5) stay meaningful. The exact per-problem
-# runtime on the RTX 3080 is unknown until calibration; if a pinned problem
-# blows the budget, swap it for a commented problem (any domain is fine for
-# SciCode — domains are for coverage, not runtime) and record in the ledger.
-#
-# Problem IDs are the integer indices used by the SciCode dataset (1..80;
-# the test split is the subset of these not in the 15-problem validation set).
-# The grouping comments below are advisory; verify against the loaded dataset
-# metadata at implementation time (problem->domain mapping ships in the HF
-# dataset). If an ID listed here turns out to be a validation-split problem,
-# the runner must error out rather than silently skip it.
+# RECONCILED to the actual SciCode1/SciCode `test` split on 2026-07-18: the IDs
+# below are exactly the 65 test-split problem_ids (the earlier draft had some
+# validation-split IDs, which the runner correctly rejected). The default is a
+# 28-problem stride sample spread evenly across the sorted test set so internal
+# ladder deltas (L1->L2->L3->L4->L5) stay meaningful; uncomment the rest to reach
+# the full 65. Per-problem runtime on the RTX 3080 is unknown until calibration;
+# if a pinned problem blows the budget, swap it for a commented one and record
+# the swap in the ledger (doc 00 swap rule) — no silent edits.
 
-# --- Physics (numerical methods, simulation) ---
-2     # INCLUDED: representative multi-step physics simulation
-8     # INCLUDED: numerical integration chain
-14    # INCLUDED: shorter physics problem, good calibration probe candidate
-21    # INCLUDED
-27    # INCLUDED
-# 33  # EXCLUDED: long subproblem chain (>10 subproblems), budget risk
-35    # INCLUDED
+# --- INCLUDED (default: 28 problems, evenly spread across the test split) ---
+2
+8
+11
+13
+15
+17
+20
+22
+24
+26
+28
+31
+33
+35
+37
+40
+42
+45
+48
+52
+54
+56
+58
+60
+62
+64
+66
+68
 
-# --- Mathematics ---
-4     # INCLUDED: linear-algebra heavy
-11    # INCLUDED
-18    # INCLUDED
-# 23  # EXCLUDED: redundant with 18 (same subfield), trim for budget
-40    # INCLUDED
-
-# --- Material Science ---
-6     # INCLUDED
-16    # INCLUDED
-29    # INCLUDED
-# 44  # EXCLUDED: heavy external numeric dependencies, slow to evaluate
-
-# --- Biology ---
-9     # INCLUDED
-25    # INCLUDED
-38    # INCLUDED
-# 51  # EXCLUDED: trim to keep domain balance at ~5
-
-# --- Chemistry ---
-12    # INCLUDED
-31    # INCLUDED
-46    # INCLUDED
-# 55  # EXCLUDED: trim for budget
-
-# --- Mixed / scientific-computing ---
-3     # INCLUDED
-7     # INCLUDED
-19    # INCLUDED
-28    # INCLUDED
-42    # INCLUDED
-48    # INCLUDED
-57    # INCLUDED
-63    # INCLUDED
-
-# ---------------------------------------------------------------------------
-# Everything below is EXCLUDED by default. Uncomment to expand toward full set.
-# (Listing the remaining test-split IDs so "uncomment all" yields the full run.)
-# ---------------------------------------------------------------------------
-# 1
+# --- EXCLUDED by default (the remaining 37 test-split problems). Uncomment to
+# expand toward the full 65-problem test set. ---
 # 5
-# 10
-# 13
-# 15
-# 17
-# 20
-# 22
-# 24
-# 26
+# 9
+# 12
+# 14
+# 16
+# 18
+# 21
+# 23
+# 25
+# 27
 # 30
 # 32
 # 34
 # 36
-# 37
 # 39
 # 41
 # 43
-# 45
-# 47
-# 49
+# 46
 # 50
-# 52
 # 53
-# 54
-# 56
-# 58
+# 55
+# 57
 # 59
-# 60
 # 61
-# 62
-# 64
+# 63
 # 65
-# 66
 # 67
-# 68
 # 69
-# 70
 # 71
 # 72
 # 73
@@ -116,6 +87,5 @@
 # 75
 # 76
 # 77
-# 78
 # 79
 # 80
