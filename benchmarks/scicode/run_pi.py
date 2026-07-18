@@ -37,11 +37,7 @@ HARNESS_SHA = "e3158ea011d4235245a547460d3688d7ccbf9900"
 
 sys.path.insert(0, str(HERE.parent / "lib"))
 from benchlib import endpoint, ledger, pins, report, timing  # noqa: E402
-from run_canonical import (
-    H5,
-    _pin_path,
-    load_upstream,
-)  # reuse doc-01 setup  # noqa: E402
+from run_canonical import H5, _pin_path, load_upstream  # noqa: E402  (reuse doc 01)
 
 # pi extension flags per arm. DROP set (doc 03) is enforced by --no-extensions
 # (L3/L4) or by loading ONLY the KEEP set (L5).
