@@ -3,7 +3,7 @@
 Design documents for running coding benchmarks against the local llama.cpp
 stack in this repo and against a remote full-precision endpoint, with results
 comparable across model deployments and harnesses. Two heavy benchmarks
-(**SciCode**, **Terminal-Bench 2.0**) plus a **lightweight single-turn coding
+(**SciCode**, **Terminal-Bench 2.1**) plus a **lightweight single-turn coding
 panel** (LiveCodeBench, IFBench, EvalPlus, CRUXEval).
 
 Read `00` first; it defines everything the others rely on. The lightweight
@@ -13,9 +13,9 @@ panel additionally shares `05`.
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | [00-common-infrastructure](00-common-infrastructure.md)     | Shared contracts: model deployments, bench profile, Docker scope, datasets, run budget, pins, ledger/results schema, hygiene | —                                 |
 | [01-scicode-canonical](01-scicode-canonical.md)             | SciCode via inspect_ai                                                                                                       | L1 reference, L2 local            |
-| [02-terminalbench-canonical](02-terminalbench-canonical.md) | TB 2.0 via Harbor + Terminus 2                                                                                               | L1 reference, L2 local            |
+| [02-terminalbench-canonical](02-terminalbench-canonical.md) | TB 2.1 via Harbor + Terminus 2                                                                                               | L1 reference, L2 local            |
 | [03-scicode-pi](03-scicode-pi.md)                           | SciCode through pi                                                                                                           | L3 bare, L4 tools, L5 +extensions |
-| [04-terminalbench-pi](04-terminalbench-pi.md)               | TB 2.0 through pi (badlogic adapter)                                                                                         | L4 vanilla pi, L5 +extensions     |
+| [04-terminalbench-pi](04-terminalbench-pi.md)               | TB 2.1 through pi (badlogic adapter)                                                                                         | L4 vanilla pi, L5 +extensions     |
 | [05-common-lightweight](05-common-lightweight.md)           | Shared prereqs for the single-turn panel: endpoint plumbing, exec sandbox, ledger names, isolation                           | —                                 |
 | [06-livecodebench](06-livecodebench.md)                     | LiveCodeBench code-gen (contamination-controlled)                                                                            | L1 reference, L2 local            |
 | [07-ifbench](07-ifbench.md)                                 | IFBench instruction-following (not coding; reliability probe)                                                                | L1 reference, L2 local            |
@@ -113,8 +113,12 @@ deployment is not wired.
   with instructions to add it (no silent fallback); `cutoff = "unknown"`
   warns (posture void) but does not crash. Year-level vendor claims use the
   release date as the safe upper bound.
-- **TB 2.0 commit SHA resolved**: `69671fbaac6d67a7ef0dfec016cc38a64ef7a77c`
-  (2025-10-31, "update storage") — written into docs 00/02; no manual step.
+- **TB 2.1 digest resolved**: Harbor Hub package dataset
+  `terminal-bench/terminal-bench-2-1` pinned to
+  `sha256:7d7bdc1cbedad549fc1140404bd4dc45e5fd0ea7c4186773687d177ad3a0699a`
+  (resolved from `@latest` on 2026-07-20; source repo rebranded
+  `laude-institute` → `harbor-framework`; public dataset needs no
+  `harbor auth login`) — written into docs 00/02/04; no manual step.
 - **SciCode `test_data.h5` is NOT gated**: `gdown` fetches it from the GDrive
   folder without sign-in (sha256 `48b0272a…`, ~1.05 GB); the working one-liner
   is in docs 00/01.

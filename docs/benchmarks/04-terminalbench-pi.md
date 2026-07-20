@@ -1,14 +1,14 @@
-# 04 — Terminal-Bench 2.0 through pi (Harbor adapter)
+# 04 — Terminal-Bench 2.1 through pi (Harbor adapter)
 
 Status: DESIGN.
 
 ## Dependency chain
 
 - **Depends on:** `00` (bench profile, Docker scope guard, ledger, hygiene),
-  `02` (TB 2.0 pin, Docker setup, host networking V2).
+  `02` (TB 2.1 pin, Docker setup, host networking V2).
 - **Unblocks:** nothing (leaf).
 
-Implements ladder arms **L4-local-pi-tools** and **L5-local-pi-ext** for TB 2.0,
+Implements ladder arms **L4-local-pi-tools** and **L5-local-pi-ext** for TB 2.1,
 using badlogic's `pi-terminal-bench` Harbor adapter. (There is no meaningful
 "L3 bare pi" for TB — see correction U2 below.)
 
@@ -91,7 +91,7 @@ document it. Connectivity proof (doc 02) is a prerequisite.
 pixi r -e llamacpp-source-cuda start-server     # your bench preset (models.ini), single slot
 export BENCH_MODEL="Qwen3.6-35B-A3B"             # your models.ini preset; record in ledger model.preset
 harbor run \
-  -d terminal-bench@2.0 \
+  -d terminal-bench/terminal-bench-2-1@sha256:7d7bdc1cbedad549fc1140404bd4dc45e5fd0ea7c4186773687d177ad3a0699a \
   --agent-import-path pi_terminal_bench:PiAgent \
   -m openai/$BENCH_MODEL \
   --task-ids-file docs/benchmarks/pins/tb2-quick.txt \
@@ -139,7 +139,7 @@ not a TUI extension — `pi-usage-extension` is DROP.
 
 ```bash
 harbor run \
-  -d terminal-bench@2.0 \
+  -d terminal-bench/terminal-bench-2-1@sha256:7d7bdc1cbedad549fc1140404bd4dc45e5fd0ea7c4186773687d177ad3a0699a \
   --agent-import-path pi_terminal_bench:PiAgent \
   -m openai/$BENCH_MODEL \
   --task-ids-file docs/benchmarks/pins/tb2-quick.txt \
@@ -185,7 +185,7 @@ Arm-complete:
       token cost, and narrates:
       - Terminus 2 vs pi (L2 vs L4): the harness delta.
       - pi vs pi+extensions (L4 vs L5): the extension delta and its token cost.
-      Compared against the tbench.ai 2.0 leaderboard for context. No numeric
+      Compared against the tbench.ai 2.1 leaderboard for context. No numeric
       gates (decision Q8).
 
 Sanity (narrative):
@@ -208,5 +208,11 @@ Sanity (narrative):
   this reason; the arm must hit the local bench server, not an auto-discovered
   provider. (The old `pi-ollama-cloud` reference is removed — that package is
   not in the recipe; the actual web tool is `pi-web-access`, also DROP.)
-- TB 2.1 migration (future): bump `-d terminal-bench@2.1` and re-verify the
-  adapter; out of scope now (decision A).
+- TB 2.1 migration (DONE, 2026-07-20): the dataset moved to the **Harbor Hub**
+  as a package dataset. It is `-d terminal-bench/terminal-bench-2-1@<digest>`
+  (slug + immutable content digest), NOT the anticipated `terminal-bench@2.1`
+  registry name — the source repo/org also rebranded (`laude-institute` →
+  `harbor-framework`). The public dataset resolves with no `harbor auth login`.
+  The pi adapter is unchanged (it targets Harbor's agent interface, not the
+  dataset) but the L4/L5 arms still need the operator's Docker re-verification.
+  A future 2.2 bump is just a new digest under the same slug.

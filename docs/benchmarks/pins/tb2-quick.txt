@@ -1,4 +1,4 @@
-# Terminal-Bench 2.0 "tb2-quick" subset pin
+# Terminal-Bench 2.1 "tb2-quick" subset pin
 #
 # Format: one task ID per line. Commented (#) lines are EXCLUDED.
 # Toggle by commenting/uncommenting. Uncomment ALL to run the full 89-task

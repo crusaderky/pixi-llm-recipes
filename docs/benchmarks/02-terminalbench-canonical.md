@@ -1,4 +1,4 @@
-# 02 — Terminal-Bench 2.0 via the canonical harness (Harbor + Terminus 2)
+# 02 — Terminal-Bench 2.1 via the canonical harness (Harbor + Terminus 2)
 
 Status: DESIGN.
 
@@ -6,13 +6,13 @@ Status: DESIGN.
 
 - **Depends on:** `00-common-infrastructure.md` (Docker scope guard, bench
   profile, ledger, calibration, hygiene).
-- **Shares with `04`:** the TB 2.0 pin (`pins/tb2-quick.txt`), Docker setup,
+- **Shares with `04`:** the TB 2.1 pin (`pins/tb2-quick.txt`), Docker setup,
   and host-networking (V2). Doc 04's pi-adapter arms run on the **identical
   pinned task set** so the Terminus-vs-pi comparison is clean.
 - **Unblocks:** nothing (leaf); doc 04 inherits this doc's Docker/networking.
 
 Implements ladder arms **L1-remote-canonical** and **L2-local-canonical** for
-Terminal-Bench 2.0, using Terminus 2 as the model-agnostic agent. (pi-adapter
+Terminal-Bench 2.1, using Terminus 2 as the model-agnostic agent. (pi-adapter
 arms are in doc 04.)
 
 ## External dependencies (require user input)
@@ -28,7 +28,7 @@ arms are in doc 04.)
   time; the names below match the pi-terminal-bench README and may need minor
   adjustment. (Implementation item V2.)
 
-## What TB 2.0 is, precisely
+## What TB 2.1 is, precisely
 
 89 tasks, each a Docker container with a natural-language instruction and an
 in-container verification test suite. The agent acts by sending shell commands
@@ -38,13 +38,19 @@ terminal output as text — **no native tool/function calling** (consistent with
 how Artificial Analysis runs Terminal-Bench Hard). Terminus drives the model
 through LiteLLM, so any OpenAI-compatible endpoint works via `api_base`.
 
-External reference (decision U4): the **tbench.ai `terminal-bench@2.0`
+External reference (decision U4): the **tbench.ai Terminal-Bench 2.1
 leaderboard**, Terminus-class entries. (Artificial Analysis's "Terminal-Bench
-Hard" is the _old 1.x_ 44-task subset and is NOT comparable to TB 2.0 — cite it
+Hard" is the _old 1.x_ 44-task subset and is NOT comparable to TB 2.1 — cite it
 only as loose directional context if at all.)
 
-Pin: **TB 2.0** (decision A), tasks via Harbor registry
-`terminal-bench@2.0` → `laude-institute/terminal-bench-2` @ `69671fbaac6d67a7ef0dfec016cc38a64ef7a77c` (2025-10-31).
+Pin: **TB 2.1** (decision A) — a more-verified iteration of 2.0 (same 89 tasks;
+26 modified to fix bugs, timeouts/resources, and reward-hacking). TB 2.1 is a
+**Harbor Hub package dataset** `terminal-bench/terminal-bench-2-1` (source repo
+`harbor-framework/terminal-bench-2-1`; the org rebranded from `laude-institute`),
+pinned to the immutable content digest
+`sha256:7d7bdc1cbedad549fc1140404bd4dc45e5fd0ea7c4186773687d177ad3a0699a`
+(resolved from `@latest` on 2026-07-20). The public dataset resolves and
+downloads with **no `harbor auth login`**.
 
 ## Why Docker is unavoidable here
 
@@ -87,7 +93,7 @@ once verified.
 
 ```bash
 harbor run \
-  -d terminal-bench@2.0 \
+  -d terminal-bench/terminal-bench-2-1@sha256:7d7bdc1cbedad549fc1140404bd4dc45e5fd0ea7c4186773687d177ad3a0699a \
   -a terminus-2 \
   -m openai/Qwen3.6-35B-A3B \
   --task-ids-file docs/benchmarks/pins/tb2-quick.txt \
@@ -112,7 +118,7 @@ export OPENAI_API_KEY="sk-local"
 export OPENAI_BASE_URL="http://host.docker.internal:8080/v1"
 export BENCH_MODEL="Qwen3.6-35B-A3B"             # your models.ini preset; record in ledger model.preset
 harbor run \
-  -d terminal-bench@2.0 \
+  -d terminal-bench/terminal-bench-2-1@sha256:7d7bdc1cbedad549fc1140404bd4dc45e5fd0ea7c4186773687d177ad3a0699a \
   -a terminus-2 \
   -m openai/$BENCH_MODEL \
   --task-ids-file docs/benchmarks/pins/tb2-quick.txt \
@@ -164,14 +170,14 @@ Arm-complete:
 - [ ] L1 pinned-subset (or full, if time allows) run finishes; pass@1 recorded.
 - [ ] `REPORT` prints the one-line summary
       `<URL> / <model> -> <task_pass@1>  (mean <mean_s>s/task, n=<N>)`
-      (doc 00) and compares the score to the tbench.ai 2.0 leaderboard
+      (doc 00) and compares the score to the tbench.ai 2.1 leaderboard
       (Terminus-class), noting the subset/model differences. No numeric gate
       (decision Q8).
 
 Sanity (narrative):
 
 - [ ] L1 (at the labelled precision) on the pinned subset is plausibly in
-      line with where a model of this class sits on the 2.0 board (directional
+      line with where a model of this class sits on the 2.1 board (directional
       only — subset ≠ full suite, and only meaningful when L1 is the same
       model at a comparable precision). A large local-vs-remote gap (L2 ≪ L1)
       is the expected, reportable effect of quantization + KV compression on

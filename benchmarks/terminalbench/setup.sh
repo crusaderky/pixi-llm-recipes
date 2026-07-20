@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup.sh — Terminal-Bench 2.0 harness (design docs 02 canonical + 04 pi). Idempotent.
+# setup.sh — Terminal-Bench 2.1 harness (design docs 02 canonical + 04 pi). Idempotent.
 #
 # Installs Harbor (the terminal-bench runner) into an isolated venv and clones
 # badlogic's pi-terminal-bench adapter (for the doc-04 pi arms). Docker is
@@ -18,8 +18,11 @@ ADAPTER_SHA="0074c915dc7d8ceeba5f61b19e7b9aa078564fa3"
 UV=$(command -v uv || echo "$HOME/.local/bin/uv")
 [[ -x "$UV" ]] || { echo "uv not found (curl -LsSf https://astral.sh/uv/install.sh | sh)"; exit 1; }
 
+# Harbor pinned: 0.19.0 is verified against the TB 2.1 Hub package dataset
+# (resolves the `terminal-bench/terminal-bench-2-1` slug + content-digest pin,
+# downloads the public dataset with no `harbor auth login`). Bump deliberately.
 "$UV" venv --python 3.12 .venv
-"$UV" pip install --python .venv/bin/python harbor
+"$UV" pip install --python .venv/bin/python "harbor==0.19.0"
 echo "harbor $(.venv/bin/harbor --version 2>&1 | tr -d '\n')"
 
 # doc 04: badlogic pi-terminal-bench adapter (PiAgent). Its README documents a

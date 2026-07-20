@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Terminal-Bench 2.0 runner (design docs 02 Terminus 2 + 04 pi adapter).
+"""Terminal-Bench 2.1 runner (design docs 02 Terminus 2 + 04 pi adapter).
 
 Arms:
   L1/L2 (doc 02): Harbor + Terminus 2 (model-agnostic tmux agent, no native tools)
@@ -12,9 +12,9 @@ required at run time; the model endpoint is reached from the task container at
 http://host.docker.internal:8080/v1 (doc 02 V2). `--dry` prints the resolved
 Harbor JobConfig and exits (offline validation, no Docker).
 
-Harbor CLI resolved against the installed version (0.19.x): dataset
-`terminal-bench@2.0` (registry name; 2.0 is the latest — no 2.1 exists),
-`-a terminus-2` / `-a <import:Class>`, `-i <task>` per
+Harbor CLI resolved against the pinned version (0.19.0): dataset
+`terminal-bench/terminal-bench-2-1` (Harbor Hub package slug), pinned to an
+immutable content digest, `-a terminus-2` / `-a <import:Class>`, `-i <task>` per
 pin, `--agent-env` to inject the endpoint, `-k` attempts, `-o` jobs-dir. Task
 `agent_to` (900/750 for the pinned set) binds via the default timeout multiplier.
 """
@@ -31,11 +31,15 @@ ADAPTER = HERE / "pi-terminal-bench"
 OUT = HERE / "out"
 HARBOR = str(HERE / ".venv" / "bin" / "harbor")
 PIN_FILE = "pins/tb2-quick.txt"
-# Registry dataset NAME is `terminal-bench` version `2.0` (doc 00; confirmed via
-# `harbor dataset list --legacy`) — NOT `terminal-bench-2`, which is the source
-# REPO name. 2.0 is the latest published version (no 2.1 exists as of 2026-07-18).
-DATASET = "terminal-bench@2.0"
-DATASET_COMMIT = "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c"  # repo laude-institute/terminal-bench-2 SHA (doc 00)
+# TB 2.1 ships as a Harbor Hub PACKAGE dataset under the slug
+# `terminal-bench/terminal-bench-2-1` (source repo harbor-framework/terminal-bench-2-1;
+# the org rebranded from laude-institute). The public dataset resolves WITHOUT
+# `harbor auth login`. Pin to the immutable content digest for reproducibility —
+# the package analogue of a git commit (resolved from `@latest` on 2026-07-20).
+DATASET = "terminal-bench/terminal-bench-2-1"
+DATASET_DIGEST = (
+    "sha256:7d7bdc1cbedad549fc1140404bd4dc45e5fd0ea7c4186773687d177ad3a0699a"
+)
 ADAPTER_SHA = "0074c915dc7d8ceeba5f61b19e7b9aa078564fa3"
 PI_AGENT_IMPORT = "pi_terminal_bench.pi_agent:PiAgent"
 
@@ -68,7 +72,7 @@ def build_cmd(arm_short, model, tasks, jobs_dir, attempts, agent_base_url, api_k
         HARBOR,
         "run",
         "-d",
-        DATASET,
+        f"{DATASET}@{DATASET_DIGEST}",
         *agent_args(arm_short),
         "-m",
         f"openai/{model}",
@@ -170,7 +174,7 @@ def main():
     if args.dry:
         subprocess.run([*cmd[: cmd.index("-y")], "--print-config"], check=False)
         print(
-            f"\n[dry] {arm}: {len(tasks)} pinned tasks, dataset {DATASET}, agent endpoint {agent_base_url}",
+            f"\n[dry] {arm}: {len(tasks)} pinned tasks, dataset {DATASET}@{DATASET_DIGEST}, agent endpoint {agent_base_url}",
             file=sys.stderr,
         )
         return
@@ -196,7 +200,7 @@ def main():
     run_id = ledger.make_run_id("tb2", arm)
     harness = {
         "name": "harbor-terminus2" if args.arm in ("L1", "L2") else "harbor-pi",
-        "version": f"harbor0.19; dataset@{DATASET_COMMIT}; adapter@{ADAPTER_SHA}",
+        "version": f"harbor0.19.0; dataset@{DATASET_DIGEST}; adapter@{ADAPTER_SHA}",
     }
     ledger.append(
         ledger.build_entry(
@@ -213,8 +217,8 @@ def main():
             score=ledger.score_dict("task_pass@1", passk, str(jobs_dir)),
             timing=tmg,
             notes=(
-                f"TB2.0 {'Terminus 2' if args.arm in ('L1', 'L2') else 'pi adapter'}; dataset "
-                f"terminal-bench@2.0 (repo commit {DATASET_COMMIT}); {n} tasks graded; agent endpoint {agent_base_url}"
+                f"TB2.1 {'Terminus 2' if args.arm in ('L1', 'L2') else 'pi adapter'}; dataset "
+                f"{DATASET}@{DATASET_DIGEST}; {n} tasks graded; agent endpoint {agent_base_url}"
             ),
         )
     )
@@ -223,11 +227,11 @@ def main():
     )
     report.write(
         run_id,
-        f"Terminal-Bench 2.0 {arm}",
+        f"Terminal-Bench 2.1 {arm}",
         [line],
         body=(
             f"- task pass@1 = {passk} ({n}/{len(tasks)} tasks graded)\n"
-            "Compare to the tbench.ai terminal-bench@2.0 leaderboard (Terminus-class), "
+            "Compare to the tbench.ai terminal-bench 2.1 leaderboard (Terminus-class), "
             "noting subset != full suite. L2 (Terminus) vs L4 (pi) isolates the harness "
             "delta; L4 vs L5 the extension delta + token cost (llama-server.log)."
         ),

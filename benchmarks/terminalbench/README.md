@@ -1,4 +1,4 @@
-# Terminal-Bench 2.0 (design docs 02 Terminus 2 + 04 pi adapter)
+# Terminal-Bench 2.1 (design docs 02 Terminus 2 + 04 pi adapter)
 
 89 containerized tasks with in-container verifiers; a task passes iff its tests
 pass. Metric: **task_pass@1**. All arms share the **identical pin**
@@ -12,14 +12,19 @@ pass. Metric: **task_pass@1**. All arms share the **identical pin**
 - There is **no bare-pi L3** for TB (a pi with no bash scores zero); the
   harness-delta question is L2 (Terminus) vs L4 (pi) on the same pin.
 
-Pins: **TB 2.0** — the latest published version (**no 2.1 exists** in the Harbor
-registry / the `terminal-bench-2` dataset repo as of 2026-07-18). Registry
-dataset name `terminal-bench@2.0` (source repo `laude-institute/terminal-bench-2`
-@ `69671fbaac6d67a7ef0dfec016cc38a64ef7a77c`). Harbor resolved to **0.19.x**
-(doc 02 V2): `-d terminal-bench@2.0`, `-a terminus-2` / `-a <import:Class>`,
-`-i <task>` per pin, `--agent-env` to inject the endpoint, `-k` attempts, `-o`
-jobs-dir. Task `agent_to` (900/750 for the pinned set) binds via the default
-timeout multiplier.
+Pins: **TB 2.1** — a more-verified iteration of 2.0 (same 89 tasks; 26 modified
+to fix bugs, timeouts/resources, and reward-hacking, many from Z.ai's
+"Terminal-Bench 2.0 Verified"). TB 2.1 ships as a **Harbor Hub package dataset**
+under the slug `terminal-bench/terminal-bench-2-1` (source repo
+`harbor-framework/terminal-bench-2-1`; the org rebranded from `laude-institute`).
+It is pinned to the **immutable content digest**
+`sha256:7d7bdc1cbedad549fc1140404bd4dc45e5fd0ea7c4186773687d177ad3a0699a` (the
+package analogue of a git commit; resolved from `@latest` on 2026-07-20) and the
+public dataset downloads **without `harbor auth login`**. Harbor pinned to
+**0.19.0** (doc 02 V2): `-d terminal-bench/terminal-bench-2-1@<digest>`,
+`-a terminus-2` / `-a <import:Class>`, `-i <task>` per pin, `--agent-env` to
+inject the endpoint, `-k` attempts, `-o` jobs-dir. Task `agent_to` (900/750 for
+the pinned set) binds via the default timeout multiplier.
 
 ## Requirements
 
@@ -61,7 +66,8 @@ parses per-task verdicts → `task_pass@1`, and writes a ledger entry + REPORT.
 
 - **Offline JobConfig (no Docker):** `run.py --arm L2 --dry` prints the resolved
   Harbor JobConfig — validates dataset/agent/model/task-filter wiring. (Validated:
-  `-d terminal-bench@2.0 -a terminus-2 -i <task>` resolves correctly.)
+  `-d terminal-bench/terminal-bench-2-1@<digest> -a terminus-2 -i <task>` resolves
+  correctly, and the digest-pinned public dataset downloads all 89 tasks.)
 - **Connectivity proof** (above) before the first real run.
 - **Live (L2):** one short task, e.g. `--arm L2 --limit 1` on `overfull-hbox`.
 
