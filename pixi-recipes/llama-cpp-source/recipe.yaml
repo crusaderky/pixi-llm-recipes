@@ -89,7 +89,7 @@ requirements:
     - if: backend == "cuda"
       then:
         - cuda-nvcc
-        - cuda-version =12.6
+        - cuda-version =13.1
     - if: backend == "vulkan"
       then:
         - shaderc
@@ -98,7 +98,7 @@ requirements:
     - openssl
     - if: backend == "cuda"
       then:
-        - cuda-version =12.6
+        - cuda-version =13.1
         - cuda-cudart-dev
         - libcublas-dev
         - libcurand-dev

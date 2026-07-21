@@ -171,7 +171,7 @@ The `BACKEND` env var controls which CMake flags are passed:
 | Backend  | CMake flag         | Extra build deps                          |
 | -------- | ------------------ | ----------------------------------------- |
 | `cpu`    | (none)             | —                                         |
-| `cuda`   | `-DGGML_CUDA=ON`   | `cuda-nvcc`, `cuda-version =12.6` (conda) |
+| `cuda`   | `-DGGML_CUDA=ON`   | `cuda-nvcc`, `cuda-version =13.1` (conda) |
 | `vulkan` | `-DGGML_VULKAN=ON` | `shaderc` (conda)                         |
 | `rocm`   | `-DGGML_HIP=ON`    | **system** ROCm (see below)               |
 
