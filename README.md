@@ -54,10 +54,7 @@ source, and three that just unpack the pre-built binaries from upstream releases
 
 The binary environments are much faster to set up since they skip compilation entirely.
 The source environments are the only option to get CUDA (which on my hardware is faster
-than Vulkan) and can be easily adapted to compile PRs and forks. By default they build
-from the main branch, but you can trivially change the recipes to switch to the
-[TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant) fork with
-KV cache optimizations for improved long-context compression.
+than Vulkan) and can be easily adapted to compile PRs and forks.
 
 Unlike the CUDA and Vulkan source builds, `llamacpp-source-rocm` compiles against the
 **system** ROCm rather than conda packages, because conda-forge does not ship
@@ -132,11 +129,9 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 **Notes:**
 
-- <sup>1</sup>[Turboquant](https://github.com/TheTom/llama-cpp-turboquant) cache compression is not
-  available in the main branch and not necessary with the above models/VRAM
-  configuration. [turbo4 is not particularly better than q4_0](perplexity/README.md).
-  You can enable Turboquant by uncommenting it in
-  `pixi-recipes/llama-cpp-source/recipe.yaml`.
+- <sup>1</sup>You can enable
+  [Turboquant](https://github.com/TheTom/llama-cpp-turboquant) KV cache compression by
+  uncommenting it in `pixi-recipes/llama-cpp-source/recipe.yaml`.
 - <sup>2</sup>Process total measured by nvidia-smi. When sizing video card VRAM, you
   must add ~2 GiB for your desktop (unless you're running on an integrated video card
   and your discrete card is detached from the X server)
@@ -380,11 +375,12 @@ pixi r kv-kld-report perplexity.log -o kv-kld-report.html
 `kv-kld-report.py` parses the log and generates an HTML report (interactive Chart.js plot)
 plus a Markdown report with a static SVG.
 
-The [`perplexity/`](perplexity/README.md) folder holds committed sweeps for Qwen3.6-35B-A3B
-and Gemma4-E2B with a summary of the findings — in short: `q8/q8` is nearly free, `turbo4`
-is not the "almost q8" the internet claims, the K cache matters more than V (so asymmetric
-caches win), and `q4/q4` is acceptable on Qwen but catastrophic on Gemma. See
-[`perplexity/README.md`](perplexity/README.md) for the numbers and the per-model reports.
+The [`perplexity/`](perplexity/README.md) folder holds committed sweeps for
+Qwen3.6-35B-A3B and Gemma4-E2B with a summary of the findings — in short: `q8/q8` is
+nearly free, `turbo4` is mostly the same as `q4`, the K cache matters more than V (so
+asymmetric caches win), and `q4/q4` is acceptable on Qwen but catastrophic on Gemma. See
+[`perplexity/README.md`](perplexity/README.md) for the numbers and the per-model
+reports.
 
 ### Long-context recall
 

@@ -11,7 +11,6 @@ allowed-tools: Bash Read
   - `# Last sync with main at bNNNN` comment if present (use that `bNNNN`).
   - Else the active `version:` under `# Main branch` (`fork: ggml-org/llama.cpp`).
   - Else the commented-out `# version: bNNNN` under `# Main branch`.
-  - **Turboquant fork note**: the active fork's version string (e.g. `feature-turboquant-kv-cache-b9905-4595fff`) is NOT an upstream tag — never use it as `from`. Always use the `Last sync with main at bNNNN` value when the active fork is turboquant.
 - `to=<ref>` — ending git ref. Default: latest upstream release tag.
 
 Parse the args: each token is either `from=VALUE` or `to=VALUE`. Pass them to the script as positional or named args. **Tip: call the script once, dump stdout to a temp file, and parse that file for subsequent uses — the script takes a long time to run (it clones the full upstream repo).
@@ -69,10 +68,3 @@ End with a one-line verdict:
 - "Safe to upgrade — no breaking changes detected."
 - "Review before upgrading — `<flag/API>` was renamed/removed: <details>."
 - "Significant changes — test your workload before upgrading."
-
-#### Turboquant fork note (if applicable)
-
-When the active recipe uses the turboquant fork, add:
-
-- "Turboquant fork currently at its own `bNNNN`, last synced with main at `bXXXX`. This changelog covers upstream main changes `bXXXX`→`bYYYY` — check the turboquant branch for whether those changes are already cherry-picked."
-- Do NOT say "Turboquant already past this" — the fork's version number is its own internal tag, unrelated to upstream release tags.

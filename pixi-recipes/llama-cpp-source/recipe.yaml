@@ -3,11 +3,6 @@ context:
   fork: ggml-org/llama.cpp
   version: b10069
 
-  # Turboquant fork
-  # Last sync with main at b9688 (2026-06-17)
-  # fork: TheTom/llama-cpp-turboquant
-  # version: feature-turboquant-kv-cache-b9914-0c8fcfe
-
   # https://github.com/ggml-org/llama.cpp/pull/21067
   # Forked from main at b8533 (2026-03-26)
   # fork: am17an/llama.cpp
@@ -18,7 +13,7 @@ context:
   # version: b10032-bunch-moe-transfer
 
   # TernaryBonsai CUDA
-  # https://github.com/ggml-org/llama.cpp/pull/25707 
+  # https://github.com/ggml-org/llama.cpp/pull/25707
   # Need to change `tag:` to `rev:` below
   # fork: PrismML-Eng/llama.cpp
   # version: 5eec79824b07cb01baf76339227ad2bb98e9ea8a

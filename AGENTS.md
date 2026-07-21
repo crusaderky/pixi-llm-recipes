@@ -4,7 +4,7 @@
 
 **pixi-llm-recipes** is a [pixi](https://pixi.sh/) project that serves multiple purposes:
 
-1. **Builds and packages llama.cpp** (with opt-in turboquant KV cache optimizations) as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan, ROCm), or using pre-built binaries from upstream releases (CPU, Vulkan, ROCm).
+1. **Builds and packages llama.cpp** as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan, ROCm), or using pre-built binaries from upstream releases (CPU, Vulkan, ROCm).
 2. **Packages pi-extensions** — a curated set of pi coding agent plugins.
 3. **Packages herdr** — an agent-first terminal multiplexer and coding-agent orchestrator.
 4. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
@@ -17,7 +17,7 @@
 
 - **pixi** — Cross-platform dependency/environment manager (conda-compatible)
 - **pixi-build / rattler-build** — Conda recipe building system
-- **llama.cpp** — Open-source LLM inference engine by ggml-org (MIT license), built from source with opt-in turboquant KV cache optimizations via [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant)
+- **llama.cpp** — Open-source LLM inference engine by ggml-org (MIT license)
 - **forge-guardrails** — [Tool-calling reliability proxy](https://github.com/antoinezambelli/forge) (PyPI package) that sits in front of llama-server: validates tool calls, rescue-parses malformed ones, retries with corrective feedback
 - **bubblewrap (bwrap)** — Containerized sandbox for running the pi agent securely
 - **pi-coding-agent** — The pi coding agent framework (installed via npm)
@@ -200,12 +200,10 @@ All four backends (cpu, cuda, vulkan, rocm) live in a **single** recipe. The act
 
 The recipe has a `context:` block with the active fork pinned and several alternative forks commented out for reference:
 
-| Status        | Fork                          | Notes                                 |
-| ------------- | ----------------------------- | ------------------------------------- |
-| **Active**    | `ggml-org/llama.cpp` (main)   |                                       |
-| Commented out | `TheTom/llama-cpp-turboquant` | Lags behind main several weeks/months |
-
-The `source:` block uses `${{ fork }}` and `${{ version }}` template variables, so swapping forks is a one-line change.
+| Status                                                                                                                  | Fork                        | Notes |
+| ----------------------------------------------------------------------------------------------------------------------- | --------------------------- | ----- |
+| **Active**                                                                                                              | `ggml-org/llama.cpp` (main) |       |
+| The `source:` block uses `${{ fork }}` and `${{ version }}` template variables, so swapping forks is a one-line change. |                             |       |
 
 - **Build script**: `build.sh` (shared across variants) runs CMake + Ninja
 - **Build string**: `${{ backend }}_${{ build_number }}`
@@ -566,11 +564,9 @@ pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 Source builds currently tracks mainline llama.cpp. Binary builds still track mainline releases.
 
 1. **Main branch (active, source builds)**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `version:` under `# Main branch` in the single `pixi-recipes/llama-cpp-source/recipe.yaml`.
-2. **Turboquant fork (commented out, source builds)**: Check the latest tag on `TheTom/llama-cpp-turboquant` branch `feature/turboquant-kv-cache`. Update `context.version` in the same source `recipe.yaml`.
-3. **Upstream merge**: If the turboquant fork merged upstream main since last update, also update the `# Last sync with main at bNNNN` comment.
-4. **Binary builds**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `context.version` in the single `pixi-recipes/llama-cpp-binary/recipe.yaml`.
-5. Run `pixi lock` to regenerate the lockfile.
-6. Test all backends.
+2. **Binary builds**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `context.version` in the single `pixi-recipes/llama-cpp-binary/recipe.yaml`.
+3. Run `pixi lock` to regenerate the lockfile.
+4. Test all backends.
 
 See the **update-llama-cpp** skill for the detailed step-by-step procedure.
 

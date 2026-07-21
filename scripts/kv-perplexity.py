@@ -19,14 +19,14 @@ Config YAML example:
         -hf unsloth/gemma-4-E2B-it-qat-GGUF:UD-Q4_K_XL
         -fa on -ngl 99
 
-    k_quants: [f16, q8_0, q5_1, q5_0, q4_1, q4_0, iq4_nl, turbo4, turbo3, turbo2]
-    v_quants: [f16, q8_0, q5_1, q5_0, q4_1, q4_0, iq4_nl, turbo4, turbo3, turbo2]
+    k_quants: [f16, q8_0, q5_1, q5_0, q4_1, q4_0, iq4_nl]
+    v_quants: [f16, q8_0, q5_1, q5_0, q4_1, q4_0, iq4_nl]
 
     # Baseline combo that creates logits.dat (no --kl-divergence). Mandatory.
     baseline: f16/f16
 
     # Optional: add extra combos not in cartesian product.
-    include: [f16/q8_0, turbo4/turbo2]
+    include: [f16/q8_0]
 
     # Optional: remove combos from the set.
     exclude: [q4_0/q4_0]
@@ -63,38 +63,6 @@ ETA_RE = re.compile(
 # Parse individual duration components inside an ETA string.
 # Handles "6 hours 17.00 minutes", "5.43 minutes", "30 seconds".
 _ETA_PART_RE = re.compile(r"([\d.]+)\s*(hours?|minutes?|seconds?)")
-
-# Turboquant's auto-asymmetric feature silently upgrades the K cache on high-GQA
-# models, e.g.:
-#   W llama_kv_cache: auto-asymmetric: GQA ratio 8:1 (...) — upgrading K from
-#   turbo4 to q8_0 to prevent quality degradation. Disable with TURBO_AUTO_ASYMMETRIC=0
-# When this fires, the requested -ctk is a lie: the run does not measure what was
-# asked for, so the operator must be warned loudly.
-AUTO_ASYM_RE = re.compile(r"auto-asymmetric:.*?upgrading K from (\S+) to (\S+)")
-
-
-def print_auto_asymmetric_warning(label: str, from_q: str, to_q: str) -> None:
-    """Print a prominent banner when Turboquant silently upgrades the K cache.
-
-    The requested ``-ctk {from_q}`` was overridden to ``{to_q}``, so the run does
-    not measure the requested config (and uses a larger cache than its label
-    implies).  Tell the operator how to disable the feature.
-    """
-    bar = "=" * 79
-    sys.stdout.write(
-        f"\n{bar}\n"
-        f"!!! TURBOQUANT AUTO-ASYMMETRIC: {label} is NOT measuring what you asked !!!\n"
-        f"{bar}\n"
-        f"The K cache was silently upgraded from {from_q} to {to_q} (high-GQA model),\n"
-        f"so this run is really -ctk {to_q} (not {from_q}), at a LARGER cache size than\n"
-        f"the label implies.  Its KLD will match the {to_q}/<ctv> run, not a true\n"
-        f"symmetric {from_q} K cache.\n"
-        f"\n"
-        f"To measure the TRUE config, disable the feature via the env var:\n"
-        f"    TURBO_AUTO_ASYMMETRIC=0 pixi run kv-perplexity -c <your-config.yaml>\n"
-        f"{bar}\n\n"
-    )
-    sys.stdout.flush()
 
 
 class KVQuant(NamedTuple):
@@ -275,7 +243,6 @@ def run_llama_perplexity(
     """
     eta_minutes: float | None = None
     aborted = False
-    auto_asym_warned = False
 
     with open(logfile, "a") as f:
         f.write(cmd + "\n")
@@ -294,12 +261,6 @@ def run_llama_perplexity(
         for line in iter(process.stdout.readline, ""):
             f.write(line)
             f.flush()
-
-            if not auto_asym_warned:
-                am = AUTO_ASYM_RE.search(line)
-                if am:
-                    auto_asym_warned = True
-                    print_auto_asymmetric_warning(label, am.group(1), am.group(2))
 
             eta = parse_eta_minutes(line)
             if eta is not None:

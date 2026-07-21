@@ -42,8 +42,6 @@ def _fetch_chart_js() -> str:
 # ---------------------------------------------------------------------------
 #  Bytes-per-parameter conversion table
 #  Includes block-overhead where relevant.
-#  Values for standard llama.cpp types + Turboquant variants
-#  (https://github.com/TheTom/llama-cpp-turboquant)
 # ---------------------------------------------------------------------------
 BPP = {
     "f32": 4.0,  # 32-bit float
@@ -55,8 +53,6 @@ BPP = {
     "q4_1": 0.625,  # d(fp16)=2 + m(fp16)=2 + qs[16]=16 => 20/32
     "q4_0": 0.5625,  # d(fp16)=2 + qs[16]=16 => 18/32
     "iq4_nl": 0.5625,  # d(fp16)=2 + qs[16]=16 => 18/32 (same size as q4_0)
-    # TurboQuant+ KV cache (TheTom/llama-cpp-turboquant)
-    # Values from https://github.com/TheTom/turboquant_plus
     "turbo4": 0.53125,  # 4.25 bits/val
     "turbo3": 0.4375,  # 3.5 bits/val
     "turbo2": 0.3125,  # 2.5 bits/val
@@ -70,7 +66,6 @@ BPP = {
     "q5_k_s": 0.625,
     "q5_k_m": 0.6875,
     "q6_k": 0.75,
-    # Turboquant+ model quantization
     "tq3_1s": 0.5,
     "tq4_1s": 0.625,
 }
@@ -97,10 +92,6 @@ FULL_CMD_RE = re.compile(r"^(llama-perplexity\s+.*)$", re.MULTILINE)
 # Summary statistics from the "====== KL divergence statistics ======" block
 SUMMARY_HDR = re.compile(r"^=+\s+KL divergence statistics\s+=+")
 SUMMARY_LINE = re.compile(r"^\s*(Mean|Median|([\d.]+)%)\s+KLD:\s+([\d.-]+)")
-# turboquant auto-asymmetric: the fork silently upgrades the K cache on high-GQA
-# models (e.g. "upgrading K from turbo4 to q8_0"). Such a run does NOT measure
-# its requested -ctk, and its cache size is wrong, so it must be excluded.
-AUTO_ASYM_RE = re.compile(r"auto-asymmetric:.*?upgrading K from (\S+) to (\S+)")
 
 
 def _common_params(text: str) -> str:
@@ -179,14 +170,6 @@ def parse_log(path: str) -> tuple[list[dict], str]:
             ctk, ctv = m.group(1), m.group(2)
             has_kld = bool(re.search(r"(?:^|\s)--kl-divergence(?:\s|$)", cmd_line))
 
-            # Detect turboquant auto-asymmetric K-cache upgrade (bogus run).
-            auto_asym = None
-            for ln in lines:
-                aam = AUTO_ASYM_RE.search(ln)
-                if aam:
-                    auto_asym = (aam.group(1), aam.group(2))  # (from, to)
-                    break
-
             # Extract ctx-size
             ctx_match = CTX_SIZE_RE.search(cmd_line)
             ctx_size = int(ctx_match.group(1)) if ctx_match else 0
@@ -238,7 +221,6 @@ def parse_log(path: str) -> tuple[list[dict], str]:
                         "p999": 0.0,
                         "speed": speed,
                         "baseline": True,
-                        "auto_asymmetric": auto_asym,
                     }
                 )
                 continue
@@ -291,7 +273,6 @@ def parse_log(path: str) -> tuple[list[dict], str]:
                             "p999": None,
                             "speed": speed,
                             "aborted": True,
-                            "auto_asymmetric": auto_asym,
                         }
                     )
                     continue
@@ -313,7 +294,6 @@ def parse_log(path: str) -> tuple[list[dict], str]:
                     "p90": stats["p90"],
                     "p999": stats["p999"],
                     "speed": speed,
-                    "auto_asymmetric": auto_asym,
                 }
             )
     return runs, common_params
@@ -1231,36 +1211,6 @@ def main():
         sys.exit(1)
 
     runs, common_params = parse_log(args.log)
-
-    # Drop turboquant auto-asymmetric runs: the fork silently upgraded the K cache
-    # to q8_0, so their -ctk label and cache size are wrong. Refuse to report them.
-    bogus = [r for r in runs if r.get("auto_asymmetric")]
-    if bogus:
-        bar = "=" * 79
-        print(bar)
-        print("!!! TURBOQUANT AUTO-ASYMMETRIC DETECTED — SKIPPING BOGUS RUNS !!!")
-        print(bar)
-        print(
-            "The turboquant fork silently upgraded the K cache for the following runs"
-        )
-        print(
-            "(high-GQA auto-asymmetric). Their -ctk label and cache size are wrong, so"
-        )
-        print("they are EXCLUDED from the table and the plot:")
-        print("")
-        for r in bogus:
-            frm, to = r["auto_asymmetric"]
-            print(f"    {r['label']:20s}  (K silently upgraded {frm} -> {to})")
-        print("")
-        print(
-            "To measure these configs correctly, re-run kv-perplexity with the feature"
-        )
-        print("disabled (and delete their stale sections from the log first):")
-        print(
-            "    TURBO_AUTO_ASYMMETRIC=0 pixi run kv-perplexity -c <your-config.yaml>"
-        )
-        print(bar)
-        runs = [r for r in runs if not r.get("auto_asymmetric")]
 
     # Normalize speed to baseline (baseline = 100%)
     baseline_run = next((r for r in runs if r.get("baseline")), None)

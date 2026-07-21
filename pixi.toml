@@ -87,12 +87,6 @@ python = "=3.14"
 pydantic = "*"
 pyyaml = "*"
 
-[feature.llamacpp.activation.env]
-# Disable Turboquant's auto-asymmetric K-cache upgrade: on high-GQA models it
-# silently rewrites a requested turbo K cache to q8_0, so -ctk no longer measures
-# (or serves) what was asked for. Keep it off so K/V quant settings are honoured.
-TURBO_AUTO_ASYMMETRIC = "0"
-
 [feature.llamacpp.tasks]
 llama-help = "llama-server --help"
 llama-version = "llama-server --version"

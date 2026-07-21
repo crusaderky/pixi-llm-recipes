@@ -15,9 +15,6 @@ common: >
     -fa on -ngl 99
 
 # K-quant types to test.
-# You'll need to switch to the Turboquant fork in
-# pixi-recipes/llama-cpp-source/recipe.yaml
-# to enable turbo4, turbo3, and turbo2.
 k_quants:
   - f16
   - q8_0
@@ -26,9 +23,6 @@ k_quants:
   # - q4_1
   # - q4_0
   # - iq4_nl
-  # - turbo4
-  # - turbo3
-  # - turbo2
 
 # V-quant types to test (cartesian product with k_quants).
 v_quants:
@@ -39,9 +33,6 @@ v_quants:
   - q4_1
   - q4_0
   # - iq4_nl  # Too slow
-  # - turbo4
-  # - turbo3
-  # - turbo2
 
 # Baseline combo that creates logits.dat (no --kl-divergence). Mandatory.
 # Must match an actual entry from the cartesian product / include list.
