@@ -64,11 +64,7 @@ Do NOT use the GitHub REST API for tag discovery (rate-limited without auth).
 
 ### Phase 4 — Verify & report
 
-6. Run `bash scripts/diff-llama-cpp-variants.sh` and show the output: the
-   active source and binary fork+version must agree, and the commented
-   mainline variants must agree.
-
-7. **Show both changelogs** for the ranges being updated:
+6. **Show both changelogs** for the ranges being updated:
    ```bash
    pixi r llama-cpp-changelog --repo Anbeeld/beellama.cpp <old_v> <LATEST_BEELLAMA>
    pixi r llama-cpp-changelog --repo ggml-org/llama.cpp <old_b> <LATEST_MAINLINE>
@@ -77,7 +73,7 @@ Do NOT use the GitHub REST API for tag discovery (rate-limited without auth).
    Do not hand-roll `curl`/compare calls — the script is the canonical dumper.
    Skip a changelog when that fork did not change.
 
-8. **Report all changes** (source/binary × beellama/mainline).
+7. **Report all changes** (source/binary × beellama/mainline).
 
-9. Run `pixi lock` to regenerate the lockfile, then `pixi r lint` and fix any
+8. Run `pixi lock` to regenerate the lockfile, then `pixi r lint` and fix any
    issues.

@@ -21,8 +21,7 @@ Run the **update-llama-cpp** skill:
 1. Fetch the latest beellama stable tag AND the latest mainline `bNNNN` tag.
 2. Update the active (beellama) `version:` in both source and binary recipes.
 3. Update the commented-out (mainline) `# version:` variant in both recipes.
-4. Run `bash scripts/diff-llama-cpp-variants.sh` and show the output.
-5. Report old → new versions and release notes.
+4. Report old → new versions and release notes.
 
 ### Phase 2 — Update pi-extensions
 
@@ -97,7 +96,4 @@ Present a consolidated report:
 
 ### pixi.lock
 - Refreshed via `pixi update`.
-
-### Diff of source variants
-<output from diff-llama-cpp-variants.sh>
 ```
