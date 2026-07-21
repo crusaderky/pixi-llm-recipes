@@ -39,8 +39,13 @@ pixi r stop-server
 
 ## llama.cpp variants
 
-There are seven pixi environments to choose from: four that compile llama.cpp from
-source, and three that just unpack the pre-built binaries from upstream releases.
+This project builds [beellama.cpp](https://github.com/Anbeeld/beellama.cpp) by default.
+Mainline [llama.cpp](https://github.com/ggml-org/llama.cpp) is available as a
+commented-out variant in the recipes (`pixi-recipes/llama-cpp-*/recipe.yaml`); swap the
+active/commented `fork:` blocks to go back to upstream.
+
+There are eight pixi environments to choose from: four that compile llama.cpp from
+source, and four that just unpack the pre-built binaries from upstream releases:
 
 | Environment              | Build            | Backend      | Linux x64 | Linux ARM | Windows x64 |
 | ------------------------ | ---------------- | ------------ | --------- | --------- | ----------- |
@@ -49,12 +54,12 @@ source, and three that just unpack the pre-built binaries from upstream releases
 | `llamacpp-source-vulkan` | from sources     | CPU + Vulkan | ✅        | ✅        | 🔴          |
 | `llamacpp-source-rocm`   | from sources     | CPU + ROCm   | ✅        | 🔴        | 🔴          |
 | `llamacpp-binary-cpu`    | pre-built binary | CPU only     | ✅        | ✅        | ✅          |
-| `llamacpp-binary-vulkan` | pre-built binary | CPU + Vulkan | ✅        | ✅        | ✅          |
+| `llamacpp-binary-cuda`   | pre-built binary | CPU + CUDA   | ✅        | 🔴        | 🔴          |
+| `llamacpp-binary-vulkan` | pre-built binary | CPU + Vulkan | ✅        | 🔴        | ✅          |
 | `llamacpp-binary-rocm`   | pre-built binary | CPU + ROCm   | ✅        | 🔴        | 🔴          |
 
-The binary environments are much faster to set up since they skip compilation entirely.
-The source environments are the only option to get CUDA (which on my hardware is faster
-than Vulkan) and can be easily adapted to compile PRs and forks.
+The binary environments are much faster to set up since they skip compilation
+entirely. The source environments can be easily adapted to compile PRs and forks.
 
 Unlike the CUDA and Vulkan source builds, `llamacpp-source-rocm` compiles against the
 **system** ROCm rather than conda packages, because conda-forge does not ship
@@ -129,9 +134,10 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 **Notes:**
 
-- <sup>1</sup>You can enable
-  [Turboquant](https://github.com/TheTom/llama-cpp-turboquant) KV cache compression by
-  uncommenting it in `pixi-recipes/llama-cpp-source/recipe.yaml`.
+- <sup>1</sup>KV cache compression is set per-model via `cache-type-k`/`cache-type-v` in
+  `models.ini`. The default fork
+  ([beellama.cpp](https://github.com/Anbeeld/beellama.cpp)) adds KVarN low-bit cache
+  quants (`kvarn4`, `kvarn3`) on top of upstream's `q8_0`/`q4_0`.
 - <sup>2</sup>Process total measured by nvidia-smi. When sizing video card VRAM, you
   must add ~2 GiB for your desktop (unless you're running on an integrated video card
   and your discrete card is detached from the X server)

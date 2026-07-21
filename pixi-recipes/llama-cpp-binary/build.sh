@@ -4,7 +4,10 @@ set -euo pipefail
 # Install pre-built llama.cpp binaries into the conda prefix (Linux only;
 # Windows is handled by build.bat).
 #
-# VERSION and BACKEND are set by recipe.yaml (build.script.env).
+# VERSION, FORK, ASSET_PREFIX and BACKEND are set by recipe.yaml
+# (build.script.env). FORK is the GitHub `owner/repo` of the active llama.cpp
+# fork; ASSET_PREFIX is the release-asset file prefix (`beellama` for
+# Anbeeld/beellama.cpp, `llama` for mainline ggml-org/llama.cpp).
 #
 # Strategy:
 #   1. Detect target platform
@@ -24,6 +27,10 @@ case "$TARGET_PLATFORM-$BACKEND" in
     linux-64-cpu)
         ARCHIVE_POSTFIX=ubuntu-x64.tar.gz
         ;;
+    linux-64-cuda)
+        # beellama only
+        ARCHIVE_POSTFIX=ubuntu-cuda-13.1-x64.tar.gz
+        ;;
     linux-64-vulkan)
         ARCHIVE_POSTFIX=ubuntu-vulkan-x64.tar.gz
         ;;
@@ -34,6 +41,7 @@ case "$TARGET_PLATFORM-$BACKEND" in
         ARCHIVE_POSTFIX=ubuntu-arm64.tar.gz
         ;;
     linux-aarch64-vulkan)
+        # llama.cpp mainline only
         ARCHIVE_POSTFIX=ubuntu-vulkan-arm64.tar.gz
         ;;
     *)
@@ -42,13 +50,14 @@ case "$TARGET_PLATFORM-$BACKEND" in
         ;;
 esac
 
-ARCHIVE_URL="https://github.com/ggml-org/llama.cpp/releases/download/${VERSION}/llama-${VERSION}-bin-$ARCHIVE_POSTFIX"
+ARCHIVE_URL="https://github.com/${FORK}/releases/download/${VERSION}/${ASSET_PREFIX}-${VERSION}-bin-$ARCHIVE_POSTFIX"
 echo "Downloading $ARCHIVE_URL..."
 
-curl -sL $ARCHIVE_URL -o archive.tar.gz
+# Release-asset HEAD requests are intermittently 404 on GitHub; retry.
+curl -sL --retry 5 --retry-delay 5 --retry-all-errors "$ARCHIVE_URL" -o archive.tar.gz
 tar xzf archive.tar.gz
-mv llama-$VERSION/* .
-rmdir llama-$VERSION
+mv "${ASSET_PREFIX}-${VERSION}"/* .
+rmdir "${ASSET_PREFIX}-${VERSION}"
 rm archive.tar.gz
 
 mkdir -p "${PREFIX}/opt/llama" "${PREFIX}/bin"

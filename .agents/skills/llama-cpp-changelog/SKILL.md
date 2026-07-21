@@ -1,19 +1,20 @@
 ---
 name: llama-cpp-changelog
-description: Summarize changes between two versions of llama.cpp. Initial version defaults to the one pinned in pixi-recipes/llama-cpp-source/recipe.yaml; final version defaults to the latest upstream release. Both can be overridden with arbitrary git refs.
+description: Summarize changes between two versions of llama.cpp (any fork). Repo defaults to the active fork pinned in pixi-recipes/llama-cpp-source/recipe.yaml (override with `--repo owner/name`); initial version defaults to that fork's pinned version; final version defaults to the fork's latest stable release. Refs can be overridden with arbitrary git refs. Handles both upstream `bNNNN` and beellama `vX.Y.Z` tags.
 compatibility: Tags/commits print without GitHub auth; PRs skipped without github token (requires GraphQL).
 allowed-tools: Bash Read
 ---
 
 ## Arguments (space-separated, all optional)
 
-- `from=<ref>` — starting git ref (tag such as `b9518`, or a commit SHA). Default: resolved from `pixi-recipes/llama-cpp-source/recipe.yaml`:
-  - `# Last sync with main at bNNNN` comment if present (use that `bNNNN`).
-  - Else the active `version:` under `# Main branch` (`fork: ggml-org/llama.cpp`).
-  - Else the commented-out `# version: bNNNN` under `# Main branch`.
-- `to=<ref>` — ending git ref. Default: latest upstream release tag.
+- `from=<ref>` — starting git ref (tag such as `b9518` / `v0.4.0`, or a commit SHA). Default: resolved from `pixi-recipes/llama-cpp-source/recipe.yaml`:
+  - `# Last sync with main at <tag>` comment if present.
+  - Else the active (uncommented) `version:` for the selected repo's fork.
+  - Else the commented-out `# version:` variant for the selected repo's fork.
+- `to=<ref>` — ending git ref. Default: latest stable release tag of the selected repo (pre-releases like `preview-vX.Y.Z` are skipped).
+- `repo=<owner/name>` — GitHub repo. Default: the active (uncommented) `fork:` in the source recipe. Use `repo=ggml-org/llama.cpp` for the retained mainline variant.
 
-Parse the args: each token is either `from=VALUE` or `to=VALUE`. Pass them to the script as positional or named args. **Tip: call the script once, dump stdout to a temp file, and parse that file for subsequent uses — the script takes a long time to run (it clones the full upstream repo).
+Parse the args: each token is `from=VALUE`, `to=VALUE`, or `repo=VALUE`. Pass `from`/`to` as positional or named args; pass `repo` as `--repo <owner/name>`. **Tip: call the script once, dump stdout to a temp file, and parse that file for subsequent uses — the script takes a long time to run (it clones the full upstream repo).
 
 ## Steps
 
@@ -28,7 +29,7 @@ pixi r llama-cpp-changelog --from <from> --to <to>
 The script writes a deterministic markdown report to stdout with these sections:
 
 1. **Header** — `from → to`, release dates, counts (tags, commits, PRs, direct commits).
-2. **Tags** — every `bNNNN` tag strictly between `from` and `to`, with release date and release URL.
+2. **Tags** — every release tag (`bNNNN` or `vX.Y.Z`) strictly between `from` and `to`, with release date and release URL.
 3. **Pull requests** — every PR merged in the range (filtered by merge-commit SHA): `#NNNN — title`, PR URL, and a body excerpt (up to 1200 chars) in a fenced block. Sorted oldest → newest.
 4. **Direct commits** — commits in the compare with no associated PR: short hash, subject, commit URL.
 

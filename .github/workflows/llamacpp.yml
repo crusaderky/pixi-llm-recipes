@@ -32,14 +32,31 @@ jobs:
           - source-cuda
           - source-vulkan
           - binary-cpu
+          - binary-cuda  # beellama only
           - binary-vulkan
+          - binary-rocm
         exclude:
+
           - os: ubuntu-24.04-arm
-            backend: source-cuda # FIXME compilation crashes
+            backend: binary-vulkan # beellama ships no ubuntu-vulkan-arm64 asset
         include:
-          - os: ubuntu-latest
-            backend: binary-rocm
-          - os: ubuntu-26.04
+          - os: ubuntu-24.04-arm
+            backend: source-cpu
+          # FIXME compilation crashes            
+          # - os: ubuntu-24.04-arm
+          #   backend: source-cuda
+          - os: ubuntu-24.04-arm
+            backend: source-vulkan
+          - os: ubuntu-24.04-arm
+            backend: binary-cpu
+          # no precompiled asset available for DGX Spark
+          # - os: ubuntu-24.04-arm
+          #   backend: binary-cuda           
+          # beellama ships no ubuntu-vulkan-arm64 asset            
+          # - os: ubuntu-24.04-arm
+          #   backend: binary-vulkan
+
+          - os: ubuntu-26.04  # Need Ubuntu 26.04 for ROCm dependencies
             backend: source-rocm
           - os: windows-latest
             backend: binary-cpu

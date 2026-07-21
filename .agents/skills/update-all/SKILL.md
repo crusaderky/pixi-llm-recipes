@@ -18,9 +18,9 @@ allowed-tools: Bash, Read, Edit, WebFetch
 
 Run the **update-llama-cpp** skill:
 
-1. Fetch the latest upstream release tag and commit SHA from GitHub.
-2. Update all source build recipes (`cpu`, `cuda`, `vulkan`).
-3. Update the binary build script with the new version.
+1. Fetch the latest beellama stable tag AND the latest mainline `bNNNN` tag.
+2. Update the active (beellama) `version:` in both source and binary recipes.
+3. Update the commented-out (mainline) `# version:` variant in both recipes.
 4. Run `bash scripts/diff-llama-cpp-variants.sh` and show the output.
 5. Report old → new versions and release notes.
 

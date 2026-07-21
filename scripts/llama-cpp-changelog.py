@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Dump a deterministic llama.cpp changelog between two git refs.
 
+Works against any llama.cpp fork (default: the active, uncommented `fork:`
+in the source recipe; override with `--repo owner/name`). Handles both
+upstream `bNNNN` tags and beellama `vX.Y.Z` semver tags (preview releases
+are ignored by default resolution).
+
 Resolves defaults from pixi-recipes/llama-cpp-source/recipe.yaml:
-  - from: the `# Last sync with main at bNNNN` comment, else the active
-    main-branch `version`, else the commented-out `# version: bNNNN`.
-  - to:   the latest upstream release tag.
+  - from: the `# Last sync with main at <tag>` comment, else the active
+    fork's `version`, else the commented-out `# version:` variant.
+  - to:   the latest upstream release tag of the selected repo.
 
 Output (markdown) sections:
   1. Header (from -> to, dates, counts)
@@ -41,7 +46,9 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-REPO = "ggml-org/llama.cpp"
+DEFAULT_REPO = "ggml-org/llama.cpp"
+# Overridden in main() from --repo or the active fork in the source recipe.
+REPO = DEFAULT_REPO
 REPO_URL = f"https://github.com/{REPO}"
 RECIPE = (
     Path(__file__).resolve().parent.parent
@@ -50,15 +57,25 @@ RECIPE = (
     / "recipe.yaml"
 )
 
-B_TAG = re.compile(r"^b(\d+)$")
+# Upstream uses `bNNNN`; beellama uses `vX.Y.Z`. `preview-vX.Y.Z` and other
+# pre-release tags deliberately do not match.
+TAG_RE = re.compile(r"^(b\d+|v\d+\.\d+\.\d+)$")
 
-# Cache for the commits-only git clone used when GitHub auth is unavailable.
-_GIT_CACHE = Path(
-    os.environ.get(
-        "LLAMA_CPP_CHANGELOG_CACHE",
-        str(Path.home() / ".cache" / "llama-cpp-changelog" / "llama.cpp.git"),
-    )
-)
+
+def _tag_key(name: str) -> tuple[int, ...] | None:
+    """Sort key for a release tag (`bNNNN` or `vX.Y.Z`); None if not a tag."""
+    if not TAG_RE.match(name):
+        return None
+    return tuple(int(p) for p in re.findall(r"\d+", name))
+
+
+def _git_cache() -> Path:
+    """Per-fork cache for the commits-only git clone (no-auth fallback)."""
+    override = os.environ.get("LLAMA_CPP_CHANGELOG_CACHE")
+    if override:
+        return Path(override)
+    repo_name = REPO.split("/", 1)[1]
+    return Path.home() / ".cache" / "llama-cpp-changelog" / f"{repo_name}.git"
 
 
 # --------------------------------------------------------------------------- #
@@ -120,14 +137,15 @@ def _have_token() -> bool:
 
 
 def _git_cache_ready() -> bool:
-    return (_GIT_CACHE / "config").exists()
+    return (_git_cache() / "config").exists()
 
 
 def _ensure_git_cache() -> None:
     """Ensure a commits-only clone of the repo exists and is up to date."""
+    cache = _git_cache()
     if not _git_cache_ready():
-        _GIT_CACHE.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _GIT_CACHE.with_suffix(".tmp")
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache.with_suffix(".tmp")
         if tmp.exists():
             shutil.rmtree(tmp)
         subprocess.run(
@@ -141,13 +159,13 @@ def _ensure_git_cache() -> None:
             ],
             check=True,
         )
-        tmp.replace(_GIT_CACHE)
+        tmp.replace(cache)
     # Refresh refs (commits-only fetch is cheap).
     subprocess.run(
         [
             "git",
             "--git-dir",
-            str(_GIT_CACHE),
+            str(cache),
             "fetch",
             "--filter=tree:0",
             "origin",
@@ -162,7 +180,7 @@ def _ensure_git_cache() -> None:
 def _git(args: list[str], capture: bool = True) -> str:
     _ensure_git_cache()
     r = subprocess.run(
-        ["git", "--git-dir", str(_GIT_CACHE), *args],
+        ["git", "--git-dir", str(_git_cache()), *args],
         capture_output=True,
         text=True,
     )
@@ -182,24 +200,24 @@ def _git_tag_date(tag: str) -> str | None:
     return out[:10] if out else None
 
 
-def _git_tags_b_in_range(lo: int, hi: int) -> list[str]:
+def _git_tags_in_range(lo: tuple[int, ...], hi: tuple[int, ...]) -> list[str]:
     out = _git(["for-each-ref", "--format=%(refname:short)", "refs/tags"])
     names: list[str] = []
     for line in out.splitlines():
-        m = B_TAG.match(line.strip())
-        if m and lo < int(m.group(1)) <= hi:
+        k = _tag_key(line.strip())
+        if k and lo < k <= hi:
             names.append(line.strip())
-    names.sort(key=lambda n: int(B_TAG.match(n).group(1)))
+    names.sort(key=lambda n: _tag_key(n) or ())
     return names
 
 
-def _git_latest_b_tag() -> str | None:
+def _git_latest_tag() -> str | None:
     out = _git(["for-each-ref", "--format=%(refname:short)", "refs/tags"])
-    best, best_n = None, -1
+    best, best_k = None, None
     for line in out.splitlines():
-        m = B_TAG.match(line.strip())
-        if m and int(m.group(1)) > best_n:
-            best, best_n = line.strip(), int(m.group(1))
+        k = _tag_key(line.strip())
+        if k and (best_k is None or k > best_k):
+            best, best_k = line.strip(), k
     return best
 
 
@@ -235,38 +253,60 @@ def _git_compare_commits(from_ref: str, to_ref: str) -> list[dict]:
 # --------------------------------------------------------------------------- #
 # Recipe parsing — default `from`
 # --------------------------------------------------------------------------- #
+def resolve_default_repo() -> str:
+    """Active (uncommented) fork from the source recipe, else upstream mainline."""
+    try:
+        text = RECIPE.read_text()
+    except OSError:
+        return DEFAULT_REPO
+    m = re.search(r"^\s*fork:\s*(\S+)", text, re.MULTILINE)
+    return m.group(1) if m else DEFAULT_REPO
+
+
 def resolve_default_from() -> str:
     text = RECIPE.read_text()
-    m = re.search(r"#\s*Last sync with main at (b\d+)", text)
+    m = re.search(r"#\s*Last sync with main at (\S+)", text)
     if m:
         return m.group(1)
-    # active main-branch version (fork: ggml-org/llama.cpp is uncommented)
+    # Active (uncommented) fork/version pair in the context block
+    blk = re.search(r"^\s*fork:\s*(\S+)\s*\n\s*version:\s*(\S+)", text, re.MULTILINE)
+    if blk and blk.group(1) == REPO:
+        return blk.group(2)
+    # Commented-out variant of the requested repo
     blk = re.search(
-        r"# Main branch\s*\n\s*fork:\s*ggml-org/llama\.cpp\s*\n\s*version:\s*(\S+)",
+        r"^\s*#\s*fork:\s*" + re.escape(REPO) + r"\s*\n\s*#\s*version:\s*(\S+)",
         text,
+        re.MULTILINE,
     )
     if blk:
         return blk.group(1)
-    # commented-out main-branch version
-    blk = re.search(
-        r"# Main branch\s*\n#\s*fork:\s*ggml-org/llama\.cpp\s*\n#\s*version:\s*(\S+)",
-        text,
-    )
-    if blk:
-        return blk.group(1)
-    sys.exit(f"Could not derive default `from` from {RECIPE}")
+    sys.exit(f"Could not derive default `from` for {REPO} from {RECIPE}")
 
 
 def resolve_default_to() -> str:
     if not _have_token():
-        tag = _git_latest_b_tag()
+        tag = _git_latest_tag()
         if tag:
             return tag
         sys.exit(f"Could not derive default `to` from git cache of {REPO}")
-    data = api_get(f"repos/{REPO}/releases", query={"per_page": "1"})
-    if not data:
-        sys.exit(f"No releases found on {REPO}")
-    return data[0]["tag_name"]
+    # Latest STABLE release: the releases list is newest-first and may be led
+    # by pre-releases (e.g. beellama `preview-vX.Y.Z`), which TAG_RE rejects.
+    page = 1
+    while True:
+        data = api_get(
+            f"repos/{REPO}/releases",
+            query={"per_page": "30", "page": str(page)},
+        )
+        if not data:
+            break
+        for rel in data:
+            tag = rel.get("tag_name", "")
+            if _tag_key(tag):
+                return tag
+        if len(data) < 30:
+            break
+        page += 1
+    sys.exit(f"No releases found on {REPO}")
 
 
 # --------------------------------------------------------------------------- #
@@ -295,15 +335,14 @@ def tag_date(tag: str) -> str | None:
 
 
 def tags_in_range(from_tag: str, to_tag: str) -> list[str]:
-    """All bNNNN tags strictly between from and to (exclusive of from, inclusive of to)."""
-    fm, tm = B_TAG.match(from_tag), B_TAG.match(to_tag)
-    if not (fm and tm):
+    """All release tags strictly between from and to (exclusive from, inclusive to)."""
+    lo, hi = _tag_key(from_tag), _tag_key(to_tag)
+    if lo is None or hi is None:
         return []
-    lo, hi = int(fm.group(1)), int(tm.group(1))
     if lo > hi:
         lo, hi = hi, lo
     if not _have_token():
-        return _git_tags_b_in_range(lo, hi)
+        return _git_tags_in_range(lo, hi)
     out: list[str] = []
     page = 1
     while True:
@@ -314,13 +353,13 @@ def tags_in_range(from_tag: str, to_tag: str) -> list[str]:
             break
         for t in data:
             name = t["name"]
-            m = B_TAG.match(name)
-            if m and lo < int(m.group(1)) <= hi:
+            k = _tag_key(name)
+            if k and lo < k <= hi:
                 out.append(name)
         if len(data) < 100:
             break
         page += 1
-    out.sort(key=lambda n: int(B_TAG.match(n).group(1)))
+    out.sort(key=lambda n: _tag_key(n) or ())
     return out
 
 
@@ -430,7 +469,16 @@ def main() -> int:
     ap.add_argument("to_pos", nargs="?", default=None, help="ending ref")
     ap.add_argument("--from", dest="from_opt", default=None, help="starting ref")
     ap.add_argument("--to", dest="to_opt", default=None, help="ending ref")
+    ap.add_argument(
+        "--repo",
+        default=None,
+        help="GitHub owner/repo (default: the active fork in the source recipe)",
+    )
     args = ap.parse_args()
+
+    global REPO, REPO_URL
+    REPO = args.repo or resolve_default_repo()
+    REPO_URL = f"https://github.com/{REPO}"
 
     from_ref = args.from_opt or args.from_pos
     to_ref = args.to_opt or args.to_pos
@@ -459,9 +507,7 @@ def main() -> int:
     tags = tags_in_range(from_ref, to_ref)
 
     # Header
-    print(
-        f"## llama.cpp changelog: `{from_ref}` ({from_date}) → `{to_ref}` ({to_date})"
-    )
+    print(f"## {REPO} changelog: `{from_ref}` ({from_date}) → `{to_ref}` ({to_date})")
     print(f"- Tags in range: {len(tags)}")
     print(f"- Commits in compare: {len(commits)}")
     print(f"- PRs merged: {len(prs)}")

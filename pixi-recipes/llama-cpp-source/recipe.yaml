@@ -1,7 +1,7 @@
 context:
-  # Main branch
-  fork: ggml-org/llama.cpp
-  version: b10069
+  # Main branch (upstream llama.cpp)
+  # fork: ggml-org/llama.cpp
+  # version: b10069
 
   # https://github.com/ggml-org/llama.cpp/pull/21067
   # Forked from main at b8533 (2026-03-26)
@@ -17,6 +17,11 @@ context:
   # Need to change `tag:` to `rev:` below
   # fork: PrismML-Eng/llama.cpp
   # version: 5eec79824b07cb01baf76339227ad2bb98e9ea8a
+
+  # Active fork: beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
+  # https://github.com/Anbeeld/beellama.cpp
+  fork: Anbeeld/beellama.cpp
+  version: v0.4.0
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).

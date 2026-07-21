@@ -1,1 +1,1 @@
-backend: ["cpu", "vulkan", "rocm"]
+backend: ["cpu", "cuda", "vulkan", "rocm"]

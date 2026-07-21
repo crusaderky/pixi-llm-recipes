@@ -11,11 +11,17 @@ BIN=pixi-recipes/llama-cpp-binary/recipe.yaml
 # impossible: the active `version:` lives in a single place. This script now
 # just confirms the source and binary recipes agree on the upstream tag.
 
-echo "--- active source version (should match binary VERSION) ---"
-grep -E '^  version:' "$SRC"
-grep -E '^  version:' "$BIN"
+echo "--- active fork + version (source and binary should agree) ---"
+sed -n '/^context:/,/^package:/p' "$SRC" | grep -E '^  (fork|version):'
+echo
+sed -n '/^context:/,/^package:/p' "$BIN" | grep -E '^  (fork|version):'
+
+echo "--- retained (commented-out) variants ---"
+grep -E '^  # (fork|version):' "$SRC" || true
+echo
+grep -E '^  # (fork|version):' "$BIN" || true
 
 echo "--- source backends exposed as flags (variants.yaml) ---"
-grep -E 'variant:' pixi-recipes/llama-cpp-source/variants.yaml
+cat pixi-recipes/llama-cpp-source/variants.yaml
 echo "--- binary backends exposed as flags (variants.yaml) ---"
-grep -E 'variant:' pixi-recipes/llama-cpp-binary/variants.yaml
+cat pixi-recipes/llama-cpp-binary/variants.yaml

@@ -1,65 +1,83 @@
 ---
 name: update-llama-cpp
-description: Update both llama-cpp conda recipes (source + binary) to the latest upstream release. Updates the version pin in the two recipe.yaml files. Use when the user wants to bump llama-cpp to a newer version.
-compatibility: Uses `scripts/llama-cpp-changelog.py` for changelog/merge detection. No `gh` CLI or GitHub token needed — the script works from a local commits-only git clone (cached at `~/.cache/llama-cpp-changelog/llama.cpp.git`). The PR section is skipped without GitHub auth; tags/commits/dates come from git.
+description: Update both llama-cpp conda recipes (source + binary) to the latest upstream release. Updates BOTH the active fork pin (beellama) and the commented-out mainline variant pin in each recipe.yaml. Use when the user wants to bump llama-cpp to a newer version.
+compatibility: Uses `scripts/llama-cpp-changelog.py` for changelog/merge detection. No `gh` CLI or GitHub token needed — the script works from a local commits-only git clone (cached per-fork at `~/.cache/llama-cpp-changelog/<repo>.git`). The PR section is skipped without GitHub auth; tags/commits/dates come from git.
 allowed-tools: Bash Read Edit
 ---
 
 ## Context
 
-`pixi-recipes/llama-cpp-source/recipe.yaml` is a **single** recipe whose backends
-(cpu, cuda, vulkan, rocm) are selected via the `backend` matrix in
-`variants.yaml` and exposed as build `flags`. The `context:` block pins the
-active fork:
+Both `pixi-recipes/llama-cpp-source/recipe.yaml` and
+`pixi-recipes/llama-cpp-binary/recipe.yaml` pin **two** forks in their
+`context:` blocks:
 
-- **Main branch** — `fork: ggml-org/llama.cpp`, `version: bNNNN`.
+- **Active fork** (uncommented) — `fork: Anbeeld/beellama.cpp`,
+  `version: vX.Y.Z` (stable releases only; ignore `preview-vX.Y.Z`).
+- **Mainline variant** (commented out) — `# fork: ggml-org/llama.cpp`,
+  `# version: bNNNN` — a ready-to-switch fallback that must be kept current.
 
-The `source:` block uses `${{ fork }}` and `${{ version }}` — there is NO
-separate `source.rev` / commit SHA field.
+Every update run bumps **both** pins in **both** recipes (four version
+strings total), so the commented mainline variant never goes stale.
+
+The source recipe's `source:` block uses `${{ fork }}` and `${{ version }}` —
+there is NO separate `source.rev` / commit SHA field. The binary recipe
+additionally pins `asset_prefix` (`beellama` vs `llama`); it never changes on
+a version bump.
 
 ## Steps
 
-### Phase 1 — Fetch latest version
+### Phase 1 — Fetch latest versions
 
-1. **Get latest upstream tag** (do NOT use GitHub REST API — rate-limited without auth):
+Do NOT use the GitHub REST API for tag discovery (rate-limited without auth).
+
+1. **Latest beellama stable tag** (ignore `preview-*`):
+   ```bash
+   git ls-remote --tags --refs https://github.com/Anbeeld/beellama.cpp.git \
+     | grep -oE 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's|refs/tags/||' | sort -V | tail -1
+   ```
+   → `LATEST_BEELLAMA`.
+
+2. **Latest mainline llama.cpp tag**:
    ```bash
    git ls-remote --tags --refs https://github.com/ggml-org/llama.cpp.git \
      | grep -oE 'refs/tags/b[0-9]+$' | sed 's|refs/tags/||' | sort -V | tail -1
    ```
-   → `LATEST`.
+   → `LATEST_MAINLINE`.
 
-### Phase 2 — Update source build recipe
+### Phase 2 — Update the active (beellama) pins
 
-2. Read `pixi-recipes/llama-cpp-source/recipe.yaml` and note `context.version`.
+3. Read `pixi-recipes/llama-cpp-source/recipe.yaml`; note the uncommented
+   `version:` under `fork: Anbeeld/beellama.cpp`. If it already equals
+   `LATEST_BEELLAMA`, report "Source beellama version already up to date";
+   else update it. Report `Source beellama: vOLD → vNEW`.
 
-3. If already equals `LATEST`, report "Source version already up to date" and skip.
+4. Same for the uncommented `version:` in
+   `pixi-recipes/llama-cpp-binary/recipe.yaml`. Report
+   `Binary beellama: vOLD → vNEW`.
 
-4. Otherwise update `context.version` in the single source recipe `pixi-recipes/llama-cpp-source/recipe.yaml`.
+### Phase 3 — Update the commented (mainline) variant pins
 
-5. Report: `Source version: bOLD → bNEW`
-
-### Phase 3 — Update binary build recipe
-
-6. Read `pixi-recipes/llama-cpp-binary/recipe.yaml` and note `context.version`.
-
-7. If already equals `LATEST`, report "Binary version already up to date" and skip.
-
-8. Otherwise update `context.version` in the single binary recipe `pixi-recipes/llama-cpp-binary/recipe.yaml`.
-
-9. Report: `Binary version: bOLD → bNEW`
+5. In each recipe, update the commented `# version: bNNNN` line that sits
+   under `# fork: ggml-org/llama.cpp` to `LATEST_MAINLINE` (keep the `#`
+   comment prefix). If already current, say so. Report
+   `Source mainline variant: bOLD → bNEW` and `Binary mainline variant: bOLD → bNEW`.
 
 ### Phase 4 — Verify & report
 
-10. Run `bash scripts/diff-llama-cpp-variants.sh` and show the output to confirm all source recipes agree and all binary recipes agree.
+6. Run `bash scripts/diff-llama-cpp-variants.sh` and show the output: the
+   active source and binary fork+version must agree, and the commented
+   mainline variants must agree.
 
-11. **Show the changelog** for the range being updated. Run:
-    ```bash
-    pixi r llama-cpp-changelog <old_version> <LATEST>
-    ```
-    and present the script's output (or a themed summary derived from it, citing PR numbers + URLs). Do not hand-roll `curl`/compare calls — the script is the canonical dumper.
+7. **Show both changelogs** for the ranges being updated:
+   ```bash
+   pixi r llama-cpp-changelog --repo Anbeeld/beellama.cpp <old_v> <LATEST_BEELLAMA>
+   pixi r llama-cpp-changelog --repo ggml-org/llama.cpp <old_b> <LATEST_MAINLINE>
+   ```
+   Present the script output (or a themed summary, citing PR numbers + URLs).
+   Do not hand-roll `curl`/compare calls — the script is the canonical dumper.
+   Skip a changelog when that fork did not change.
 
-12. **Report all changes**:
-    - Source version: old → new
-    - Binary version: old → new (if changed)
+8. **Report all changes** (source/binary × beellama/mainline).
 
-13. Run `pixi lock` to regenerate the lockfile, then `pixi r lint` and fix any issues.
+9. Run `pixi lock` to regenerate the lockfile, then `pixi r lint` and fix any
+   issues.

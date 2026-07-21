@@ -4,7 +4,7 @@
 
 **pixi-llm-recipes** is a [pixi](https://pixi.sh/) project that serves multiple purposes:
 
-1. **Builds and packages llama.cpp** as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan, ROCm), or using pre-built binaries from upstream releases (CPU, Vulkan, ROCm).
+1. **Builds and packages llama.cpp** as a conda/pixi package using **pixi-build** (rattler-build backend), compiling from source for multiple hardware backends (CPU, CUDA, Vulkan, ROCm), or using pre-built binaries from upstream releases (CPU, CUDA, Vulkan, ROCm). The default fork is [beellama.cpp](https://github.com/Anbeeld/beellama.cpp) (KVarN / KV-cache-precision fork); mainline `ggml-org/llama.cpp` is retained as a commented-out recipe variant.
 2. **Packages pi-extensions** — a curated set of pi coding agent plugins.
 3. **Packages herdr** — an agent-first terminal multiplexer and coding-agent orchestrator.
 4. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
@@ -17,7 +17,7 @@
 
 - **pixi** — Cross-platform dependency/environment manager (conda-compatible)
 - **pixi-build / rattler-build** — Conda recipe building system
-- **llama.cpp** — Open-source LLM inference engine by ggml-org (MIT license)
+- **llama.cpp** — Open-source LLM inference engine by ggml-org (MIT license); default fork: [beellama.cpp](https://github.com/Anbeeld/beellama.cpp)
 - **forge-guardrails** — [Tool-calling reliability proxy](https://github.com/antoinezambelli/forge) (PyPI package) that sits in front of llama-server: validates tool calls, rescue-parses malformed ones, retries with corrective feedback
 - **bubblewrap (bwrap)** — Containerized sandbox for running the pi agent securely
 - **pi-coding-agent** — The pi coding agent framework (installed via npm)
@@ -86,7 +86,7 @@ pixi-llm-recipes/
     │   └── build.sh                 # Shared CMake build + install + symlink script
     ├── llama-cpp-binary/
     │   ├── recipe.yaml              # Binary build recipe — all backends via `flags`
-    │   ├── variants.yaml            # Backend `backend` matrix (cpu/vulkan/rocm)
+    │   ├── variants.yaml            # Backend `backend` matrix (cpu/cuda/vulkan/rocm)
     │   ├── build.sh                 # Linux: copy files + create symlinks
     │   └── build.bat                # Windows: copy exes + DLLs into bin
     ├── claude/
@@ -146,7 +146,7 @@ Pre-built binaries from upstream GitHub releases (no build deps needed):
 
 ```
 llama-cpp-binary/
-├── recipe.yaml      # Binary build recipe — all backends (cpu/vulkan/rocm) via `flags`
+├── recipe.yaml      # Binary build recipe — all backends (cpu/cuda/vulkan/rocm) via `flags`
 ├── variants.yaml    # Backend `backend` matrix
 ├── build.sh         # Linux: copy files + create symlinks
 └── build.bat        # Windows: copy exes + DLLs into bin
@@ -200,10 +200,11 @@ All four backends (cpu, cuda, vulkan, rocm) live in a **single** recipe. The act
 
 The recipe has a `context:` block with the active fork pinned and several alternative forks commented out for reference:
 
-| Status                                                                                                                  | Fork                        | Notes |
-| ----------------------------------------------------------------------------------------------------------------------- | --------------------------- | ----- |
-| **Active**                                                                                                              | `ggml-org/llama.cpp` (main) |       |
-| The `source:` block uses `${{ fork }}` and `${{ version }}` template variables, so swapping forks is a one-line change. |                             |       |
+| Status                                                                                                                  | Fork                        | Notes                                       |
+| ----------------------------------------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------- |
+| **Active**                                                                                                              | `Anbeeld/beellama.cpp`      | KVarN / KV-cache fork; stable `vX.Y.Z` tags |
+| Commented (kept in sync by update-llama-cpp)                                                                            | `ggml-org/llama.cpp` (main) | `bNNNN` tags                                |
+| The `source:` block uses `${{ fork }}` and `${{ version }}` template variables, so swapping forks is a one-line change. |                             |                                             |
 
 - **Build script**: `build.sh` (shared across variants) runs CMake + Ninja
 - **Build string**: `${{ backend }}_${{ build_number }}`
@@ -221,7 +222,7 @@ The recipe has a `context:` block with the active fork pinned and several altern
 
 ### The Binary Build Script (`pixi-recipes/llama-cpp-binary/build.sh`)
 
-Copies pre-built binaries from upstream releases into `${PREFIX}/opt/llama`, then symlinks `llama-*` executables into `${PREFIX}/bin`. The `VERSION` env var (from `context.version`) determines which upstream release to fetch.
+Copies pre-built binaries from upstream releases into `${PREFIX}/opt/llama`, then symlinks `llama-*` executables into `${PREFIX}/bin`. The `FORK`, `VERSION`, and `ASSET_PREFIX` env vars (from `context.fork`/`version`/`asset_prefix`) determine which fork's release to fetch and the asset file prefix (`beellama-<tag>-bin-...` vs mainline `llama-<tag>-bin-...`).
 
 On Windows (`build.bat`): executables and DLLs are all copied into `%PREFIX%\bin`, which is on `PATH` in activated pixi environments.
 
@@ -237,7 +238,8 @@ The binary recipe uses `file: build` (extension-less) so rattler-build resolves 
 | `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                                                     | —                                                                                                                             |
 | `llamacpp-source-rocm`   | `llama-cpp` (rocm/HIP compiled from sources against system ROCm)                                                                                                               | —                                                                                                                             |
 | `llamacpp-binary-cpu`    | `llama-cpp` (cpu pre-built binary)                                                                                                                                             | —                                                                                                                             |
-| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary)                                                                                                                                          | —                                                                                                                             |
+| `llamacpp-binary-cuda`   | `llama-cpp` (cuda pre-built binary; conda-forge CUDA runtime only)                                                                                                             | —                                                                                                                             |
+| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary; linux-64 + win-64 only — beellama ships no arm64 vulkan asset)                                                                           | —                                                                                                                             |
 | `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                                                            | —                                                                                                                             |
 | `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-home` (from `pixi-recipes/pi-home`), `bubblewrap` (Linux only)                                     | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                                                   |
 | `claude`                 | `claude` (from `pixi-recipes/claude`), `claude-extensions` (from `pixi-recipes/claude-extensions`), `claude-home` (from `pixi-recipes/claude-home`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe`                                                                                        |
@@ -252,6 +254,7 @@ The binary recipe uses `file: build` (extension-less) so rattler-build resolves 
 | `llamacpp-source-vulkan` | `llamacpp` + `llamacpp-source-vulkan` |
 | `llamacpp-source-rocm`   | `llamacpp` + `llamacpp-source-rocm`   |
 | `llamacpp-binary-cpu`    | `llamacpp` + `llamacpp-binary-cpu`    |
+| `llamacpp-binary-cuda`   | `llamacpp` + `llamacpp-binary-cuda`   |
 | `llamacpp-binary-vulkan` | `llamacpp` + `llamacpp-binary-vulkan` |
 | `llamacpp-binary-rocm`   | `llamacpp` + `llamacpp-binary-rocm`   |
 | `agents`                 | `pi` + `claude` + `git` + `pytools`   |
@@ -293,7 +296,7 @@ Parses a `perplexity.log` produced by `kv-perplexity.py`, extracts per-chunk KL 
 
 ### `scripts/llama-cpp-changelog.py` — Deterministic llama.cpp Changelog Dumper
 
-Dumps a deterministic markdown changelog between two git refs of `ggml-org/llama.cpp`. Defaults `from` from `pixi-recipes/llama-cpp-source/recipe.yaml` (`# Last sync with main at bNNNN` comment, else active main `version`, else commented-out `# version: bNNNN`); defaults `to` to the latest upstream release tag. Both overridable via positional or `--from`/`--to` args.
+Dumps a deterministic markdown changelog between two git refs of any llama.cpp fork. The repo defaults to the active (uncommented) `fork:` in `pixi-recipes/llama-cpp-source/recipe.yaml` (override with `--repo owner/name`, e.g. `--repo ggml-org/llama.cpp` for the retained mainline variant). Defaults `from` from the recipe (`# Last sync with main at <tag>` comment, else the active `version`, else the commented-out `# version:` variant of the selected repo); defaults `to` to the repo's latest stable release tag (pre-releases like `preview-vX.Y.Z` are skipped). Handles both upstream `bNNNN` and beellama `vX.Y.Z` tags; refs overridable via positional or `--from`/`--to` args. The git fallback cache is per-fork (`~/.cache/llama-cpp-changelog/<repo>.git`).
 
 Output sections: header (refs, dates, counts), tags in range with release dates + URLs, PRs merged in range (number, title, URL, body excerpt up to 1200 chars, filtered by merge-commit SHA), and direct commits with no PR (short hash, subject, URL). PRs are fetched via GraphQL and require authenticated `gh` CLI (or `GITHUB_TOKEN`/`GH_TOKEN`); tags/commits work unauthenticated but are rate-limited. Used by the `llama-cpp-changelog` and `update-llama-cpp` skills.
 
@@ -477,7 +480,7 @@ pixi run -e llamacpp-source-cuda stop-forge-server     # Stop both forge-proxy a
 pixi run -e llamacpp-source-cuda restart-forge-server  # Stop + start in one command
 ```
 
-**Note**: Binary environments (`llamacpp-*-binary`) skip compilation entirely, making them much faster to set up. They provide pre-built binaries from upstream llama.cpp releases for CPU, Vulkan, and ROCm backends. (No Linux CUDA binary is provided upstream — use `llamacpp-source-cuda` for CUDA.)
+**Note**: Binary environments (`llamacpp-*-binary`) skip compilation entirely, making them much faster to set up. They provide pre-built binaries from beellama.cpp releases for CPU, CUDA (linux-64 only), Vulkan (linux-64 + win-64), and ROCm (linux-64) backends. The CUDA variants resolve their runtime from conda-forge packages only, via the `linux-64-cuda` virtual platform in `[workspace].platforms` (`{ name = "linux-64-cuda", platform = "linux-64", cuda = "13" }`), so GPU-less hosts and CI can solve and install them.
 
 ### Running the Pi Agent
 
@@ -561,10 +564,10 @@ pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 
 ### Version Updates (llama-cpp)
 
-Source builds currently tracks mainline llama.cpp. Binary builds still track mainline releases.
+Both source and binary builds track **beellama.cpp** as the active fork; mainline `ggml-org/llama.cpp` is retained as a commented-out variant that must be kept current.
 
-1. **Main branch (active, source builds)**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `version:` under `# Main branch` in the single `pixi-recipes/llama-cpp-source/recipe.yaml`.
-2. **Binary builds**: Check the latest tag on `ggml-org/llama.cpp` releases. Update `context.version` in the single `pixi-recipes/llama-cpp-binary/recipe.yaml`.
+1. **Active fork (beellama)**: Check the latest stable tag (`vX.Y.Z`; ignore `preview-*`) on `Anbeeld/beellama.cpp` releases. Update the uncommented `version:` in both `pixi-recipes/llama-cpp-source/recipe.yaml` and `pixi-recipes/llama-cpp-binary/recipe.yaml`.
+2. **Commented mainline variant**: Check the latest `bNNNN` tag on `ggml-org/llama.cpp` releases. Update the commented `# version:` line under `# fork: ggml-org/llama.cpp` in both recipes.
 3. Run `pixi lock` to regenerate the lockfile.
 4. Test all backends.
 
@@ -630,7 +633,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `pixi-recipes/llama-cpp-source/build.sh`                   | Shared CMake build + install + symlink script (reads `BACKEND`/`GPU_TARGETS` env)                                                                       |
 | `pixi-recipes/llama-cpp-binary/build.sh`                   | Linux: copy pre-built binaries + create symlinks                                                                                                        |
 | `pixi-recipes/llama-cpp-binary/build.bat`                  | Windows: copy pre-built exes + DLLs into `bin`                                                                                                          |
-| `pixi-recipes/llama-cpp-binary/recipe.yaml`                | Binary build recipe — all backends (cpu/vulkan/rocm) via `flags`                                                                                        |
+| `pixi-recipes/llama-cpp-binary/recipe.yaml`                | Binary build recipe — all backends (cpu/cuda/vulkan/rocm) via `flags`                                                                                   |
 | `pixi-recipes/llama-cpp-binary/variants.yaml`              | Backend `backend` matrix for the binary recipe                                                                                                          |
 | `pixi-recipes/claude/recipe.yaml`                          | Claude Code conda package recipe                                                                                                                        |
 | `pixi-recipes/claude/build.sh`                             | Linux: `npm install --global` into prefix                                                                                                               |

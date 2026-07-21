@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pixi r *)",
+      "Bash(pixi run *)"
+    ]
+  }
+}

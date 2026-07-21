@@ -3,9 +3,18 @@ context:
   # and exposed to consumers as a build `flag` (see pixi.toml).
   backend: ${{ backend }}
 
-  # Upstream llama.cpp release tag whose pre-built binaries are downloaded.
-  # Bump this in lockstep with the source recipes' `version`.
-  version: b10069
+  # Main branch (upstream llama.cpp)
+  # fork: ggml-org/llama.cpp
+  # version: b10069
+  # asset_prefix: llama
+
+  # Active fork: beellama.cpp release tag whose pre-built binaries are
+  # downloaded. Bump in lockstep with the source recipe's `version`.
+  # `asset_prefix` is the release-asset file prefix used by the fork
+  # (`beellama-<tag>-bin-...` vs mainline `llama-<tag>-bin-...`).
+  fork: Anbeeld/beellama.cpp
+  version: v0.4.0
+  asset_prefix: beellama
 
 package:
   name: llama-cpp
@@ -19,19 +28,31 @@ build:
     file: build
     env:
       BACKEND: ${{ backend }}
+      FORK: ${{ fork }}
       VERSION: ${{ version }}
+      ASSET_PREFIX: ${{ asset_prefix }}
   # Expose each backend as a selectable build flag, e.g. `flags = ["vulkan"]`.
   flags:
     - ${{ backend }}
   # `cpu` is the preferred default when no flag is given.
   variant:
     down_prioritize_variant: ${{ 0 if backend == "cpu" else 1 }}
-  # The rocm binary is only published for linux-64 (Ubuntu x86-64); skip the
-  # rocm variant on every other platform.
+  # Platform gating driven by which release assets beellama publishes:
+  # - rocm: linux-64 only (no win, no aarch64)
+  # - cuda: linux-64 only (win cuda assets exist upstream but are out of scope;
+  #   no aarch64 asset)
+  # - vulkan: linux-64 + win-64 only (beellama ships no ubuntu-vulkan-arm64,
+  #   unlike mainline)
   skip:
     - if: backend == "rocm"
       then: "win"
     - if: backend == "rocm"
+      then: "linux and aarch64"
+    - if: backend == "cuda"
+      then: "win"
+    - if: backend == "cuda"
+      then: "linux and aarch64"
+    - if: backend == "vulkan"
       then: "linux and aarch64"
 
 requirements:
@@ -42,9 +63,17 @@ requirements:
         - patchelf
   run:
     - libgomp
+    # CUDA runtime from conda-forge only — never OS-wide CUDA packages.
+    # Pinned to CUDA 13.1 to match the upstream `ubuntu-cuda-13.1-x64` asset.
+    - if: backend == "cuda"
+      then:
+        - cuda-version =13.1
+        - cuda-cudart
+        - libcublas
+        - libcurand
 
 about:
-  homepage: https://github.com/ggml-org/llama.cpp
+  homepage: https://github.com/Anbeeld/beellama.cpp
   license: MIT
   license_file: LICENSE
   summary: LLM inference in C/C++
