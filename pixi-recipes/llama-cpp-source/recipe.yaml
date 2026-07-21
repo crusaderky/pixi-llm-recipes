@@ -1,7 +1,7 @@
 context:
   # Main branch
   fork: ggml-org/llama.cpp
-  version: b10059
+  version: b10069
 
   # Turboquant fork
   # Last sync with main at b9688 (2026-06-17)

@@ -5,7 +5,7 @@ context:
 
   # Upstream llama.cpp release tag whose pre-built binaries are downloaded.
   # Bump this in lockstep with the source recipes' `version`.
-  version: b10059
+  version: b10069
 
 package:
   name: llama-cpp

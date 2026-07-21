@@ -20,10 +20,10 @@ build:
         pi-intercom@0.6.0
         pi-llama-cpp@0.9.0
         pi-web-access@0.13.0
-        pi-subagents@0.34.0
+        pi-subagents@0.35.1
         pi-token-speed@0.7.0
         @juicesharp/rpiv-ask-user-question@1.20.0
-        @tmustier/pi-usage-extension@0.3.2
+        @tmustier/pi-usage-extension@0.9.1
 
 requirements:
   build:

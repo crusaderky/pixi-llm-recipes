@@ -1,10 +1,10 @@
 context:
-  version: "1.13.0"
+  version: "1.14.0"
   # Prebuilt binaries ship from the GitHub release (SHA-256-verified below).
   # Linux aarch64 has no prebuilt upstream (only x86_64-unknown-linux-musl), so
   # this recipe is gated to linux-64 + win-64 in pixi.toml.
-  sha256_linux_x86_64: 7f87449a2accb439b0355dd479e8790940453d90d71da1ed79f52702490e6b68
-  sha256_win_64: 0128884e3bbc28d66bbe9b1fb3bc73439adc233078812368b3335b314c8b837c
+  sha256_linux_x86_64: 65d82dbbde6a4f7844332340a527118011649ac65346ce6b27dad399b733b2ae
+  sha256_win_64: 5d862075d00e55427f1783c3d6c5240dd91da804bf21f278ad3b9b2413844019
 
 package:
   name: herdr-file-viewer
