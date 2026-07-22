@@ -20,8 +20,13 @@ context:
 
   # beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
   # https://github.com/Anbeeld/beellama.cpp
-  fork: Anbeeld/beellama.cpp
-  version: v0.4.0
+  # fork: Anbeeld/beellama.cpp
+  # version: v0.4.0
+
+  # Support for Laguna-S-2.1
+  # https://github.com/poolsideai/llama.cpp/tree/laguna
+  fork: crusaderky/llama.cpp
+  version: b10085-laguna
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).

@@ -131,6 +131,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | Ternary-Bonsai-27B | Q2_0               | 7.7 GB       | 32k q4/q4           | 8.6 GB             | 948 tok/s             | 46 tok/s             | limited context in VRAM; full ctx would require 16 GB; very tight fit                                                   |
 |                    | Q2_0               | 7.7 GB       | 256k q4/q4          | 8.8 GB             | 687 tok/s             | 11 tok/s             | full context in host RAM; even tighter fit                                                                              |
 | Bonsai-27B         | Q1_0               | 4.2 GB       | 128k kvarn4 t1024   | 7.3 GB             | 654 tok/s             | 50 tok/s             | limited context in VRAM                                                                                                 |
+| Laguna-S-2.1       | IQ4_XS             | 54 GB        | 128k q8/q8          | 8.3 GB             | 120 tok/s             | 10 tok/s             | limited context in VRAM; very tight fit                                                                                 |
 
 **Notes:**
 
