@@ -5,7 +5,7 @@ context:
 
   # Main branch (upstream llama.cpp)
   # fork: ggml-org/llama.cpp
-  # version: b10069
+  # version: b10085
   # asset_prefix: llama
 
   # Active fork: beellama.cpp release tag whose pre-built binaries are
