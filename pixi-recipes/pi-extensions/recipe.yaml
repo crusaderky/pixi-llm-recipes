@@ -21,6 +21,7 @@ build:
         pi-llama-cpp@0.9.1
         pi-web-access@0.13.0
         pi-subagents@0.35.1
+        pi-token-speed@0.7.1
         @juicesharp/rpiv-ask-user-question@2.0.0
         @tmustier/pi-usage-extension@0.9.4
 
