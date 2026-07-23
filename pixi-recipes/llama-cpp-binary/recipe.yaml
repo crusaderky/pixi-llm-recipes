@@ -8,10 +8,7 @@ context:
   # version: b10085
   # asset_prefix: llama
 
-  # Active fork: beellama.cpp release tag whose pre-built binaries are
-  # downloaded. Bump in lockstep with the source recipe's `version`.
-  # `asset_prefix` is the release-asset file prefix used by the fork
-  # (`beellama-<tag>-bin-...` vs mainline `llama-<tag>-bin-...`).
+  # beellama.cpp
   fork: Anbeeld/beellama.cpp
   version: v0.4.0
   asset_prefix: beellama
