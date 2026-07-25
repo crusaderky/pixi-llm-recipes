@@ -1,12 +1,14 @@
 Build a 3D arena game as a SINGLE self-contained .html file.
 
 STACK (mandatory):
+
 - Three.js loaded from a CDN (one <script> tag). No other JS libraries,
   no build step.
 - All HTML, CSS, and JS in this one file. It must run by opening it
   directly in a browser.
 
 CORE SPEC (mandatory — implement all of this exactly):
+
 1. A flat ground plane forming a bounded arena. The player cannot leave
    its bounds.
 2. A player object on the ground. WASD moves it (camera-relative);
@@ -29,5 +31,6 @@ impress — this is evaluated on visual quality and feel, not just
 correctness.
 
 RULES:
+
 - Implement the full core before adding stretch features.
 - Output the complete, ready-to-run .html file.

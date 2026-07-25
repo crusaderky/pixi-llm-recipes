@@ -10,7 +10,7 @@ case "${BACKEND}" in
         EXTRA_CMAKE_ARGS+=(-DGGML_CUDA=ON)
         # Compile exotic KV quantization combinations
         # faster runtime, slower compile time
-        # EXTRA_CMAKE_ARGS+=(-DGGML_CUDA_FA_ALL_QUANTS=ON)
+        EXTRA_CMAKE_ARGS+=(-DGGML_CUDA_FA_ALL_QUANTS=ON)
         ;;
     vulkan)
         EXTRA_CMAKE_ARGS+=(-DGGML_VULKAN=ON)
