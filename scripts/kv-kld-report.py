@@ -21,6 +21,7 @@ import subprocess
 import sys
 import urllib.request
 from pathlib import Path
+from typing import NamedTuple
 
 # ---------------------------------------------------------------------------
 #  CDN fetch helper
@@ -40,53 +41,431 @@ def _fetch_chart_js() -> str:
 
 
 # ---------------------------------------------------------------------------
-#  Bytes-per-parameter conversion table
+#  Bits-per-weight (bpw) conversion table.
+#  Values are flat bpw.  The inline `=> N/M` derivations are the on-disk block
+#  layout in bits (total block bits / block values), so they equal the bpw.
 #  Includes block-overhead where relevant.
 # ---------------------------------------------------------------------------
-BPP = {
-    "f32": 4.0,  # 32-bit float
-    "f16": 2.0,  # 16-bit float
-    "bf16": 2.0,  # bfloat16
-    "q8_0": 1.0625,  # d(fp16)=2 + qs(int8)[32]=32 => 34/32
-    "q5_1": 0.75,  # d(fp16)=2 + m(fp16)=2 + qh[4]=4 + qs[16]=16 => 24/32
-    "q5_0": 0.6875,  # d(fp16)=2 + qh[4]=4 + qs[16]=16 => 22/32
-    "q4_1": 0.625,  # d(fp16)=2 + m(fp16)=2 + qs[16]=16 => 20/32
-    "q4_0": 0.5625,  # d(fp16)=2 + qs[16]=16 => 18/32
-    "iq4_nl": 0.5625,  # d(fp16)=2 + qs[16]=16 => 18/32 (same size as q4_0)
-    "turbo4": 0.53125,  # 4.25 bits/val
-    "turbo3": 0.4375,  # 3.5 bits/val
-    "turbo2": 0.3125,  # 2.5 bits/val
+BPW = {
+    "f32": 32.0,  # 32-bit float
+    "f16": 16.0,  # 16-bit float
+    "bf16": 16.0,  # bfloat16
+    "q8_0": 8.5,  # d(fp16)=16 + qs(8b*32)=256 => 272/32
+    "q5_1": 6.0,  # d(fp16)=16 + m(fp16)=16 + qh(1b*32)=32 + qs(4b*32)=128 => 192/32
+    "q5_0": 5.5,  # d(fp16)=16 + qh(1b*32)=32 + qs(4b*32)=128 => 176/32
+    "q4_1": 5.0,  # d(fp16)=16 + m(fp16)=16 + qs(4b*32)=128 => 160/32
+    "q4_0": 4.5,  # d(fp16)=16 + qs(4b*32)=128 => 144/32
+    "iq4_nl": 4.5,  # d(fp16)=16 + qs(4b*32)=128 => 144/32 (same size as q4_0)
+    # beellama.cpp 0.4.0 low/high-bit KV quants (block of 32 unless noted;
+    # d/m = fp16 scale/min).  Sizes verified against ggml-common.h static_asserts.
+    "q2_0": 2.25,  # QK2_0=64: d(fp16)=16 + qs(2b*64)=128 => 144/64
+    "q2_1": 3.0,  # d(fp16)=16 + m(fp16)=16 + qs(2b*32)=64 => 96/32
+    "q3_0": 3.5,  # d(fp16)=16 + qs(3b*32)=96 => 112/32
+    "q3_1": 4.0,  # d(fp16)=16 + m(fp16)=16 + qs(3b*32)=96 => 128/32
+    "q6_0": 6.5,  # d(fp16)=16 + qs(6b*32)=192 => 208/32
+    "q6_1": 7.0,  # d(fp16)=16 + m(fp16)=16 + qs(6b*32)=192 => 224/32
+    # beellama.cpp KVarN N-bit cache: 128x128 tile, N-bit payload + per-row/col
+    # fp16 scales.  Per element = (16384*N + 6144) / 16384 = N + 3/8 bpw (K==V).
+    "kvarn2": 2.375,  # 2 + 3/8
+    "kvarn3": 3.375,  # 3 + 3/8
+    "kvarn4": 4.375,  # 4 + 3/8
+    "kvarn5": 5.375,  # 5 + 3/8
+    "kvarn6": 6.375,  # 6 + 3/8
+    "kvarn8": 8.375,  # 8 + 3/8
+    # TheTom's TurboQuant
+    "turbo4": 4.25,  # 4.25 bits/val
+    "turbo3": 3.5,  # 3.5 bits/val
+    "turbo2": 2.5,  # 2.5 bits/val
     # K-quant types (block of 256) — not used for KV cache but kept for reference
-    "q2_k": 0.3125,
-    "q3_k_s": 0.3125,
-    "q3_k_m": 0.375,
-    "q3_k_l": 0.4375,
-    "q4_k_s": 0.5,
-    "q4_k_m": 0.5625,
-    "q5_k_s": 0.625,
-    "q5_k_m": 0.6875,
-    "q6_k": 0.75,
-    "tq3_1s": 0.5,
-    "tq4_1s": 0.625,
+    "q2_k": 2.5,
+    "q3_k_s": 2.5,
+    "q3_k_m": 3.0,
+    "q3_k_l": 3.5,
+    "q4_k_s": 4.0,
+    "q4_k_m": 4.5,
+    "q5_k_s": 5.0,
+    "q5_k_m": 5.5,
+    "q6_k": 6.0,
+    "tq3_1s": 4.0,
+    "tq4_1s": 5.0,
 }
 
-BPP_LOOKUP = {k.lower(): v for k, v in BPP.items()}
+BPW_LOOKUP = {k.lower(): v for k, v in BPW.items()}
 
 
-def resolve_bpp(name: str) -> float:
+def resolve_bpw(name: str) -> float:
     key = name.strip().lower()
-    if key in BPP_LOOKUP:
-        return BPP_LOOKUP[key]
-    print(f"WARNING: unknown quant '{name}', using 1.0", file=sys.stderr)
-    return 1.0
+    if key in BPW_LOOKUP:
+        return BPW_LOOKUP[key]
+    print(f"WARNING: unknown quant '{name}', using 8.0 bpw", file=sys.stderr)
+    return 8.0
+
+
+# ---------------------------------------------------------------------------
+#  Per-model KV-cache geometry -> "Context (MiB) @ 256k" column.
+#
+#  The KV-cache VRAM of a run does not follow from bpw alone. ModelKV captures
+#  the model's layer geometry and models beellama v0.4.1's persistent KV-cache
+#  allocation (commits cc71513 + e289bb8, "compact SWA precision-tail storage"):
+#    * full-attention layers keep a shared quant body over the whole context
+#      (kv_unified) plus a per-sequence f16 exact-tail overlay of (N + R) rows;
+#    * a sliding-window group whose tail covers its window is a bodyless exact
+#      f16 ring of (window + R) rows per sequence; otherwise a quant body over
+#      the window plus a per-sequence (tail + R) f16 overlay.
+#  N is the resolved tail, R the rollback horizon (=1 whenever a tail exists;
+#  llama-kv-cache-tail.cpp: persistent rows = (N + R) * n_seq_max, sink = 0).
+#  The pre-v0.4.1 per-stream sink / batch / ubatch / tile padding are now
+#  graph-local (transient) and are NOT counted here. The overlay scales with the
+#  tail and n_parallel, so the figure is deployment-dependent: the report
+#  evaluates at a chosen context (--ctx-size, default 256k) and n_parallel
+#  (--n-parallel, default 4 = llama-server's auto). Derived from reading the
+#  v0.4.1 source; NOT yet re-validated against v0.4.1 llama-server logs.
+#
+#  Geometry values were read from the GGUF headers of the models pinned in
+#  models.ini (via scripts/gguf-meta-extract.py).
+# ---------------------------------------------------------------------------
+DEFAULT_CTX_SIZE = 262144  # 256k tokens (256 * 1024); override with --ctx-size
+BYTES_PER_MIB = 1 << 20
+F16_BPW = 16  # bits per f16 cache element
+# v0.4.1 compact precision-tail: persistent exact rows = (N + R) per sequence,
+# R = rollback horizon (cparams kv_tail_rollback_tokens; defaults to 1 when a
+# tail is present). The sink / ubatch / tile padding are graph-local, not here.
+KV_TAIL_ROLLBACK = 1
+
+
+def parse_ctx_size(text: str) -> int:
+    """Parse a context size like ``256k``, ``1M`` or ``262144`` into tokens."""
+    s = text.strip().lower()
+    mult = 1
+    if s.endswith("k"):
+        mult, s = 1024, s[:-1]
+    elif s.endswith("m"):
+        mult, s = 1024 * 1024, s[:-1]
+    return int(float(s) * mult)
+
+
+def _fmt_ctx_label(n_ctx: int) -> str:
+    """Compact label for a context size: 262144 -> ``256k``, 1048576 -> ``1M``."""
+    if n_ctx % (1024 * 1024) == 0:
+        return f"{n_ctx // (1024 * 1024)}M"
+    if n_ctx % 1024 == 0:
+        return f"{n_ctx // 1024}k"
+    return str(n_ctx)
+
+
+class ModelKV(NamedTuple):
+    """KV-cache geometry of a model: enough to size its cache at any context.
+
+    Attention layers fall into two groups. Full-attention layers cache the whole
+    context; sliding-window (SWA) layers cache only the most recent
+    ``sliding_window_size`` tokens. The KV-head count is uniform within a group
+    but may differ between groups -- e.g. Gemma's global (full) layers use fewer
+    KV heads than its local (sliding) layers -- so each group carries its own
+    count. Layers with no KV cache (hybrid conv/recurrent layers) are left out of
+    both counts.
+    """
+
+    full_attn_layers: int
+    full_attn_kv_heads: int  # KV heads per full-attention layer
+    sliding_window_layers: int
+    sliding_window_kv_heads: int  # KV heads per sliding-window layer
+    sliding_window_size: int  # tokens; 0 when the model has no SWA
+    key_dim: int  # per-head key dimension
+    value_dim: int  # per-head value dimension
+
+    def _exact_rows(self, exact_tokens: int, n_parallel: int) -> int:
+        """Persistent exact-tail rows for a group: (N + R) per sequence
+        (kv_unified). In v0.4.1 the sink and current-ubatch padding are
+        graph-local, so they add no persistent rows."""
+        return (exact_tokens + KV_TAIL_ROLLBACK) * n_parallel
+
+    def _full_group_bytes(
+        self, ctx_size: int, bpw_k: float, bpw_v: float, tail: int, n_parallel: int
+    ) -> float:
+        """Unified full-attention group: a shared quant body over the whole
+        context, plus a per-sequence f16 exact-tail overlay of (tail + R) rows
+        (absent for an exact f16 body or a zero tail)."""
+        layers, heads = self.full_attn_layers, self.full_attn_kv_heads
+
+        def side(head_dim: int, bpw: float) -> float:
+            elems = layers * heads * head_dim
+            body = elems * ctx_size * bpw / 8
+            if bpw >= F16_BPW or tail <= 0:  # exact body -> no overlay
+                return body
+            return body + elems * self._exact_rows(tail, n_parallel) * F16_BPW / 8
+
+        return side(self.key_dim, bpw_k) + side(self.value_dim, bpw_v)
+
+    def _swa_group_bytes(
+        self, ctx_size: int, bpw_k: float, bpw_v: float, tail: int, n_parallel: int
+    ) -> float:
+        """Sliding-window group. When the tail covers the window (or the body is
+        exact f16) it is a bodyless exact f16 ring of (window + R) rows per
+        sequence; otherwise a quant body over the window plus a per-sequence
+        (tail + R) f16 overlay."""
+        layers, heads = self.sliding_window_layers, self.sliding_window_kv_heads
+        window = min(ctx_size, self.sliding_window_size)
+
+        def side(head_dim: int, bpw: float) -> float:
+            elems = layers * heads * head_dim
+            if tail >= window or bpw >= F16_BPW:  # bodyless native-exact ring
+                return elems * self._exact_rows(window, n_parallel) * F16_BPW / 8
+            body = elems * window * bpw / 8  # quant body over the window
+            if tail <= 0:  # no exact tail -> body only
+                return body
+            return body + elems * self._exact_rows(tail, n_parallel) * F16_BPW / 8
+
+        return side(self.key_dim, bpw_k) + side(self.value_dim, bpw_v)
+
+    def get_total_kv_cache_size(
+        self,
+        ctx_size: int,
+        bpw_k: float,
+        bpw_v: float,
+        kv_tail_tokens: int,
+        n_parallel: int,
+    ) -> float:
+        """Total K+V cache bytes at ``ctx_size`` tokens for ``n_parallel``
+        parallel sequences, modelling llama-server's actual allocation. K/V quant
+        widths are ``bpw_k`` / ``bpw_v`` (bits per element)."""
+        total = self._full_group_bytes(
+            ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
+        )
+        if self.sliding_window_layers:
+            total += self._swa_group_bytes(
+                ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
+            )
+        return total
+
+    def cache_breakdown(
+        self,
+        ctx_size: int,
+        bpw_k: float,
+        bpw_v: float,
+        kv_tail_tokens: int,
+        n_parallel: int,
+    ):
+        """Per-group derivation for the tooltip: a list of
+        (name, layers, kv_heads, note, bytes)."""
+        lossy = max(bpw_k, bpw_v) < F16_BPW
+
+        full_note = (
+            f"body {ctx_size} tok + f16 exact tail "
+            f"{self._exact_rows(kv_tail_tokens, n_parallel)} rows"
+            if lossy and kv_tail_tokens > 0
+            else f"exact f16 body {ctx_size} tok"
+        )
+        rows = [
+            (
+                "full-attn",
+                self.full_attn_layers,
+                self.full_attn_kv_heads,
+                full_note,
+                self._full_group_bytes(
+                    ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
+                ),
+            )
+        ]
+        if self.sliding_window_layers:
+            window = min(ctx_size, self.sliding_window_size)
+            if kv_tail_tokens >= window or not lossy:
+                rows_n = self._exact_rows(window, n_parallel)
+                swa_note = f"bodyless exact f16 ({window}+{KV_TAIL_ROLLBACK})x{n_parallel} = {rows_n} rows"
+            elif kv_tail_tokens > 0:
+                swa_note = (
+                    f"body {window} tok + f16 exact tail "
+                    f"{self._exact_rows(kv_tail_tokens, n_parallel)} rows"
+                )
+            else:
+                swa_note = f"quant body {window} tok"
+            rows.append(
+                (
+                    "sliding-window",
+                    self.sliding_window_layers,
+                    self.sliding_window_kv_heads,
+                    swa_note,
+                    self._swa_group_bytes(
+                        ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
+                    ),
+                )
+            )
+        return rows
+
+
+# KV heads within a group are uniform, so full/sliding counts are just
+# layers * kv_heads. Matched case-insensitively as the first key (longest first,
+# so "Ternary-Bonsai-27B" wins over "Bonsai-27B") that is a substring of the
+# model reference on the llama-perplexity command line (-hf / -m / --model).
+_MODEL_KV: dict[str, ModelKV] = {
+    "Qwen3.6-35B-A3B": ModelKV(
+        full_attn_layers=41,
+        full_attn_kv_heads=2,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=256,
+        value_dim=256,
+    ),
+    "Qwen3.6-27B": ModelKV(
+        full_attn_layers=64,
+        full_attn_kv_heads=4,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=256,
+        value_dim=256,
+    ),
+    "Qwen3.5-9B": ModelKV(
+        full_attn_layers=33,
+        full_attn_kv_heads=4,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=256,
+        value_dim=256,
+    ),
+    "Gemma4-E2B": ModelKV(
+        full_attn_layers=7,
+        full_attn_kv_heads=1,
+        sliding_window_layers=28,
+        sliding_window_kv_heads=1,
+        sliding_window_size=512,
+        key_dim=512,
+        value_dim=512,
+    ),
+    "Gemma4-E4B": ModelKV(
+        full_attn_layers=7,
+        full_attn_kv_heads=2,
+        sliding_window_layers=35,
+        sliding_window_kv_heads=2,
+        sliding_window_size=512,
+        key_dim=512,
+        value_dim=512,
+    ),
+    "Gemma4-12B": ModelKV(
+        full_attn_layers=8,
+        full_attn_kv_heads=1,
+        sliding_window_layers=40,
+        sliding_window_kv_heads=8,
+        sliding_window_size=1024,
+        key_dim=512,
+        value_dim=512,
+    ),
+    "Gemma4-26B-A4B": ModelKV(
+        full_attn_layers=5,
+        full_attn_kv_heads=2,
+        sliding_window_layers=25,
+        sliding_window_kv_heads=8,
+        sliding_window_size=1024,
+        key_dim=512,
+        value_dim=512,
+    ),
+    "Gemma4-31B": ModelKV(
+        full_attn_layers=10,
+        full_attn_kv_heads=4,
+        sliding_window_layers=50,
+        sliding_window_kv_heads=16,
+        sliding_window_size=1024,
+        key_dim=512,
+        value_dim=512,
+    ),
+    "LFM2.5-230M": ModelKV(
+        full_attn_layers=6,
+        full_attn_kv_heads=8,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=64,
+        value_dim=64,
+    ),
+    "LFM2.5-8B-A1B": ModelKV(
+        full_attn_layers=6,
+        full_attn_kv_heads=8,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=64,
+        value_dim=64,
+    ),
+    # Laguna's hybrid SWA (3:1, window 512) lives in the arch code, not the GGUF
+    # metadata; per models.ini: 36 sliding-window + 12 full layers, 8 KV heads.
+    "Laguna-S-2.1": ModelKV(
+        full_attn_layers=12,
+        full_attn_kv_heads=8,
+        sliding_window_layers=36,
+        sliding_window_kv_heads=8,
+        sliding_window_size=512,
+        key_dim=128,
+        value_dim=128,
+    ),
+}
+_MODEL_KV["Ornith-1.0-35B"] = _MODEL_KV["Qwen3.6-35B-A3B"]
+_MODEL_KV["Ternary-Bonsai-27B"] = _MODEL_KV["Qwen3.6-27B"]
+_MODEL_KV["Bonsai-27B"] = _MODEL_KV["Qwen3.6-27B"]
+
+
+def _match_model(model_ref: str):
+    """Return (key, spec) for the first _MODEL_KV name that is a case-insensitive
+    substring of ``model_ref`` (longest key first), or None."""
+    if not model_ref:
+        return None
+    ref = model_ref.lower()
+    for key in sorted(_MODEL_KV, key=len, reverse=True):
+        if key.lower() in ref:
+            return key, _MODEL_KV[key]
+    return None
+
+
+def _context_calc(
+    model_key: str,
+    spec: ModelKV,
+    ctk: str,
+    ctv: str,
+    tail: int,
+    n_parallel: int,
+    n_ctx=DEFAULT_CTX_SIZE,
+):
+    """Total KV-cache size (MiB) at ``n_ctx`` tokens for the (ctk, ctv, tail)
+    combo and ``n_parallel`` parallel sequences, plus a human-readable
+    derivation string for the table tooltip. The quant bpw already includes
+    KVarN's per-tile scale overhead."""
+    bpw_k, bpw_v = resolve_bpw(ctk), resolve_bpw(ctv)
+    mib = (
+        spec.get_total_kv_cache_size(n_ctx, bpw_k, bpw_v, tail, n_parallel)
+        / BYTES_PER_MIB
+    )
+    lines = [
+        f"{model_key}: {n_ctx} tok, tail {tail}, n_parallel {n_parallel}",
+        f"K {ctk} {bpw_k:g} bpw, V {ctv} {bpw_v:g} bpw",
+    ]
+    for name, layers, kv_heads, note, group_bytes in spec.cache_breakdown(
+        n_ctx, bpw_k, bpw_v, tail, n_parallel
+    ):
+        lines.append(
+            f"{name}: {layers} layers x{kv_heads} kv-heads x"
+            f"{spec.key_dim}/{spec.value_dim} dim; {note} "
+            f"-> {group_bytes / BYTES_PER_MIB:,.0f} MiB"
+        )
+    lines.append(f"total {mib:,.0f} MiB")
+    return mib, "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
 #  Log parser
 # ---------------------------------------------------------------------------
 CMD_RE = re.compile(r"llama-perplexity\s+.*?-ctk\s+(\S+)\s+-ctv\s+(\S+)")
+# --kv-tail-tokens 0 is never emitted (mainline-llama.cpp compat); its absence
+# means the effective default tail: 128 for KVarN caches, 0 otherwise.
+KV_TAIL_RE = re.compile(r"--kv-tail-tokens\s+(\d+)")
 CTX_SIZE_RE = re.compile(r"--ctx-size\s+(\d+)")
-SECONDS_PER_PASS_RE = re.compile(r"kl_divergence: (\d+\.?\d*) seconds per pass")
+# Model reference on the command line: -hf <repo>:<quant>, -m/--model <path>.
+MODEL_REF_RE = re.compile(r"(?:^|\s)(?:-hf|--hf-repo|--model|-m)\s+(\S+)")
+# Baseline logits dump logs "perplexity: … seconds per pass"; KLD runs log
+# "kl_divergence: … seconds per pass". Match either so the baseline speed is
+# derived from the per-pass time, not the (remaining-time) ETA fallback.
+SECONDS_PER_PASS_RE = re.compile(
+    r"(?:kl_divergence|perplexity): (\d+\.?\d*) seconds per pass"
+)
 TOTAL_MINUTES_RE = re.compile(r"(\d+\.?\d*)\s+minutes$")
 FULL_CMD_RE = re.compile(r"^(llama-perplexity\s+.*)$", re.MULTILINE)
 # Summary statistics from the "====== KL divergence statistics ======" block
@@ -95,8 +474,15 @@ SUMMARY_LINE = re.compile(r"^\s*(Mean|Median|([\d.]+)%)\s+KLD:\s+([\d.-]+)")
 
 
 def _common_params(text: str) -> str:
-    """Extract CLI parameters (excluding -ctk/-ctv --kl-divergence --kl-divergence-base)."""
-    skip_keys = {"--kl-divergence-base", "--kl-divergence", "-ctk", "-ctv"}
+    """Extract CLI parameters (excluding -ctk/-ctv --kv-tail-tokens
+    --kl-divergence --kl-divergence-base)."""
+    skip_keys = {
+        "--kl-divergence-base",
+        "--kl-divergence",
+        "-ctk",
+        "-ctv",
+        "--kv-tail-tokens",
+    }
     param_sets = []
     for m in FULL_CMD_RE.finditer(text):
         parts = m.group(1).split()
@@ -139,7 +525,32 @@ def _common_params(text: str) -> str:
     return " ".join(common_ordered) if common_ordered else ""
 
 
-def parse_log(path: str) -> tuple[list[dict], str]:
+def _make_label(ctk: str, ctv: str, tail: int, show_tail: bool) -> str:
+    """Compact display label for a (ctk, ctv, kv-tail-tokens) combo.
+
+    * A symmetric pair ``qk == qv`` collapses to a single ``qk`` -- always for
+      KVarN (which is symmetric by construction), and for other quants only when
+      the tail suffix is hidden.
+    * The `` tN`` suffix is shown on every label iff --kv-tail-tokens appears
+      explicitly anywhere in the log (``show_tail``); otherwise it is omitted
+      entirely. ``tail`` is the effective value: the explicit one, or the
+      default when omitted (128 for KVarN caches, 0 otherwise).
+
+    Examples: no explicit tail -> ``q8_0``, ``q8_0/q4_0``, ``kvarn4``; explicit
+    tail somewhere -> ``q8_0/q8_0 t0``, ``kvarn4 t128``, ``q8_0/q4_0 t1024``.
+    """
+    symmetric = ctk == ctv
+    is_kvarn = symmetric and ctk.startswith("kvarn")
+    if is_kvarn or (symmetric and not show_tail):
+        quant = ctk
+    else:
+        quant = f"{ctk}/{ctv}"
+    return f"{quant} t{tail}" if show_tail else quant
+
+
+def parse_log(
+    path: str, n_parallel: int = 4, projected_ctx: int = DEFAULT_CTX_SIZE
+) -> tuple[list[dict], str]:
     text = Path(path).read_text()
     sections = re.split(r"^-{30,}", text, flags=re.MULTILINE)
     common_params = _common_params(text)
@@ -168,6 +579,14 @@ def parse_log(path: str) -> tuple[list[dict], str]:
             is_aborted = i < len(chunks) - 1  # ABORTED marker follows this chunk
 
             ctk, ctv = m.group(1), m.group(2)
+            tail_m = KV_TAIL_RE.search(cmd_line)
+            if tail_m:
+                tail = int(tail_m.group(1))
+            else:
+                # Omitting --kv-tail-tokens defaults to 128 for KVarN caches
+                # (KVarN keeps a 128-token f16 tail by default), 0 otherwise.
+                is_kvarn = ctk.startswith("kvarn") or ctv.startswith("kvarn")
+                tail = 128 if is_kvarn else 0
             has_kld = bool(re.search(r"(?:^|\s)--kl-divergence(?:\s|$)", cmd_line))
 
             # Extract ctx-size
@@ -207,11 +626,12 @@ def parse_log(path: str) -> tuple[list[dict], str]:
 
             if not has_kld:
                 # Baseline run — KLD = 0 by definition
-                size = resolve_bpp(ctk) + resolve_bpp(ctv)
+                size = resolve_bpw(ctk) + resolve_bpw(ctv)
                 runs.append(
                     {
                         "ctk": ctk,
                         "ctv": ctv,
+                        "tail": tail,
                         "label": f"{ctk}/{ctv}",
                         "size": size,
                         "n_chunks": 0,
@@ -264,8 +684,9 @@ def parse_log(path: str) -> tuple[list[dict], str]:
                         {
                             "ctk": ctk,
                             "ctv": ctv,
+                            "tail": tail,
                             "label": f"{ctk}/{ctv}",
-                            "size": resolve_bpp(ctk) + resolve_bpp(ctv),
+                            "size": resolve_bpw(ctk) + resolve_bpw(ctv),
                             "n_chunks": 0,
                             "mean": None,
                             "median": None,
@@ -286,8 +707,9 @@ def parse_log(path: str) -> tuple[list[dict], str]:
                 {
                     "ctk": ctk,
                     "ctv": ctv,
+                    "tail": tail,
                     "label": f"{ctk}/{ctv}",
-                    "size": resolve_bpp(ctk) + resolve_bpp(ctv),
+                    "size": resolve_bpw(ctk) + resolve_bpw(ctv),
                     "n_chunks": n_chunks,
                     "mean": stats["mean"],
                     "median": stats["median"],
@@ -296,7 +718,52 @@ def parse_log(path: str) -> tuple[list[dict], str]:
                     "speed": speed,
                 }
             )
+
+    # Labels depend on the whole log: the `` tN`` suffix appears on every run
+    # iff --kv-tail-tokens is passed explicitly somewhere. Its absence is a
+    # default (128 for KVarN, 0 otherwise), so keying off non-zero tails would
+    # wrongly show suffixes for a KVarN-only log where the flag never appears.
+    show_tail = bool(KV_TAIL_RE.search(text))
+    for r in runs:
+        r["label"] = _make_label(r["ctk"], r["ctv"], r["tail"], show_tail)
+
+    # Total KV-cache size at the projected context (--ctx-size), if recognised.
+    ref_m = MODEL_REF_RE.search(text)
+    model_ref = ref_m.group(1) if ref_m else ""
+    match = _match_model(model_ref)
+    if match is None:
+        print(
+            f"WARNING: no KV-cache model matched '{model_ref or '(none)'}' -- "
+            "Context (MiB) column left empty, plot unchanged",
+            file=sys.stderr,
+        )
+    for r in runs:
+        if match is not None:
+            model_key, spec = match
+            r["ctx_mib"], r["ctx_note"] = _context_calc(
+                model_key,
+                spec,
+                r["ctk"],
+                r["ctv"],
+                r["tail"],
+                n_parallel,
+                projected_ctx,
+            )
+        else:
+            r["ctx_mib"], r["ctx_note"] = None, None
+
     return runs, common_params
+
+
+def _cost_axis(runs: list[dict], ctx_label: str = "256k") -> tuple[str, str, str]:
+    """Pick the frontier / plot-x cost metric. When the model is recognised
+    (``ctx_mib`` present on the runs) the Pareto frontier and the plot x-axis
+    use the total KV-cache size at ``ctx_label`` -- so tail variants that share a
+    bpw separate out -- and frontier points are drawn solid black. Otherwise both
+    fall back to bpw. Returns (cost_key, x_axis_label, frontier_marker)."""
+    if any(r.get("ctx_mib") is not None for r in runs):
+        return "ctx_mib", f"Context size (MiB) @ {ctx_label}", "⚫"  # black circle
+    return "size", "Size (bits / weight)", "\U0001f7e2"  # green circle
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +781,7 @@ def _fmt(v):
 
 
 def _fmt_size(v):
-    return f"{v:.4f}"
+    return f"{v:.2f}"
 
 
 def generate_html(
@@ -322,22 +789,33 @@ def generate_html(
     common_params: str = "",
     chart_js_src: str = "",
     speed_cutoff_factor: float = 0.33,
+    n_parallel: int = 4,
+    ctx_label: str = "256k",
 ) -> str:
-    sorted_runs = sorted(runs, key=lambda r: r["size"])
+    # Cost metric for the frontier and x-axis: context MiB @<ctx_label> if the
+    # model is recognised, else bpw.
+    cost_key, x_axis_label, _ = _cost_axis(runs, ctx_label)
 
-    # ---- Pareto frontiers (separate per stat; group-by-size so same-size runs compete) ----
+    # Baseline is the KLD-0 reference: it stays in the table but is never
+    # plotted (its zero KLD would sit off the bottom and drag the frontier
+    # line into the corner).
+    sorted_runs = sorted(
+        (r for r in runs if not r.get("baseline")), key=lambda r: r[cost_key]
+    )
+
+    # ---- Pareto frontiers (separate per stat; group by cost so equal-cost runs compete) ----
     def _frontier(key: str, candidate_runs: list[dict]) -> set[int]:
         from collections import defaultdict
 
-        by_size: dict[float, list[dict]] = defaultdict(list)
+        by_cost: dict[float, list[dict]] = defaultdict(list)
         for r in candidate_runs:
-            by_size[r["size"]].append(r)
+            by_cost[r[cost_key]].append(r)
         ids = set()
         best = float("inf")
-        for s in sorted(by_size):
-            min_kld = min(r[key] for r in by_size[s])
+        for s in sorted(by_cost):
+            min_kld = min(r[key] for r in by_cost[s])
             if min_kld < best:
-                for r in by_size[s]:
+                for r in by_cost[s]:
                     if r[key] == min_kld:
                         ids.add(id(r))
                 best = min_kld
@@ -353,15 +831,22 @@ def generate_html(
         r
         for r in runs
         if not r.get("aborted")
+        and not r.get("baseline")
         and (speed_cutoff is None or r["speed"] is None or r["speed"] >= speed_cutoff)
     ]
 
     frontier_mean = _frontier("mean", eligible_runs)
     frontier_p999 = _frontier("p999", eligible_runs)
 
-    # A run is suboptimal if it's NOT on either frontier, OR if it's too slow
+    # A run is suboptimal if it's NOT on either frontier, OR if it's too slow.
+    # The baseline is excluded: it is not a frontier candidate but must not be
+    # greyed out in the table either.
     suboptimal_ids = {
-        id(r) for r in runs if id(r) not in frontier_mean and id(r) not in frontier_p999
+        id(r)
+        for r in runs
+        if not r.get("baseline")
+        and id(r) not in frontier_mean
+        and id(r) not in frontier_p999
     }
     if speed_cutoff is not None:
         for r in runs:
@@ -380,7 +865,7 @@ def generate_html(
 
     # ---- table sorted by size descending ----
     tbl_rows = ""
-    for r in sorted(runs, key=lambda r: r["size"], reverse=True):
+    for r in sorted(runs, key=lambda r: r[cost_key], reverse=True):
         label = r["label"]
         if r.get("baseline"):
             label += " (baseline)"
@@ -389,10 +874,18 @@ def generate_html(
         cls = ' class="suboptimal"' if id(r) in suboptimal_ids else ""
         speed_fmt = f"{r['speed']:.1f}" if r["speed"] is not None else "N/A"
         pct_fmt = f"{r['speed_pct']:.1f}" if r["speed_pct"] is not None else "N/A"
+        if r.get("ctx_mib") is not None:
+            ctx_cell = (
+                f'<td class="ctx" title="{_esc(r["ctx_note"])}">'
+                f"{r['ctx_mib']:,.0f}</td>"
+            )
+        else:
+            ctx_cell = "<td></td>"
         tbl_rows += (
             f"<tr{cls}>"
             f"<td>{_esc(label)}</td>"
             f"<td>{_fmt_size(r['size'])}</td>"
+            f"{ctx_cell}"
             f"<td>{_fmt(r['mean'])}</td>"
             f"<td>{_fmt(r['median'])}</td>"
             f"<td>{_fmt(r['p90'])}</td>"
@@ -419,7 +912,7 @@ def generate_html(
                 continue
             y = r[key] if r[key] > 0 else 1e-10
             pt = {
-                "x": r["size"],
+                "x": r[cost_key],
                 "y": y,
                 "_label": r["label"],
                 "_suboptimal": id(r) in suboptimal_ids,
@@ -475,7 +968,7 @@ def generate_html(
             pts = sorted(
                 [
                     {
-                        "x": r["size"],
+                        "x": r[cost_key],
                         "y": r[key] if r[key] > 0 else 1e-10,
                         "_label": r["label"],
                         "_suboptimal": id(r) in suboptimal_ids,
@@ -525,7 +1018,7 @@ def generate_html(
     log_y_min = (10 * log_min - log_max) / 9
     y_min = 10**log_y_min
     y_max = max_y * 1.15  # 15% headroom above max
-    x_max = max(r["size"] for r in sorted_runs)
+    x_max = max(r[cost_key] for r in sorted_runs) * 1.05  # 5% headroom past widest
 
     baseline_label = next((r["label"] for r in sorted_runs if r.get("baseline")), None)
     baseline_label_json = json.dumps(baseline_label) if baseline_label else "null"
@@ -540,14 +1033,31 @@ def generate_html(
         else ""
     )
 
-    html = HTML_HEAD.replace("{chart_js_src}", chart_js_src)
+    html = HTML_HEAD.replace("{chart_js_src}", chart_js_src).replace(
+        "{ctx_label}", _esc(ctx_label)
+    )
     html += common_html
     html += chunks_html
     html += tbl_rows
-    html += HTML_MID % (y_min, y_max, x_max, baseline_label_json, datasets_js)
+    html += HTML_MID % (
+        y_min,
+        y_max,
+        x_max,
+        baseline_label_json,
+        datasets_js,
+        x_axis_label,
+    )
     if speed_cutoff is not None:
         pct = speed_cutoff_factor * 100
         html += f'<p class="note">Runs with speed &lt; {pct:.0f}% of baseline excluded from frontier determination.</p>\n'
+    if any(r.get("ctx_mib") is not None for r in runs):
+        html += (
+            f'<p class="note">Context (MiB) @{_esc(ctx_label)} is the estimated '
+            f"beellama v0.4.1 llama-server KV-cache VRAM at a {_esc(ctx_label)} "
+            f"context with n_parallel={n_parallel} (source-modelled, not yet "
+            "log-validated); hover a cell "
+            "for the per-layer-group breakdown.</p>\n"
+        )
     html += HTML_TAIL
     return html
 
@@ -575,6 +1085,7 @@ HTML_HEAD = """\
   .common-params code { font-size: 0.82rem; word-break: break-all; color: #333; }
   tr.suboptimal { color: #888; }
   tr.suboptimal td { color: inherit; }
+  td.ctx { cursor: help; text-decoration: underline dotted; text-underline-offset: 2px; }
   .label-toggle { display: block; margin-bottom: 8px; font-size: 0.9rem; cursor: pointer; user-select: none; }
   .label-toggle input { margin-right: 6px; }
   .note { color: #888; font-size: 0.8rem; margin-top: 10px; }
@@ -587,7 +1098,8 @@ HTML_HEAD = """\
 <thead>
 <tr>
   <th>ctk / ctv</th>
-  <th>Size (B/param)</th>
+  <th>Size (bpw)</th>
+  <th>Context (MiB) @{ctx_label}</th>
   <th>Mean KLD</th>
   <th>Median KLD</th>
   <th>90.0% KLD</th>
@@ -609,7 +1121,7 @@ HTML_MID = """\
   </label>
   <canvas id="kldChart" width="1000" height="600"></canvas>
 </div>
-<p class="note">Y-axis: log scale.  Size = bytes-per-parameter(ctk) + bytes-per-parameter(ctv).  Each point labelled with its ctk/ctv pair.  Scroll wheel to zoom, drag to pan, double-click to reset.</p>
+<p class="note">Y-axis: log scale.  Size = bpw(ctk) + bpw(ctv).  Each point labelled with its ctk/ctv pair.  Scroll wheel to zoom, drag to pan, double-click to reset.</p>
 <script>
 var Y_MIN  = %s;
 var Y_MAX  = %s;
@@ -653,7 +1165,7 @@ var chart = new Chart(ctx, {
     },
     scales: {
       x: {
-        title: { display: true, text: 'Size (bytes / parameter)' },
+        title: { display: true, text: '%s' },
         type: 'linear',
         min: 0,
         max: X_MAX
@@ -817,9 +1329,19 @@ HTML_TAIL = """\
 #  SVG plot (matplotlib)
 # ---------------------------------------------------------------------------
 def _frontier_groups(
-    runs: list[dict], key: str, speed_cutoff_factor: float = 0.33
+    runs: list[dict],
+    key: str,
+    speed_cutoff_factor: float = 0.33,
+    exclude_baseline: bool = False,
+    cost_key: str = "size",
 ) -> tuple[set[int], set[int]]:
-    """Return (frontier_ids, suboptimal_ids) for a given stat key."""
+    """Return (frontier_ids, suboptimal_ids) for a given stat key.
+
+    ``exclude_baseline`` drops the baseline from the frontier candidates (used
+    for the plot, which never shows the baseline) while still deriving the
+    speed cutoff from it. ``cost_key`` is the run field ranked along the x-axis
+    (``size`` bpw, or ``ctx_mib`` when the model is recognised).
+    """
     from collections import defaultdict
 
     # Only consider runs that are not too slow
@@ -829,20 +1351,22 @@ def _frontier_groups(
         speed_cutoff = baseline_run["speed"] * speed_cutoff_factor
 
     eligible_runs = [r for r in runs if not r.get("aborted")]
+    if exclude_baseline:
+        eligible_runs = [r for r in eligible_runs if not r.get("baseline")]
     if speed_cutoff is not None:
         eligible_runs = [
             r for r in eligible_runs if r["speed"] is None or r["speed"] >= speed_cutoff
         ]
 
-    by_size: dict[float, list[dict]] = defaultdict(list)
+    by_cost: dict[float, list[dict]] = defaultdict(list)
     for r in eligible_runs:
-        by_size[r["size"]].append(r)
+        by_cost[r[cost_key]].append(r)
     frontier = set()
     best = float("inf")
-    for s in sorted(by_size):
-        min_kld = min(r[key] for r in by_size[s])
+    for s in sorted(by_cost):
+        min_kld = min(r[key] for r in by_cost[s])
         if min_kld < best:
-            for r in by_size[s]:
+            for r in by_cost[s]:
                 if r[key] == min_kld:
                     frontier.add(id(r))
             best = min_kld
@@ -850,7 +1374,12 @@ def _frontier_groups(
 
 
 def generate_plot_svg(
-    runs: list[dict], width=1000, height=600, dpi=100, speed_cutoff_factor: float = 0.33
+    runs: list[dict],
+    width=1000,
+    height=600,
+    dpi=100,
+    speed_cutoff_factor: float = 0.33,
+    ctx_label: str = "256k",
 ) -> str:
     """Generate an SVG plot of KLD vs size using matplotlib."""
     import matplotlib
@@ -858,20 +1387,33 @@ def generate_plot_svg(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    sorted_runs = sorted(runs, key=lambda r: r["size"])
+    cost_key, x_axis_label, _ = _cost_axis(runs, ctx_label)
+
+    sorted_runs = sorted(runs, key=lambda r: r[cost_key])
     sorted_runs = [r for r in sorted_runs if not r.get("aborted")]
 
-    frontier_mean, _ = _frontier_groups(sorted_runs, "mean")
-    frontier_p999, _ = _frontier_groups(sorted_runs, "p999")
+    # Frontiers exclude the baseline as a candidate but still need it in the
+    # input to derive the speed cutoff.
+    frontier_mean, _ = _frontier_groups(
+        sorted_runs, "mean", exclude_baseline=True, cost_key=cost_key
+    )
+    frontier_p999, _ = _frontier_groups(
+        sorted_runs, "p999", exclude_baseline=True, cost_key=cost_key
+    )
+
+    # Baseline is the KLD-0 reference: shown in the table but never plotted.
+    sorted_runs = [r for r in sorted_runs if not r.get("baseline")]
     suboptimal_ids = {
-        id(r) for r in runs if id(r) not in frontier_mean and id(r) not in frontier_p999
+        id(r)
+        for r in sorted_runs
+        if id(r) not in frontier_mean and id(r) not in frontier_p999
     }
 
     fig, ax = plt.subplots(figsize=(width / dpi, height / dpi), dpi=dpi)
-    ax.set_xlabel("Size (bytes / parameter)", fontsize=11)
+    ax.set_xlabel(x_axis_label, fontsize=11)
     ax.set_ylabel("KL Divergence", fontsize=11)
     ax.set_yscale("log")
-    ax.set_xlim(0, max(r["size"] for r in sorted_runs) * 1.05)
+    ax.set_xlim(0, max(r[cost_key] for r in sorted_runs) * 1.05)
 
     # Y range: same logic as chart.js
     max_y = max(r[key] for key in ["mean", "p999"] for r in sorted_runs if r[key] > 0)
@@ -896,12 +1438,12 @@ def generate_plot_svg(
 
     for label, key, color, frontier in stat_specs:
         best_pts = [
-            (r["size"], r[key] if r[key] > 0 else 1e-10, r)
+            (r[cost_key], r[key] if r[key] > 0 else 1e-10, r)
             for r in sorted_runs
             if id(r) in frontier and id(r) not in suboptimal_ids
         ]
         sub_pts = [
-            (r["size"], r[key] if r[key] > 0 else 1e-10, r)
+            (r[cost_key], r[key] if r[key] > 0 else 1e-10, r)
             for r in sorted_runs
             if id(r) not in frontier or id(r) in suboptimal_ids
         ]
@@ -971,7 +1513,7 @@ def generate_plot_svg(
             )
             pts = sorted(
                 [
-                    (r["size"], r[key] if r[key] > 0 else 1e-10, r)
+                    (r[cost_key], r[key] if r[key] > 0 else 1e-10, r)
                     for r in subset_runs_list
                 ],
                 key=lambda p: p[0],
@@ -1026,12 +1568,19 @@ def generate_markdown(
     repo: str | None = None,
     branch: str = "main",
     speed_cutoff_factor: float = 0.33,
+    n_parallel: int = 4,
+    ctx_label: str = "256k",
 ) -> str:
     """Generate a Markdown report with table and SVG plot (image ref + xref)."""
+    cost_key, _, frontier_marker = _cost_axis(runs, ctx_label)
     sorted_runs = sorted(runs, key=lambda r: r["size"], reverse=True)
 
-    frontier_mean, _ = _frontier_groups(sorted_runs, "mean", speed_cutoff_factor)
-    frontier_p999, _ = _frontier_groups(sorted_runs, "p999", speed_cutoff_factor)
+    frontier_mean, _ = _frontier_groups(
+        sorted_runs, "mean", speed_cutoff_factor, cost_key=cost_key
+    )
+    frontier_p999, _ = _frontier_groups(
+        sorted_runs, "p999", speed_cutoff_factor, cost_key=cost_key
+    )
     suboptimal_ids = {
         id(r) for r in runs if id(r) not in frontier_mean and id(r) not in frontier_p999
     }
@@ -1056,22 +1605,25 @@ def generate_markdown(
         lines.append("")
 
     lines.append(
-        "| ctk / ctv | Size (B/param) | Mean KLD | Median KLD | 90.0% KLD | 99.9% KLD | Speed (tok/s) | Speed (%) |"
+        f"| ctk / ctv | Size (bpw) | Context (MiB) @{ctx_label} | Mean KLD | Median KLD |"
+        " 90.0% KLD | 99.9% KLD | Speed (tok/s) | Speed (%) |"
     )
-    lines.append("|---|---|---|---|---|---|---|---|")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
 
-    for r in sorted(runs, key=lambda r: r["size"], reverse=True):
+    for r in sorted(runs, key=lambda r: r[cost_key], reverse=True):
         label = r["label"]
         if r.get("baseline"):
             label += " (baseline)"
         elif r.get("aborted"):
             label += " (aborted)"
-        frontier_mark = " 🟢" if id(r) not in suboptimal_ids else ""
+        frontier_mark = f" {frontier_marker}" if id(r) not in suboptimal_ids else ""
         speed_fmt = f"{r['speed']:.1f}" if r["speed"] is not None else "N/A"
         pct_fmt = f"{r['speed_pct']:.1f}" if r["speed_pct"] is not None else "N/A"
+        ctx_fmt = f"{r['ctx_mib']:,.0f}" if r.get("ctx_mib") is not None else ""
         lines.append(
-            f"| {label}{frontier_mark} | {_fmt_size(r['size'])} | {_fmt(r['mean'])} |"
-            f" {_fmt(r['median'])} | {_fmt(r['p90'])} | {_fmt(r['p999'])} | {speed_fmt} | {pct_fmt} |"
+            f"| {label}{frontier_mark} | {_fmt_size(r['size'])} | {ctx_fmt} |"
+            f" {_fmt(r['mean'])} | {_fmt(r['median'])} | {_fmt(r['p90'])} |"
+            f" {_fmt(r['p999'])} | {speed_fmt} | {pct_fmt} |"
         )
 
     lines.append("")
@@ -1106,6 +1658,14 @@ def generate_markdown(
         )
         lines.append("")
 
+    if any(r.get("ctx_mib") is not None for r in runs):
+        lines.append(
+            f"> Context (MiB) @{ctx_label} is the estimated beellama v0.4.1 "
+            f"llama-server KV-cache VRAM at a {ctx_label} context with "
+            f"n_parallel={n_parallel} (source-modelled, not yet log-validated)."
+        )
+        lines.append("")
+
     return "\n".join(lines)
 
 
@@ -1132,8 +1692,9 @@ def main():
         "--whitelist",
         nargs="+",
         metavar="CTK/CTV",
-        help="Only include these ctk/ctv combos (e.g. q4_0/q4_0). "
-        "f16/f16 always included even if not listed.",
+        help="Only include these combos, matched against the display label "
+        "(e.g. q4_0, q8_0/q4_0, kvarn4 t1024). "
+        "The baseline is always included even if not listed.",
     )
     ap.add_argument(
         "--repo",
@@ -1156,7 +1717,24 @@ def main():
         help="Fraction of baseline speed; runs slower than this are excluded "
         "from frontier determination (default: 0.33)",
     )
+    ap.add_argument(
+        "--n-parallel",
+        type=int,
+        default=4,
+        help="Parallel sequences (llama-server --parallel / n_seq_max) assumed "
+        "when sizing the Context (MiB) column; it scales the KVarN f16 "
+        "exact-tail overlay. Default 4 (llama-server auto for these models).",
+    )
+    ap.add_argument(
+        "--ctx-size",
+        type=parse_ctx_size,
+        default=DEFAULT_CTX_SIZE,
+        metavar="N[k|M]",
+        help="Projected context size for the Context (MiB) column, independent "
+        "of the run's own --ctx-size; accepts k/M suffixes (default: 256k).",
+    )
     args = ap.parse_args()
+    ctx_label = _fmt_ctx_label(args.ctx_size)
 
     # Auto-detect GitHub repo from git remote
     repo = args.repo
@@ -1210,7 +1788,7 @@ def main():
         print(f"ERROR: {log_path} not found", file=sys.stderr)
         sys.exit(1)
 
-    runs, common_params = parse_log(args.log)
+    runs, common_params = parse_log(args.log, args.n_parallel, args.ctx_size)
 
     # Normalize speed to baseline (baseline = 100%)
     baseline_run = next((r for r in runs if r.get("baseline")), None)
@@ -1228,7 +1806,7 @@ def main():
     runs_unfiltered = runs
     if args.whitelist:
         whitelisted = set(args.whitelist)
-        runs = [r for r in runs if r["label"] in whitelisted or r["label"] == "f16/f16"]
+        runs = [r for r in runs if r["label"] in whitelisted or r.get("baseline")]
     if not runs:
         print(
             "No KLD runs found" + (" (none match whitelist)" if args.whitelist else ""),
@@ -1252,8 +1830,10 @@ def main():
         p90_fmt = f"{r['p90']:.6f}" if r["p90"] is not None else "       -"
         p999_fmt = f"{r['p999']:.6f}" if r["p999"] is not None else "       -"
         aborted_tag = " (aborted)" if r.get("aborted") else ""
+        ctx_fmt = f"{r['ctx_mib']:>8,.0f} MiB" if r.get("ctx_mib") is not None else ""
         print(
-            f"  {r['label']:25s}{aborted_tag}  size={r['size']:.4f} B/p  "
+            f"  {r['label']:25s}{aborted_tag}  size={r['size']:6.2f} bpw  "
+            f"ctx@{ctx_label}={ctx_fmt:>12s}  "
             f"mean={mean_fmt}  median={median_fmt}  "
             f"p90={p90_fmt}  p999={p999_fmt}  "
             f"speed={speed_fmt:>7s}  {pct_fmt:>7s}  ({r['n_chunks']} chunks)"
@@ -1282,12 +1862,21 @@ def main():
     # Generate HTML
     chart_js_src = _fetch_chart_js()
     speed_cutoff_factor = args.speed_cutoff
-    html = generate_html(runs, common_params, chart_js_src, speed_cutoff_factor)
+    html = generate_html(
+        runs,
+        common_params,
+        chart_js_src,
+        speed_cutoff_factor,
+        args.n_parallel,
+        ctx_label,
+    )
     html_path.write_text(html)
     print(f"\nHTML -> {html_path}")
 
     # Generate Markdown + SVG
-    svg = generate_plot_svg(runs, speed_cutoff_factor=speed_cutoff_factor)
+    svg = generate_plot_svg(
+        runs, speed_cutoff_factor=speed_cutoff_factor, ctx_label=ctx_label
+    )
     plot_path.write_text(svg)
     print(f"SVG  -> {plot_path}")
 
@@ -1299,6 +1888,8 @@ def main():
         repo=repo,
         branch=branch,
         speed_cutoff_factor=speed_cutoff_factor,
+        n_parallel=args.n_parallel,
+        ctx_label=ctx_label,
     )
     md_path.write_text(md)
     print(f"MD   -> {md_path}")

@@ -6,54 +6,73 @@
 
 # Common flags prepended to every llama-perplexity invocation.
 # The baseline run (first combo) omits --kl-divergence to create baseline logits.
-# All other combos append --kl-divergence -ctk <kq> -ctv <vq>.
+# All other combos append -ctk <kq> -ctv <vq> [--kv-tail-tokens <n>] --kl-divergence.
 
 common: >
     llama-perplexity --kl-divergence-base /tmp/logits.dat
-    --ctx-size 2048 -f sample-data/wiki.test.raw
-    -hf prism-ml/Ternary-Bonsai-27B-gguf:Q2_g64
-    -fa on -ngl 99
+    --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw
+    -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS
+    -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock
 
 # K-quant types to test.
 k_quants:
-  - f16
   - q8_0
-  # - q5_1
-  # - q5_0
-  # - q4_1
-  # - q4_0
-  # - iq4_nl
+  - kvarn5
+  - kvarn4
+  - kvarn3
+  - kvarn2
 
 # V-quant types to test (cartesian product with k_quants).
+# Auto-skip all combos where v_quant is higher precision than k_quant
+# Auto-skip all combos of asymmetric kvarn
 v_quants:
-  - f16
   - q8_0
-  - q5_1
-  - q5_0
-  - q4_1
-  - q4_0
-  # - iq4_nl  # Too slow
+  - kvarn5
+  - kvarn4
+  - kvarn3
+  - kvarn2
 
-# Baseline combo that creates logits.dat (no --kl-divergence). Mandatory.
-# Must match an actual entry from the cartesian product / include list.
-baseline: f16/f16
+# f16/bf16 KV-cache tail sizes to test (requires beellama.cpp). 0 = no tail
+kv-tail-tokens: [0, 512, 1024, 2048]
 
-# Extra kq/vq combos to add beyond the cartesian product.
+# Baseline combo that creates logits.dat (no --kl-divergence).
+baseline: {cache-type-k: f16, cache-type-v: f16, kv-tail-tokens: 0}
+
+# Extra combos to add beyond the cartesian product (same syntax as baseline)
 include:
-  - q5_1/q5_1
-  - q5_1/q5_0
-  - q5_1/q4_1
-  - q5_1/q4_0
-  - q5_0/q5_0
-  - q5_0/q4_1
-  - q5_0/q4_0
-  - q4_1/q4_1
-  - q4_1/q4_0
-  - q4_0/q4_0
+  - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 0}
+  - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 128}
+  - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 512}
+  - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 1024}
+  - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 2048}
+  - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 0}
+  - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 128}
+  - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 512}
+  - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 1024}
+  - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 2048}
+  - {cache-type-k: kvarn6, cache-type-v: kvarn6, kv-tail-tokens: 0}
+  - {cache-type-k: kvarn6, cache-type-v: kvarn6, kv-tail-tokens: 512}
+  - {cache-type-k: kvarn8, cache-type-v: kvarn8, kv-tail-tokens: 0}
+  - {cache-type-k: kvarn8, cache-type-v: kvarn8, kv-tail-tokens: 512}
+  - {cache-type-k: kvarn3, cache-type-v: kvarn3, kv-tail-tokens: 4096}
+  - {cache-type-k: kvarn2, cache-type-v: kvarn2, kv-tail-tokens: 4096}
+  - {cache-type-k: kvarn2, cache-type-v: kvarn2, kv-tail-tokens: 8192}
+  - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 0}
+  - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 128}
+  - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 512}
+  - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 1024}
+  - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 2048}
+  - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 4096}
+  - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 0}
+  - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 128}
+  - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 512}
+  - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 1024}
+  - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 2048}
+  - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 4096}
+  - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 8192}
 
-# kq/vq combos to remove from the cartesian product.
-exclude:
-  - q8_0/f16
+# Combos to remove from the cartesian product (same syntax as baseline)
+exclude: []
 
 # Abort non-baseline runs whose ETA exceeds baseline_eta * max_eta_factor.
 # Set to 0 to disable the abort check entirely.

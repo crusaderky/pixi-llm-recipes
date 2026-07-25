@@ -282,7 +282,7 @@ Reads a Pydantic-validated TOML config (one `[model tag]` table each: `url` defa
 
 ### `scripts/kv-perplexity.py` — KV Cache KL-Divergence Sweep
 
-Runs `llama-perplexity` over the cartesian product of K-quant × V-quant combinations, measuring KL divergence against an f16/f16 baseline. Reads a YAML config (common flags, `k_quants`, `v_quants`, `baseline`, optional `include`/`exclude` lists). The baseline run creates a logits dump (`--kl-divergence-base`); all other combos load that dump and append `--kl-divergence`. Completed combos are skipped on re-run (idempotent). Output is appended to a log file (default `perplexity.log`).
+Runs `llama-perplexity` over the cartesian product of K-quant × V-quant × `kv-tail-tokens` combinations, measuring KL divergence against an f16/f16 baseline. Reads a YAML config (common flags, `k_quants`, `v_quants`, `kv-tail-tokens`, `baseline`, optional `include`/`exclude` lists). Each combo is a `{cache-type-k, cache-type-v, kv-tail-tokens}` object (`kv-tail-tokens` defaults to 0 and is never emitted on the command line, keeping it mainline-llama.cpp compatible; unknown keys are rejected). Asymmetric KVarN combos are dropped automatically (KVarN is symmetric-only). The baseline run creates a logits dump (`--kl-divergence-base`); all other combos load that dump and append `--kl-divergence`. Completed combos are skipped on re-run (idempotent). Output is appended to a log file (default `perplexity.log`).
 
 ```bash
 # (Duplicate and) edit kv-perplexity.yaml first, then:

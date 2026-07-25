@@ -12,6 +12,13 @@ max_eta_factor * baseline ETA.
 Usage:
     pixi r kv-perplexity -c kv-perplexity-config.yaml [-o perplexity.log] [--dry-run]
 
+A combo is a {cache-type-k, cache-type-v, kv-tail-tokens} triple; kv-tail-tokens
+defaults to 0 (and is then never emitted, keeping the command line compatible
+with mainline llama.cpp).  The full combo set is the cartesian product
+k_quants x v_quants x kv-tail-tokens, plus `include`, minus `exclude`, minus
+combos that make no sense: asymmetric KVarN (symmetric-only), a non-zero tail on
+a fully-exact f16/f16 cache, and a value cache more precise than the key (v > k).
+
 Config YAML example:
     common: >
         llama-perplexity --kl-divergence-base /tmp/logits.dat
@@ -21,15 +28,19 @@ Config YAML example:
 
     k_quants: [f16, q8_0, q5_1, q5_0, q4_1, q4_0, iq4_nl]
     v_quants: [f16, q8_0, q5_1, q5_0, q4_1, q4_0, iq4_nl]
+    kv-tail-tokens: [0, 1024, 2048]
 
     # Baseline combo that creates logits.dat (no --kl-divergence). Mandatory.
-    baseline: f16/f16
+    baseline: {cache-type-k: f16, cache-type-v: f16}
 
     # Optional: add extra combos not in cartesian product.
-    include: [f16/q8_0]
+    include:
+      - {cache-type-k: f16, cache-type-v: q8_0}
+      - {cache-type-k: kvarn4, cache-type-v: kvarn4, kv-tail-tokens: 1024}
 
     # Optional: remove combos from the set.
-    exclude: [q4_0/q4_0]
+    exclude:
+      - {cache-type-k: q4_0, cache-type-v: q4_0}
 
     # Abort non-baseline runs whose ETA > baseline_eta * max_eta_factor.
     # Default: 4.0.  Set to 0 to disable abort.
@@ -43,8 +54,7 @@ import re
 import subprocess
 import sys
 
-from pydantic import BaseModel, Field, field_validator
-from typing import NamedTuple
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 import yaml
 
 LOGITS = pathlib.Path("/tmp/logits.dat")
@@ -65,30 +75,128 @@ ETA_RE = re.compile(
 _ETA_PART_RE = re.compile(r"([\d.]+)\s*(hours?|minutes?|seconds?)")
 
 
-class KVQuant(NamedTuple):
-    k: str
-    v: str
+def kv_cli_args(k: str, v: str, tail: int = 0) -> str:
+    """Build the -ctk/-ctv (+ --kv-tail-tokens) CLI fragment identifying a combo.
 
-    def __str__(self):
-        return f"{self.k}/{self.v}"
+    ``--kv-tail-tokens 0`` is never emitted, so the command line stays compatible
+    with mainline llama.cpp, which does not know the flag.
+    """
+    args = f"-ctk {k} -ctv {v}"
+    if tail:
+        args += f" --kv-tail-tokens {tail}"
+    return args
+
+
+def is_kvarn(quant: str) -> bool:
+    return quant.startswith("kvarn")
+
+
+# Cache types ordered from most to least precise (bytes-per-value descending).
+# Used to drop combos where the value cache is more precise than the key cache
+# (v > k), which is not a useful trade-off. Types absent from this list are
+# never dropped by the v > k rule.
+QUANT_PRECISION = [
+    "f16",  # 2.0
+    "q8_0",  # 1.0625
+    "kvarn8",  # 1.046875
+    "q6_1",  # 0.875
+    "q6_0",  # 0.8125
+    "kvarn6",  # 0.796875
+    "q5_1",  # 0.75
+    "q5_0",  # 0.6875
+    "kvarn5",  # 0.671875
+    "q4_1",  # 0.625
+    "q4_0",  # 0.5625
+    "iq4_nl",  # 0.5625
+    "kvarn4",  # 0.546875
+    "q3_1",  # 0.5
+    "q3_0",  # 0.4375
+    "kvarn3",  # 0.421875
+    "q2_1",  # 0.375
+    "kvarn2",  # 0.296875
+    "q2_0",  # 0.28125
+]
+_PRECISION_RANK = {q: i for i, q in enumerate(QUANT_PRECISION)}
+
+
+# Extract (ctk, ctv, tail) from a command line. --kv-tail-tokens 0 is never
+# written (see kv_cli_args), so its absence means tail == 0.
+_COMBO_RE = re.compile(r"-ctk\s+(\S+)\s+-ctv\s+(\S+)")
+_TAIL_RE = re.compile(r"--kv-tail-tokens\s+(\d+)")
+
+
+def combos_in_log(text: str) -> set[tuple[str, str, int]]:
+    """Every (ctk, ctv, tail) combo already present in the log (any outcome)."""
+    found: set[tuple[str, str, int]] = set()
+    for line in text.splitlines():
+        m = _COMBO_RE.search(line)
+        if not m:
+            continue
+        tm = _TAIL_RE.search(line)
+        found.add((m.group(1), m.group(2), int(tm.group(1)) if tm else 0))
+    return found
+
+
+class KVCombo(BaseModel):
+    """One (cache-type-k, cache-type-v, kv-tail-tokens) benchmark combo."""
+
+    # extra="forbid" rejects unknown keys; frozen makes it hashable (dict key /
+    # set member); populate_by_name lets us build combos by field name in code
+    # while the YAML uses the hyphenated aliases.
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+    k: str = Field(alias="cache-type-k")
+    v: str = Field(alias="cache-type-v")
+    tail: int = Field(default=0, alias="kv-tail-tokens", ge=0)
+
+    def __str__(self) -> str:
+        s = f"{self.k}/{self.v}"
+        if self.tail:
+            s += f" t{self.tail}"
+        return s
+
+    @property
+    def kvarn_asymmetric(self) -> bool:
+        """KVarN is symmetric-only: a kvarn on one side needs the same on the other."""
+        return (is_kvarn(self.k) or is_kvarn(self.v)) and self.k != self.v
+
+    @property
+    def redundant_f16_tail(self) -> bool:
+        """An exact tail is pointless on an already-exact f16/f16 cache."""
+        return self.tail > 0 and self.k == "f16" and self.v == "f16"
+
+    @property
+    def value_more_precise_than_key(self) -> bool:
+        """v > k: value cache more precise than key cache (not a useful trade-off).
+        Types missing from QUANT_PRECISION are never flagged."""
+        rk = _PRECISION_RANK.get(self.k)
+        rv = _PRECISION_RANK.get(self.v)
+        if rk is None or rv is None:
+            return False
+        return rv < rk  # lower rank == more precise
 
 
 class KVPConfig(BaseModel):
     """Config schema for KV perplexity benchmark."""
 
     common: str = Field(description="llama-perplexity command prefix")
-    baseline: KVQuant = Field(
-        description="Baseline combo (k_quant/v_quant) that creates logits.dat"
+    baseline: KVCombo = Field(
+        description="Baseline combo that creates logits.dat (no --kl-divergence)"
     )
     k_quants: list[str] = Field(description="Key cache quantizations")
     v_quants: list[str] = Field(
         description="Value cache quantizations (cartesian product with k_quants)"
     )
-    include: list[KVQuant] = Field(
-        default=[], description="Extra combos beyond cartesian product"
+    kv_tail_tokens: list[int] = Field(
+        default_factory=lambda: [0],
+        alias="kv-tail-tokens",
+        description="Exact KV-cache tail sizes (cartesian product; 0 = no tail)",
     )
-    exclude: list[KVQuant] = Field(
-        default=set(), description="Combos to remove from the set"
+    include: list[KVCombo] = Field(
+        default_factory=list, description="Extra combos beyond cartesian product"
+    )
+    exclude: list[KVCombo] = Field(
+        default_factory=list, description="Combos to remove from the set"
     )
     max_eta_factor: float = Field(
         description=(
@@ -103,45 +211,41 @@ class KVPConfig(BaseModel):
     def parse_common(cls, v: str) -> str:
         return v.strip()
 
-    @field_validator("baseline", mode="before")
+    @field_validator("kv_tail_tokens", mode="before")
     @classmethod
-    def parse_baseline(cls, v: object) -> object:
-        """Parse "k/v" strings into (k, v) tuples before validation."""
-        return cls._parse_kv_quant(v)
+    def default_tail(cls, v: object) -> object:
+        return v or [0]
 
     @field_validator("include", "exclude", mode="before")
     @classmethod
-    def parse_include_exclude(cls, v: object) -> object:
-        """Parse "k/v" strings into (k, v) tuples before validation."""
-        if v is None:
-            return []
-        if isinstance(v, list):
-            return [cls._parse_kv_quant(x) for x in v]
-        raise ValueError("Expected list of k/v strings; got {v}")
-
-    @staticmethod
-    def _parse_kv_quant(q: object) -> KVQuant:
-        if isinstance(q, str):
-            try:
-                k, v = q.split("/", 1)
-                return KVQuant(k, v)
-            except ValueError:
-                pass
-        raise ValueError(
-            f"Invalid KV quantization: {q!r} (expected format: k_quant/v_quant)"
-        )
+    def none_to_empty(cls, v: object) -> object:
+        return v or []
 
     @property
-    def quants(self) -> list[KVQuant]:
-        """Build set of KV combos: cartesian product + include - exclude."""
+    def quants(self) -> list[KVCombo]:
+        """Build the ordered combo set: cartesian product + include - exclude,
+        dropping combos that make no sense:
+
+        * asymmetric KVarN (KVarN is symmetric-only),
+        * a non-zero tail on a fully-exact f16/f16 cache,
+        * a value cache more precise than the key cache (v > k).
+        """
         # Insertion-ordered set
-        quants = {self.baseline: None}
-        for k, v in itertools.product(self.k_quants, self.v_quants):
-            quants[KVQuant(k, v)] = None
-        quants.update(dict.fromkeys(self.include))
+        combos = {self.baseline: None}
+        for k, v, tail in itertools.product(
+            self.k_quants, self.v_quants, self.kv_tail_tokens
+        ):
+            combos[KVCombo(k=k, v=v, tail=tail)] = None
+        combos.update(dict.fromkeys(self.include))
         exclude = set(self.exclude)
-        quants = {k: None for k in quants if k not in exclude}
-        return list(quants)
+        return [
+            c
+            for c in combos
+            if c not in exclude
+            and not c.kvarn_asymmetric
+            and not c.redundant_f16_tail
+            and not c.value_more_precise_than_key
+        ]
 
 
 def parse_eta_minutes(line: str) -> float | None:
@@ -197,15 +301,15 @@ def _has_completed_run(text: str, marker: str) -> bool:
 
 
 def find_baseline_eta_in_log(
-    logfile: pathlib.Path, kq: str, vq: str
+    logfile: pathlib.Path, marker: str
 ) -> tuple[float, str] | None:
     """Search log file for the baseline ETA line.
 
-    The baseline section has ``-ctk <kq> -ctv <vq>`` but no ``--kl-divergence``.
+    The baseline section matches *marker* (its ``-ctk/-ctv [--kv-tail-tokens]``
+    fragment) but has no ``--kl-divergence``.
     Returns ``(eta_minutes, raw_line)`` or None if not found.
     """
     text = logfile.read_text()
-    marker = f"-ctk {kq} -ctv {vq}"
     lines = text.split("\n")
 
     capturing = False
@@ -346,7 +450,9 @@ def main() -> None:
 
     logfile: pathlib.Path = args.output
 
-    print(f"Baseline: -ctk {cfg.baseline[0]} -ctv {cfg.baseline[1]}")
+    kv_args_base = kv_cli_args(cfg.baseline.k, cfg.baseline.v, cfg.baseline.tail)
+
+    print(f"Baseline: {kv_args_base}")
     print(f"Max ETA factor: {cfg.max_eta_factor}")
     print(f"Output log: {logfile}")
     if logfile.exists():
@@ -366,8 +472,6 @@ def main() -> None:
     # --- Determine baseline ETA ---
     baseline_eta: float | None = None
 
-    kq_base, vq_base = cfg.baseline
-    kv_args_base = f"-ctk {kq_base} -ctv {vq_base}"
     cmd_base = f"{cfg.common} {kv_args_base}"
 
     if LOGITS.exists():
@@ -382,7 +486,7 @@ def main() -> None:
             f"[SKIP] baseline {kv_args_base} "
             f"({LOGITS} ({logits_size()}) exists{log_hint})"
         )
-        baseline_result = find_baseline_eta_in_log(logfile, kq_base, vq_base)
+        baseline_result = find_baseline_eta_in_log(logfile, kv_args_base)
         if baseline_result is not None:
             baseline_eta, eta_line = baseline_result
             sys.stdout.write(f"  {eta_line}\n")
@@ -403,15 +507,18 @@ def main() -> None:
                 print("  No ETA line seen for baseline run")
 
     # --- Run non-baseline combos ---
-    for kq, vq in cfg.quants:
-        if (kq, vq) == cfg.baseline:
+    # Combos already in the log (any outcome) are skipped. Read once: each combo
+    # in cfg.quants is unique and visited only here.
+    present = combos_in_log(logfile.read_text()) if logfile.exists() else set()
+
+    for combo in cfg.quants:
+        if combo == cfg.baseline:
             continue
 
-        kv_args = f"-ctk {kq} -ctv {vq}"
+        kv_args = kv_cli_args(combo.k, combo.v, combo.tail)
         cmd = f"{cfg.common} {kv_args} --kl-divergence"
 
-        # Skip if already present in log (any outcome: completed, aborted, or interrupted)
-        if logfile.exists() and kv_args in logfile.read_text():
+        if (combo.k, combo.v, combo.tail) in present:
             print(f"[SKIP] {kv_args} (already in {logfile})")
             continue
 
