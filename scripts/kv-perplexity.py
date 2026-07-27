@@ -54,8 +54,8 @@ import re
 import subprocess
 import sys
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 import yaml
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 LOGITS = pathlib.Path("/tmp/logits.dat")
 

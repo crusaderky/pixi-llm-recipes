@@ -39,9 +39,9 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
-import shutil
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -87,9 +87,9 @@ def _urllib_get_json(url: str) -> object:
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     try:
-        with urllib.request.urlopen(req) as resp:  # noqa: S310 — trusted host
+        with urllib.request.urlopen(req) as resp:
             return json.loads(resp.read())
-    except urllib.error.HTTPError as e:  # noqa: PERF203
+    except urllib.error.HTTPError as e:
         remaining = e.headers.get("X-RateLimit-Remaining", "?")
         if e.code in (403, 429) and remaining == "0":
             sys.exit(
@@ -125,7 +125,7 @@ def graphql(query: str) -> dict:
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(req) as resp:  # noqa: S310
+    with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
 
 

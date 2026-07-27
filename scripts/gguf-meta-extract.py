@@ -49,7 +49,7 @@ import math
 import re
 import struct
 import sys
-from urllib.parse import urlparse, unquote
+from urllib.parse import unquote, urlparse
 
 import requests
 

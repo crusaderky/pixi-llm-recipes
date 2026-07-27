@@ -9,9 +9,10 @@ import argparse
 import csv
 import re
 import sys
-import tomllib
 from collections import Counter
 from pathlib import Path
+
+import tomllib
 
 FILENAME_RE = re.compile(
     r"^context-bench\.results\.(?P<label>[^.]+)\.(?P<rerun>\d+)\.toml$"

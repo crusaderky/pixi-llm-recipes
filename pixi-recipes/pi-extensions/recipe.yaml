@@ -19,10 +19,10 @@ build:
         pi-caveman@1.0.7
         pi-intercom@0.6.0
         pi-llama-cpp@0.9.1
-        pi-web-access@0.13.0
-        pi-subagents@0.35.1
+        pi-web-access@0.14.0
+        pi-subagents@0.37.0
         pi-token-speed@0.7.1
-        @juicesharp/rpiv-ask-user-question@2.0.0
+        @juicesharp/rpiv-ask-user-question@2.1.0
         @tmustier/pi-usage-extension@0.9.4
 
 requirements:
