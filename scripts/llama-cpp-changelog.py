@@ -183,6 +183,7 @@ def _git(args: list[str], capture: bool = True) -> str:
         ["git", "--git-dir", str(_git_cache()), *args],
         capture_output=True,
         text=True,
+        check=False,
     )
     if r.returncode != 0:
         sys.exit(f"git {' '.join(args)} failed:\n{r.stderr.strip()}")
@@ -408,18 +409,18 @@ def fetch_prs(from_date: str, to_date: str, commit_shas: set[str]) -> list[dict]
     cursor = None
     while True:
         after = f', after: "{cursor}"' if cursor else ""
-        gql = """
-        {
-          search(query: "%s", type: ISSUE, first: 100%s) {
-            pageInfo { hasNextPage endCursor }
-            nodes {
-              ... on PullRequest {
+        gql = f"""
+        {{
+          search(query: "{q}", type: ISSUE, first: 100{after}) {{
+            pageInfo {{ hasNextPage endCursor }}
+            nodes {{
+              ... on PullRequest {{
                 number title url body mergedAt
-                mergeCommit { oid }
-              }
-            }
-          }
-        }""" % (q, after)
+                mergeCommit {{ oid }}
+              }}
+            }}
+          }}
+        }}"""
         data = graphql(gql)
         if data.get("errors"):
             sys.exit(f"GraphQL error: {data['errors']}")

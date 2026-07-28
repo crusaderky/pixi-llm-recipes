@@ -61,7 +61,7 @@ except ImportError:
 # Optional: only used to give a human-readable name to an UNKNOWN ggml type id.
 try:
     from gguf import GGMLQuantizationType as _GGUFType
-except Exception:
+except ImportError:
     _GGUFType = None
 
 
@@ -193,7 +193,7 @@ def quant_info(ttype):
         if _GGUFType:
             try:
                 nm = _GGUFType(ttype).name
-            except Exception:
+            except ValueError:
                 pass
         sys.stderr.write(
             f"WARNING: unknown ggml type id {ttype} ({nm}); "
@@ -203,7 +203,7 @@ def quant_info(ttype):
     if _GGUFType:
         try:
             name = _GGUFType(ttype).name
-        except Exception:
+        except ValueError:
             pass
     return (f"UNKNOWN_{ttype}_{name}", None, None, 0)
 
@@ -406,7 +406,7 @@ def build_row(name, dims, ttype):
     for d in dims:
         n_points *= d
 
-    qname, block, tsize, row_meta = quant_info(ttype)
+    qname, block, tsize, _row_meta = quant_info(ttype)
     if block is None:  # unknown type: no size info
         bpp, total = "", ""
     else:

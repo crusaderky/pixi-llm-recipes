@@ -60,7 +60,7 @@ from pathlib import Path
 
 import tomli_w
 import tomllib
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -110,7 +110,7 @@ class ModelConfig(BaseModel):
     @classmethod
     def _parse_ctx_size(cls, v: object) -> list[int]:
         if not isinstance(v, (list, tuple)):
-            raise ValueError('ctx-size must be a list, e.g. ["16k", "64k"]')
+            raise TypeError('ctx-size must be a list, e.g. ["16k", "64k"]')
         return [parse_size(x) for x in v]  # type: ignore[arg-type]
 
     def resolve_api_key(self) -> str:
@@ -144,7 +144,7 @@ class Config(RootModel[dict[str, ModelConfig]]):
             return data
         defaults = data["*"] or {}
         if not isinstance(defaults, dict):
-            raise ValueError('the "*" config table must be a table of defaults')
+            raise TypeError('the "*" config table must be a table of defaults')
         return {
             tag: {**defaults, **(table or {})}
             for tag, table in data.items()
@@ -574,7 +574,10 @@ def run(config_path: Path, output_path: Path) -> None:
                         outcomes = []
                     else:
                         outcomes = grade(parse_model_answers(raw), book.answers())
-                except Exception as exc:  # network / API errors: record and continue
+                except (
+                    OpenAIError,
+                    OSError,
+                ) as exc:  # network / API errors: record and continue
                     print(f"[{tag}] {book.label}: ERROR {exc}", file=sys.stderr)
                     raw = f"<error: {exc}>"
                     outcomes = []

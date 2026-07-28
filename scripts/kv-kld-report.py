@@ -14,11 +14,13 @@ Usage:
 """
 
 import argparse
+import contextlib
 import html as html_mod
 import json
 import re
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import NamedTuple
@@ -35,7 +37,7 @@ def _fetch_chart_js() -> str:
         with urllib.request.urlopen(CHART_JS_CDN, timeout=10) as resp:
             content = resp.read().decode("utf-8")
         return f"<script>{content}</script>"
-    except Exception as e:
+    except (urllib.error.URLError, OSError) as e:
         print(f"Warning: could not fetch Chart.js ({e}), using CDN", file=sys.stderr)
         return f'<script src="{CHART_JS_CDN}"></script>'
 
@@ -643,9 +645,8 @@ def parse_log(
             speed = None
             if seconds_per_pass is not None:
                 speed = ctx_size / seconds_per_pass
-            elif total_minutes is not None:
-                if n_chunks_tmp > 0:
-                    speed = (n_chunks_tmp * ctx_size) / (total_minutes * 60)
+            elif total_minutes is not None and n_chunks_tmp > 0:
+                speed = (n_chunks_tmp * ctx_size) / (total_minutes * 60)
 
             if not has_kld:
                 # Logits-generating run — no KLD stats of its own. The baseline
@@ -2282,12 +2283,13 @@ def main():
     branch = args.branch or "main"
     repo_root: Path | None = None
     if not repo:
-        try:
+        with contextlib.suppress(OSError):
             remote = subprocess.run(
                 ["git", "remote", "get-url", "origin"],
                 capture_output=True,
                 text=True,
                 timeout=5,
+                check=False,
             )
             if remote.returncode == 0:
                 m = re.match(
@@ -2302,24 +2304,22 @@ def main():
                         capture_output=True,
                         text=True,
                         timeout=5,
+                        check=False,
                     )
                     if br.returncode == 0 and br.stdout.strip() != "HEAD":
                         branch = br.stdout.strip()
-        except Exception:
-            pass
 
     # Find git repo root to compute repo-relative paths for embedded URLs
-    try:
+    with contextlib.suppress(OSError):
         toplevel = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
             timeout=5,
+            check=False,
         )
         if toplevel.returncode == 0:
             repo_root = Path(toplevel.stdout.strip())
-    except Exception:
-        repo_root = None
 
     if repo:
         print(f"GitHub repo detected: {repo} (branch: {branch})")

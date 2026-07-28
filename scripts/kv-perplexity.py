@@ -541,22 +541,25 @@ def run_llama_perplexity(
                 sys.stdout.flush()
 
                 # Abort check for non-baseline runs
-                if baseline_eta is not None and max_eta_factor > 0:
-                    if eta > baseline_eta * max_eta_factor:
-                        aborted = True
-                        msg = (
-                            f"  [ABORT] {label} ETA {eta:.2f}m "
-                            f"> {max_eta_factor:.1f}x baseline {baseline_eta:.2f}m\n"
-                        )
-                        sys.stdout.write(msg)
-                        sys.stdout.flush()
-                        process.terminate()
-                        try:
-                            process.wait(timeout=30)
-                        except subprocess.TimeoutExpired:
-                            process.kill()
-                            process.wait()
-                        break
+                if (
+                    baseline_eta is not None
+                    and max_eta_factor > 0
+                    and eta > baseline_eta * max_eta_factor
+                ):
+                    aborted = True
+                    msg = (
+                        f"  [ABORT] {label} ETA {eta:.2f}m "
+                        f"> {max_eta_factor:.1f}x baseline {baseline_eta:.2f}m\n"
+                    )
+                    sys.stdout.write(msg)
+                    sys.stdout.flush()
+                    process.terminate()
+                    try:
+                        process.wait(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+                    break
 
         if not aborted:
             process.wait()
