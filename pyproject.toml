@@ -1,3 +1,4 @@
 [tool.codespell]
-skip = "pixi.lock,perplexity,sample-data,llama-server.log"
+# *.html: generated KLD reports embed minified Chart.js inline
+skip = "pixi.lock,perplexity,sample-data,llama-server.log,*.html"
 ignore-words-list = "ot"

@@ -3,11 +3,26 @@
 
 Reads K/V quant lists and the common prefix from a YAML config file,
 builds a cartesian product, and runs each combo against a baseline.
+The baseline is run twice: first without --kl-divergence to generate the
+logits file, then with --kl-divergence against its own logits to measure the
+true KLD / RMS Δp / top-1 noise floor and the reference speed (no dump I/O).
 Streams subprocess output to log file in real-time, one line at a time.
 
 Watches for the perplexity ETA line (e.g. "perplexity: 16.34 seconds per
 pass - ETA 5.43 minutes").  Aborts non-baseline runs whose ETA exceeds
 max_eta_factor * baseline ETA.
+
+Every run is preceded in the log by `#`-prefixed provenance: the
+`llama-perplexity --version` string and the size / mtime / header hash of each
+model shard.  A KLD sweep is only meaningful while the binary and the weights
+stay fixed, and both can change under a multi-day sweep (a rebuild between
+runs, or `-hf` re-resolving a re-uploaded quant).  Such a change shows up as an
+unexplained KLD offset against the stale --kl-divergence-base dump -- including
+on the baseline rerun, whose KLD should be ~0 -- so it must be visible in the
+log.  For the same reason every run except the one that creates the logits dump
+gets --offline: the model is pinned to whatever produced the dump, and a wiped
+download cache then fails the run loudly instead of silently fetching new
+weights mid-sweep.
 
 Usage:
     pixi r kv-perplexity -c kv-perplexity-config.yaml [-o perplexity.log] [--dry-run]
@@ -32,6 +47,9 @@ Config YAML example:
 
     # Baseline combo that creates logits.dat (no --kl-divergence). Mandatory.
     baseline: {cache-type-k: f16, cache-type-v: f16}
+    # Baseline is run twice: once to create logits.dat (no --kl-divergence),
+    # then rerun with --kl-divergence against its own logits (noise floor +
+    # reference speed without dump I/O).
 
     # Optional: add extra combos not in cartesian product.
     include:
@@ -48,9 +66,13 @@ Config YAML example:
 """
 
 import argparse
+import datetime
+import hashlib
 import itertools
+import os
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 
@@ -58,6 +80,14 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 LOGITS = pathlib.Path("/tmp/logits.dat")
+
+# Bytes hashed from the head of each model shard for the per-run provenance
+# line.  Hashing whole files is impractical (weights run to tens of GiB) and
+# unnecessary: the GGUF header and all metadata live at the start of shard 1,
+# which is where a silently swapped model shows up -- a re-uploaded quant is a
+# fresh file, and even a metadata-only patch (rope/context hparams) rewrites
+# only those first few KiB.
+HASH_BYTES = 1 << 20
 
 # Regex to extract ETA from perplexity/kl_divergence progress lines.
 # Baseline runs emit "perplexity:", non-baseline emit "kl_divergence:".
@@ -126,9 +156,17 @@ _TAIL_RE = re.compile(r"--kv-tail-tokens\s+(\d+)")
 
 
 def combos_in_log(text: str) -> set[tuple[str, str, int]]:
-    """Every (ctk, ctv, tail) combo already present in the log (any outcome)."""
+    """Every (ctk, ctv, tail) combo with a ``--kl-divergence`` run already
+    present in the log (any outcome).
+
+    The baseline's logits-generating run omits ``--kl-divergence``, so it does
+    not block the baseline KLD rerun (same combo, measured against its own
+    logits). Token comparison (not substring) so ``--kl-divergence-base``
+    does not match."""
     found: set[tuple[str, str, int]] = set()
     for line in text.splitlines():
+        if "--kl-divergence" not in line.split():
+            continue
         m = _COMBO_RE.search(line)
         if not m:
             continue
@@ -181,7 +219,10 @@ class KVPConfig(BaseModel):
 
     common: str = Field(description="llama-perplexity command prefix")
     baseline: KVCombo = Field(
-        description="Baseline combo that creates logits.dat (no --kl-divergence)"
+        description=(
+            "Baseline combo that creates logits.dat (no --kl-divergence), then "
+            "is rerun with --kl-divergence against its own logits"
+        )
     )
     k_quants: list[str] = Field(description="Key cache quantizations")
     v_quants: list[str] = Field(
@@ -309,6 +350,8 @@ def find_baseline_eta_in_log(
     fragment) but has no ``--kl-divergence``.
     Returns ``(eta_minutes, raw_line)`` or None if not found.
     """
+    if not logfile.exists():
+        return None
     text = logfile.read_text()
     lines = text.split("\n")
 
@@ -327,6 +370,128 @@ def find_baseline_eta_in_log(
             if eta is not None:
                 return eta, line
     return None
+
+
+def llama_cache_dir() -> pathlib.Path:
+    """Hugging Face hub cache directory that llama.cpp downloads ``-hf`` into.
+
+    Mirrors ``get_cache_directory()`` in llama.cpp's ``common/hf-cache.cpp``,
+    including the env var precedence.
+    """
+    for var, suffix in (
+        ("LLAMA_CACHE", ""),
+        ("HF_HUB_CACHE", ""),
+        ("HUGGINGFACE_HUB_CACHE", ""),
+        ("HF_HOME", "hub"),
+        ("XDG_CACHE_HOME", "huggingface/hub"),
+    ):
+        if base := os.environ.get(var):
+            return pathlib.Path(base) / suffix
+    return pathlib.Path.home() / ".cache" / "huggingface" / "hub"
+
+
+def _arg_value(args: list[str], *flags: str) -> str | None:
+    """Value following the first of *flags* present in *args*."""
+    for flag in flags:
+        if flag in args and args.index(flag) + 1 < len(args):
+            return args[args.index(flag) + 1]
+    return None
+
+
+# Split-GGUF shard suffix, e.g. model-00002-of-00003.gguf.
+_SHARD_RE = re.compile(r"-\d{5}-of-\d{5}\.gguf$")
+
+
+def shard_siblings(path: pathlib.Path) -> list[pathlib.Path]:
+    """All shards of a split GGUF, or just *path* if it is not split."""
+    m = _SHARD_RE.search(path.name)
+    if not m:
+        return [path]
+    return sorted(path.parent.glob(f"{path.name[: m.start()]}-*-of-*.gguf"))
+
+
+def resolve_model_files(cmd: str) -> list[pathlib.Path]:
+    """Model files that *cmd* will load.
+
+    ``-m/--model`` is taken verbatim (plus its sibling shards); for ``-hf`` the
+    Hugging Face hub cache is globbed for the repo's shards.  Every match is
+    returned rather than just the newest: two snapshots of one repo in the cache
+    means the weights moved under the sweep, which is what provenance is for.
+    """
+    args = shlex.split(cmd)
+
+    if path := _arg_value(args, "-m", "--model"):
+        return shard_siblings(pathlib.Path(path))
+
+    spec = _arg_value(args, "-hf", "-hfr", "--hf-repo")
+    if not spec:
+        return []
+    repo, _, quant = spec.partition(":")
+    # HF hub layout: models--<org>--<repo>/snapshots/<commit>/[<quant>/]*.gguf,
+    # symlinked into blobs/.  The commit in the path is itself provenance.
+    repo_dir = llama_cache_dir() / f"models--{repo.replace('/', '--')}"
+    files = sorted(repo_dir.glob("snapshots/*/**/*.gguf"))
+    if hf_file := _arg_value(args, "-hff", "--hf-file"):
+        selected = [f for f in files if f.name == hf_file]
+    elif quant:
+        # The quant tag is a subdirectory for split models, part of the file
+        # name for single-file ones.
+        selected = [f for f in files if quant.lower() in str(f).lower()]
+    else:
+        selected = files
+    # Fall back to the unfiltered set: logging too much beats logging nothing.
+    return selected or files
+
+
+def file_provenance(path: pathlib.Path) -> str:
+    """Size, mtime and header hash of one model file."""
+    try:
+        st = path.stat()
+        with path.open("rb") as f:
+            digest = hashlib.sha256(f.read(HASH_BYTES)).hexdigest()
+    except OSError as e:
+        return f"{path} <unreadable: {e.strerror}>"
+    mtime = datetime.datetime.fromtimestamp(st.st_mtime, datetime.UTC)
+    # The byte count is in the label so the hash can be reproduced by hand:
+    # head -c <n> <path> | sha256sum
+    return (
+        f"{path} size={st.st_size} mtime={mtime.isoformat(timespec='seconds')} "
+        f"sha256/{HASH_BYTES}B={digest}"
+    )
+
+
+def binary_version() -> str:
+    """``llama-perplexity --version`` collapsed onto one line."""
+    try:
+        proc = subprocess.run(
+            ["llama-perplexity", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as e:
+        # Let the run itself report a missing binary; don't die before logging.
+        return f"<unknown: {e.strerror}>"
+    # Drop backend chatter (e.g. CUDA init errors on a GPU-less host).
+    lines = [
+        line.strip()
+        for line in (proc.stdout + proc.stderr).splitlines()
+        if "version:" in line or "built with" in line
+    ]
+    return " | ".join(lines) or "<unknown>"
+
+
+def provenance_lines(cmd: str) -> list[str]:
+    """``#``-prefixed binary and model provenance for one run of *cmd*."""
+    lines = [f"# llama-perplexity: {binary_version()}"]
+    try:
+        files = resolve_model_files(cmd)
+    except (ValueError, OSError) as e:
+        # Provenance must never abort a multi-day sweep.
+        return lines + [f"# model: <unresolved: {e}>"]
+    if not files:
+        return lines + ["# model: <unresolved>"]
+    return lines + [f"# model: {file_provenance(f)}" for f in files]
 
 
 def run_llama_perplexity(
@@ -349,6 +514,8 @@ def run_llama_perplexity(
     aborted = False
 
     with open(logfile, "a") as f:
+        provenance = provenance_lines(cmd)
+        f.writelines(line + "\n" for line in provenance)
         f.write(cmd + "\n")
         f.flush()
 
@@ -393,6 +560,12 @@ def run_llama_perplexity(
 
         if not aborted:
             process.wait()
+
+        # The run that downloads the model cannot be described before it starts,
+        # so re-log provenance if it resolved differently afterwards. Silent
+        # when nothing moved, which is every run of a healthy sweep.
+        if (after := provenance_lines(cmd)) != provenance:
+            f.writelines(line + "\n" for line in after)
 
         if aborted:
             f.write(
@@ -457,17 +630,12 @@ def main() -> None:
     print(f"Output log: {logfile}")
     if logfile.exists():
         print(f"  {logfile} exists, appending")
-    else:
-        with open(logfile, "w") as f:
-            f.write("llama-perplexity --version\n")
-            f.flush()
-            subprocess.run(
-                ["llama-perplexity", "--version"],
-                stdout=f,
-                stderr=subprocess.STDOUT,
-                check=True,
-            )
-            f.write("------------------------------\n")
+
+    # Only the run that creates the logits dump may download the model; every
+    # run measured against that dump is pinned to those weights.
+    common_offline = cfg.common
+    if "--offline" not in common_offline.split():
+        common_offline += " --offline"
 
     # --- Determine baseline ETA ---
     baseline_eta: float | None = None
@@ -506,17 +674,16 @@ def main() -> None:
             else:
                 print("  No ETA line seen for baseline run")
 
-    # --- Run non-baseline combos ---
-    # Combos already in the log (any outcome) are skipped. Read once: each combo
-    # in cfg.quants is unique and visited only here.
+    # --- Run KLD combos (baseline rerun first, then non-baseline combos) ---
+    # Combos with a --kl-divergence run already in the log (any outcome) are
+    # skipped. Read once: each combo in cfg.quants is unique and visited only
+    # here.
     present = combos_in_log(logfile.read_text()) if logfile.exists() else set()
 
     for combo in cfg.quants:
-        if combo == cfg.baseline:
-            continue
-
+        is_baseline = combo == cfg.baseline
         kv_args = kv_cli_args(combo.k, combo.v, combo.tail)
-        cmd = f"{cfg.common} {kv_args} --kl-divergence"
+        cmd = f"{common_offline} {kv_args} --kl-divergence"
 
         if (combo.k, combo.v, combo.tail) in present:
             print(f"[SKIP] {kv_args} (already in {logfile})")
@@ -524,6 +691,20 @@ def main() -> None:
 
         if args.dry_run:
             print(f"[DRY RUN] {kv_args}")
+            continue
+
+        if is_baseline:
+            # Baseline rerun against its own logits: measures the true KLD /
+            # RMS Δp / top-1 noise floor and the reference speed without the
+            # logits-dump I/O. Never aborted; its ETA replaces the
+            # logits-writing baseline ETA as the abort threshold.
+            print(f"[RUN] {kv_args} (baseline rerun)")
+            rerun_eta = run_llama_perplexity(
+                cmd, logfile, label=f"baseline-rerun {kv_args}"
+            )
+            if rerun_eta is not None:
+                baseline_eta = rerun_eta
+                print(f"  Baseline ETA (rerun): {baseline_eta:.2f} minutes")
             continue
 
         print(f"[RUN] {kv_args}")

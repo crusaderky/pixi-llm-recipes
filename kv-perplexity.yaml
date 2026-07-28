@@ -5,7 +5,9 @@
 # pixi r kv-kld-report
 
 # Common flags prepended to every llama-perplexity invocation.
-# The baseline run (first combo) omits --kl-divergence to create baseline logits.
+# The baseline run (first combo) omits --kl-divergence to create baseline logits,
+# then is rerun with --kl-divergence against its own logits to measure the noise
+# floor (KLD / RMS Δp / top-1) and the reference speed without logits-dump I/O.
 # All other combos append -ctk <kq> -ctv <vq> [--kv-tail-tokens <n>] --kl-divergence.
 
 common: >
@@ -40,6 +42,7 @@ baseline: {cache-type-k: f16, cache-type-v: f16, kv-tail-tokens: 0}
 
 # Extra combos to add beyond the cartesian product (same syntax as baseline)
 include:
+  - {cache-type-k: f16, cache-type-v: q8_0, kv-tail-tokens: 0}
   - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 0}
   - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 128}
   - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 512}
@@ -56,7 +59,6 @@ include:
   - {cache-type-k: kvarn8, cache-type-v: kvarn8, kv-tail-tokens: 512}
   - {cache-type-k: kvarn3, cache-type-v: kvarn3, kv-tail-tokens: 4096}
   - {cache-type-k: kvarn2, cache-type-v: kvarn2, kv-tail-tokens: 4096}
-  - {cache-type-k: kvarn2, cache-type-v: kvarn2, kv-tail-tokens: 8192}
   - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 0}
   - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 128}
   - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 512}
@@ -69,7 +71,6 @@ include:
   - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 1024}
   - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 2048}
   - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 4096}
-  - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 8192}
 
 # Combos to remove from the cartesian product (same syntax as baseline)
 exclude: []

@@ -117,7 +117,8 @@ def resolve_bpw(name: str) -> float:
 #  The pre-v0.4.1 per-stream sink / batch / ubatch / tile padding are now
 #  graph-local (transient) and are NOT counted here. The overlay scales with the
 #  tail and n_parallel, so the figure is deployment-dependent: the report
-#  evaluates at a chosen context (--ctx-size, default 256k) and n_parallel
+#  evaluates at a chosen context (--ctx-size, default: the run's own context
+#  from the log) and n_parallel
 #  (--n-parallel, default 4 = llama-server's auto). Derived from reading the
 #  v0.4.1 source; NOT yet re-validated against v0.4.1 llama-server logs.
 #
@@ -471,6 +472,20 @@ FULL_CMD_RE = re.compile(r"^(llama-perplexity\s+.*)$", re.MULTILINE)
 # Summary statistics from the "====== KL divergence statistics ======" block
 SUMMARY_HDR = re.compile(r"^=+\s+KL divergence statistics\s+=+")
 SUMMARY_LINE = re.compile(r"^\s*(Mean|Median|([\d.]+)%)\s+KLD:\s+([\d.-]+)")
+# "RMS Δp    :  2.105 ± 0.040 %"
+RMS_DP_RE = re.compile(r"^RMS\s+Δp\s*:\s*([\d.]+)\s*±\s*([\d.]+)", re.MULTILINE)
+# "Cor(ln(PPL(Q)), ln(PPL(base))):  99.87%"
+PPL_COR_RE = re.compile(
+    r"^Cor\(ln\(PPL\(Q\)\), ln\(PPL\(base\)\)\):\s*([\d.]+)\s*%", re.MULTILINE
+)
+# "Same top p: 97.148 ± 0.043 %"
+TOP_P_RE = re.compile(r"^Same top p:\s*([\d.]+)\s*±\s*([\d.]+)", re.MULTILINE)
+# "Same sampled p: 48.512 ± 0.061 %" -- the collision probability
+# sum_i p_base(i)*p(i), i.e. temperature-1 agreement, as opposed to "Same top p"
+# which only compares the argmax (greedy decoding). Only emitted by patched
+# llama-perplexity builds, so every consumer below treats it as optional: on a log
+# without it the column and the plot are silently omitted.
+COLL_P_RE = re.compile(r"^Same sampled p:\s*([\d.]+)\s*±\s*([\d.]+)", re.MULTILINE)
 
 
 def _common_params(text: str) -> str:
@@ -549,13 +564,19 @@ def _make_label(ctk: str, ctv: str, tail: int, show_tail: bool) -> str:
 
 
 def parse_log(
-    path: str, n_parallel: int = 4, projected_ctx: int = DEFAULT_CTX_SIZE
-) -> tuple[list[dict], str]:
+    path: str, n_parallel: int = 4, projected_ctx: int | None = None
+) -> tuple[list[dict], str, int]:
+    """Parse the log. ``projected_ctx`` is the context the Context (MiB)
+    column is evaluated at; when None it defaults to the run's own context
+    size: the logits (baseline-generating) run's ``--ctx-size``, else any
+    run's, else 256k. Returns (runs, common_params, projected_ctx)."""
     text = Path(path).read_text()
     sections = re.split(r"^-{30,}", text, flags=re.MULTILINE)
     common_params = _common_params(text)
 
     runs = []
+    log_ctx: int | None = None  # ctx of the logits (baseline-generating) run
+    any_ctx: int | None = None  # ctx of any run (fallback)
     for sec in sections:
         # A section (between normal separators) may contain multiple runs
         # separated by ABORTED markers. Split internally on those.
@@ -592,6 +613,8 @@ def parse_log(
             # Extract ctx-size
             ctx_match = CTX_SIZE_RE.search(cmd_line)
             ctx_size = int(ctx_match.group(1)) if ctx_match else 0
+            if ctx_size and any_ctx is None:
+                any_ctx = ctx_size
 
             # Speed calculation
             seconds_per_pass = None
@@ -625,7 +648,11 @@ def parse_log(
                     speed = (n_chunks_tmp * ctx_size) / (total_minutes * 60)
 
             if not has_kld:
-                # Baseline run — KLD = 0 by definition
+                # Logits-generating run — no KLD stats of its own. The baseline
+                # KLD rerun (same combo + --kl-divergence) carries the measured
+                # baseline numbers; both are flagged in the post-pass below.
+                if ctx_size and log_ctx is None:
+                    log_ctx = ctx_size
                 size = resolve_bpw(ctk) + resolve_bpw(ctv)
                 runs.append(
                     {
@@ -635,12 +662,17 @@ def parse_log(
                         "label": f"{ctk}/{ctv}",
                         "size": size,
                         "n_chunks": 0,
-                        "mean": 0.0,
-                        "median": 0.0,
-                        "p90": 0.0,
-                        "p999": 0.0,
+                        "mean": None,
+                        "p999": None,
+                        "rms_dp": None,
+                        "rms_dp_tol": None,
+                        "top1": None,
+                        "top1_tol": None,
+                        "coll": None,
+                        "coll_tol": None,
+                        "ppl_cor": None,
                         "speed": speed,
-                        "baseline": True,
+                        "logits": True,
                     }
                 )
                 continue
@@ -653,7 +685,7 @@ def parse_log(
                 if m and "±" in ln:
                     n_chunks = int(m.group(1))
                     break
-            stats = {"mean": 0.0, "median": 0.0, "p90": 0.0, "p999": 0.0}
+            stats = {"mean": 0.0, "p999": 0.0}
             in_summary = False
             for ln in lines:
                 if SUMMARY_HDR.match(ln):
@@ -670,12 +702,13 @@ def parse_log(
                 if pct is not None:
                     if pct == "99.9":
                         stats["p999"] = val
-                    elif pct == "90.0":
-                        stats["p90"] = val
                 elif key == "Mean":
                     stats["mean"] = val
-                elif key == "Median":
-                    stats["median"] = val
+
+            rms_m = RMS_DP_RE.search(chunk)
+            top_m = TOP_P_RE.search(chunk)
+            coll_m = COLL_P_RE.search(chunk)
+            cor_m = PPL_COR_RE.search(chunk)
 
             if not in_summary:
                 # Aborted run — no KLD stats. Still list in table with blank metrics.
@@ -689,9 +722,14 @@ def parse_log(
                             "size": resolve_bpw(ctk) + resolve_bpw(ctv),
                             "n_chunks": 0,
                             "mean": None,
-                            "median": None,
-                            "p90": None,
                             "p999": None,
+                            "rms_dp": None,
+                            "rms_dp_tol": None,
+                            "top1": None,
+                            "top1_tol": None,
+                            "coll": None,
+                            "coll_tol": None,
+                            "ppl_cor": None,
                             "speed": speed,
                             "aborted": True,
                         }
@@ -712,12 +750,41 @@ def parse_log(
                     "size": resolve_bpw(ctk) + resolve_bpw(ctv),
                     "n_chunks": n_chunks,
                     "mean": stats["mean"],
-                    "median": stats["median"],
-                    "p90": stats["p90"],
                     "p999": stats["p999"],
+                    "rms_dp": float(rms_m.group(1)) if rms_m else None,
+                    "rms_dp_tol": float(rms_m.group(2)) if rms_m else None,
+                    "top1": float(top_m.group(1)) if top_m else None,
+                    "top1_tol": float(top_m.group(2)) if top_m else None,
+                    "coll": float(coll_m.group(1)) if coll_m else None,
+                    "coll_tol": float(coll_m.group(2)) if coll_m else None,
+                    "ppl_cor": float(cor_m.group(1)) if cor_m else None,
                     "speed": speed,
                 }
             )
+
+    # Baseline identification. The logits-generating run (``logits`` flag) has
+    # no KLD stats; the baseline is the KLD rerun of the same combo, which
+    # carries the measured numbers (KLD noise floor, RMS Δp, top-1) and the
+    # reference speed without the logits-dump I/O. Old logs have no rerun:
+    # the logits run itself stays the baseline (speed reference only, blank
+    # KLD stats).
+    logits_run = next((r for r in runs if r.get("logits")), None)
+    if logits_run is not None:
+        rerun = next(
+            (
+                r
+                for r in runs
+                if not r.get("logits")
+                and not r.get("aborted")
+                and (r["ctk"], r["ctv"], r["tail"])
+                == (logits_run["ctk"], logits_run["ctv"], logits_run["tail"])
+            ),
+            None,
+        )
+        if rerun is not None:
+            rerun["baseline"] = True
+        else:
+            logits_run["baseline"] = True
 
     # Labels depend on the whole log: the `` tN`` suffix appears on every run
     # iff --kv-tail-tokens is passed explicitly somewhere. Its absence is a
@@ -726,6 +793,11 @@ def parse_log(
     show_tail = bool(KV_TAIL_RE.search(text))
     for r in runs:
         r["label"] = _make_label(r["ctk"], r["ctv"], r["tail"], show_tail)
+
+    # Projected context for the Context (MiB) column: explicit --ctx-size,
+    # else the run's own context (logits run first, any run as fallback).
+    if projected_ctx is None:
+        projected_ctx = log_ctx or any_ctx or DEFAULT_CTX_SIZE
 
     # Total KV-cache size at the projected context (--ctx-size), if recognised.
     ref_m = MODEL_REF_RE.search(text)
@@ -752,7 +824,7 @@ def parse_log(
         else:
             r["ctx_mib"], r["ctx_note"] = None, None
 
-    return runs, common_params
+    return runs, common_params, projected_ctx
 
 
 def _cost_axis(runs: list[dict], ctx_label: str = "256k") -> tuple[str, str, str]:
@@ -764,6 +836,83 @@ def _cost_axis(runs: list[dict], ctx_label: str = "256k") -> tuple[str, str, str
     if any(r.get("ctx_mib") is not None for r in runs):
         return "ctx_mib", f"Context size (MiB) @ {ctx_label}", "⚫"  # black circle
     return "size", "Size (bits / weight)", "\U0001f7e2"  # green circle
+
+
+# Plotted statistics: key -> (display label, colour, higher_is_better).
+# mean/p999/rms_dp are "lower is better" (frontier = running minimum); top1,
+# coll and ppl_cor are "higher is better" (frontier = running maximum).
+STAT_STYLE = {
+    "mean": ("Mean KLD", "#e74c3c", False),
+    "p999": ("99.9% KLD", "#9b59b6", False),
+    "rms_dp": ("RMS Δp", "#16a085", False),
+    "ppl_cor": ("Cor(ln(PPL(Q)), ln(PPL(base)))", "#2980b9", True),
+    "top1": ("Top-1 (%)", "#e67e22", True),
+    # Sits next to top1 in the fixed hue order; #c2185b is the only candidate
+    # that clears the CVD and normal-vision floors against carrot (ΔE 19.4
+    # deutan / 22.7 normal) without colliding with any other slot.
+    "coll": ("Same sampled (%)", "#c2185b", True),
+}
+# Run-dict key holding the ± tolerance for stats that have one.
+# Plot titles (h2 in HTML, figure title in SVG). Legend/dataset labels stay
+# the short STAT_STYLE names.
+STAT_TITLE = {
+    "mean": "Mean KL Divergence (linear scale)",
+    "p999": "99% KL Divergence (linear scale)",
+    "rms_dp": "RMS Δp",
+    "ppl_cor": "Perplexity (%)",
+    "top1": "Top-1 (%)",
+    "coll": "Same sampled token, temp 1 (%)",
+}
+STAT_TOL_KEY = {"rms_dp": "rms_dp_tol", "top1": "top1_tol", "coll": "coll_tol"}
+# Decimal places for table cells and chart tooltips (stats with a tolerance).
+STAT_DECIMALS = {"rms_dp": 3, "top1": 3, "coll": 3, "ppl_cor": 2}
+# Suffix of the extra per-stat SVG files: BASENAME.<suffix>.svg
+STAT_SVG_SUFFIX = {
+    "mean": "mean-kld",
+    "p999": "p999-kld",
+    "rms_dp": "rms-dp",
+    "ppl_cor": "ppl",
+    "top1": "top1",
+    "coll": "same-sampled",
+}
+
+
+def _stat_frontier(
+    candidate_runs: list[dict], key: str, cost_key: str, higher_better: bool = False
+) -> set[int]:
+    """Pareto frontier of ``key`` over ``candidate_runs`` (grouped by cost so
+    equal-cost runs compete). ``higher_better`` flips the extremum (used for
+    Top-1). Runs with ``key is None`` are skipped."""
+    from collections import defaultdict
+
+    by_cost: dict[float, list[dict]] = defaultdict(list)
+    for r in candidate_runs:
+        if r[key] is None:
+            continue
+        by_cost[r[cost_key]].append(r)
+    ids = set()
+    best = float("-inf") if higher_better else float("inf")
+    for s in sorted(by_cost):
+        vals = [r[key] for r in by_cost[s]]
+        extremum = max(vals) if higher_better else min(vals)
+        if (higher_better and extremum > best) or (
+            not higher_better and extremum < best
+        ):
+            for r in by_cost[s]:
+                if r[key] == extremum:
+                    ids.add(id(r))
+            best = extremum
+    return ids
+
+
+def _fmt_tol(v, tol, decimals):
+    """Format a value with its ± tolerance (e.g. ``6.1129 ± 0.0383``), or
+    blank if the value is None (aborted / unparsed run)."""
+    if v is None:
+        return ""
+    if tol is None:
+        return f"{v:.{decimals}f}"
+    return f"{v:.{decimals}f} ± {tol:.{decimals}f}"
 
 
 # ---------------------------------------------------------------------------
@@ -796,31 +945,25 @@ def generate_html(
     # model is recognised, else bpw.
     cost_key, x_axis_label, _ = _cost_axis(runs, ctx_label)
 
-    # Baseline is the KLD-0 reference: it stays in the table but is never
-    # plotted (its zero KLD would sit off the bottom and drag the frontier
-    # line into the corner).
+    # "Same sampled p" is optional (patched llama-perplexity only): drop the
+    # column entirely rather than showing one full of blanks.
+    has_coll = any(r.get("coll") is not None for r in runs)
+
+    # The baseline (KLD rerun against its own logits) is plotted like any
+    # other run and joins the frontier line when it is on the frontier. A
+    # stats-less baseline (old log: the logits-generating run) and the logits
+    # run itself have nothing to plot.
     sorted_runs = sorted(
-        (r for r in runs if not r.get("baseline")), key=lambda r: r[cost_key]
+        (
+            r
+            for r in runs
+            if not r.get("logits")
+            and (not r.get("baseline") or r.get("mean") is not None)
+        ),
+        key=lambda r: r[cost_key],
     )
 
     # ---- Pareto frontiers (separate per stat; group by cost so equal-cost runs compete) ----
-    def _frontier(key: str, candidate_runs: list[dict]) -> set[int]:
-        from collections import defaultdict
-
-        by_cost: dict[float, list[dict]] = defaultdict(list)
-        for r in candidate_runs:
-            by_cost[r[cost_key]].append(r)
-        ids = set()
-        best = float("inf")
-        for s in sorted(by_cost):
-            min_kld = min(r[key] for r in by_cost[s])
-            if min_kld < best:
-                for r in by_cost[s]:
-                    if r[key] == min_kld:
-                        ids.add(id(r))
-                best = min_kld
-        return ids
-
     baseline_run = next((r for r in runs if r.get("baseline")), None)
     speed_cutoff = (
         baseline_run["speed"] * speed_cutoff_factor
@@ -831,20 +974,44 @@ def generate_html(
         r
         for r in runs
         if not r.get("aborted")
-        and not r.get("baseline")
+        and not r.get("logits")
         and (speed_cutoff is None or r["speed"] is None or r["speed"] >= speed_cutoff)
     ]
 
-    frontier_mean = _frontier("mean", eligible_runs)
-    frontier_p999 = _frontier("p999", eligible_runs)
+    frontier_mean = _stat_frontier(eligible_runs, "mean", cost_key)
+    frontier_p999 = _stat_frontier(eligible_runs, "p999", cost_key)
+    frontier_rms = _stat_frontier(eligible_runs, "rms_dp", cost_key)
+    frontier_top1 = _stat_frontier(eligible_runs, "top1", cost_key, higher_better=True)
+    frontier_coll = _stat_frontier(eligible_runs, "coll", cost_key, higher_better=True)
+    frontier_ppl_cor = _stat_frontier(
+        eligible_runs, "ppl_cor", cost_key, higher_better=True
+    )
+    FRONTIERS = {
+        "mean": frontier_mean,
+        "p999": frontier_p999,
+        "rms_dp": frontier_rms,
+        "top1": frontier_top1,
+        "coll": frontier_coll,
+        "ppl_cor": frontier_ppl_cor,
+    }
+    # Runs that fail the speed cutoff (used by the per-stat plots, whose
+    # frontier semantics are per-stat rather than the combined KLD one).
+    slow_ids = {
+        id(r)
+        for r in runs
+        if speed_cutoff is not None
+        and r["speed"] is not None
+        and r["speed"] < speed_cutoff
+    }
 
     # A run is suboptimal if it's NOT on either frontier, OR if it's too slow.
-    # The baseline is excluded: it is not a frontier candidate but must not be
-    # greyed out in the table either.
+    # The baseline and logits runs are excluded: they are not frontier
+    # candidates but must not be greyed out in the table either.
     suboptimal_ids = {
         id(r)
         for r in runs
         if not r.get("baseline")
+        and not r.get("logits")
         and id(r) not in frontier_mean
         and id(r) not in frontier_p999
     }
@@ -869,6 +1036,8 @@ def generate_html(
         label = r["label"]
         if r.get("baseline"):
             label += " (baseline)"
+        elif r.get("logits"):
+            label += " (logits)"
         elif r.get("aborted"):
             label += " (aborted)"
         cls = ' class="suboptimal"' if id(r) in suboptimal_ids else ""
@@ -887,127 +1056,158 @@ def generate_html(
             f"<td>{_fmt_size(r['size'])}</td>"
             f"{ctx_cell}"
             f"<td>{_fmt(r['mean'])}</td>"
-            f"<td>{_fmt(r['median'])}</td>"
-            f"<td>{_fmt(r['p90'])}</td>"
             f"<td>{_fmt(r['p999'])}</td>"
+            f"<td>{_fmt_tol(r.get('rms_dp'), r.get('rms_dp_tol'), 3)}</td>"
+            f"<td>{_fmt_tol(r.get('top1'), r.get('top1_tol'), 3)}</td>"
+            + (
+                f"<td>{_fmt_tol(r.get('coll'), r.get('coll_tol'), 3)}</td>"
+                if has_coll
+                else ""
+            )
+            + f"<td>{_fmt_tol(r.get('ppl_cor'), None, 2)}</td>"
             f"<td>{speed_fmt}</td>"
             f"<td>{pct_fmt}</td>"
             f"</tr>\n"
         )
 
     # ---- chart datasets ----
-    # Split each stat into frontier (connected) + non-frontier (floating)
-    # Each stat uses its own frontier
-    stat_specs = [
-        ("Mean KLD", "mean", "#e74c3c", frontier_mean),
-        ("99.9% KLD", "p999", "#9b59b6", frontier_p999),
-    ]
+    # Every point carries ``_frontier``: whether its label survives the
+    # "hide labels of non-frontier points" toggle. The combined KLD log chart
+    # hides labels via the shared mean/p999 suboptimal set (historical
+    # behaviour); the per-stat linear charts hide everything not on that
+    # stat's own frontier (or too slow).
+    def _point(r, key, flag, clamp_log, tol_key):
+        y = r[key]
+        if clamp_log and y <= 0:
+            y = 1e-10
+        return {
+            "x": r[cost_key],
+            "y": y,
+            "_label": r["label"],
+            "_frontier": flag,
+            "_speed": r["speed"],
+            "_speed_pct": r["speed_pct"],
+            "_tol": r.get(tol_key) if tol_key else None,
+        }
 
-    ds_parts = []
-    for label, key, color, frontier in stat_specs:
-        best_pts = []
-        sub_pts = []
-        for r in sorted_runs:
-            if r.get("aborted"):
+    def _line_ds(label, pts, color, extra=None):
+        d = {
+            "label": label,
+            "data": pts,
+            "borderColor": color,
+            "backgroundColor": color,
+            "showLine": True,
+            "fill": False,
+            "tension": 0,
+            "pointRadius": 6,
+            "pointHoverRadius": 8,
+        }
+        if extra:
+            d.update(extra)
+        return d
+
+    def _sub_ds(label, pts, color):
+        return {
+            "label": label,
+            "data": pts,
+            "borderColor": color,
+            "backgroundColor": color,
+            "showLine": False,
+            "fill": False,
+            "pointRadius": 4,
+            "pointHoverRadius": 6,
+            "pointBackgroundColor": color + "44",
+            "_sub": True,
+        }
+
+    def _faint(color):
+        r_, g_, b_ = (
+            int(color[1:3], 16),
+            int(color[3:5], 16),
+            int(color[5:7], 16),
+        )
+        return f"rgba({r_}, {g_}, {b_}, 0.35)"
+
+    def _build_datasets(stat_keys, clamp_log, combined):
+        """Datasets for one chart over ``stat_keys``. ``combined`` selects the
+        shared KLD suboptimal set (log chart); otherwise each stat uses its
+        own frontier + speed cutoff."""
+        hidden = suboptimal_ids if combined else slow_ids
+        ds = []
+        for key in stat_keys:
+            label, color, _ = STAT_STYLE[key]
+            frontier = FRONTIERS[key]
+            tol_key = STAT_TOL_KEY.get(key)
+            best_pts, sub_pts = [], []
+            for r in sorted_runs:
+                if r.get("aborted") or r[key] is None:
+                    continue
+                if combined:
+                    flag = id(r) not in suboptimal_ids
+                else:
+                    flag = id(r) in frontier and id(r) not in slow_ids
+                pt = _point(r, key, flag, clamp_log, tol_key)
+                if id(r) in frontier and id(r) not in hidden:
+                    best_pts.append(pt)
+                else:
+                    sub_pts.append(pt)
+            ds.append(_line_ds(label, best_pts, color))
+            ds.append(_sub_ds(label, sub_pts, color))
+        # Extra lines: k=f16 (dashed) and v=f16 (dotted)
+        for subset_name, dash_pat, pred in [
+            ("k=f16", [6, 3], lambda r: r["ctk"] == "f16"),
+            ("v=f16", [2, 3], lambda r: r["ctv"] == "f16"),
+        ]:
+            subset = [r for r in sorted_runs if pred(r) and not r.get("aborted")]
+            if not subset:
                 continue
-            y = r[key] if r[key] > 0 else 1e-10
-            pt = {
-                "x": r[cost_key],
-                "y": y,
-                "_label": r["label"],
-                "_suboptimal": id(r) in suboptimal_ids,
-                "_speed": r["speed"],
-                "_speed_pct": r["speed_pct"],
-            }
-            # A point is on the "best line" only if it's in the calculated frontier
-            # AND it's not too slow.
-            if id(r) in frontier and id(r) not in suboptimal_ids:
-                best_pts.append(pt)
-            else:
-                sub_pts.append(pt)
-
-        # Best line
-        ds_parts.append(
-            "{ label: '%s', data: %s,"
-            " borderColor: '%s', backgroundColor: '%s',"
-            " showLine: true, fill: false, tension: 0,"
-            " pointRadius: 6, pointHoverRadius: 8 }"
-            % (label, json.dumps(best_pts), color, color)
-        )
-        # Suboptimal floating points (hidden from legend via filter)
-        ds_parts.append(
-            "{ label: '%s', data: %s,"
-            " borderColor: '%s', backgroundColor: '%s',"
-            " showLine: false, fill: false,"
-            " pointRadius: 4, pointHoverRadius: 6,"
-            " pointBackgroundColor: '%s44', _sub: true }"
-            % (label, json.dumps(sub_pts), color, color, color)
-        )
-    # ---- extra lines: k=f16 (dashed) and v=f16 (dotted) ----
-    for subset_name, dash_pat, subset_runs in [
-        (
-            "k=f16",
-            [6, 3],
-            [r for r in sorted_runs if r["ctk"] == "f16" and not r.get("aborted")],
-        ),
-        (
-            "v=f16",
-            [2, 3],
-            [r for r in sorted_runs if r["ctv"] == "f16" and not r.get("aborted")],
-        ),
-    ]:
-        if not subset_runs:
-            continue
-        for stat_label, key, base_color, _ in stat_specs:
-            r_, g_, b_ = (
-                int(base_color[1:3], 16),
-                int(base_color[3:5], 16),
-                int(base_color[5:7], 16),
-            )
-            faint = f"rgba({r_}, {g_}, {b_}, 0.35)"
-            pts = sorted(
-                [
-                    {
-                        "x": r[cost_key],
-                        "y": r[key] if r[key] > 0 else 1e-10,
-                        "_label": r["label"],
-                        "_suboptimal": id(r) in suboptimal_ids,
-                    }
-                    for r in subset_runs
-                ],
-                key=lambda p: p["x"],
-            )
-            ds_parts.append(
-                "{ label: '%s %s', data: %s,"
-                " borderColor: '%s', backgroundColor: '%s',"
-                " showLine: true, fill: false, tension: 0,"
-                " pointRadius: 4, pointHoverRadius: 6,"
-                " borderDash: %s }"
-                % (
-                    subset_name,
-                    stat_label,
-                    json.dumps(pts),
-                    faint,
-                    faint,
-                    json.dumps(dash_pat),
+            for key in stat_keys:
+                label, color, _ = STAT_STYLE[key]
+                tol_key = STAT_TOL_KEY.get(key)
+                pts = []
+                for r in subset:
+                    if r[key] is None:
+                        continue
+                    if combined:
+                        flag = id(r) not in suboptimal_ids
+                    else:
+                        flag = id(r) in FRONTIERS[key] and id(r) not in slow_ids
+                    pts.append(_point(r, key, flag, clamp_log, tol_key))
+                if not pts:
+                    continue
+                faint = _faint(color)
+                # Reference lines clutter the legend: hide them from it
+                # (the lines and their point labels stay on the plot).
+                ds.append(
+                    _line_ds(
+                        f"{subset_name} {label}",
+                        pts,
+                        faint,
+                        {
+                            "pointRadius": 4,
+                            "pointHoverRadius": 6,
+                            "borderDash": dash_pat,
+                            "_nolegend": True,
+                        },
+                    )
                 )
-            )
-
-    datasets_js = ",\n      ".join(ds_parts)
+        return ds
 
     # Compute y-axis range so smallest non-zero point sits at 1/3 from bottom
-    # (baseline at y=1e-10 shoots out of plot)
+    # (a zero/negative KLD clamps to y=1e-10 and shoots out of plot).
+    # The baseline is ignored for the range: its near-zero measured KLD would
+    # drag the bottom of the log scale far below every other point.
     max_y = max(
         r[key]
         for key in ["mean", "p999"]
         for r in sorted_runs
-        if r[key] is not None and r[key] > 0
+        if not r.get("baseline") and r[key] is not None and r[key] > 0
     )
     min_nonzero = min(
         r[key]
         for key in ["mean", "p999"]
         for r in sorted_runs
-        if r[key] is not None and r[key] > 0
+        if not r.get("baseline") and r[key] is not None and r[key] > 0
     )
     import math
 
@@ -1020,8 +1220,100 @@ def generate_html(
     y_max = max_y * 1.15  # 15% headroom above max
     x_max = max(r[cost_key] for r in sorted_runs) * 1.05  # 5% headroom past widest
 
-    baseline_label = next((r["label"] for r in sorted_runs if r.get("baseline")), None)
+    baseline_label = next((r["label"] for r in runs if r.get("baseline")), None)
     baseline_label_json = json.dumps(baseline_label) if baseline_label else "null"
+
+    # ---- assemble the five charts ----
+    # All charts share the same X range so they stay vertically aligned.
+    def _lin_range(key, with_tol=False):
+        vals = []
+        for r in sorted_runs:
+            if r.get("aborted") or r[key] is None:
+                continue
+            tol = r.get(STAT_TOL_KEY.get(key, ""), 0) or 0 if with_tol else 0
+            vals.append((r[key] - tol, r[key] + tol))
+        lo = min(v[0] for v in vals)
+        hi = max(v[1] for v in vals)
+        span = hi - lo or abs(hi) * 0.1 or 1.0
+        return lo - span * 0.1, hi + span * 0.1
+
+    chart_defs = [
+        {
+            "id": "chartLog",
+            "title": "KL Divergence (log scale)",
+            "yType": "logarithmic",
+            "yTitle": "KL Divergence",
+            "yMin": y_min,
+            "yMax": y_max,
+            "decimals": 6,
+            "errorBars": False,
+            "baselineNote": True,
+            "datasets": _build_datasets(["mean", "p999"], True, True),
+        }
+    ]
+    for key, cid in [("mean", "chartMean"), ("p999", "chartP999")]:
+        hi = max(
+            r[key] for r in sorted_runs if not r.get("aborted") and r[key] is not None
+        )
+        chart_defs.append(
+            {
+                "id": cid,
+                "title": STAT_TITLE[key],
+                "yType": "linear",
+                "yTitle": STAT_STYLE[key][0],
+                "yMin": 0,
+                "yMax": hi * 1.15,
+                "decimals": 6,
+                "errorBars": False,
+                "baselineNote": False,
+                "datasets": _build_datasets([key], False, False),
+            }
+        )
+    # Short tooltip name + unit suffix for percent-scale stats (the series
+    # label of ppl_cor is too long for a tooltip prefix).
+    TOOLTIP_NAME_UNIT = {
+        "top1": ("Top-1", "%"),
+        "coll": ("Same sampled", "%"),
+        "ppl_cor": ("Perplexity", "%"),
+    }
+    for key, cid in [
+        ("rms_dp", "chartRms"),
+        ("top1", "chartTop1"),
+        ("coll", "chartColl"),
+        ("ppl_cor", "chartPplCor"),
+    ]:
+        if not any(not r.get("aborted") and r[key] is not None for r in sorted_runs):
+            continue
+        lo, hi = _lin_range(key, with_tol=True)
+        tt_name, tt_unit = TOOLTIP_NAME_UNIT.get(key, (None, ""))
+        chart_defs.append(
+            {
+                "id": cid,
+                "title": STAT_TITLE[key],
+                "yType": "linear",
+                "yTitle": STAT_STYLE[key][0],
+                "yMin": lo,
+                "yMax": hi,
+                "decimals": STAT_DECIMALS[key],
+                "errorBars": key in STAT_TOL_KEY,
+                "baselineNote": False,
+                "tooltipLabel": tt_name,
+                "unit": tt_unit,
+                "datasets": _build_datasets([key], False, False),
+            }
+        )
+
+    containers_html = ""
+    for d in chart_defs:
+        containers_html += (
+            '<div class="chart-container">\n'
+            '  <label class="label-toggle">'
+            '<input type="checkbox" class="hide-labels-toggle" checked>'
+            " Hide labels of non-frontier points</label>\n"
+            f'  <h2 class="chart-title">{_esc(d["title"])}</h2>\n'
+            f'  <canvas id="{d["id"]}" width="1000" height="600"></canvas>\n'
+            "</div>\n"
+        )
 
     # Chunk count — same for all non-baseline runs
     n_chunks = next(
@@ -1033,19 +1325,21 @@ def generate_html(
         else ""
     )
 
-    html = HTML_HEAD.replace("{chart_js_src}", chart_js_src).replace(
-        "{ctx_label}", _esc(ctx_label)
+    html = (
+        HTML_HEAD.replace("{chart_js_src}", chart_js_src)
+        .replace("{ctx_label}", _esc(ctx_label))
+        .replace("{coll_th}", "  <th>Same sampled (%)</th>\n" if has_coll else "")
     )
     html += common_html
     html += chunks_html
     html += tbl_rows
-    html += HTML_MID % (
-        y_min,
-        y_max,
-        x_max,
-        baseline_label_json,
-        datasets_js,
-        x_axis_label,
+    html += HTML_TABLE_END
+    html += containers_html
+    html += (
+        HTML_SCRIPT.replace("{chart_defs_json}", json.dumps(chart_defs))
+        .replace("{x_max_json}", json.dumps(x_max))
+        .replace("{x_axis_label_json}", json.dumps(x_axis_label))
+        .replace("{baseline_label_json}", baseline_label_json)
     )
     if speed_cutoff is not None:
         pct = speed_cutoff_factor * 100
@@ -1087,6 +1381,7 @@ HTML_HEAD = """\
   tr.suboptimal td { color: inherit; }
   td.ctx { cursor: help; text-decoration: underline dotted; text-underline-offset: 2px; }
   .label-toggle { display: block; margin-bottom: 8px; font-size: 0.9rem; cursor: pointer; user-select: none; }
+  .chart-title { font-size: 1.05rem; margin: 0 0 10px 0; }
   .label-toggle input { margin-right: 6px; }
   .note { color: #888; font-size: 0.8rem; margin-top: 10px; }
 </style>
@@ -1101,9 +1396,10 @@ HTML_HEAD = """\
   <th>Size (bpw)</th>
   <th>Context (MiB) @{ctx_label}</th>
   <th>Mean KLD</th>
-  <th>Median KLD</th>
-  <th>90.0% KLD</th>
   <th>99.9% KLD</th>
+  <th>RMS Δp</th>
+  <th>Top-1 (%)</th>
+{coll_th}  <th>Perplexity (%)</th>
   <th>Speed (tok/s)</th>
   <th>Speed (%)</th>
 </tr>
@@ -1111,123 +1407,79 @@ HTML_HEAD = """\
 <tbody>
 """
 
-HTML_MID = """\
+HTML_TABLE_END = """\
 </tbody>
 </table>
-<div class="chart-container">
-  <label class="label-toggle">
-    <input type="checkbox" id="hideNonFrontierLabels" checked>
-    Hide labels of non-frontier points
-  </label>
-  <canvas id="kldChart" width="1000" height="600"></canvas>
-</div>
-<p class="note">Y-axis: log scale.  Size = bpw(ctk) + bpw(ctv).  Each point labelled with its ctk/ctv pair.  Scroll wheel to zoom, drag to pan, double-click to reset.</p>
+"""
+
+HTML_SCRIPT = """\
+<p class="note">First chart's Y-axis is log scale; all others linear. All charts share the same X axis.
+Size = bpw(ctk) + bpw(ctv).  Each point labelled with its ctk/ctv pair.  Scroll wheel to zoom, drag to pan, double-click to reset.
+The "hide labels" tickmarks are linked: toggling one toggles all five plots.</p>
 <script>
-var Y_MIN  = %s;
-var Y_MAX  = %s;
-var X_MAX  = %s;
-var BASELINE_LABEL = %s;
+var CHART_DEFS = {chart_defs_json};
+var X_MAX = {x_max_json};
+var X_AXIS_LABEL = {x_axis_label_json};
+var BASELINE_LABEL = {baseline_label_json};
+var HIDE_NON_FRONTIER = true;
+var charts = [];
 
-var ctx = document.getElementById('kldChart').getContext('2d');
-var chart = new Chart(ctx, {
-  type: 'scatter',
-  data: {
-    datasets: [%s]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          filter: function(item, data) {
-            return !data.datasets[item.datasetIndex]._sub;
-          }
-        }
-      },
-      tooltip: {
-        callbacks: {
-          label: function(ctx) {
-            var lbl = ctx.raw._label || '';
-            var speed = ctx.raw._speed;
-            var pct = ctx.raw._speed_pct;
-            var speedStr = '';
-            if (speed !== null && speed !== undefined) {
-              speedStr = '  ' + speed.toFixed(1) + ' tok/s';
-              if (pct !== null && pct !== undefined) {
-                speedStr += ' (' + pct.toFixed(1) + '%%)';
-              }
-            }
-            return lbl + '  ' + ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(6) + speedStr;
-          }
-        }
-      },
-    },
-    scales: {
-      x: {
-        title: { display: true, text: '%s' },
-        type: 'linear',
-        min: 0,
-        max: X_MAX
-      },
-      y: {
-        title: { display: true, text: 'KL Divergence' },
-        type: 'logarithmic',
-        min: Y_MIN,
-        max: Y_MAX
-      }
-    },
-    elements: {
-      point: {
-        radius: 6,
-        hoverRadius: 8
+function drawExtras(chart, def) {
+  var ctx = chart.ctx;
+  var xScale = chart.scales.x;
+  var yScale = chart.scales.y;
+  ctx.save();
+  // Tolerance tick brackets (error bars)
+  if (def.errorBars) {
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1;
+    for (var d = 0; d < chart.data.datasets.length; d++) {
+      var pts = chart.data.datasets[d].data;
+      for (var p = 0; p < pts.length; p++) {
+        var pt = pts[p];
+        if (pt._tol === null || pt._tol === undefined) continue;
+        var xPix = xScale.getPixelForValue(pt.x);
+        var yHi = yScale.getPixelForValue(pt.y + pt._tol);
+        var yLo = yScale.getPixelForValue(pt.y - pt._tol);
+        ctx.beginPath();
+        ctx.moveTo(xPix, yHi); ctx.lineTo(xPix, yLo);
+        ctx.moveTo(xPix - 4, yHi); ctx.lineTo(xPix + 4, yHi);
+        ctx.moveTo(xPix - 4, yLo); ctx.lineTo(xPix + 4, yLo);
+        ctx.stroke();
       }
     }
-  },
-  plugins: [{
-    afterDraw: function(chart) {
-      var ctx = chart.ctx;
-      var xScale = chart.scales.x;
-      var yScale = chart.scales.y;
-      var hideNonFrontier = document.getElementById('hideNonFrontierLabels') &&
-                            document.getElementById('hideNonFrontierLabels').checked;
-      ctx.save();
-      ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#333';
-      // Label every data point at its own position
-      for (var d = 0; d < chart.data.datasets.length; d++) {
-        var pts = chart.data.datasets[d].data;
-        for (var p = 0; p < pts.length; p++) {
-          var pt = pts[p];
-          if (hideNonFrontier && pt._suboptimal) continue;
-          var xPos = xScale.getPixelForValue(pt.x);
-          if (xPos < 0 || xPos > chart.width) continue;
-          var y = yScale.getPixelForValue(pt.y) - 10;
-          ctx.fillText(pt._label, xPos, y);
-        }
-      }
-      ctx.restore();
-      // Baseline annotation — bottom-right corner
-      if (BASELINE_LABEL) {
-        ctx.save();
-        ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillStyle = '#888';
-        var ax = chart.width - 16;
-        var ay = chart.height - 40;
-        ctx.fillText(BASELINE_LABEL + ' (baseline) ' + String.fromCharCode(8595), ax, ay);
-        ctx.restore();
-      }
+  }
+  // Point labels
+  ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#333';
+  for (var d = 0; d < chart.data.datasets.length; d++) {
+    var pts = chart.data.datasets[d].data;
+    for (var p = 0; p < pts.length; p++) {
+      var pt = pts[p];
+      if (HIDE_NON_FRONTIER && !pt._frontier) continue;
+      var xPos = xScale.getPixelForValue(pt.x);
+      if (xPos < 0 || xPos > chart.width) continue;
+      var y = yScale.getPixelForValue(pt.y) - 10;
+      ctx.fillText(pt._label, xPos, y);
     }
-  }]
-});
+  }
+  ctx.restore();
+  // Baseline annotation — bottom-right corner
+  if (def.baselineNote && BASELINE_LABEL) {
+    ctx.save();
+    ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#888';
+    var ax = chart.width - 16;
+    var ay = chart.height - 40;
+    ctx.fillText(BASELINE_LABEL + ' (baseline) ' + String.fromCharCode(8595), ax, ay);
+    ctx.restore();
+  }
+}
 
-// ---- Zoom / Pan (native, no external plugins) ----
-var origXMin = 0, origXMax = X_MAX, origYMin = Y_MIN, origYMax = Y_MAX;
-
-(function() {
-  var canvas = document.getElementById('kldChart');
+function attachZoomPan(canvas, chart, def) {
+  var origXMin = 0, origXMax = X_MAX, origYMin = def.yMin, origYMax = def.yMax;
 
   canvas.addEventListener('wheel', function(e) {
     e.preventDefault();
@@ -1243,13 +1495,20 @@ var origXMin = 0, origXMax = X_MAX, origYMin = Y_MIN, origYMax = Y_MAX;
     var xCenter = xScale.getValueForPixel(mouseX);
     chart.options.scales.x.min = xCenter - xRange / 2;
     chart.options.scales.x.max = xCenter + xRange / 2;
-    // Y zoom (log scale — operate in log space)
-    var logMin = Math.log10(yScale.min);
-    var logMax = Math.log10(yScale.max);
-    var logRange = (logMax - logMin) * factor;
-    var logCenter = Math.log10(yScale.getValueForPixel(mouseY));
-    chart.options.scales.y.min = Math.pow(10, logCenter - logRange / 2);
-    chart.options.scales.y.max = Math.pow(10, logCenter + logRange / 2);
+    // Y zoom
+    if (def.yType === 'logarithmic') {
+      var logMin = Math.log10(yScale.min);
+      var logMax = Math.log10(yScale.max);
+      var logRange = (logMax - logMin) * factor;
+      var logCenter = Math.log10(yScale.getValueForPixel(mouseY));
+      chart.options.scales.y.min = Math.pow(10, logCenter - logRange / 2);
+      chart.options.scales.y.max = Math.pow(10, logCenter + logRange / 2);
+    } else {
+      var yRange = (yScale.max - yScale.min) * factor;
+      var yCenter = yScale.getValueForPixel(mouseY);
+      chart.options.scales.y.min = yCenter - yRange / 2;
+      chart.options.scales.y.max = yCenter + yRange / 2;
+    }
     chart.update();
   }, { passive: false });
 
@@ -1282,16 +1541,20 @@ var origXMin = 0, origXMax = X_MAX, origYMin = Y_MIN, origYMax = Y_MAX;
       chart.options.scales.x.min = panXMin - (dx / xPixRange) * xDataRange;
       chart.options.scales.x.max = panXMax - (dx / xPixRange) * xDataRange;
     }
-    // Y pan (log)
+    // Y pan
     var yPixRange = yScale.bottom - yScale.top;
     if (yPixRange > 0) {
-      var yLogMin = Math.log10(panYMin);
-      var yLogMax = Math.log10(panYMax);
-      var yLogRange = yLogMax - yLogMin;
-      var yNewLogMin = yLogMin + (dy / yPixRange) * yLogRange;
-      var yNewLogMax = yLogMax + (dy / yPixRange) * yLogRange;
-      chart.options.scales.y.min = Math.pow(10, yNewLogMin);
-      chart.options.scales.y.max = Math.pow(10, yNewLogMax);
+      if (def.yType === 'logarithmic') {
+        var yLogMin = Math.log10(panYMin);
+        var yLogMax = Math.log10(panYMax);
+        var yLogRange = yLogMax - yLogMin;
+        chart.options.scales.y.min = Math.pow(10, yLogMin + (dy / yPixRange) * yLogRange);
+        chart.options.scales.y.max = Math.pow(10, yLogMax + (dy / yPixRange) * yLogRange);
+      } else {
+        var yDataRange = panYMax - panYMin;
+        chart.options.scales.y.min = panYMin + (dy / yPixRange) * yDataRange;
+        chart.options.scales.y.max = panYMax + (dy / yPixRange) * yDataRange;
+      }
     }
     chart.update();
   });
@@ -1311,10 +1574,86 @@ var origXMin = 0, origXMax = X_MAX, origYMin = Y_MIN, origYMax = Y_MAX;
     chart.options.scales.y.max = origYMax;
     chart.update();
   });
-})();
+}
 
-document.getElementById('hideNonFrontierLabels').addEventListener('change', function() {
-  chart.draw();
+CHART_DEFS.forEach(function(def) {
+  var canvas = document.getElementById(def.id);
+  var chart = new Chart(canvas.getContext('2d'), {
+    type: 'scatter',
+    data: { datasets: def.datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            filter: function(item, data) {
+              var ds = data.datasets[item.datasetIndex];
+              return !ds._sub && !ds._nolegend;
+            }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(c) {
+              var lbl = c.raw._label || '';
+              var name = def.tooltipLabel || c.dataset.label;
+              var unit = def.unit || '';
+              var s = lbl + '  ' + name + ': ' + c.parsed.y.toFixed(def.decimals);
+              if (c.raw._tol !== null && c.raw._tol !== undefined) {
+                s += ' \u00b1 ' + c.raw._tol.toFixed(def.decimals);
+              }
+              s += unit;
+              var speed = c.raw._speed;
+              var pct = c.raw._speed_pct;
+              if (speed !== null && speed !== undefined) {
+                s += '  ' + speed.toFixed(1) + ' tok/s';
+                if (pct !== null && pct !== undefined) {
+                  s += ' (' + pct.toFixed(1) + '%)';
+                }
+              }
+              return s;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: X_AXIS_LABEL },
+          type: 'linear',
+          min: 0,
+          max: X_MAX
+        },
+        y: {
+          title: { display: true, text: def.yTitle },
+          type: def.yType,
+          min: def.yMin,
+          max: def.yMax
+        }
+      },
+      elements: {
+        point: {
+          radius: 6,
+          hoverRadius: 8
+        }
+      }
+    },
+    plugins: [{ afterDraw: function(chart) { drawExtras(chart, def); } }]
+  });
+  attachZoomPan(canvas, chart, def);
+  charts.push(chart);
+});
+
+// The "hide labels of non-frontier points" tickmark is replicated on every
+// plot for convenience; toggling any one of them toggles all five plots.
+document.querySelectorAll('.hide-labels-toggle').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    HIDE_NON_FRONTIER = cb.checked;
+    document.querySelectorAll('.hide-labels-toggle').forEach(function(o) {
+      o.checked = cb.checked;
+    });
+    charts.forEach(function(c) { c.draw(); });
+  });
 });
 </script>
 """
@@ -1332,44 +1671,30 @@ def _frontier_groups(
     runs: list[dict],
     key: str,
     speed_cutoff_factor: float = 0.33,
-    exclude_baseline: bool = False,
     cost_key: str = "size",
+    higher_better: bool = False,
 ) -> tuple[set[int], set[int]]:
     """Return (frontier_ids, suboptimal_ids) for a given stat key.
 
-    ``exclude_baseline`` drops the baseline from the frontier candidates (used
-    for the plot, which never shows the baseline) while still deriving the
-    speed cutoff from it. ``cost_key`` is the run field ranked along the x-axis
-    (``size`` bpw, or ``ctx_mib`` when the model is recognised).
+    The baseline (KLD rerun) is a frontier candidate like any other run; the
+    stats-less logits run is dropped, as are aborted and too-slow runs. The
+    speed cutoff is still derived from the baseline. ``cost_key`` is the run
+    field ranked along the x-axis (``size`` bpw, or ``ctx_mib`` when the model
+    is recognised).
     """
-    from collections import defaultdict
-
     # Only consider runs that are not too slow
     baseline_run = next((r for r in runs if r.get("baseline")), None)
     speed_cutoff = None
     if baseline_run and baseline_run["speed"] is not None:
         speed_cutoff = baseline_run["speed"] * speed_cutoff_factor
 
-    eligible_runs = [r for r in runs if not r.get("aborted")]
-    if exclude_baseline:
-        eligible_runs = [r for r in eligible_runs if not r.get("baseline")]
+    eligible_runs = [r for r in runs if not r.get("aborted") and not r.get("logits")]
     if speed_cutoff is not None:
         eligible_runs = [
             r for r in eligible_runs if r["speed"] is None or r["speed"] >= speed_cutoff
         ]
 
-    by_cost: dict[float, list[dict]] = defaultdict(list)
-    for r in eligible_runs:
-        by_cost[r[cost_key]].append(r)
-    frontier = set()
-    best = float("inf")
-    for s in sorted(by_cost):
-        min_kld = min(r[key] for r in by_cost[s])
-        if min_kld < best:
-            for r in by_cost[s]:
-                if r[key] == min_kld:
-                    frontier.add(id(r))
-            best = min_kld
+    frontier = _stat_frontier(eligible_runs, key, cost_key, higher_better)
     return frontier, {id(r) for r in runs if id(r) not in frontier}
 
 
@@ -1392,17 +1717,12 @@ def generate_plot_svg(
     sorted_runs = sorted(runs, key=lambda r: r[cost_key])
     sorted_runs = [r for r in sorted_runs if not r.get("aborted")]
 
-    # Frontiers exclude the baseline as a candidate but still need it in the
-    # input to derive the speed cutoff.
-    frontier_mean, _ = _frontier_groups(
-        sorted_runs, "mean", exclude_baseline=True, cost_key=cost_key
-    )
-    frontier_p999, _ = _frontier_groups(
-        sorted_runs, "p999", exclude_baseline=True, cost_key=cost_key
-    )
+    # The baseline is a frontier candidate like any other run; the stats-less
+    # logits run is never plotted.
+    frontier_mean, _ = _frontier_groups(sorted_runs, "mean", cost_key=cost_key)
+    frontier_p999, _ = _frontier_groups(sorted_runs, "p999", cost_key=cost_key)
 
-    # Baseline is the KLD-0 reference: shown in the table but never plotted.
-    sorted_runs = [r for r in sorted_runs if not r.get("baseline")]
+    sorted_runs = [r for r in sorted_runs if not r.get("logits")]
     suboptimal_ids = {
         id(r)
         for r in sorted_runs
@@ -1415,10 +1735,19 @@ def generate_plot_svg(
     ax.set_yscale("log")
     ax.set_xlim(0, max(r[cost_key] for r in sorted_runs) * 1.05)
 
-    # Y range: same logic as chart.js
-    max_y = max(r[key] for key in ["mean", "p999"] for r in sorted_runs if r[key] > 0)
+    # Y range: same logic as chart.js (baseline ignored: its near-zero
+    # measured KLD would drag the bottom of the log scale far down)
+    max_y = max(
+        r[key]
+        for key in ["mean", "p999"]
+        for r in sorted_runs
+        if not r.get("baseline") and r[key] and r[key] > 0
+    )
     min_nonzero = min(
-        r[key] for key in ["mean", "p999"] for r in sorted_runs if r[key] > 0
+        r[key]
+        for key in ["mean", "p999"]
+        for r in sorted_runs
+        if not r.get("baseline") and r[key] and r[key] > 0
     )
     import math
 
@@ -1528,7 +1857,9 @@ def generate_plot_svg(
                 linestyle=dash_style,
                 marker="o",
                 markersize=4,
-                label=f"{subset_name} {stat_label}",
+                # Reference lines stay out of the legend (lines and point
+                # labels remain on the plot)
+                label=None,
                 zorder=4,
             )
 
@@ -1557,6 +1888,182 @@ def generate_plot_svg(
     return buf.getvalue()
 
 
+def generate_stat_svg(
+    runs: list[dict],
+    key: str,
+    width=1000,
+    height=600,
+    dpi=100,
+    speed_cutoff_factor: float = 0.33,
+    ctx_label: str = "256k",
+) -> str:
+    """Generate a linear-Y SVG plot of a single stat (mean / p999 / rms_dp /
+    top1 / ppl_cor) vs size using matplotlib. Stats with a tolerance (rms_dp,
+    top1) get error-bar tick brackets. The frontier is per-stat (Top-1 and
+    Perplexity: higher is better)."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    label, color, higher_better = STAT_STYLE[key]
+    tol_key = STAT_TOL_KEY.get(key)
+    cost_key, x_axis_label, _ = _cost_axis(runs, ctx_label)
+
+    sorted_runs = sorted(
+        (
+            r
+            for r in runs
+            if not r.get("aborted") and not r.get("logits") and r[key] is not None
+        ),
+        key=lambda r: r[cost_key],
+    )
+
+    frontier, _ = _frontier_groups(
+        runs,
+        key,
+        speed_cutoff_factor,
+        cost_key=cost_key,
+        higher_better=higher_better,
+    )
+    baseline_run = next((r for r in runs if r.get("baseline")), None)
+    speed_cutoff = (
+        baseline_run["speed"] * speed_cutoff_factor
+        if baseline_run and baseline_run["speed"] is not None
+        else None
+    )
+    slow_ids = {
+        id(r)
+        for r in runs
+        if speed_cutoff is not None
+        and r["speed"] is not None
+        and r["speed"] < speed_cutoff
+    }
+
+    fig, ax = plt.subplots(figsize=(width / dpi, height / dpi), dpi=dpi)
+    ax.set_xlabel(x_axis_label, fontsize=11)
+    ax.set_ylabel(label, fontsize=11)
+    ax.set_title(STAT_TITLE[key], fontsize=12)
+    ax.set_xlim(0, max(r[cost_key] for r in sorted_runs) * 1.05)
+
+    # Linear Y range; include tolerance whiskers when present. Only the KLD
+    # stats floor at 0; percent-scale stats (ppl_cor) auto-range on the data
+    # like the tolerance stats do.
+    lo = min(r[key] - (r.get(tol_key) or 0) for r in sorted_runs)
+    hi = max(r[key] + (r.get(tol_key) or 0) for r in sorted_runs)
+    span = hi - lo or abs(hi) * 0.1 or 1.0
+    if key in ("mean", "p999"):
+        ax.set_ylim(0, hi * 1.15)
+    else:
+        ax.set_ylim(lo - span * 0.1, hi + span * 0.1)
+
+    ax.tick_params(labelsize=9)
+    ax.grid(True, which="both", ls=":", alpha=0.3)
+
+    best_pts = [
+        (r[cost_key], r[key], r)
+        for r in sorted_runs
+        if id(r) in frontier and id(r) not in slow_ids
+    ]
+    sub_pts = [
+        (r[cost_key], r[key], r)
+        for r in sorted_runs
+        if id(r) not in frontier or id(r) in slow_ids
+    ]
+
+    if best_pts:
+        best_pts.sort(key=lambda p: p[0])
+        ax.plot(
+            [p[0] for p in best_pts],
+            [p[1] for p in best_pts],
+            color=color,
+            linewidth=1.5,
+            marker="o",
+            markersize=6,
+            label=label,
+            zorder=5,
+        )
+    if sub_pts:
+        ax.scatter(
+            [p[0] for p in sub_pts],
+            [p[1] for p in sub_pts],
+            color=color,
+            alpha=0.25,
+            s=20,
+            zorder=3,
+        )
+
+    # Tolerance tick brackets
+    if tol_key:
+        xs = [r[cost_key] for r in sorted_runs if r.get(tol_key) is not None]
+        ys = [r[key] for r in sorted_runs if r.get(tol_key) is not None]
+        yerr = [r[tol_key] for r in sorted_runs if r.get(tol_key) is not None]
+        ax.errorbar(
+            xs,
+            ys,
+            yerr=yerr,
+            fmt="none",
+            ecolor="#555555",
+            elinewidth=1,
+            capsize=3,
+            zorder=4,
+        )
+
+    # Labels: frontier points bold, others faint
+    for pt_list, alpha in [(best_pts, 1.0), (sub_pts, 0.4)]:
+        for x, y, r in pt_list:
+            ax.annotate(
+                r["label"],
+                (x, y),
+                textcoords="offset points",
+                xytext=(0, -12),
+                fontsize=6.5 if alpha == 1.0 else 6,
+                ha="center",
+                va="top",
+                alpha=alpha,
+                zorder=10,
+            )
+
+    # Extra lines: k=f16 (dashed), v=f16 (dotted)
+    for subset_name, dash_style, pred in [
+        ("k=f16", (0, (6, 3)), lambda r: r["ctk"] == "f16"),
+        ("v=f16", (0, (2, 3)), lambda r: r["ctv"] == "f16"),
+    ]:
+        pts = sorted(
+            [(r[cost_key], r[key]) for r in sorted_runs if pred(r)],
+            key=lambda p: p[0],
+        )
+        if not pts:
+            continue
+        r_, g_, b_ = (
+            int(color[1:3], 16),
+            int(color[3:5], 16),
+            int(color[5:7], 16),
+        )
+        ax.plot(
+            [p[0] for p in pts],
+            [p[1] for p in pts],
+            color=(r_ / 255, g_ / 255, b_ / 255, 0.35),
+            linewidth=1,
+            linestyle=dash_style,
+            marker="o",
+            markersize=4,
+            # Single-stat plot: reference lines stay out of the legend
+            label=None,
+            zorder=4,
+        )
+
+    ax.legend(fontsize=8, loc="best", framealpha=0.9)
+    fig.tight_layout()
+
+    from io import StringIO
+
+    buf = StringIO()
+    fig.savefig(buf, format="svg", dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+    return buf.getvalue()
+
+
 # ---------------------------------------------------------------------------
 #  Markdown report
 # ---------------------------------------------------------------------------
@@ -1565,13 +2072,16 @@ def generate_markdown(
     common_params: str = "",
     html_path: str | None = None,
     plot_path: str | None = None,
+    extra_plots: list[tuple[str, str]] | None = None,
     repo: str | None = None,
     branch: str = "main",
     speed_cutoff_factor: float = 0.33,
     n_parallel: int = 4,
     ctx_label: str = "256k",
 ) -> str:
-    """Generate a Markdown report with table and SVG plot (image ref + xref)."""
+    """Generate a Markdown report with table and SVG plots (image ref + xref).
+
+    ``extra_plots`` is a list of (title, path) for the per-stat linear SVGs."""
     cost_key, _, frontier_marker = _cost_axis(runs, ctx_label)
     sorted_runs = sorted(runs, key=lambda r: r["size"], reverse=True)
 
@@ -1604,50 +2114,82 @@ def generate_markdown(
         lines.append(f"**Chunks per run:** {n_chunks}")
         lines.append("")
 
-    lines.append(
-        f"| ctk / ctv | Size (bpw) | Context (MiB) @{ctx_label} | Mean KLD | Median KLD |"
-        " 90.0% KLD | 99.9% KLD | Speed (tok/s) | Speed (%) |"
-    )
-    lines.append("|---|---|---|---|---|---|---|---|---|")
+    # "Same sampled p" is optional (patched llama-perplexity only): drop the
+    # column entirely rather than showing one full of blanks.
+    has_coll = any(r.get("coll") is not None for r in runs)
+    headers = [
+        "ctk / ctv",
+        "Size (bpw)",
+        f"Context (MiB) @{ctx_label}",
+        "Mean KLD",
+        "99.9% KLD",
+        "RMS Δp",
+        "Top-1 (%)",
+        *(["Same sampled (%)"] if has_coll else []),
+        "Perplexity (%)",
+        "Speed (tok/s)",
+        "Speed (%)",
+    ]
+    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("|" + "---|" * len(headers))
 
     for r in sorted(runs, key=lambda r: r[cost_key], reverse=True):
         label = r["label"]
         if r.get("baseline"):
             label += " (baseline)"
+        elif r.get("logits"):
+            label += " (logits)"
         elif r.get("aborted"):
             label += " (aborted)"
-        frontier_mark = f" {frontier_marker}" if id(r) not in suboptimal_ids else ""
+        frontier_mark = (
+            f" {frontier_marker}"
+            if id(r) not in suboptimal_ids and not r.get("logits")
+            else ""
+        )
         speed_fmt = f"{r['speed']:.1f}" if r["speed"] is not None else "N/A"
         pct_fmt = f"{r['speed_pct']:.1f}" if r["speed_pct"] is not None else "N/A"
         ctx_fmt = f"{r['ctx_mib']:,.0f}" if r.get("ctx_mib") is not None else ""
         lines.append(
             f"| {label}{frontier_mark} | {_fmt_size(r['size'])} | {ctx_fmt} |"
-            f" {_fmt(r['mean'])} | {_fmt(r['median'])} | {_fmt(r['p90'])} |"
-            f" {_fmt(r['p999'])} | {speed_fmt} | {pct_fmt} |"
+            f" {_fmt(r['mean'])} | {_fmt(r['p999'])} |"
+            f" {_fmt_tol(r.get('rms_dp'), r.get('rms_dp_tol'), 3)} |"
+            f" {_fmt_tol(r.get('top1'), r.get('top1_tol'), 3)} |"
+            + (
+                f" {_fmt_tol(r.get('coll'), r.get('coll_tol'), 3)} |"
+                if has_coll
+                else ""
+            )
+            + f" {_fmt_tol(r.get('ppl_cor'), None, 2)} |"
+            f" {speed_fmt} | {pct_fmt} |"
         )
 
     lines.append("")
 
-    # SVG image + xref links
+    # SVG images + xref links
+    all_plots = [("KLD Plot", plot_path)] + (extra_plots or [])
     if repo and plot_path:
         owner, repo_name = repo.split("/", 1)
-        # plot_path is a forward-slash path relative to the git repo root
+        # plot paths are forward-slash paths relative to the git repo root
         raw_base = f"https://raw.githubusercontent.com/{owner}/{repo_name}/{branch}"
         # htmlpreview proxies raw github; passes through with correct mime
         html_preview = f"https://htmlpreview.github.io/?{raw_base}/{html_path}"
-        lines.append(f"![KLD Plot]({raw_base}/{plot_path})")
-        lines.append("")
         lines.append(f"[Interactive report]({html_preview})")
         lines.append("")
+        for title, p in all_plots:
+            if p:
+                lines.append(f"![{title}]({raw_base}/{p})")
+                lines.append("")
     elif plot_path:
-        lines.append(f"![KLD Plot]({plot_path})")
-        lines.append("")
         xref_parts = []
         if html_path:
             xref_parts.append(f"[Interactive report]({html_path})")
         if xref_parts:
             lines.append(" | ".join(xref_parts))
             lines.append("")
+        for title, p in all_plots:
+            if p:
+                lines.append(f"![{title}]({p})")
+                lines.append("")
 
     # Note about speed cutoff
     baseline_run = next((r for r in runs if r.get("baseline")), None)
@@ -1686,7 +2228,7 @@ def main():
         "-o",
         "--output",
         default="kv-kld-report",
-        help="Output basename (no extension). Generates BASENAME.html, BASENAME.md, BASENAME.svg (default: kv-kld-report)",
+        help="Output basename (no extension). Generates BASENAME.html, BASENAME.md, BASENAME.log-kld.svg and per-stat BASENAME.<stat>.svg (default: kv-kld-report)",
     )
     ap.add_argument(
         "--whitelist",
@@ -1728,13 +2270,12 @@ def main():
     ap.add_argument(
         "--ctx-size",
         type=parse_ctx_size,
-        default=DEFAULT_CTX_SIZE,
+        default=None,
         metavar="N[k|M]",
-        help="Projected context size for the Context (MiB) column, independent "
-        "of the run's own --ctx-size; accepts k/M suffixes (default: 256k).",
+        help="Projected context size for the Context (MiB) column; accepts "
+        "k/M suffixes (default: the run's own --ctx-size from the log).",
     )
     args = ap.parse_args()
-    ctx_label = _fmt_ctx_label(args.ctx_size)
 
     # Auto-detect GitHub repo from git remote
     repo = args.repo
@@ -1788,7 +2329,10 @@ def main():
         print(f"ERROR: {log_path} not found", file=sys.stderr)
         sys.exit(1)
 
-    runs, common_params = parse_log(args.log, args.n_parallel, args.ctx_size)
+    runs, common_params, projected_ctx = parse_log(
+        args.log, args.n_parallel, args.ctx_size
+    )
+    ctx_label = _fmt_ctx_label(projected_ctx)
 
     # Normalize speed to baseline (baseline = 100%)
     baseline_run = next((r for r in runs if r.get("baseline")), None)
@@ -1806,7 +2350,11 @@ def main():
     runs_unfiltered = runs
     if args.whitelist:
         whitelisted = set(args.whitelist)
-        runs = [r for r in runs if r["label"] in whitelisted or r.get("baseline")]
+        runs = [
+            r
+            for r in runs
+            if r["label"] in whitelisted or r.get("baseline") or r.get("logits")
+        ]
     if not runs:
         print(
             "No KLD runs found" + (" (none match whitelist)" if args.whitelist else ""),
@@ -1826,16 +2374,17 @@ def main():
         speed_fmt = f"{r['speed']:.1f}" if r["speed"] is not None else "N/A"
         pct_fmt = f"{r['speed_pct']:.1f}%" if r["speed_pct"] is not None else "N/A"
         mean_fmt = f"{r['mean']:.6f}" if r["mean"] is not None else "       -"
-        median_fmt = f"{r['median']:.6f}" if r["median"] is not None else "       -"
-        p90_fmt = f"{r['p90']:.6f}" if r["p90"] is not None else "       -"
         p999_fmt = f"{r['p999']:.6f}" if r["p999"] is not None else "       -"
+        rms_fmt = f"{r['rms_dp']:.3f}" if r.get("rms_dp") is not None else "     -"
+        top1_fmt = f"{r['top1']:.3f}" if r.get("top1") is not None else "     -"
         aborted_tag = " (aborted)" if r.get("aborted") else ""
         ctx_fmt = f"{r['ctx_mib']:>8,.0f} MiB" if r.get("ctx_mib") is not None else ""
+        cor_fmt = f"{r['ppl_cor']:.2f}" if r.get("ppl_cor") is not None else "     -"
         print(
             f"  {r['label']:25s}{aborted_tag}  size={r['size']:6.2f} bpw  "
             f"ctx@{ctx_label}={ctx_fmt:>12s}  "
-            f"mean={mean_fmt}  median={median_fmt}  "
-            f"p90={p90_fmt}  p999={p999_fmt}  "
+            f"mean={mean_fmt}  p999={p999_fmt}  "
+            f"rms_dp={rms_fmt}  top1={top1_fmt}  ppl_cor={cor_fmt}  "
             f"speed={speed_fmt:>7s}  {pct_fmt:>7s}  ({r['n_chunks']} chunks)"
         )
 
@@ -1843,7 +2392,7 @@ def main():
     prefix = str(args.output)
     html_path = Path(prefix + ".html")
     md_path = Path(prefix + ".md")
-    plot_path = Path(prefix + ".svg")
+    plot_path = Path(prefix + ".log-kld.svg")
 
     # Compute repo-relative POSIX paths for embedded URLs (so raw.githubusercontent.com
     # URLs include any subdirectory the .md lives in, e.g. "perplexity/").
@@ -1880,11 +2429,38 @@ def main():
     plot_path.write_text(svg)
     print(f"SVG  -> {plot_path}")
 
+    # Extra per-stat linear SVGs: mean KLD, 99.9% KLD, RMS Δp, Top-1, Perplexity
+    extra_plots: list[tuple[str, Path]] = []
+    stat_keys = ["mean", "p999", "rms_dp", "top1", "ppl_cor"]
+    # Optional stat (patched llama-perplexity only). Left out of the list
+    # entirely when absent, so no "skipped" line is printed for old logs.
+    if any(r.get("coll") is not None for r in runs):
+        stat_keys.insert(stat_keys.index("top1") + 1, "coll")
+    for key in stat_keys:
+        if not any(
+            not r.get("baseline")
+            and not r.get("logits")
+            and not r.get("aborted")
+            and r.get(key) is not None
+            for r in runs
+        ):
+            print(f"SVG  -> (skipped {key}: no data)")
+            continue
+        p = Path(f"{prefix}.{STAT_SVG_SUFFIX[key]}.svg")
+        p.write_text(
+            generate_stat_svg(
+                runs, key, speed_cutoff_factor=speed_cutoff_factor, ctx_label=ctx_label
+            )
+        )
+        extra_plots.append((STAT_STYLE[key][0], p))
+        print(f"SVG  -> {p}")
+
     md = generate_markdown(
         runs,
         common_params,
         html_path=html_repo_rel,
         plot_path=plot_repo_rel,
+        extra_plots=[(t, _repo_rel(p)) for t, p in extra_plots],
         repo=repo,
         branch=branch,
         speed_cutoff_factor=speed_cutoff_factor,
