@@ -1,7 +1,7 @@
 context:
   # Main branch (upstream llama.cpp)
   # fork: ggml-org/llama.cpp
-  # version: b10085
+  # version: b10173
 
   # https://github.com/ggml-org/llama.cpp/pull/21067
   # Forked from main at b8533 (2026-03-26)
@@ -12,21 +12,18 @@ context:
   # fork: crusaderky/llama.cpp
   # version: b10032-bunch-moe-transfer
 
-  # TernaryBonsai CUDA
-  # https://github.com/ggml-org/llama.cpp/pull/25707
-  # Need to change `tag:` to `rev:` below
-  # fork: PrismML-Eng/llama.cpp
-  # version: 5eec79824b07cb01baf76339227ad2bb98e9ea8a
-
   # beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
+  # + Ternary-Bonsai CUDA
   # https://github.com/Anbeeld/beellama.cpp
   # fork: Anbeeld/beellama.cpp
-  # version: v0.4.0
+  # version: 4a834dd7aae807c36f8aef3ff2d39e826eac9fe7  # v0.4.2 preview
 
-  # Support for Laguna-S-2.1
-  # https://github.com/poolsideai/llama.cpp/tree/laguna
+  # Beellama-v0.4.2 preview
+  # + laguna-S-2.1 cosmetic tweaks
+  # + laguna-S-2.1 DFlash
+  # + llama-perplexity collision probability measure
   fork: crusaderky/llama.cpp
-  version: beellama-preview-v0.4.1-laguna
+  version: beellama-staging-v0.4.2-r1
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
