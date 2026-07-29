@@ -1,0 +1,28 @@
+diff --git a/cmake/common.cmake b/cmake/common.cmake
+index bcf403e0e..900091a88 100644
+--- a/cmake/common.cmake
++++ b/cmake/common.cmake
+@@ -17,7 +17,8 @@ function(llama_add_compile_flags)
+ 
+             list(APPEND CXX_FLAGS -Wmissing-declarations -Wmissing-noreturn)
+ 
+-            list(APPEND WARNING_FLAGS -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function)
++            list(APPEND WARNING_FLAGS -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function
++                                      -Wno-unused-parameter)
+ 
+             list(APPEND C_FLAGS   ${WARNING_FLAGS})
+             list(APPEND CXX_FLAGS ${WARNING_FLAGS})
+diff --git a/ggml/src/CMakeLists.txt b/ggml/src/CMakeLists.txt
+index 82e9480c2..89af721d4 100644
+--- a/ggml/src/CMakeLists.txt
++++ b/ggml/src/CMakeLists.txt
+@@ -36,7 +36,8 @@ endif()
+ 
+ if (GGML_ALL_WARNINGS)
+     if (NOT MSVC)
+-        list(APPEND WARNING_FLAGS -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function)
++        list(APPEND WARNING_FLAGS -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function
++                                  -Wno-unused-parameter)
+         list(APPEND C_FLAGS       -Wshadow -Wstrict-prototypes -Wpointer-arith -Wmissing-prototypes
+                                   -Werror=implicit-int -Werror=implicit-function-declaration)
+         list(APPEND CXX_FLAGS     -Wmissing-declarations -Wmissing-noreturn)

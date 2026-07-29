@@ -67,6 +67,17 @@ source:
     # once upstream guards the call itself or the sysroot becomes selectable.
     - patches/0001-subprocess-guard-addchdir-np-on-glibc-lt-2.29.patch
 
+    # Suppress -Wunused-parameter. It fires in bulk from the conda CUDA headers
+    # ($PREFIX/targets/x86_64-linux/include/cuda_fp4.hpp), which are included
+    # with -I rather than -isystem, and drowns the build log. There is no CMake
+    # option for it: the flag comes from `list(APPEND WARNING_FLAGS ... -Wextra
+    # ...)` emitted via add_compile_options(), so it lands after CXXFLAGS on the
+    # command line and cannot be overridden from the environment -- the negation
+    # has to be appended to those same lists. Two of them: cmake/common.cmake
+    # (common/src/tools) and ggml/src/CMakeLists.txt (ggml, and ggml-cuda, which
+    # forwards CXX_FLAGS into -Xcompiler).
+    - patches/0003-cmake-suppress-unused-parameter-warnings.patch
+
 build:
   number: 0
   string: ${{ backend }}_${{ build_number }}
