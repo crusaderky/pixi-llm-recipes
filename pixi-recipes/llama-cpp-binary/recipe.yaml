@@ -10,7 +10,7 @@ context:
 
   # beellama.cpp
   fork: Anbeeld/beellama.cpp
-  version: v0.4.1
+  version: v0.4.2
   asset_prefix: beellama
 
 package:
