@@ -22,8 +22,9 @@ context:
   # + laguna-S-2.1 cosmetic tweaks
   # + laguna-S-2.1 DFlash
   # + llama-perplexity collision probability measure
+  # + fix compilation warnings in the kvarn headers
   fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.4.2-r1
+  version: beellama-staging-v0.4.2-r2
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
