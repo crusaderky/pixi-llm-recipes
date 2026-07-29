@@ -218,8 +218,11 @@ The recipe has a `context:` block with the active fork pinned and several altern
 2. Sets `RPATH=$ORIGIN` so executables find sibling backend DLLs (e.g. `libggml-cuda.so`) at runtime without `LD_LIBRARY_PATH`
 3. Enables dynamic backend loading (`-DGGML_BACKEND_DL=ON`), all CPU dispatch variants (`-DGGML_CPU_ALL_VARIANTS=ON`), RPC (`-DGGML_RPC=ON`), and disables tests/examples
 4. Symlinks `llama-*` executables and `rpc-server` into `${PREFIX}/bin` via relative paths (`../opt/llama/...`)
+5. Compiles through **ccache** (`CMAKE_{C,CXX,CUDA,HIP}_COMPILER_LAUNCHER`), which is a conda build dependency of the recipe — never a system-wide install
 
 **Important**: Executables and DLLs must coexist in `opt/llama` so that `dlopen` can locate optional backend libraries at runtime.
+
+**ccache**: rattler-build compiles in a fresh `.pixi/bld/llama-cpp/<hash>/` tree with `HOME` pointed at its throwaway work dir, so the cache directory is passed in from `recipe.yaml` (`CCACHE_DIR`, default `~/.cache/ccache`, `CCACHE_MAXSIZE` default `20G`; both overridable via the same-named env vars at solve time). `build.sh` then sets `CCACHE_BASEDIR`/`hash_dir=false`/`compiler_check=content` plus the usual conda sloppiness set so that objects still hit once `${SRC_DIR}`, `${PREFIX}` and `${BUILD_PREFIX}` move to a new build tree. Setting the launchers explicitly also short-circuits ggml's own `GGML_CCACHE` autodetection. The per-build hit rate is printed to the build log after `cmake --build`.
 
 ### The Binary Build Script (`pixi-recipes/llama-cpp-binary/build.sh`)
 

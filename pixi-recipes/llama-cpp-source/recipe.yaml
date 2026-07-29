@@ -37,6 +37,19 @@ context:
   # Only consumed by the rocm backend; harmless for the others.
   gpu_targets: ${{ env.get("LLAMA_GPU_TARGETS", default="gfx1150;gfx1151") }}
 
+  # ccache comes from conda-forge (see requirements.build) — the build never
+  # depends on a system-wide ccache install. Its cache directory has to be
+  # passed in explicitly: rattler-build points HOME at the throwaway work dir
+  # (.pixi/bld/<pkg>/<hash>/work), so a default `$HOME/.cache/ccache` would be
+  # discarded together with the build tree and every build would start cold.
+  # Defaults to the standard per-user location, which scripts/bwrap-*.sh already
+  # bind read-write into the agent sandboxes.
+  ccache_dir: ${{ env.get("CCACHE_DIR", default=env.get("HOME") ~ "/.cache/ccache") }}
+  # ccache's own 5G default is too small here: one cuda build with
+  # GGML_CUDA_FA_ALL_QUANTS=ON is several GiB of objects on its own, so a couple
+  # of versions would evict each other.
+  ccache_maxsize: ${{ env.get("CCACHE_MAXSIZE", default="20G") }}
+
 package:
   name: llama-cpp
   version: ${{ version }}
@@ -86,6 +99,8 @@ build:
     env:
       BACKEND: ${{ backend }}
       GPU_TARGETS: ${{ gpu_targets }}
+      CCACHE_DIR: ${{ ccache_dir }}
+      CCACHE_MAXSIZE: ${{ ccache_maxsize }}
   # Expose each backend as a selectable build flag, e.g. `flags = ["cuda"]`.
   flags:
     - ${{ backend }}
@@ -119,6 +134,7 @@ requirements:
   build:
     - ${{ compiler('c') }}
     - ${{ compiler('cxx') }}
+    - ccache
     - cmake
     - ninja
     - pkg-config
