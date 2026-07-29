@@ -121,15 +121,49 @@ class ModelKV(NamedTuple):
     ``value_dim`` may be 0, which is how an MLA / latent cache (DeepSeek, GLM-4.6+)
     is expressed: a single fused entry per token per layer, whose width goes in
     ``key_dim`` and which is stored at the K cache type.
+
+    The two layer counts are **physical blocks**, i.e. `{arch}.block_count`
+    straight out of the GGUF. A looped / recursive transformer runs those blocks
+    ``n_loops`` times and *every pass gets its own KV-cache layer*, so the cache
+    spans ``block_count * num_loops`` layers; set ``n_loops`` and the arithmetic
+    below expands both groups for you. Never pre-multiply the layer counts by
+    hand -- ``layers_all`` / ``elems_per_token`` are the only loop-aware
+    quantities and every caller must go through them.
     """
 
-    full_attn_layers: int
+    full_attn_layers: int  # physical blocks, before loop expansion
     full_attn_kv_heads: float  # KV heads per full-attention layer
-    sliding_window_layers: int
+    sliding_window_layers: int  # physical blocks, before loop expansion
     sliding_window_kv_heads: float  # KV heads per sliding-window layer
     sliding_window_size: int  # tokens; 0 when the model has no SWA
     key_dim: int  # per-head key dimension
     value_dim: int  # per-head value dimension
+    # `{arch}.num_loops`: passes over the physical blocks, each with its own
+    # cache layer (llama.cpp: `n_layer_all = block_count * num_loops`). 1 for
+    # every ordinary transformer.
+    n_loops: int = 1
+
+    @property
+    def full_attn_layers_all(self) -> int:
+        """Full-attention cache layers, loop expansion included."""
+        return self.full_attn_layers * self.n_loops
+
+    @property
+    def sliding_window_layers_all(self) -> int:
+        """Sliding-window cache layers, loop expansion included."""
+        return self.sliding_window_layers * self.n_loops
+
+    @property
+    def elems_per_token(self) -> int:
+        """K+V cache elements per token over all cache layers, loop expansion
+        included and *ignoring* the SWA window cap (so it is the no-SWA
+        baseline, not the allocation). The quant-independent half of the sizing:
+        multiply by a context length for elems, by bpw/8 for bytes."""
+        width = self.key_dim + self.value_dim
+        return int(
+            self.full_attn_layers_all * self.full_attn_kv_heads * width
+            + self.sliding_window_layers_all * self.sliding_window_kv_heads * width
+        )
 
     def _exact_rows(self, exact_tokens: int, n_parallel: int) -> int:
         """Persistent exact-tail rows for a group: (N + R) per sequence
@@ -143,7 +177,7 @@ class ModelKV(NamedTuple):
         """Unified full-attention group: a shared quant body over the whole
         context, plus a per-sequence f16 exact-tail overlay of (tail + R) rows
         (absent for an exact f16 body or a zero tail)."""
-        layers, heads = self.full_attn_layers, self.full_attn_kv_heads
+        layers, heads = self.full_attn_layers_all, self.full_attn_kv_heads
 
         def side(head_dim: int, bpw: float) -> float:
             elems = layers * heads * head_dim
@@ -161,7 +195,7 @@ class ModelKV(NamedTuple):
         exact f16) it is a bodyless exact f16 ring of (window + R) rows per
         sequence; otherwise a quant body over the window plus a per-sequence
         (tail + R) f16 overlay."""
-        layers, heads = self.sliding_window_layers, self.sliding_window_kv_heads
+        layers, heads = self.sliding_window_layers_all, self.sliding_window_kv_heads
         window = min(ctx_size, self.sliding_window_size)
 
         def side(head_dim: int, bpw: float) -> float:
@@ -216,7 +250,7 @@ class ModelKV(NamedTuple):
         rows = [
             (
                 "full-attn",
-                self.full_attn_layers,
+                self.full_attn_layers_all,
                 self.full_attn_kv_heads,
                 full_note,
                 self._full_group_bytes(
@@ -239,7 +273,7 @@ class ModelKV(NamedTuple):
             rows.append(
                 (
                     "sliding-window",
-                    self.sliding_window_layers,
+                    self.sliding_window_layers_all,
                     self.sliding_window_kv_heads,
                     swa_note,
                     self._swa_group_bytes(
@@ -256,7 +290,10 @@ class ModelKV(NamedTuple):
 # model reference on the llama-perplexity command line (-hf / -m / --model).
 #
 # Geometry values were read from the GGUF headers of the models pinned in
-# models.ini (via scripts/gguf-meta-extract.py).
+# models.ini (via scripts/gguf-meta-extract.py). Transcribe each hparam as it
+# appears in the header -- layer counts are `block_count`, and a `num_loops`
+# goes in `n_loops`. Do NOT fold one field into another: every derived quantity
+# is a ModelKV method, so a curated entry and a GGUF-derived one always agree.
 MODEL_KV: dict[str, ModelKV] = {
     "Qwen3.6-35B-A3B": ModelKV(
         full_attn_layers=41,
@@ -347,6 +384,18 @@ MODEL_KV: dict[str, ModelKV] = {
         sliding_window_size=0,
         key_dim=64,
         value_dim=64,
+    ),
+    # Looped transformer: block_count=22, num_loops=2 -> 44 cache layers.
+    # Both values go in as-is; ModelKV does the multiplication.
+    "Nanbeige4.2-3B": ModelKV(
+        full_attn_layers=22,
+        full_attn_kv_heads=8,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=128,
+        value_dim=128,
+        n_loops=2,
     ),
     # Laguna's hybrid SWA (3:1, window 512) lives in the arch code, not the GGUF
     # metadata; per models.ini: 36 sliding-window + 12 full layers, 8 KV heads.

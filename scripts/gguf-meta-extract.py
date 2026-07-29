@@ -449,6 +449,25 @@ def _norm_per_layer(val, n_layer):
     return [val] * n_layer
 
 
+def _n_loops(md):
+    """Loop count of a looped / recursive transformer, >= 1.
+
+    An arch that carries `{arch}.num_loops` (nanbeige) runs its `block_count`
+    physical blocks that many times and gives **every pass its own KV-cache
+    layer**: its loader tiles the per-layer hparam arrays and sets
+    `n_layer_all = block_count * num_loops` (`src/models/nanbeige.cpp`), and
+    the cache is allocated over `n_layer()` == `n_layer_all`. Sizing on
+    `block_count` alone understates the cache by exactly this factor.
+
+    This function only *reads* the key: the expansion itself is `ModelKV`'s
+    `n_loops` field, so it applies to the hand-curated `MODEL_KV` table and the
+    KLD report too.
+    """
+    arch = md.get("general.architecture")
+    n = md.get(f"{arch}.num_loops") if arch else None
+    return int(n) if isinstance(n, (int, float)) and int(n) > 1 else 1
+
+
 def _swa_flags(pattern, n_layer, dense_first=False):
     """Per-layer SWA bool list, mirroring `llama_hparams::set_swa_pattern`.
 
@@ -564,7 +583,9 @@ def _model_kv_from_metadata(md):
     (`head_count_kv` as an array), distinct key/value head dims, and
     sliding-window attention. Layers whose `head_count_kv` is 0 -- the conv /
     recurrent blocks of a hybrid model -- hold no KV cache and are counted in
-    neither group, per the ModelKV contract.
+    neither group, per the ModelKV contract. Layer counts stay *physical*: a
+    looped / recursive architecture is expanded by ModelKV via `n_loops` (see
+    `_n_loops`), never here.
 
     MLA models are handled here too: `attention.key_length` is already the
     cached latent width (kv_lora_rank + rope), and llama.cpp allocates no V
@@ -583,6 +604,8 @@ def _model_kv_from_metadata(md):
     n_layer = g("block_count")
     if not n_layer:
         return None
+    n_blocks = n_layer  # physical blocks, before any loop expansion
+    n_loops = _n_loops(md)
     n_head = g("attention.head_count")
     n_embd = g("embedding_length")
     key_length = g("attention.key_length")
@@ -645,6 +668,11 @@ def _model_kv_from_metadata(md):
                 "groups and are therefore wrong.\n"
             )
 
+    # Groups are split over the *physical* blocks; the loop expansion is
+    # ModelKV's job (`n_loops`). Tiling the per-layer arrays here as the arch
+    # loader does would be equivalent -- tiling preserves both the per-group
+    # layer ratio and the `_group_kv_heads` average -- but it would put the
+    # multiplication in this script instead of in the shared model.
     cached = [il for il in range(n_layer) if head_kv[il]]
     swa_layers = [il for il in cached if swa_flags and swa_flags[il]]
     swa_set = set(swa_layers)
@@ -658,6 +686,7 @@ def _model_kv_from_metadata(md):
         sliding_window_size=swa if swa_layers else 0,
         key_dim=key_length,
         value_dim=value_length,
+        n_loops=n_loops,
     )
 
     gqa = isinstance(n_head, int) and any(head_kv[il] < n_head for il in cached)
@@ -668,28 +697,32 @@ def _model_kv_from_metadata(md):
         # Hybrid: the remaining layers are conv / recurrent / linear-attention
         # blocks that keep a fixed-size state instead of a KV cache.
         attn_kind += f" ({n_layer - len(cached)} recurrent)"
+    # Layer counts for display come back out of the spec, so they carry the loop
+    # expansion without this script ever multiplying anything.
     info = {
         "attn_kind": attn_kind,
-        "n_attn_layers": len(cached),
-        "n_full_layers": len(full_layers),
-        "n_swa_layers": len(swa_layers),
+        "n_attn_layers": spec.full_attn_layers_all + spec.sliding_window_layers_all,
+        "n_full_layers": spec.full_attn_layers_all,
+        "n_swa_layers": spec.sliding_window_layers_all,
         "swa_window": swa if swa_layers else None,
+        "n_blocks": n_blocks,
+        "n_loops": n_loops,
         "source": "metadata",
         "n_head": n_head,
         "head_kv_counts": [head_kv[il] for il in cached],
         "key_length": key_length,
         "value_length": value_length,
-        # elems/token summed over the cached layers (K+V), ignoring SWA capping
-        "total_width": sum(head_kv[il] for il in cached) * (key_length + value_length),
     }
     return spec, info
 
 
-def _model_kv_from_tensors(tensors):
+def _model_kv_from_tensors(tensors, n_loops=1):
     """Fallback: derive the KV geometry from per-layer tensor shapes when the
     hparams are missing. Handles separate attn_k/attn_v tensors and MLA
-    (attn_kv_a_mqa); no SWA awareness. Returns (spec, info); the geometry is
-    empty (zero bytes at any context) if no KV tensors are found.
+    (attn_kv_a_mqa); no SWA awareness. `n_loops` > 1 scales the result for a
+    looped transformer, whose tensors describe only one pass (see `_n_loops`).
+    Returns (spec, info); the geometry is empty (zero bytes at any context) if
+    no KV tensors are found.
 
     * MLA (attn_kv_a_mqa present) -- one compressed latent is cached per layer
       and llama.cpp allocates no V cache (`has_v = !is_mla`):
@@ -721,6 +754,8 @@ def _model_kv_from_tensors(tensors):
     # Tensor shapes only recover the per-model totals, not the per-layer
     # `layers x heads x dim` factorisation, so fold both into the dims of a
     # single notional one-KV-head layer: ModelKV only ever uses the product.
+    # `n_loops` then scales that one notional layer, which is exactly right --
+    # the tensors describe a single pass over the blocks.
     spec = ModelKV(
         full_attn_layers=1,
         full_attn_kv_heads=1,
@@ -729,13 +764,17 @@ def _model_kv_from_tensors(tensors):
         sliding_window_size=0,
         key_dim=k_width,
         value_dim=v_width,
+        n_loops=n_loops,
     )
     info = {
         "attn_kind": attn_kind,
-        "n_attn_layers": n_attn_layers,
-        "kv_width": k_width + v_width,
+        # Display only, and the one count the spec cannot supply: its layer field
+        # is the notional 1 above, so `full_attn_layers_all` is just `n_loops`.
+        "n_attn_layers": n_attn_layers * n_loops,
+        "n_blocks": n_attn_layers,
+        "n_loops": n_loops,
+        "kv_width": spec.elems_per_token,
         "source": "tensors",
-        "total_width": k_width + v_width,
     }
     return spec, info
 
@@ -776,7 +815,7 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
     # GGUFs whose hparams are missing.
     result = _model_kv_from_metadata(metadata)
     if result is None:
-        result = _model_kv_from_tensors(tensors)
+        result = _model_kv_from_tensors(tensors, _n_loops(metadata))
     spec, info = result
     kv_by_quant = {
         _kv_label(q, tail): int(
@@ -833,7 +872,9 @@ def _kv_cache_breakdown(info, kv_by_quant):
     has more than one."""
     spec = info["spec"]
     n_ctx = info["n_ctx"]
-    total_width = info["total_width"]
+    # Straight from the spec, so it carries the loop expansion and cannot drift
+    # from the byte figures below.
+    total_width = spec.elems_per_token
     full_ctx_elems = total_width * n_ctx  # every layer at full n_ctx (no SWA)
     lines = ["    KV cache size derivation:"]
     gib = 1 << 30
@@ -844,6 +885,12 @@ def _kv_cache_breakdown(info, kv_by_quant):
         klen = info["key_length"]
         vlen = info["value_length"]
         uniform = len(set(head_kv)) == 1
+        if info.get("n_loops", 1) > 1:
+            lines.append(
+                f"      looped transformer: {info['n_blocks']} blocks x "
+                f"{info['n_loops']} loops = {info['n_blocks'] * info['n_loops']} "
+                "cache layers"
+            )
         if uniform and not info.get("n_swa_layers"):
             per_layer = head_kv[0] * (klen + vlen)
             lines.append(
@@ -869,7 +916,7 @@ def _kv_cache_breakdown(info, kv_by_quant):
             if info.get("n_swa_layers"):
                 window = min(n_ctx, spec.sliding_window_size)
                 swa_width = (
-                    spec.sliding_window_layers
+                    spec.sliding_window_layers_all
                     * spec.sliding_window_kv_heads
                     * (spec.key_dim + spec.value_dim)
                 )
@@ -916,9 +963,7 @@ def _kv_cache_breakdown(info, kv_by_quant):
                 # The tensor path recovers no per-layer factorisation (see
                 # _model_kv_from_tensors), so its notional 1 layer x 1 head
                 # would only mislead -- report the real totals instead.
-                geom = (
-                    f"{info['n_attn_layers']} layers, {info['total_width']} elems/token"
-                )
+                geom = f"{info['n_attn_layers']} layers, {total_width} elems/token"
             else:
                 geom = f"{layers} layers x{kv_heads:g} kv-heads"
             lines.append(
@@ -1101,6 +1146,8 @@ def main():
     else:
         n_ctx = info["n_ctx"]
         layer_desc = f"{info['n_attn_layers']} attn layers"
+        if info.get("n_loops", 1) > 1:
+            layer_desc += f" ({info['n_blocks']} blocks x {info['n_loops']} loops)"
         if info.get("n_swa_layers"):
             layer_desc += (
                 f": {info['n_full_layers']} full @ {n_ctx // 1024}k tok, "
