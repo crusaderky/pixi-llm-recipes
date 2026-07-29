@@ -58,22 +58,22 @@ BPW = {
     "q4_1": 5.0,  # d(fp16)=16 + m(fp16)=16 + qs(4b*32)=128 => 160/32
     "q4_0": 4.5,  # d(fp16)=16 + qs(4b*32)=128 => 144/32
     "iq4_nl": 4.5,  # d(fp16)=16 + qs(4b*32)=128 => 144/32 (same size as q4_0)
-    # beellama.cpp 0.4.0 low/high-bit KV quants (block of 32 unless noted;
+    # beellama.cpp low/high-bit KV quants (block of 32 unless noted;
     # d/m = fp16 scale/min).  Sizes verified against ggml-common.h static_asserts.
-    "q2_0": 2.25,  # QK2_0=64: d(fp16)=16 + qs(2b*64)=128 => 144/64
-    "q2_1": 3.0,  # d(fp16)=16 + m(fp16)=16 + qs(2b*32)=64 => 96/32
-    "q3_0": 3.5,  # d(fp16)=16 + qs(3b*32)=96 => 112/32
-    "q3_1": 4.0,  # d(fp16)=16 + m(fp16)=16 + qs(3b*32)=96 => 128/32
-    "q6_0": 6.5,  # d(fp16)=16 + qs(6b*32)=192 => 208/32
     "q6_1": 7.0,  # d(fp16)=16 + m(fp16)=16 + qs(6b*32)=192 => 224/32
+    "q6_0": 6.5,  # d(fp16)=16 + qs(6b*32)=192 => 208/32
+    "q3_1": 4.0,  # d(fp16)=16 + m(fp16)=16 + qs(3b*32)=96 => 128/32
+    "q3_0": 3.5,  # d(fp16)=16 + qs(3b*32)=96 => 112/32
+    "q2_1": 3.0,  # d(fp16)=16 + m(fp16)=16 + qs(2b*32)=64 => 96/32
+    "q2_0": 2.25,  # QK2_0=64: d(fp16)=16 + qs(2b*64)=128 => 144/64
     # beellama.cpp KVarN N-bit cache: 128x128 tile, N-bit payload + per-row/col
     # fp16 scales.  Per element = (16384*N + 6144) / 16384 = N + 3/8 bpw (K==V).
-    "kvarn2": 2.375,  # 2 + 3/8
-    "kvarn3": 3.375,  # 3 + 3/8
-    "kvarn4": 4.375,  # 4 + 3/8
-    "kvarn5": 5.375,  # 5 + 3/8
-    "kvarn6": 6.375,  # 6 + 3/8
     "kvarn8": 8.375,  # 8 + 3/8
+    "kvarn6": 6.375,  # 6 + 3/8
+    "kvarn5": 5.375,  # 5 + 3/8
+    "kvarn4": 4.375,  # 4 + 3/8
+    "kvarn3": 3.375,  # 3 + 3/8
+    "kvarn2": 2.375,  # 2 + 3/8
     # TheTom's TurboQuant
     "turbo4": 4.25,  # 4.25 bits/val
     "turbo3": 3.5,  # 3.5 bits/val
@@ -88,19 +88,19 @@ BPW = {
     "q5_k_s": 5.0,
     "q5_k_m": 5.5,
     "q6_k": 6.0,
+    # TheTom's TurboQuant K-quant types — not used for KV cache but kept for reference
     "tq3_1s": 4.0,
     "tq4_1s": 5.0,
 }
 
-BPW_LOOKUP = {k.lower(): v for k, v in BPW.items()}
-
 
 def resolve_bpw(name: str) -> float:
     key = name.strip().lower()
-    if key in BPW_LOOKUP:
-        return BPW_LOOKUP[key]
-    print(f"WARNING: unknown quant '{name}', using 8.0 bpw", file=sys.stderr)
-    return 8.0
+    try:
+        return BPW[key]
+    except KeyError:
+        print(f"WARNING: unknown quant '{name}', using 32.0 bpw", file=sys.stderr)
+        return 32.0
 
 
 # ---------------------------------------------------------------------------
@@ -413,9 +413,9 @@ def _match_model(model_ref: str):
     if not model_ref:
         return None
     ref = model_ref.lower()
-    for key in sorted(_MODEL_KV, key=len, reverse=True):
+    for key, value in _MODEL_KV.items():
         if key.lower() in ref:
-            return key, _MODEL_KV[key]
+            return key, value
     return None
 
 
