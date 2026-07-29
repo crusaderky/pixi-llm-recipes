@@ -52,6 +52,7 @@ import sys
 from urllib.parse import unquote, urlparse
 
 import requests
+from kv_cache_common import ModelKV, resolve_bpw
 
 try:
     from huggingface_hub import HfApi, hf_hub_url
@@ -448,13 +449,17 @@ def _norm_per_layer(val, n_layer):
     return [val] * n_layer
 
 
-def _swa_flags(pattern, n_layer):
-    """Per-layer SWA bool list from `attention.sliding_window_pattern`.
+def _swa_flags(pattern, n_layer, dense_first=False):
+    """Per-layer SWA bool list, mirroring `llama_hparams::set_swa_pattern`.
 
-    * Array form (e.g. mimo2): one bool per layer, True => sliding-window.
-    * Scalar form `n` (llama.cpp set_swa_pattern, dense_first=False): layer il
-      is SWA iff `il % n < n-1` -- one full-attention layer at the end of each
-      group of n.
+    * Array form (e.g. gemma4, lfm2, mimo2): one bool per layer, True => SWA.
+    * Scalar period `n`: with ``dense_first=False`` layer il is SWA iff
+      `il % n < n-1` (the full-attention layer sits at the END of each group of
+      n); with ``dense_first=True`` iff `il % n != 0` (at the START). `n == 0`
+      means every layer is SWA, `n == 1` that none is.
+
+    ``dense_first`` is never carried by the GGUF -- it is baked into each
+    architecture's loader -- so it comes from `_ARCH_SWA_PATTERN`.
 
     Returns a list[bool] of length n_layer, or None if there is no pattern.
     """
@@ -465,33 +470,108 @@ def _swa_flags(pattern, n_layer):
     n = int(pattern)
     if n <= 0:
         return [True] * n_layer
+    if dense_first:
+        return [(il % n) != 0 for il in range(n_layer)]
     return [(il % n) < (n - 1) for il in range(n_layer)]
 
 
-# Bytes per element for each KV-cache quantization we report on. Source:
-#   f16    -- 16-bit IEEE float, no block structure  -> 2.0 B/elem
-#   q8_0   -- llama.cpp q8_0 block: 32 int8 + fp16 scale = 34 B / 32 elem
-#   kvarnN -- BeeLlama.cpp KVarN n-bit round-to-nearest cache quant
-#             (Huawei KVarN paper, n = bits/value, block-scale overhead
-#             small enough to ignore at order-of-magnitude level)
-_KV_QUANT_TABLE = (
-    ("f16", 2.0, "16-bit float (no block)"),
-    ("q8_0", 34 / 32, "8-bit, q8_0 block (32 + fp16 scale)"),
-    ("kvarn4", 0.5, "4-bit KVarN"),
-    ("kvarn3", 0.375, "3-bit KVarN"),
+# Per-architecture sliding-window pattern, mirroring the
+# `hparams.set_swa_pattern(period, dense_first)` call in each arch's loader in
+# llama.cpp (`src/models/<arch>.cpp`). arch name -> (default period, dense_first);
+# period 0 => every layer is SWA, period 1 => none is.
+#
+# This table is not redundant with the GGUF: `attention.sliding_window_pattern`
+# is optional and, when present, only overrides the *period* -- the dense-first
+# phase lives exclusively in the arch code, as does the period itself for the
+# many GGUFs that omit the key. Without it a model that declares
+# `attention.sliding_window` but no pattern (every Laguna and Gemma-3 GGUF, for
+# two) is sized as if all its layers were full-attention, overstating the cache
+# several-fold.
+#
+# Architectures that read the pattern as a per-layer bool array (gemma4, lfm2,
+# mimo2, step35, nanbeige, dflash) need no entry -- `_swa_flags` takes the array
+# straight from the GGUF. cohere2moe and mellum are deliberately absent: their
+# loaders apply a period only when the key is present, and fall back to no SWA.
+_ARCH_SWA_PATTERN = {
+    "afmoe": (4, False),
+    "cohere2": (4, False),
+    "deepseek4": (0, False),
+    "exaone-moe": (4, False),
+    "exaone4": (4, False),
+    "gemma-embedding": (6, False),
+    "gemma2": (2, False),
+    "gemma3": (6, False),
+    "gemma3n": (5, False),
+    "gpt-oss": (2, False),
+    "laguna": (4, True),
+    "llama4": (4, False),
+    "modern-bert": (3, True),
+    "olmo2": (4, False),
+    "phi3": (1, False),
+    "plamo3": (8, False),
+    "smallthinker": (4, True),
+}
+
+
+# KV-cache configurations reported on: (symmetric K/V cache quant, beellama
+# --kv-tail-tokens). Bits-per-element come from kv_cache_common.BPW, which folds
+# in each format's block/tile overhead (so kvarn4 is 4.375 bpw, not a flat 4)
+# and is shared with the KLD sweep tooling. The tails pair each quant with the
+# exact-tail size that makes it usable in practice: the lossier the body, the
+# longer the f16 tail needed to hold recent tokens exactly.
+KV_QUANTS = (
+    ("f16", 0),
+    ("q8_0", 0),
+    ("kvarn5", 128),
+    ("kvarn4", 1024),
+    ("kvarn3", 2048),
 )
 
+# One sequence: the estimate is for a single llama-cli / llama-server slot. The
+# f16 exact-tail overlay ModelKV adds is per-sequence, so raise this to size a
+# multi-slot deployment.
+KV_N_PARALLEL = 1
 
-def _kv_from_metadata(md, n_ctx):
-    """KV-cache width derived from GGUF hparams. Handles fused QKV (no separate
-    attn_k/attn_v tensors), per-layer GQA (`head_count_kv` as an array),
-    distinct key/value head dims, and sliding-window attention.
 
-    Returns (total_elems, info) or None if the metadata is insufficient. Not
-    used for MLA models (the caller checks first). total_elems already accounts
-    for per-layer SWA capping; full_ctx_elems (in info) is the no-SWA counter-
-    part (every layer at full n_ctx) used for SWA-savings reporting and for
-    callers that want to recompute kv_bytes at a different bytes-per-elem.
+def _kv_label(quant, tail):
+    """Display label for a (quant, tail) pair: ``q8_0``, ``kvarn4 t1024``."""
+    return f"{quant} t{tail}" if tail else quant
+
+
+# Width of the widest label, so the byte columns line up.
+_KV_LABEL_W = max(len(_kv_label(q, t)) for q, t in KV_QUANTS)
+
+
+def _group_kv_heads(head_kv, layers):
+    """KV heads per layer for a group of layer indices.
+
+    Returns the shared count when the group is uniform (the usual case) and the
+    group average otherwise -- exact either way, because only ``layers *
+    kv_heads`` enters ModelKV's arithmetic.
+    """
+    if not layers:
+        return 0
+    counts = {head_kv[il] for il in layers}
+    if len(counts) == 1:
+        return counts.pop()
+    return sum(head_kv[il] for il in layers) / len(layers)
+
+
+def _model_kv_from_metadata(md):
+    """KV-cache geometry derived from GGUF hparams, as a ModelKV.
+
+    Handles fused QKV (no separate attn_k/attn_v tensors), per-layer GQA
+    (`head_count_kv` as an array), distinct key/value head dims, and
+    sliding-window attention. Layers whose `head_count_kv` is 0 -- the conv /
+    recurrent blocks of a hybrid model -- hold no KV cache and are counted in
+    neither group, per the ModelKV contract.
+
+    MLA models are handled here too: `attention.key_length` is already the
+    cached latent width (kv_lora_rank + rope), and llama.cpp allocates no V
+    cache for them at all, so the V side is zeroed. See the `is_mla` block
+    below.
+
+    Returns (spec, info) or None if the metadata is insufficient.
     """
     arch = md.get("general.architecture")
     if not arch:
@@ -518,92 +598,146 @@ def _kv_from_metadata(md, n_ctx):
     if key_length is None or value_length is None or head_kv is None:
         return None
 
+    # MLA (DeepSeek-V2+, Kimi, GLM-DSA): only the compressed latent is cached.
+    # `llama_hparams::is_mla()` is "both MLA head dims present and non-zero",
+    # and llama-kv-cache.cpp then allocates K only (`has_v = !is_mla`). The K
+    # width is the ordinary `n_embd_head_k * n_head_kv` -- for these GGUFs
+    # `attention.key_length` is already kv_lora_rank + rope, and
+    # `key_length_mla` / `value_length_mla` are the inner per-head dims used by
+    # the attention math, never by the cache. `attention.value_length` is dead
+    # weight here (Kimi-K3 ships a nonsensical 74) and must NOT be counted.
+    is_mla = bool(g("attention.key_length_mla")) and bool(
+        g("attention.value_length_mla")
+    )
+    if is_mla:
+        value_length = 0
+
     head_kv = _norm_per_layer(head_kv, n_layer)
     if head_kv is None:
         return None
 
     swa = g("attention.sliding_window")
-    swa_flags = (
-        _swa_flags(g("attention.sliding_window_pattern"), n_layer) if swa else None
+    swa_flags = None
+    if swa:
+        # The GGUF pattern key overrides only the period; the phase, and the
+        # period itself when the key is absent, come from the arch's loader.
+        period, dense_first = _ARCH_SWA_PATTERN.get(arch, (None, False))
+        pattern = g("attention.sliding_window_pattern")
+        swa_flags = _swa_flags(
+            period if pattern is None else pattern, n_layer, dense_first
+        )
+        if swa_flags is None:
+            sys.stderr.write(
+                f"WARNING: '{arch}' declares attention.sliding_window={swa} but "
+                "carries no sliding-window pattern, and none is known for this "
+                "architecture (add it to _ARCH_SWA_PATTERN). Sizing every layer "
+                "at the full context -- the KV-cache figures below are an UPPER "
+                "BOUND, potentially several times the real allocation.\n"
+            )
+        elif (g("attention.key_length_swa") or key_length) != key_length or (
+            g("attention.value_length_swa") or value_length
+        ) != value_length:
+            # ModelKV carries one key/value head dim for both layer groups.
+            sys.stderr.write(
+                f"WARNING: '{arch}' gives its sliding-window layers different "
+                "key/value head dims than its full-attention layers; the "
+                "KV-cache figures below use the full-attention dims for both "
+                "groups and are therefore wrong.\n"
+            )
+
+    cached = [il for il in range(n_layer) if head_kv[il]]
+    swa_layers = [il for il in cached if swa_flags and swa_flags[il]]
+    swa_set = set(swa_layers)
+    full_layers = [il for il in cached if il not in swa_set]
+
+    spec = ModelKV(
+        full_attn_layers=len(full_layers),
+        full_attn_kv_heads=_group_kv_heads(head_kv, full_layers),
+        sliding_window_layers=len(swa_layers),
+        sliding_window_kv_heads=_group_kv_heads(head_kv, swa_layers),
+        sliding_window_size=swa if swa_layers else 0,
+        key_dim=key_length,
+        value_dim=value_length,
     )
 
-    total_elems = 0
-    full_ctx_elems = 0
-    n_swa = n_full = 0
-    eff_ctx_per_layer = []
-    for il in range(n_layer):
-        width = head_kv[il] * (key_length + value_length)  # K + V elems/token
-        if swa_flags and swa_flags[il]:
-            eff_ctx = min(n_ctx, swa)
-            n_swa += 1
-        else:
-            eff_ctx = n_ctx
-            n_full += 1
-        eff_ctx_per_layer.append(eff_ctx)
-        total_elems += width * eff_ctx
-        full_ctx_elems += width * n_ctx
-
-    attn_kind = "GQA" if (n_head and any(h < n_head for h in head_kv)) else "MHA"
-    if swa_flags:
+    gqa = isinstance(n_head, int) and any(head_kv[il] < n_head for il in cached)
+    attn_kind = "MLA" if is_mla else ("GQA" if gqa else "MHA")
+    if swa_layers:
         attn_kind += "+SWA"
-    total_width = sum(
-        head_kv[il] * (key_length + value_length) for il in range(n_layer)
-    )
+    if len(cached) < n_layer:
+        # Hybrid: the remaining layers are conv / recurrent / linear-attention
+        # blocks that keep a fixed-size state instead of a KV cache.
+        attn_kind += f" ({n_layer - len(cached)} recurrent)"
     info = {
         "attn_kind": attn_kind,
-        "n_attn_layers": n_layer,
-        "n_full_layers": n_full,
-        "n_swa_layers": n_swa,
-        "swa_window": swa if swa_flags else None,
+        "n_attn_layers": len(cached),
+        "n_full_layers": len(full_layers),
+        "n_swa_layers": len(swa_layers),
+        "swa_window": swa if swa_layers else None,
         "source": "metadata",
         "n_head": n_head,
-        "head_kv_counts": head_kv,
+        "head_kv_counts": [head_kv[il] for il in cached],
         "key_length": key_length,
         "value_length": value_length,
-        "total_width": total_width,  # elems/token summed over layers (K+V)
-        "full_ctx_elems": full_ctx_elems,  # same shape, no SWA capping
-        "eff_ctx_per_layer": eff_ctx_per_layer,
+        # elems/token summed over the cached layers (K+V), ignoring SWA capping
+        "total_width": sum(head_kv[il] for il in cached) * (key_length + value_length),
     }
-    return total_elems, info
+    return spec, info
 
 
-def _kv_from_tensors(tensors, n_ctx):
-    """Fallback: derive KV width from per-layer tensor shapes when metadata is
-    missing. Handles separate attn_k/attn_v tensors and MLA (attn_kv_a_mqa);
-    no SWA awareness. Returns (total_elems, info); total_elems is 0 if no KV
-    tensors are found.
+def _model_kv_from_tensors(tensors):
+    """Fallback: derive the KV geometry from per-layer tensor shapes when the
+    hparams are missing. Handles separate attn_k/attn_v tensors and MLA
+    (attn_kv_a_mqa); no SWA awareness. Returns (spec, info); the geometry is
+    empty (zero bytes at any context) if no KV tensors are found.
 
+    * MLA (attn_kv_a_mqa present) -- one compressed latent is cached per layer
+      and llama.cpp allocates no V cache (`has_v = !is_mla`):
+          k_width += dims[1] of blk.N.attn_kv_a_mqa.weight  (kv_lora_rank + rope)
+      MLA is checked FIRST: a hybrid MLA model (e.g. Kimi-K3) also carries
+      attn_k/attn_v, but on its linear-attention layers, which cache nothing.
     * Standard attention -- K and V are separate tensors; sum their output
       widths over all layers (no extra x2):
-          width += dims[1] of blk.N.attn_k.weight   (n_embd_k_gqa)
-          width += dims[1] of blk.N.attn_v.weight   (n_embd_v_gqa)
-    * MLA (no attn_k/attn_v) -- a single compressed latent is cached per layer:
-          width += dims[1] of blk.N.attn_kv_a_mqa.weight  (kv_lora_rank + rope)
+          k_width += dims[1] of blk.N.attn_k.weight   (n_embd_k_gqa)
+          v_width += dims[1] of blk.N.attn_v.weight   (n_embd_v_gqa)
     """
-    k_width = sum(d[1] for n, d, _ in tensors if len(d) >= 2 and _RE_ATTN_K.match(n))
-    v_width = sum(d[1] for n, d, _ in tensors if len(d) >= 2 and _RE_ATTN_V.match(n))
-    n_attn_layers = sum(1 for n, d, _ in tensors if len(d) >= 2 and _RE_ATTN_K.match(n))
-
-    if k_width or v_width:
-        attn_kind = "GQA/MHA"
-        kv_width = k_width + v_width
-    else:
+    mla = [d for n, d, _ in tensors if len(d) >= 2 and _RE_MLA.match(n)]
+    if mla:
         attn_kind = "MLA"
-        kv_width = sum(d[1] for n, d, _ in tensors if len(d) >= 2 and _RE_MLA.match(n))
+        k_width, v_width = sum(d[1] for d in mla), 0
+        n_attn_layers = len(mla)
+    else:
+        attn_kind = "GQA/MHA"
+        k_width = sum(
+            d[1] for n, d, _ in tensors if len(d) >= 2 and _RE_ATTN_K.match(n)
+        )
+        v_width = sum(
+            d[1] for n, d, _ in tensors if len(d) >= 2 and _RE_ATTN_V.match(n)
+        )
         n_attn_layers = sum(
-            1 for n, d, _ in tensors if len(d) >= 2 and _RE_MLA.match(n)
+            1 for n, d, _ in tensors if len(d) >= 2 and _RE_ATTN_K.match(n)
         )
 
-    total_elems = n_ctx * kv_width
+    # Tensor shapes only recover the per-model totals, not the per-layer
+    # `layers x heads x dim` factorisation, so fold both into the dims of a
+    # single notional one-KV-head layer: ModelKV only ever uses the product.
+    spec = ModelKV(
+        full_attn_layers=1,
+        full_attn_kv_heads=1,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=k_width,
+        value_dim=v_width,
+    )
     info = {
         "attn_kind": attn_kind,
         "n_attn_layers": n_attn_layers,
-        "kv_width": kv_width,
+        "kv_width": k_width + v_width,
         "source": "tensors",
-        "total_width": kv_width,
-        "full_ctx_elems": total_elems,  # no SWA awareness in this path
+        "total_width": k_width + v_width,
     }
-    return total_elems, info
+    return spec, info
 
 
 def estimate_context_vram(tensors, metadata, n_ctx=262144):
@@ -611,13 +745,14 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
 
     Returns (kv_by_quant, overhead_bytes, info_dict).
 
-    kv_by_quant is a dict {qname: bytes} with one entry per row of
-    _KV_QUANT_TABLE. The KV-cache width is derived from GGUF hparams when
-    available (`_kv_from_metadata`), which reflects fused QKV, per-layer GQA,
-    distinct K/V head dims, and sliding-window attention. For MLA models, or
-    when the hparams are missing, it falls back to per-layer tensor shapes
-    (`_kv_from_tensors`). The total elements are independent of the quant
-    type; bytes = total_elems * bytes_per_elem for the chosen quant.
+    kv_by_quant is a dict {label: bytes}, keyed by `_kv_label`, with one entry
+    per KV_QUANTS (quant, tail) pair. The cache geometry is derived from GGUF
+    hparams when available (`_model_kv_from_metadata`), which reflects fused
+    QKV, per-layer GQA, distinct K/V head dims, and sliding-window attention.
+    For MLA models, or when the hparams are missing, it falls back to per-layer
+    tensor shapes (`_model_kv_from_tensors`). Either way the bytes are computed
+    by kv_cache_common.ModelKV -- the same model the KLD report's
+    "Context (MiB)" column uses -- for KV_N_PARALLEL sequences.
 
     Overhead is the fixed CUDA context plus the logits/output buffer
     (n_vocab * 4 bytes for one decoded token) -- neither scales with context
@@ -634,16 +769,23 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
                 n_vocab = dims[1]
                 break
 
-    # MLA caches a compressed latent, not n_head_kv*(k+v) -- the hparams-based
-    # estimate would be wrong for it, so route MLA models to the tensor path.
-    is_mla = any(_RE_MLA.match(n) for n, _, _ in tensors)
-    result = None
-    if not is_mla:
-        result = _kv_from_metadata(metadata, n_ctx)
+    # hparams first -- `n_embd_k_gqa(il) = key_length * head_count_kv(il)` is
+    # llama.cpp's own formula, and it is the only source that knows which layers
+    # of a hybrid hold a KV cache at all (head_count_kv == 0 marks the conv /
+    # recurrent / linear-attention blocks). Tensor shapes are the fallback for
+    # GGUFs whose hparams are missing.
+    result = _model_kv_from_metadata(metadata)
     if result is None:
-        result = _kv_from_tensors(tensors, n_ctx)
-    total_elems, info = result
-    kv_by_quant = {qname: int(total_elems * bpe) for qname, bpe, _ in _KV_QUANT_TABLE}
+        result = _model_kv_from_tensors(tensors)
+    spec, info = result
+    kv_by_quant = {
+        _kv_label(q, tail): int(
+            spec.get_total_kv_cache_size(
+                n_ctx, resolve_bpw(q), resolve_bpw(q), tail, KV_N_PARALLEL
+            )
+        )
+        for q, tail in KV_QUANTS
+    }
 
     # Lightning-indexer key cache (DeepSeek-V3.2 DSA / MiniMax-M3 MSA,
     # llama.cpp PR #24908). Block-sparse attention stores one extra key per
@@ -671,6 +813,7 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
 
     logits_bytes = n_vocab * 4
     overhead_bytes = CUDA_CTX_OVERHEAD + logits_bytes
+    info["spec"] = spec
     info["n_ctx"] = n_ctx
     info["n_vocab"] = n_vocab
     info["logits_bytes"] = logits_bytes
@@ -683,12 +826,15 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
 
 def _kv_cache_breakdown(info, kv_by_quant):
     """Human-readable, line-by-line derivation of the KV-cache figure from
-    `info` (set by `_kv_from_metadata` / `_kv_from_tensors`) and the
+    `info` (set by `_model_kv_from_metadata` / `_model_kv_from_tensors`) and the
     `kv_by_quant` dict. Returned as a list of indented lines for stderr.
-    Shows the elems (quant-independent) derivation once, then a per-quant
-    table of bytes for the types in _KV_QUANT_TABLE."""
+    Shows the elems (quant-independent) derivation once, then a per-quant table
+    of bytes for the types in KV_QUANTS, split per layer group when the model
+    has more than one."""
+    spec = info["spec"]
     n_ctx = info["n_ctx"]
-    full_ctx_elems = info.get("full_ctx_elems")
+    total_width = info["total_width"]
+    full_ctx_elems = total_width * n_ctx  # every layer at full n_ctx (no SWA)
     lines = ["    KV cache size derivation:"]
     gib = 1 << 30
     gb = 10**9
@@ -697,7 +843,6 @@ def _kv_cache_breakdown(info, kv_by_quant):
         head_kv = info["head_kv_counts"]
         klen = info["key_length"]
         vlen = info["value_length"]
-        total_width = info["total_width"]
         uniform = len(set(head_kv)) == 1
         if uniform and not info.get("n_swa_layers"):
             per_layer = head_kv[0] * (klen + vlen)
@@ -722,29 +867,22 @@ def _kv_cache_breakdown(info, kv_by_quant):
                 f"{full_ctx_elems} elems (no-SWA baseline)"
             )
             if info.get("n_swa_layers"):
-                actual_elems = sum(
-                    head_kv[il] * (klen + vlen) * info["eff_ctx_per_layer"][il]
-                    for il in range(n_layer)
+                window = min(n_ctx, spec.sliding_window_size)
+                swa_width = (
+                    spec.sliding_window_layers
+                    * spec.sliding_window_kv_heads
+                    * (spec.key_dim + spec.value_dim)
                 )
+                saved = int(swa_width * (n_ctx - window))
                 lines.append(
                     f"      SWA: {info['n_swa_layers']} layers cache "
                     f"{info['swa_window']} tok not {n_ctx} tok -- saves "
-                    f"{full_ctx_elems - actual_elems} elems -> actual "
-                    f"{actual_elems} elems"
+                    f"{saved} elems -> actual {full_ctx_elems - saved} elems"
                 )
-        lines.append("      KV cache size by quantization (B = elems * B/elem):")
-        for qname, bpe, desc in _KV_QUANT_TABLE:
-            nbytes = kv_by_quant[qname]
-            lines.append(
-                f"        {qname:8s}  ({bpe:5.4f} B/elem, {desc}): "
-                f"{nbytes:>14,d} B = {nbytes / gib:7.2f} GiB  "
-                f"{nbytes / gb:7.2f} GB"
-            )
     else:  # tensor-shape path (hparams missing)
         kv_width = info["kv_width"]
         n_layer = info["n_attn_layers"]
-        kind = info["attn_kind"]
-        if "MLA" in kind:
+        if "MLA" in info["attn_kind"]:
             width_desc = (
                 "sum over layers of compressed-latent width "
                 "(kv_lora_rank + rope, from attn_kv_a_mqa)"
@@ -756,13 +894,35 @@ def _kv_cache_breakdown(info, kv_by_quant):
             f"(across {n_layer} layers) x {n_ctx} tok"
         )
         lines.append(f"      = {kv_width} x {n_ctx} = {full_ctx_elems} elems")
-        lines.append("      KV cache size by quantization (B = elems * B/elem):")
-        for qname, bpe, desc in _KV_QUANT_TABLE:
-            nbytes = kv_by_quant[qname]
+
+    lines.append(
+        f"      KV cache size by quantization and exact tail, n_parallel="
+        f"{KV_N_PARALLEL} (bpw from kv_cache_common.BPW, bytes from ModelKV):"
+    )
+    for qname, tail in KV_QUANTS:
+        bpw = resolve_bpw(qname)
+        label = _kv_label(qname, tail)
+        nbytes = kv_by_quant[label]
+        lines.append(
+            f"        {label:{_KV_LABEL_W}s}  ({bpw:7.4f} bpw, {bpw / 8:6.4f} B/elem): "
+            f"{nbytes:>14,d} B = {nbytes / gib:7.2f} GiB  "
+            f"{nbytes / gb:7.2f} GB"
+        )
+        groups = spec.cache_breakdown(n_ctx, bpw, bpw, tail, KV_N_PARALLEL)
+        if len(groups) < 2 and not tail:  # nothing the headline doesn't say
+            continue
+        for name, layers, kv_heads, note, group_bytes in groups:
+            if info.get("source") == "tensors":
+                # The tensor path recovers no per-layer factorisation (see
+                # _model_kv_from_tensors), so its notional 1 layer x 1 head
+                # would only mislead -- report the real totals instead.
+                geom = (
+                    f"{info['n_attn_layers']} layers, {info['total_width']} elems/token"
+                )
+            else:
+                geom = f"{layers} layers x{kv_heads:g} kv-heads"
             lines.append(
-                f"        {qname:8s}  ({bpe:5.4f} B/elem, {desc}): "
-                f"{nbytes:>14,d} B = {nbytes / gib:7.2f} GiB  "
-                f"{nbytes / gb:7.2f} GB"
+                f"          {name:15s} {geom}; {note} -> {group_bytes / gib:7.2f} GiB"
             )
     return lines
 
@@ -953,11 +1113,14 @@ def main():
             f"  attn layout: {info['attn_kind']}, {layer_desc}\n"
             f"  KV cache @ {n_ctx // 1024}k tokens:\n"
         )
-        # Per-quant headline, padded so the GiB/GB columns line up.
-        for qname, bpe, _ in _KV_QUANT_TABLE:
-            nbytes = kv_by_quant[qname]
+        # Per-quant headline, padded so the GiB/GB columns line up. `tN` is the
+        # beellama --kv-tail-tokens the quant is paired with (see KV_QUANTS).
+        for qname, tail in KV_QUANTS:
+            label = _kv_label(qname, tail)
+            nbytes = kv_by_quant[label]
             sys.stderr.write(
-                f"    {qname:8s}  {nbytes / gib:7.2f} GiB  {nbytes / gb:7.2f} GB\n"
+                f"    {label:{_KV_LABEL_W}s}  {nbytes / gib:7.2f} GiB  "
+                f"{nbytes / gb:7.2f} GB\n"
             )
         sys.stderr.write(
             f"  fixed overhead (CUDA ctx {CUDA_CTX_OVERHEAD / gib:.2f} GiB + "

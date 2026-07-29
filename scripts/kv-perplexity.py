@@ -77,6 +77,7 @@ import subprocess
 import sys
 
 import yaml
+from kv_cache_common import BPW
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 LOGITS = pathlib.Path("/tmp/logits.dat")
@@ -121,31 +122,13 @@ def is_kvarn(quant: str) -> bool:
     return quant.startswith("kvarn")
 
 
-# Cache types ordered from most to least precise (bytes-per-value descending).
-# Used to drop combos where the value cache is more precise than the key cache
-# (v > k), which is not a useful trade-off. Types absent from this list are
-# never dropped by the v > k rule.
-QUANT_PRECISION = [
-    "f16",  # 2.0
-    "q8_0",  # 1.0625
-    "kvarn8",  # 1.046875
-    "q6_1",  # 0.875
-    "q6_0",  # 0.8125
-    "kvarn6",  # 0.796875
-    "q5_1",  # 0.75
-    "q5_0",  # 0.6875
-    "kvarn5",  # 0.671875
-    "q4_1",  # 0.625
-    "q4_0",  # 0.5625
-    "iq4_nl",  # 0.5625
-    "kvarn4",  # 0.546875
-    "q3_1",  # 0.5
-    "q3_0",  # 0.4375
-    "kvarn3",  # 0.421875
-    "q2_1",  # 0.375
-    "kvarn2",  # 0.296875
-    "q2_0",  # 0.28125
-]
+# Cache types ordered from most to least precise (bits-per-value descending),
+# derived from the shared bpw table so the two can never drift apart. Used to
+# drop combos where the value cache is more precise than the key cache (v > k),
+# which is not a useful trade-off. Types absent from BPW are never dropped by
+# the v > k rule. Equal-bpw types (e.g. q4_0 / iq4_nl) are ordered by their BPW
+# insertion order, so one of the two arbitrarily counts as "more precise".
+QUANT_PRECISION = sorted(BPW, key=BPW.__getitem__, reverse=True)
 _PRECISION_RANK = {q: i for i, q in enumerate(QUANT_PRECISION)}
 
 
