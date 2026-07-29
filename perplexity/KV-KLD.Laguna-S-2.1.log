@@ -1,0 +1,3205 @@
+llama-perplexity --version
+version: 10846 (358fc2131)
+built with GNU 15.2.0 for Linux x86_64
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk f16 -ctv f16
+0.01.045.754 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.045.757 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.12.745.774 I 
+1.12.748.295 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.12.749.001 I perplexity: saving all logits to /tmp/logits.dat
+1.12.749.004 I perplexity: tokenizing the input ..
+1.14.093.605 I perplexity: tokenization took 1344.59 ms
+1.14.093.948 I perplexity: calculating perplexity over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.42.503.752 I perplexity: 508.37 seconds per pass - ETA 1 hours 24.72 minutes
+[1]6.8154,[2]6.6976,[3]6.6426,[4]6.5467,[5]6.6157,[6]6.8790,[7]6.8829,[8]6.9401,[9]6.9880,[10]6.9190,
+86.31.756.878 I Final estimate: PPL = 6.9190 +/- 0.03343
+
+86.31.771.658 W ~llama_context:      CUDA0 compute buffer size of 764.0176 MiB, does not match expectation of 761.0176 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q8_0 -ctv q8_0 --kl-divergence
+0.01.138.640 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.138.643 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.394.821 I 
+1.16.394.896 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.472.261 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.44.639.094 I kl_divergence: 508.17 seconds per pass - ETA 1 hours 24.68 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8186 ±    0.1008       0.00091 ±    0.00118       0.01312 ±    0.00065     3.461 ±  0.111 %    96.030 ±  0.108 %
+   2       6.6925 ±    0.0708      -0.00023 ±    0.00088       0.01417 ±    0.00053     3.748 ±  0.091 %    96.037 ±  0.076 %
+   3       6.6389 ±    0.0577       0.00017 ±    0.00074       0.01511 ±    0.00045     3.985 ±  0.080 %    95.957 ±  0.063 %
+   4       6.5434 ±    0.0491       0.00026 ±    0.00064       0.01510 ±    0.00041     3.980 ±  0.068 %    95.946 ±  0.054 %
+   5       6.6144 ±    0.0447       0.00073 ±    0.00057       0.01573 ±    0.00036     4.073 ±  0.061 %    95.921 ±  0.049 %
+   6       6.8783 ±    0.0431       0.00087 ±    0.00053       0.01601 ±    0.00032     4.083 ±  0.055 %    95.846 ±  0.045 %
+   7       6.8815 ±    0.0399       0.00085 ±    0.00050       0.01632 ±    0.00030     4.106 ±  0.051 %    95.825 ±  0.042 %
+   8       6.9405 ±    0.0376       0.00103 ±    0.00047       0.01656 ±    0.00028     4.114 ±  0.047 %    95.768 ±  0.039 %
+   9       6.9872 ±    0.0357       0.00085 ±    0.00044       0.01681 ±    0.00027     4.139 ±  0.045 %    95.742 ±  0.037 %
+  10       6.9172 ±    0.0334       0.00071 ±    0.00042       0.01672 ±    0.00025     4.136 ±  0.042 %    95.747 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.917164 ±   0.033432
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.62%
+Mean ln(PPL(Q)/PPL(base))     :   0.000710 ±   0.000419
+Mean PPL(Q)/PPL(base)         :   1.000711 ±   0.000419
+Mean PPL(Q)-PPL(base)         :   0.004911 ±   0.002896
+
+====== KL divergence statistics ======
+Mean    KLD:   0.016719 ±   0.000254
+Maximum KLD:  20.298544
+99.9%   KLD:   1.493845
+99.0%   KLD:   0.167998
+95.0%   KLD:   0.047188
+90.0%   KLD:   0.026468
+Median  KLD:   0.003734
+10.0%   KLD:   0.000065
+ 5.0%   KLD:   0.000016
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000037
+
+====== Token probability statistics ======
+Mean    Δp:  0.026 ± 0.007 %
+Maximum Δp: 99.943%
+99.9%   Δp: 36.300%
+99.0%   Δp: 10.710%
+95.0%   Δp:  3.997%
+90.0%   Δp:  2.152%
+75.0%   Δp:  0.368%
+Median  Δp:  0.000%
+25.0%   Δp: -0.343%
+10.0%   Δp: -2.081%
+ 5.0%   Δp: -3.899%
+ 1.0%   Δp: -10.465%
+ 0.1%   Δp: -34.679%
+Minimum Δp: -99.786%
+RMS Δp    :  4.136 ± 0.042 %
+Same top p: 95.747 ± 0.035 %
+
+86.09.655.421 W ~llama_context:      CUDA0 compute buffer size of 764.1738 MiB, does not match expectation of 761.1738 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q8_0 -ctv q8_0 --kv-tail-tokens 512 --kl-divergence
+0.01.077.703 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.077.707 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.17.283.003 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.17.566.760 I 
+1.17.566.826 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.17.645.197 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.46.745.164 I kl_divergence: 509.10 seconds per pass - ETA 1 hours 24.83 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8189 ±    0.1007       0.00096 ±    0.00113       0.01319 ±    0.00059     3.527 ±  0.118 %    96.323 ±  0.104 %
+   2       6.7073 ±    0.0711       0.00198 ±    0.00088       0.01426 ±    0.00051     3.751 ±  0.093 %    96.112 ±  0.076 %
+   3       6.6454 ±    0.0577       0.00114 ±    0.00074       0.01486 ±    0.00041     3.921 ±  0.077 %    96.057 ±  0.062 %
+   4       6.5475 ±    0.0491       0.00089 ±    0.00063       0.01500 ±    0.00039     3.921 ±  0.068 %    96.022 ±  0.054 %
+   5       6.6119 ±    0.0447       0.00035 ±    0.00057       0.01585 ±    0.00035     4.044 ±  0.061 %    95.970 ±  0.049 %
+   6       6.8773 ±    0.0431       0.00073 ±    0.00053       0.01608 ±    0.00032     4.066 ±  0.056 %    95.877 ±  0.045 %
+   7       6.8822 ±    0.0399       0.00095 ±    0.00050       0.01660 ±    0.00031     4.106 ±  0.051 %    95.836 ±  0.042 %
+   8       6.9407 ±    0.0376       0.00106 ±    0.00047       0.01680 ±    0.00029     4.143 ±  0.048 %    95.780 ±  0.039 %
+   9       6.9884 ±    0.0357       0.00104 ±    0.00044       0.01683 ±    0.00027     4.143 ±  0.045 %    95.748 ±  0.037 %
+  10       6.9193 ±    0.0334       0.00103 ±    0.00042       0.01682 ±    0.00026     4.146 ±  0.042 %    95.737 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.919345 ±   0.033444
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.62%
+Mean ln(PPL(Q)/PPL(base))     :   0.001025 ±   0.000420
+Mean PPL(Q)/PPL(base)         :   1.001026 ±   0.000420
+Mean PPL(Q)-PPL(base)         :   0.007092 ±   0.002905
+
+====== KL divergence statistics ======
+Mean    KLD:   0.016824 ±   0.000255
+Maximum KLD:  21.185394
+99.9%   KLD:   1.520213
+99.0%   KLD:   0.170511
+95.0%   KLD:   0.046601
+90.0%   KLD:   0.026257
+Median  KLD:   0.003705
+10.0%   KLD:   0.000066
+ 5.0%   KLD:   0.000016
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000040
+
+====== Token probability statistics ======
+Mean    Δp:  0.023 ± 0.007 %
+Maximum Δp: 99.917%
+99.9%   Δp: 37.212%
+99.0%   Δp: 10.566%
+95.0%   Δp:  3.988%
+90.0%   Δp:  2.142%
+75.0%   Δp:  0.363%
+Median  Δp:  0.000%
+25.0%   Δp: -0.344%
+10.0%   Δp: -2.065%
+ 5.0%   Δp: -3.900%
+ 1.0%   Δp: -10.448%
+ 0.1%   Δp: -35.526%
+Minimum Δp: -99.816%
+RMS Δp    :  4.146 ± 0.042 %
+Same top p: 95.737 ± 0.035 %
+
+86.11.555.713 W ~llama_context:      CUDA0 compute buffer size of 764.1837 MiB, does not match expectation of 762.1837 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q8_0 -ctv q8_0 --kv-tail-tokens 1024 --kl-divergence
+0.01.013.323 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.013.327 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.18.871.913 W cmn  common_init_: uniform KV tail override applies 1024 tokens to every canonical cache group
+1.19.154.523 I 
+1.19.154.593 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.19.233.097 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.49.907.092 I kl_divergence: 510.67 seconds per pass - ETA 1 hours 25.10 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8302 ±    0.1009       0.00261 ±    0.00112       0.01279 ±    0.00055     3.530 ±  0.114 %    96.188 ±  0.106 %
+   2       6.7074 ±    0.0711       0.00199 ±    0.00081       0.01385 ±    0.00043     3.745 ±  0.089 %    96.117 ±  0.075 %
+   3       6.6466 ±    0.0578       0.00133 ±    0.00072       0.01517 ±    0.00042     3.992 ±  0.080 %    96.049 ±  0.062 %
+   4       6.5435 ±    0.0491       0.00027 ±    0.00062       0.01500 ±    0.00037     3.966 ±  0.068 %    96.014 ±  0.054 %
+   5       6.6114 ±    0.0447       0.00029 ±    0.00056       0.01564 ±    0.00034     4.049 ±  0.060 %    95.944 ±  0.049 %
+   6       6.8742 ±    0.0430       0.00028 ±    0.00052       0.01595 ±    0.00031     4.089 ±  0.055 %    95.871 ±  0.045 %
+   7       6.8764 ±    0.0398       0.00011 ±    0.00049       0.01622 ±    0.00028     4.107 ±  0.050 %    95.839 ±  0.042 %
+   8       6.9355 ±    0.0376       0.00032 ±    0.00046       0.01642 ±    0.00026     4.130 ±  0.047 %    95.769 ±  0.039 %
+   9       6.9825 ±    0.0357       0.00019 ±    0.00044       0.01672 ±    0.00025     4.159 ±  0.045 %    95.743 ±  0.037 %
+  10       6.9123 ±    0.0334       0.00001 ±    0.00041       0.01666 ±    0.00024     4.152 ±  0.042 %    95.727 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.912327 ±   0.033391
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.63%
+Mean ln(PPL(Q)/PPL(base))     :   0.000011 ±   0.000414
+Mean PPL(Q)/PPL(base)         :   1.000011 ±   0.000414
+Mean PPL(Q)-PPL(base)         :   0.000073 ±   0.002861
+
+====== KL divergence statistics ======
+Mean    KLD:   0.016657 ±   0.000240
+Maximum KLD:  18.256212
+99.9%   KLD:   1.448927
+99.0%   KLD:   0.168772
+95.0%   KLD:   0.046437
+90.0%   KLD:   0.026279
+Median  KLD:   0.003740
+10.0%   KLD:   0.000066
+ 5.0%   KLD:   0.000016
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000045
+
+====== Token probability statistics ======
+Mean    Δp:  0.031 ± 0.007 %
+Maximum Δp: 99.893%
+99.9%   Δp: 39.068%
+99.0%   Δp: 10.606%
+95.0%   Δp:  4.001%
+90.0%   Δp:  2.165%
+75.0%   Δp:  0.367%
+Median  Δp:  0.000%
+25.0%   Δp: -0.343%
+10.0%   Δp: -2.067%
+ 5.0%   Δp: -3.910%
+ 1.0%   Δp: -10.252%
+ 0.1%   Δp: -34.413%
+Minimum Δp: -99.496%
+RMS Δp    :  4.152 ± 0.042 %
+Same top p: 95.727 ± 0.035 %
+
+86.37.901.509 W ~llama_context:      CUDA0 compute buffer size of 764.1857 MiB, does not match expectation of 762.6857 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q8_0 -ctv q8_0 --kv-tail-tokens 2048 --kl-divergence
+0.01.128.885 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.128.890 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.19.225.893 W cmn  common_init_: uniform KV tail override applies 2048 tokens to every canonical cache group
+1.19.498.346 I 
+1.19.498.418 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.19.578.758 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.48.226.788 I kl_divergence: 508.65 seconds per pass - ETA 1 hours 24.77 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8158 ±    0.1007       0.00050 ±    0.00118       0.01321 ±    0.00055     3.632 ±  0.118 %    95.993 ±  0.108 %
+   2       6.7008 ±    0.0709       0.00101 ±    0.00085       0.01412 ±    0.00043     3.860 ±  0.094 %    96.022 ±  0.076 %
+   3       6.6392 ±    0.0577       0.00022 ±    0.00071       0.01490 ±    0.00038     4.014 ±  0.079 %    95.955 ±  0.063 %
+   4       6.5375 ±    0.0490      -0.00065 ±    0.00063       0.01522 ±    0.00039     4.014 ±  0.068 %    95.926 ±  0.055 %
+   5       6.6038 ±    0.0446      -0.00088 ±    0.00057       0.01599 ±    0.00038     4.108 ±  0.062 %    95.926 ±  0.049 %
+   6       6.8685 ±    0.0430      -0.00055 ±    0.00052       0.01622 ±    0.00034     4.127 ±  0.056 %    95.842 ±  0.045 %
+   7       6.8742 ±    0.0398      -0.00022 ±    0.00049       0.01661 ±    0.00031     4.154 ±  0.052 %    95.802 ±  0.042 %
+   8       6.9314 ±    0.0375      -0.00027 ±    0.00047       0.01676 ±    0.00029     4.165 ±  0.048 %    95.727 ±  0.040 %
+   9       6.9795 ±    0.0356      -0.00024 ±    0.00044       0.01701 ±    0.00028     4.190 ±  0.045 %    95.717 ±  0.037 %
+  10       6.9100 ±    0.0334      -0.00033 ±    0.00042       0.01691 ±    0.00026     4.186 ±  0.043 %    95.719 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.909962 ±   0.033375
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.62%
+Mean ln(PPL(Q)/PPL(base))     :  -0.000332 ±   0.000419
+Mean PPL(Q)/PPL(base)         :   0.999668 ±   0.000419
+Mean PPL(Q)-PPL(base)         :  -0.002292 ±   0.002894
+
+====== KL divergence statistics ======
+Mean    KLD:   0.016907 ±   0.000258
+Maximum KLD:  23.693727
+99.9%   KLD:   1.503655
+99.0%   KLD:   0.173042
+95.0%   KLD:   0.046945
+90.0%   KLD:   0.026565
+Median  KLD:   0.003733
+10.0%   KLD:   0.000066
+ 5.0%   KLD:   0.000016
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000117
+
+====== Token probability statistics ======
+Mean    Δp:  0.037 ± 0.007 %
+Maximum Δp: 99.942%
+99.9%   Δp: 37.851%
+99.0%   Δp: 10.861%
+95.0%   Δp:  4.042%
+90.0%   Δp:  2.166%
+75.0%   Δp:  0.377%
+Median  Δp:  0.000%
+25.0%   Δp: -0.336%
+10.0%   Δp: -2.061%
+ 5.0%   Δp: -3.881%
+ 1.0%   Δp: -10.390%
+ 0.1%   Δp: -35.008%
+Minimum Δp: -99.912%
+RMS Δp    :  4.186 ± 0.043 %
+Same top p: 95.719 ± 0.035 %
+
+86.11.663.209 W ~llama_context:      CUDA0 compute buffer size of 764.1896 MiB, does not match expectation of 763.6896 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn5 -ctv kvarn5 --kl-divergence
+0.00.194.044 E get_repo_commit: error: HTTPLIB failed: Could not establish connection
+0.00.194.050 W get_repo_files: failed to resolve commit for unsloth/Laguna-S-2.1-GGUF
+0.00.787.037 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.787.041 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.15.120.849 I 
+1.15.120.921 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.15.197.170 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.51.943.213 I kl_divergence: 516.75 seconds per pass - ETA 1 hours 26.12 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8357 ±    0.1010       0.00342 ±    0.00120       0.01295 ±    0.00060     3.562 ±  0.133 %    96.225 ±  0.105 %
+   2       6.7076 ±    0.0710       0.00203 ±    0.00086       0.01326 ±    0.00043     3.685 ±  0.096 %    96.217 ±  0.075 %
+   3       6.6505 ±    0.0578       0.00192 ±    0.00073       0.01395 ±    0.00037     3.823 ±  0.079 %    96.064 ±  0.062 %
+   4       6.5521 ±    0.0492       0.00160 ±    0.00063       0.01375 ±    0.00031     3.791 ±  0.067 %    96.106 ±  0.053 %
+   5       6.6152 ±    0.0447       0.00085 ±    0.00056       0.01433 ±    0.00029     3.886 ±  0.060 %    96.062 ±  0.048 %
+   6       6.8815 ±    0.0431       0.00134 ±    0.00052       0.01453 ±    0.00025     3.892 ±  0.054 %    96.001 ±  0.044 %
+   7       6.8870 ±    0.0399       0.00165 ±    0.00048       0.01491 ±    0.00024     3.917 ±  0.049 %    95.966 ±  0.041 %
+   8       6.9447 ±    0.0376       0.00164 ±    0.00046       0.01519 ±    0.00023     3.961 ±  0.046 %    95.897 ±  0.039 %
+   9       6.9912 ±    0.0357       0.00144 ±    0.00043       0.01531 ±    0.00022     3.959 ±  0.043 %    95.875 ±  0.037 %
+  10       6.9212 ±    0.0334       0.00130 ±    0.00041       0.01530 ±    0.00021     3.973 ±  0.041 %    95.869 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.921217 ±   0.033441
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.64%
+Mean ln(PPL(Q)/PPL(base))     :   0.001296 ±   0.000409
+Mean PPL(Q)/PPL(base)         :   1.001297 ±   0.000410
+Mean PPL(Q)-PPL(base)         :   0.008964 ±   0.002831
+
+====== KL divergence statistics ======
+Mean    KLD:   0.015301 ±   0.000210
+Maximum KLD:  13.688136
+99.9%   KLD:   1.297307
+99.0%   KLD:   0.157113
+95.0%   KLD:   0.043804
+90.0%   KLD:   0.024942
+Median  KLD:   0.003540
+10.0%   KLD:   0.000062
+ 5.0%   KLD:   0.000015
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000043
+
+====== Token probability statistics ======
+Mean    Δp:  0.004 ± 0.007 %
+Maximum Δp: 99.919%
+99.9%   Δp: 34.113%
+99.0%   Δp: 10.142%
+95.0%   Δp:  3.900%
+90.0%   Δp:  2.083%
+75.0%   Δp:  0.349%
+Median  Δp:  0.000%
+25.0%   Δp: -0.346%
+10.0%   Δp: -2.023%
+ 5.0%   Δp: -3.831%
+ 1.0%   Δp: -10.209%
+ 0.1%   Δp: -34.268%
+Minimum Δp: -99.918%
+RMS Δp    :  3.973 ± 0.041 %
+Same top p: 95.869 ± 0.035 %
+
+87.30.603.524 W ~llama_context:      CUDA0 compute buffer size of 765.0491 MiB, does not match expectation of 762.5491 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn5 -ctv kvarn5 --kv-tail-tokens 512 --kl-divergence
+0.00.183.479 E get_repo_commit: error: HTTPLIB failed: Could not establish connection
+0.00.183.486 W get_repo_files: failed to resolve commit for unsloth/Laguna-S-2.1-GGUF
+0.00.782.881 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.782.887 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.14.387.628 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.14.703.121 I 
+1.14.703.193 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.14.783.705 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.46.352.121 I kl_divergence: 511.57 seconds per pass - ETA 1 hours 25.25 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8230 ±    0.1008       0.00156 ±    0.00115       0.01190 ±    0.00052     3.452 ±  0.123 %    96.222 ±  0.105 %
+   2       6.7076 ±    0.0711       0.00202 ±    0.00082       0.01269 ±    0.00040     3.603 ±  0.091 %    96.231 ±  0.074 %
+   3       6.6517 ±    0.0578       0.00210 ±    0.00071       0.01357 ±    0.00036     3.800 ±  0.077 %    96.064 ±  0.062 %
+   4       6.5544 ±    0.0492       0.00194 ±    0.00061       0.01369 ±    0.00036     3.792 ±  0.067 %    96.061 ±  0.054 %
+   5       6.6223 ±    0.0448       0.00192 ±    0.00055       0.01455 ±    0.00034     3.920 ±  0.060 %    96.048 ±  0.048 %
+   6       6.8854 ±    0.0431       0.00191 ±    0.00051       0.01463 ±    0.00031     3.897 ±  0.055 %    96.000 ±  0.044 %
+   7       6.8881 ±    0.0399       0.00180 ±    0.00048       0.01499 ±    0.00029     3.927 ±  0.051 %    95.972 ±  0.041 %
+   8       6.9468 ±    0.0376       0.00194 ±    0.00045       0.01530 ±    0.00027     3.976 ±  0.048 %    95.895 ±  0.039 %
+   9       6.9960 ±    0.0358       0.00212 ±    0.00042       0.01552 ±    0.00025     3.996 ±  0.045 %    95.870 ±  0.037 %
+  10       6.9251 ±    0.0335       0.00186 ±    0.00040       0.01545 ±    0.00024     4.000 ±  0.043 %    95.864 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.925123 ±   0.033479
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.65%
+Mean ln(PPL(Q)/PPL(base))     :   0.001860 ±   0.000402
+Mean PPL(Q)/PPL(base)         :   1.001862 ±   0.000402
+Mean PPL(Q)-PPL(base)         :   0.012870 ±   0.002781
+
+====== KL divergence statistics ======
+Mean    KLD:   0.015455 ±   0.000239
+Maximum KLD:  20.204983
+99.9%   KLD:   1.408997
+99.0%   KLD:   0.152492
+95.0%   KLD:   0.042828
+90.0%   KLD:   0.024191
+Median  KLD:   0.003432
+10.0%   KLD:   0.000061
+ 5.0%   KLD:   0.000015
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000046
+
+====== Token probability statistics ======
+Mean    Δp:  0.006 ± 0.007 %
+Maximum Δp: 99.319%
+99.9%   Δp: 33.825%
+99.0%   Δp: 10.069%
+95.0%   Δp:  3.816%
+90.0%   Δp:  2.055%
+75.0%   Δp:  0.348%
+Median  Δp:  0.000%
+25.0%   Δp: -0.338%
+10.0%   Δp: -2.015%
+ 5.0%   Δp: -3.778%
+ 1.0%   Δp: -10.028%
+ 0.1%   Δp: -34.698%
+Minimum Δp: -99.973%
+RMS Δp    :  4.000 ± 0.043 %
+Same top p: 95.864 ± 0.035 %
+
+86.39.193.199 W ~llama_context:      CUDA0 compute buffer size of 764.0314 MiB, does not match expectation of 762.0314 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn5 -ctv kvarn5 --kv-tail-tokens 1024 --kl-divergence
+0.00.186.064 E get_repo_commit: error: HTTPLIB failed: Could not establish connection
+0.00.186.071 W get_repo_files: failed to resolve commit for unsloth/Laguna-S-2.1-GGUF
+0.00.788.184 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.788.190 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.12.609.790 W cmn  common_init_: uniform KV tail override applies 1024 tokens to every canonical cache group
+1.12.889.865 I 
+1.12.889.929 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.12.966.840 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.44.509.147 I kl_divergence: 511.54 seconds per pass - ETA 1 hours 25.25 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8327 ±    0.1010       0.00297 ±    0.00118       0.01218 ±    0.00068     3.421 ±  0.120 %    96.347 ±  0.104 %
+   2       6.7031 ±    0.0710       0.00136 ±    0.00083       0.01295 ±    0.00046     3.646 ±  0.091 %    96.313 ±  0.074 %
+   3       6.6472 ±    0.0578       0.00142 ±    0.00071       0.01371 ±    0.00039     3.779 ±  0.077 %    96.134 ±  0.061 %
+   4       6.5479 ±    0.0491       0.00096 ±    0.00062       0.01401 ±    0.00039     3.772 ±  0.066 %    96.121 ±  0.053 %
+   5       6.6148 ±    0.0447       0.00080 ±    0.00056       0.01453 ±    0.00034     3.874 ±  0.059 %    96.083 ±  0.048 %
+   6       6.8753 ±    0.0430       0.00044 ±    0.00051       0.01466 ±    0.00031     3.869 ±  0.053 %    95.996 ±  0.044 %
+   7       6.8765 ±    0.0398       0.00012 ±    0.00048       0.01494 ±    0.00028     3.904 ±  0.049 %    95.962 ±  0.041 %
+   8       6.9326 ±    0.0375      -0.00010 ±    0.00045       0.01516 ±    0.00026     3.930 ±  0.046 %    95.900 ±  0.039 %
+   9       6.9803 ±    0.0356      -0.00013 ±    0.00043       0.01537 ±    0.00025     3.958 ±  0.043 %    95.879 ±  0.037 %
+  10       6.9103 ±    0.0334      -0.00029 ±    0.00040       0.01534 ±    0.00023     3.961 ±  0.041 %    95.875 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.910252 ±   0.033365
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.65%
+Mean ln(PPL(Q)/PPL(base))     :  -0.000290 ±   0.000403
+Mean PPL(Q)/PPL(base)         :   0.999710 ±   0.000402
+Mean PPL(Q)-PPL(base)         :  -0.002001 ±   0.002782
+
+====== KL divergence statistics ======
+Mean    KLD:   0.015343 ±   0.000235
+Maximum KLD:  21.084824
+99.9%   KLD:   1.292596
+99.0%   KLD:   0.156388
+95.0%   KLD:   0.043155
+90.0%   KLD:   0.024220
+Median  KLD:   0.003448
+10.0%   KLD:   0.000063
+ 5.0%   KLD:   0.000015
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000072
+
+====== Token probability statistics ======
+Mean    Δp:  0.019 ± 0.007 %
+Maximum Δp: 99.718%
+99.9%   Δp: 33.986%
+99.0%   Δp: 10.188%
+95.0%   Δp:  3.822%
+90.0%   Δp:  2.076%
+75.0%   Δp:  0.350%
+Median  Δp:  0.000%
+25.0%   Δp: -0.337%
+10.0%   Δp: -1.996%
+ 5.0%   Δp: -3.729%
+ 1.0%   Δp: -9.940%
+ 0.1%   Δp: -33.881%
+Minimum Δp: -99.888%
+RMS Δp    :  3.961 ± 0.041 %
+Same top p: 95.875 ± 0.035 %
+
+86.37.197.553 W ~llama_context:      CUDA0 compute buffer size of 764.0333 MiB, does not match expectation of 762.5333 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn5 -ctv kvarn5 --kv-tail-tokens 2048 --kl-divergence
+0.00.179.749 E get_repo_commit: error: HTTPLIB failed: Could not establish connection
+0.00.179.756 W get_repo_files: failed to resolve commit for unsloth/Laguna-S-2.1-GGUF
+0.00.765.441 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.765.444 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.13.442.385 W cmn  common_init_: uniform KV tail override applies 2048 tokens to every canonical cache group
+1.13.743.022 I 
+1.13.743.105 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.13.821.339 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.46.232.362 I kl_divergence: 512.41 seconds per pass - ETA 1 hours 25.40 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8323 ±    0.1010       0.00292 ±    0.00114       0.01254 ±    0.00069     3.472 ±  0.129 %    96.347 ±  0.104 %
+   2       6.7103 ±    0.0711       0.00243 ±    0.00080       0.01283 ±    0.00045     3.515 ±  0.086 %    96.309 ±  0.074 %
+   3       6.6499 ±    0.0578       0.00182 ±    0.00070       0.01412 ±    0.00040     3.817 ±  0.079 %    96.160 ±  0.061 %
+   4       6.5526 ±    0.0492       0.00167 ±    0.00060       0.01431 ±    0.00040     3.815 ±  0.068 %    96.110 ±  0.053 %
+   5       6.6212 ±    0.0447       0.00176 ±    0.00056       0.01505 ±    0.00036     3.940 ±  0.061 %    96.076 ±  0.048 %
+   6       6.8854 ±    0.0431       0.00191 ±    0.00051       0.01527 ±    0.00032     3.947 ±  0.055 %    95.974 ±  0.044 %
+   7       6.8860 ±    0.0399       0.00150 ±    0.00048       0.01552 ±    0.00029     3.954 ±  0.050 %    95.953 ±  0.041 %
+   8       6.9457 ±    0.0376       0.00179 ±    0.00046       0.01571 ±    0.00027     3.984 ±  0.046 %    95.867 ±  0.039 %
+   9       6.9949 ±    0.0358       0.00195 ±    0.00044       0.01601 ±    0.00027     4.009 ±  0.044 %    95.839 ±  0.037 %
+  10       6.9234 ±    0.0335       0.00161 ±    0.00041       0.01591 ±    0.00025     4.016 ±  0.041 %    95.820 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.923387 ±   0.033465
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.63%
+Mean ln(PPL(Q)/PPL(base))     :   0.001610 ±   0.000414
+Mean PPL(Q)/PPL(base)         :   1.001611 ±   0.000415
+Mean PPL(Q)-PPL(base)         :   0.011134 ±   0.002866
+
+====== KL divergence statistics ======
+Mean    KLD:   0.015912 ±   0.000246
+Maximum KLD:  19.323944
+99.9%   KLD:   1.360320
+99.0%   KLD:   0.160306
+95.0%   KLD:   0.044255
+90.0%   KLD:   0.024976
+Median  KLD:   0.003520
+10.0%   KLD:   0.000063
+ 5.0%   KLD:   0.000015
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000057
+
+====== Token probability statistics ======
+Mean    Δp:  0.012 ± 0.007 %
+Maximum Δp: 99.733%
+99.9%   Δp: 35.094%
+99.0%   Δp: 10.319%
+95.0%   Δp:  3.892%
+90.0%   Δp:  2.085%
+75.0%   Δp:  0.353%
+Median  Δp:  0.000%
+25.0%   Δp: -0.339%
+10.0%   Δp: -2.037%
+ 5.0%   Δp: -3.842%
+ 1.0%   Δp: -10.196%
+ 0.1%   Δp: -34.489%
+Minimum Δp: -99.923%
+RMS Δp    :  4.016 ± 0.041 %
+Same top p: 95.820 ± 0.035 %
+
+87.08.427.788 W ~llama_context:      CUDA0 compute buffer size of 764.0372 MiB, does not match expectation of 763.5372 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn4 -ctv kvarn4 --kl-divergence
+0.01.098.649 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.098.653 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.064.320 I 
+1.16.064.400 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.146.237 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.55.474.419 I kl_divergence: 519.33 seconds per pass - ETA 1 hours 26.55 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8210 ±    0.1007       0.00126 ±    0.00126       0.01462 ±    0.00059     3.693 ±  0.110 %    95.752 ±  0.111 %
+   2       6.7051 ±    0.0710       0.00166 ±    0.00090       0.01548 ±    0.00045     3.867 ±  0.087 %    95.686 ±  0.079 %
+   3       6.6431 ±    0.0577       0.00081 ±    0.00077       0.01653 ±    0.00042     4.136 ±  0.078 %    95.657 ±  0.065 %
+   4       6.5468 ±    0.0491       0.00078 ±    0.00066       0.01649 ±    0.00039     4.116 ±  0.066 %    95.674 ±  0.056 %
+   5       6.6177 ±    0.0447       0.00123 ±    0.00060       0.01705 ±    0.00035     4.219 ±  0.060 %    95.661 ±  0.050 %
+   6       6.8792 ±    0.0430       0.00101 ±    0.00056       0.01748 ±    0.00032     4.240 ±  0.055 %    95.579 ±  0.046 %
+   7       6.8843 ±    0.0399       0.00126 ±    0.00052       0.01788 ±    0.00031     4.279 ±  0.050 %    95.532 ±  0.043 %
+   8       6.9401 ±    0.0376       0.00098 ±    0.00049       0.01808 ±    0.00028     4.296 ±  0.047 %    95.482 ±  0.041 %
+   9       6.9889 ±    0.0357       0.00111 ±    0.00046       0.01826 ±    0.00027     4.304 ±  0.044 %    95.487 ±  0.038 %
+  10       6.9181 ±    0.0334       0.00085 ±    0.00044       0.01812 ±    0.00025     4.289 ±  0.041 %    95.491 ±  0.036 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.918116 ±   0.033411
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.59%
+Mean ln(PPL(Q)/PPL(base))     :   0.000848 ±   0.000436
+Mean PPL(Q)/PPL(base)         :   1.000848 ±   0.000437
+Mean PPL(Q)-PPL(base)         :   0.005862 ±   0.003018
+
+====== KL divergence statistics ======
+Mean    KLD:   0.018119 ±   0.000248
+Maximum KLD:  20.591671
+99.9%   KLD:   1.572851
+99.0%   KLD:   0.185337
+95.0%   KLD:   0.052591
+90.0%   KLD:   0.029885
+Median  KLD:   0.004258
+10.0%   KLD:   0.000073
+ 5.0%   KLD:   0.000018
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000031
+
+====== Token probability statistics ======
+Mean    Δp: -0.001 ± 0.007 %
+Maximum Δp: 99.917%
+99.9%   Δp: 38.574%
+99.0%   Δp: 11.189%
+95.0%   Δp:  4.193%
+90.0%   Δp:  2.265%
+75.0%   Δp:  0.375%
+Median  Δp: -0.000%
+25.0%   Δp: -0.389%
+10.0%   Δp: -2.261%
+ 5.0%   Δp: -4.211%
+ 1.0%   Δp: -11.178%
+ 0.1%   Δp: -35.504%
+Minimum Δp: -99.956%
+RMS Δp    :  4.289 ± 0.041 %
+Same top p: 95.491 ± 0.036 %
+
+87.52.130.781 W ~llama_context:      CUDA0 compute buffer size of 765.0491 MiB, does not match expectation of 762.5491 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn4 -ctv kvarn4 --kv-tail-tokens 512 --kl-divergence
+0.00.997.833 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.997.837 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.14.508.844 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.14.798.874 I 
+1.14.798.943 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.14.874.908 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.46.271.527 I kl_divergence: 511.40 seconds per pass - ETA 1 hours 25.22 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8412 ±    0.1013       0.00422 ±    0.00125       0.01436 ±    0.00070     3.713 ±  0.134 %    95.965 ±  0.109 %
+   2       6.7065 ±    0.0710       0.00187 ±    0.00086       0.01432 ±    0.00048     3.761 ±  0.095 %    96.026 ±  0.076 %
+   3       6.6501 ±    0.0578       0.00186 ±    0.00074       0.01521 ±    0.00042     3.969 ±  0.079 %    95.928 ±  0.063 %
+   4       6.5470 ±    0.0491       0.00081 ±    0.00063       0.01534 ±    0.00040     3.950 ±  0.067 %    95.930 ±  0.055 %
+   5       6.6166 ±    0.0447       0.00106 ±    0.00058       0.01595 ±    0.00036     4.056 ±  0.059 %    95.880 ±  0.049 %
+   6       6.8789 ±    0.0431       0.00096 ±    0.00053       0.01627 ±    0.00032     4.085 ±  0.054 %    95.804 ±  0.045 %
+   7       6.8829 ±    0.0399       0.00104 ±    0.00050       0.01655 ±    0.00030     4.095 ±  0.050 %    95.751 ±  0.042 %
+   8       6.9422 ±    0.0376       0.00128 ±    0.00047       0.01665 ±    0.00027     4.096 ±  0.046 %    95.694 ±  0.040 %
+   9       6.9882 ±    0.0357       0.00101 ±    0.00044       0.01679 ±    0.00025     4.108 ±  0.043 %    95.675 ±  0.037 %
+  10       6.9193 ±    0.0334       0.00102 ±    0.00042       0.01682 ±    0.00024     4.127 ±  0.041 %    95.679 ±  0.036 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.919320 ±   0.033431
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.62%
+Mean ln(PPL(Q)/PPL(base))     :   0.001022 ±   0.000419
+Mean PPL(Q)/PPL(base)         :   1.001022 ±   0.000420
+Mean PPL(Q)-PPL(base)         :   0.007066 ±   0.002900
+
+====== KL divergence statistics ======
+Mean    KLD:   0.016816 ±   0.000241
+Maximum KLD:  19.913948
+99.9%   KLD:   1.508213
+99.0%   KLD:   0.172480
+95.0%   KLD:   0.047833
+90.0%   KLD:   0.027182
+Median  KLD:   0.003868
+10.0%   KLD:   0.000067
+ 5.0%   KLD:   0.000016
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000048
+
+====== Token probability statistics ======
+Mean    Δp:  0.016 ± 0.007 %
+Maximum Δp: 99.682%
+99.9%   Δp: 35.399%
+99.0%   Δp: 10.791%
+95.0%   Δp:  4.071%
+90.0%   Δp:  2.187%
+75.0%   Δp:  0.378%
+Median  Δp:  0.000%
+25.0%   Δp: -0.351%
+10.0%   Δp: -2.119%
+ 5.0%   Δp: -3.963%
+ 1.0%   Δp: -10.648%
+ 0.1%   Δp: -35.133%
+Minimum Δp: -99.888%
+RMS Δp    :  4.127 ± 0.041 %
+Same top p: 95.679 ± 0.036 %
+
+86.40.755.592 W ~llama_context:      CUDA0 compute buffer size of 764.0314 MiB, does not match expectation of 762.0314 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn4 -ctv kvarn4 --kv-tail-tokens 1024 --kl-divergence
+0.01.030.770 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.030.774 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.14.452.120 W cmn  common_init_: uniform KV tail override applies 1024 tokens to every canonical cache group
+1.14.755.118 I 
+1.14.755.202 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.14.836.722 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.46.206.887 I kl_divergence: 511.37 seconds per pass - ETA 1 hours 25.22 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8349 ±    0.1011       0.00330 ±    0.00121       0.01299 ±    0.00054     3.635 ±  0.123 %    96.115 ±  0.107 %
+   2       6.7035 ±    0.0710       0.00142 ±    0.00085       0.01325 ±    0.00036     3.637 ±  0.082 %    96.043 ±  0.076 %
+   3       6.6511 ±    0.0578       0.00200 ±    0.00074       0.01453 ±    0.00036     3.911 ±  0.075 %    95.954 ±  0.063 %
+   4       6.5481 ±    0.0491       0.00099 ±    0.00064       0.01459 ±    0.00034     3.882 ±  0.064 %    95.988 ±  0.054 %
+   5       6.6149 ±    0.0447       0.00080 ±    0.00058       0.01534 ±    0.00032     3.997 ±  0.058 %    95.951 ±  0.049 %
+   6       6.8759 ±    0.0430       0.00053 ±    0.00054       0.01570 ±    0.00029     4.040 ±  0.054 %    95.839 ±  0.045 %
+   7       6.8792 ±    0.0399       0.00051 ±    0.00050       0.01607 ±    0.00027     4.061 ±  0.049 %    95.814 ±  0.042 %
+   8       6.9386 ±    0.0376       0.00076 ±    0.00047       0.01636 ±    0.00026     4.096 ±  0.046 %    95.742 ±  0.039 %
+   9       6.9864 ±    0.0357       0.00075 ±    0.00044       0.01661 ±    0.00025     4.135 ±  0.045 %    95.733 ±  0.037 %
+  10       6.9156 ±    0.0334       0.00049 ±    0.00042       0.01644 ±    0.00023     4.117 ±  0.042 %    95.738 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.915642 ±   0.033399
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.62%
+Mean ln(PPL(Q)/PPL(base))     :   0.000490 ±   0.000420
+Mean PPL(Q)/PPL(base)         :   1.000490 ±   0.000420
+Mean PPL(Q)-PPL(base)         :   0.003389 ±   0.002903
+
+====== KL divergence statistics ======
+Mean    KLD:   0.016438 ±   0.000233
+Maximum KLD:  17.345919
+99.9%   KLD:   1.456560
+99.0%   KLD:   0.169591
+95.0%   KLD:   0.046532
+90.0%   KLD:   0.026330
+Median  KLD:   0.003763
+10.0%   KLD:   0.000066
+ 5.0%   KLD:   0.000016
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000034
+
+====== Token probability statistics ======
+Mean    Δp:  0.007 ± 0.007 %
+Maximum Δp: 99.989%
+99.9%   Δp: 35.768%
+99.0%   Δp: 10.551%
+95.0%   Δp:  4.002%
+90.0%   Δp:  2.139%
+75.0%   Δp:  0.357%
+Median  Δp:  0.000%
+25.0%   Δp: -0.362%
+10.0%   Δp: -2.129%
+ 5.0%   Δp: -3.982%
+ 1.0%   Δp: -10.395%
+ 0.1%   Δp: -34.727%
+Minimum Δp: -99.784%
+RMS Δp    :  4.117 ± 0.042 %
+Same top p: 95.738 ± 0.035 %
+
+86.37.318.425 W ~llama_context:      CUDA0 compute buffer size of 764.0333 MiB, does not match expectation of 762.5333 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn4 -ctv kvarn4 --kv-tail-tokens 2048 --kl-divergence
+0.00.987.186 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.987.192 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.14.766.150 W cmn  common_init_: uniform KV tail override applies 2048 tokens to every canonical cache group
+1.15.081.326 I 
+1.15.081.398 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.15.161.890 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.47.175.387 I kl_divergence: 512.01 seconds per pass - ETA 1 hours 25.33 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8457 ±    0.1012       0.00488 ±    0.00119       0.01357 ±    0.00058     3.765 ±  0.139 %    96.023 ±  0.108 %
+   2       6.7091 ±    0.0710       0.00225 ±    0.00085       0.01425 ±    0.00046     3.868 ±  0.100 %    96.049 ±  0.076 %
+   3       6.6501 ±    0.0578       0.00186 ±    0.00073       0.01507 ±    0.00040     4.021 ±  0.082 %    95.960 ±  0.063 %
+   4       6.5483 ±    0.0491       0.00101 ±    0.00063       0.01521 ±    0.00039     4.008 ±  0.069 %    95.952 ±  0.054 %
+   5       6.6141 ±    0.0447       0.00069 ±    0.00057       0.01574 ±    0.00035     4.088 ±  0.062 %    95.943 ±  0.049 %
+   6       6.8760 ±    0.0430       0.00054 ±    0.00052       0.01597 ±    0.00032     4.084 ±  0.056 %    95.836 ±  0.045 %
+   7       6.8781 ±    0.0398       0.00035 ±    0.00049       0.01626 ±    0.00029     4.104 ±  0.051 %    95.813 ±  0.042 %
+   8       6.9373 ±    0.0376       0.00058 ±    0.00046       0.01639 ±    0.00026     4.112 ±  0.047 %    95.756 ±  0.039 %
+   9       6.9844 ±    0.0357       0.00046 ±    0.00044       0.01662 ±    0.00026     4.125 ±  0.044 %    95.739 ±  0.037 %
+  10       6.9163 ±    0.0334       0.00059 ±    0.00041       0.01663 ±    0.00025     4.149 ±  0.042 %    95.744 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.916330 ±   0.033413
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.63%
+Mean ln(PPL(Q)/PPL(base))     :   0.000590 ±   0.000413
+Mean PPL(Q)/PPL(base)         :   1.000590 ±   0.000414
+Mean PPL(Q)-PPL(base)         :   0.004076 ±   0.002859
+
+====== KL divergence statistics ======
+Mean    KLD:   0.016631 ±   0.000246
+Maximum KLD:  18.653116
+99.9%   KLD:   1.418560
+99.0%   KLD:   0.169472
+95.0%   KLD:   0.046758
+90.0%   KLD:   0.026447
+Median  KLD:   0.003772
+10.0%   KLD:   0.000066
+ 5.0%   KLD:   0.000016
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000030
+
+====== Token probability statistics ======
+Mean    Δp:  0.013 ± 0.007 %
+Maximum Δp: 99.731%
+99.9%   Δp: 36.085%
+99.0%   Δp: 10.604%
+95.0%   Δp:  3.989%
+90.0%   Δp:  2.145%
+75.0%   Δp:  0.369%
+Median  Δp:  0.000%
+25.0%   Δp: -0.346%
+10.0%   Δp: -2.106%
+ 5.0%   Δp: -3.971%
+ 1.0%   Δp: -10.563%
+ 0.1%   Δp: -35.469%
+Minimum Δp: -99.940%
+RMS Δp    :  4.149 ± 0.042 %
+Same top p: 95.744 ± 0.035 %
+
+86.45.138.354 W ~llama_context:      CUDA0 compute buffer size of 764.0372 MiB, does not match expectation of 763.5372 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn3 -ctv kvarn3 --kl-divergence
+0.00.999.420 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.999.424 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.15.180.573 I 
+1.15.180.650 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.15.263.853 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.51.427.857 I kl_divergence: 516.16 seconds per pass - ETA 1 hours 26.02 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8220 ±    0.1007       0.00141 ±    0.00154       0.02305 ±    0.00083     4.694 ±  0.133 %    94.607 ±  0.125 %
+   2       6.7058 ±    0.0709       0.00176 ±    0.00111       0.02430 ±    0.00062     4.837 ±  0.093 %    94.598 ±  0.088 %
+   3       6.6564 ±    0.0578       0.00280 ±    0.00094       0.02574 ±    0.00053     5.042 ±  0.078 %    94.505 ±  0.073 %
+   4       6.5645 ±    0.0493       0.00349 ±    0.00082       0.02611 ±    0.00051     5.029 ±  0.066 %    94.452 ±  0.063 %
+   5       6.6302 ±    0.0448       0.00311 ±    0.00074       0.02681 ±    0.00047     5.126 ±  0.060 %    94.431 ±  0.057 %
+   6       6.8973 ±    0.0432       0.00364 ±    0.00068       0.02740 ±    0.00042     5.145 ±  0.054 %    94.299 ±  0.052 %
+   7       6.9002 ±    0.0400       0.00356 ±    0.00064       0.02781 ±    0.00039     5.204 ±  0.050 %    94.215 ±  0.049 %
+   8       6.9561 ±    0.0377       0.00328 ±    0.00061       0.02804 ±    0.00035     5.222 ±  0.046 %    94.145 ±  0.046 %
+   9       7.0047 ±    0.0358       0.00336 ±    0.00057       0.02804 ±    0.00033     5.206 ±  0.043 %    94.152 ±  0.043 %
+  10       6.9351 ±    0.0335       0.00330 ±    0.00054       0.02793 ±    0.00031     5.209 ±  0.041 %    94.156 ±  0.041 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.935124 ±   0.033513
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.38%
+Mean ln(PPL(Q)/PPL(base))     :   0.003303 ±   0.000539
+Mean PPL(Q)/PPL(base)         :   1.003309 ±   0.000541
+Mean PPL(Q)-PPL(base)         :   0.022871 ±   0.003737
+
+====== KL divergence statistics ======
+Mean    KLD:   0.027934 ±   0.000310
+Maximum KLD:  22.917097
+99.9%   KLD:   2.079809
+99.0%   KLD:   0.295478
+95.0%   KLD:   0.088165
+90.0%   KLD:   0.050423
+Median  KLD:   0.007168
+10.0%   KLD:   0.000116
+ 5.0%   KLD:   0.000029
+ 1.0%   KLD:   0.000002
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000058
+
+====== Token probability statistics ======
+Mean    Δp: -0.064 ± 0.009 %
+Maximum Δp: 99.756%
+99.9%   Δp: 45.025%
+99.0%   Δp: 14.077%
+95.0%   Δp:  5.359%
+90.0%   Δp:  2.849%
+75.0%   Δp:  0.452%
+Median  Δp: -0.000%
+25.0%   Δp: -0.539%
+10.0%   Δp: -3.031%
+ 5.0%   Δp: -5.625%
+ 1.0%   Δp: -14.807%
+ 0.1%   Δp: -44.919%
+Minimum Δp: -99.986%
+RMS Δp    :  5.209 ± 0.041 %
+Same top p: 94.156 ± 0.041 %
+
+87.25.923.671 W ~llama_context:      CUDA0 compute buffer size of 765.0491 MiB, does not match expectation of 762.5491 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn3 -ctv kvarn3 --kv-tail-tokens 512 --kl-divergence
+0.01.085.315 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.085.319 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.15.317.065 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.15.616.122 I 
+1.15.616.199 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.15.692.594 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.47.624.345 I kl_divergence: 511.93 seconds per pass - ETA 1 hours 25.32 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8575 ±    0.1015       0.00661 ±    0.00142       0.01867 ±    0.00069     4.297 ±  0.134 %    95.151 ±  0.119 %
+   2       6.7230 ±    0.0712       0.00431 ±    0.00100       0.01889 ±    0.00046     4.322 ±  0.090 %    95.166 ±  0.084 %
+   3       6.6671 ±    0.0580       0.00440 ±    0.00087       0.02044 ±    0.00043     4.581 ±  0.078 %    95.041 ±  0.069 %
+   4       6.5661 ±    0.0493       0.00372 ±    0.00074       0.02029 ±    0.00037     4.538 ±  0.065 %    95.038 ±  0.060 %
+   5       6.6420 ±    0.0449       0.00490 ±    0.00067       0.02113 ±    0.00035     4.676 ±  0.060 %    95.082 ±  0.053 %
+   6       6.9079 ±    0.0433       0.00517 ±    0.00062       0.02183 ±    0.00034     4.730 ±  0.055 %    94.966 ±  0.049 %
+   7       6.9077 ±    0.0401       0.00464 ±    0.00058       0.02209 ±    0.00031     4.738 ±  0.050 %    94.924 ±  0.046 %
+   8       6.9588 ±    0.0377       0.00368 ±    0.00055       0.02242 ±    0.00029     4.766 ±  0.047 %    94.836 ±  0.043 %
+   9       7.0082 ±    0.0358       0.00386 ±    0.00052       0.02265 ±    0.00029     4.789 ±  0.044 %    94.826 ±  0.041 %
+  10       6.9339 ±    0.0335       0.00313 ±    0.00049       0.02261 ±    0.00027     4.797 ±  0.042 %    94.815 ±  0.039 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.933945 ±   0.033530
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.48%
+Mean ln(PPL(Q)/PPL(base))     :   0.003133 ±   0.000491
+Mean PPL(Q)/PPL(base)         :   1.003138 ±   0.000492
+Mean PPL(Q)-PPL(base)         :   0.021692 ±   0.003401
+
+====== KL divergence statistics ======
+Mean    KLD:   0.022605 ±   0.000270
+Maximum KLD:  18.115459
+99.9%   KLD:   1.752376
+99.0%   KLD:   0.242364
+95.0%   KLD:   0.068718
+90.0%   KLD:   0.039007
+Median  KLD:   0.005393
+10.0%   KLD:   0.000092
+ 5.0%   KLD:   0.000023
+ 1.0%   KLD:   0.000002
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000030
+
+====== Token probability statistics ======
+Mean    Δp: -0.023 ± 0.008 %
+Maximum Δp: 99.861%
+99.9%   Δp: 41.630%
+99.0%   Δp: 12.682%
+95.0%   Δp:  4.761%
+90.0%   Δp:  2.543%
+75.0%   Δp:  0.419%
+Median  Δp: -0.000%
+25.0%   Δp: -0.445%
+10.0%   Δp: -2.599%
+ 5.0%   Δp: -4.825%
+ 1.0%   Δp: -12.857%
+ 0.1%   Δp: -43.225%
+Minimum Δp: -99.805%
+RMS Δp    :  4.797 ± 0.042 %
+Same top p: 94.815 ± 0.039 %
+
+86.36.025.274 W ~llama_context:      CUDA0 compute buffer size of 764.0314 MiB, does not match expectation of 762.0314 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn3 -ctv kvarn3 --kv-tail-tokens 1024 --kl-divergence
+0.00.996.180 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.996.185 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.15.234.483 W cmn  common_init_: uniform KV tail override applies 1024 tokens to every canonical cache group
+1.15.532.930 I 
+1.15.533.017 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.15.610.293 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.47.904.875 I kl_divergence: 512.29 seconds per pass - ETA 1 hours 25.37 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8439 ±    0.1012       0.00461 ±    0.00137       0.01737 ±    0.00065     4.240 ±  0.130 %    95.343 ±  0.116 %
+   2       6.7216 ±    0.0712       0.00411 ±    0.00097       0.01803 ±    0.00053     4.241 ±  0.090 %    95.427 ±  0.082 %
+   3       6.6660 ±    0.0580       0.00424 ±    0.00082       0.01958 ±    0.00048     4.496 ±  0.078 %    95.346 ±  0.067 %
+   4       6.5620 ±    0.0493       0.00310 ±    0.00071       0.01941 ±    0.00044     4.442 ±  0.065 %    95.341 ±  0.058 %
+   5       6.6354 ±    0.0449       0.00391 ±    0.00064       0.02004 ±    0.00039     4.533 ±  0.060 %    95.381 ±  0.052 %
+   6       6.9023 ±    0.0433       0.00437 ±    0.00060       0.02046 ±    0.00035     4.578 ±  0.055 %    95.276 ±  0.048 %
+   7       6.9039 ±    0.0401       0.00410 ±    0.00055       0.02076 ±    0.00032     4.593 ±  0.050 %    95.222 ±  0.045 %
+   8       6.9580 ±    0.0377       0.00356 ±    0.00052       0.02092 ±    0.00030     4.608 ±  0.046 %    95.156 ±  0.042 %
+   9       7.0076 ±    0.0358       0.00377 ±    0.00049       0.02102 ±    0.00029     4.605 ±  0.044 %    95.155 ±  0.040 %
+  10       6.9356 ±    0.0335       0.00337 ±    0.00047       0.02088 ±    0.00027     4.611 ±  0.042 %    95.142 ±  0.038 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.935564 ±   0.033536
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.54%
+Mean ln(PPL(Q)/PPL(base))     :   0.003367 ±   0.000466
+Mean PPL(Q)/PPL(base)         :   1.003372 ±   0.000467
+Mean PPL(Q)-PPL(base)         :   0.023311 ±   0.003230
+
+====== KL divergence statistics ======
+Mean    KLD:   0.020881 ±   0.000267
+Maximum KLD:  23.693909
+99.9%   KLD:   1.646682
+99.0%   KLD:   0.218967
+95.0%   KLD:   0.061863
+90.0%   KLD:   0.035031
+Median  KLD:   0.004942
+10.0%   KLD:   0.000084
+ 5.0%   KLD:   0.000021
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000045
+
+====== Token probability statistics ======
+Mean    Δp: -0.029 ± 0.008 %
+Maximum Δp: 99.902%
+99.9%   Δp: 40.035%
+99.0%   Δp: 11.994%
+95.0%   Δp:  4.507%
+90.0%   Δp:  2.408%
+75.0%   Δp:  0.404%
+Median  Δp: -0.000%
+25.0%   Δp: -0.418%
+10.0%   Δp: -2.470%
+ 5.0%   Δp: -4.651%
+ 1.0%   Δp: -12.399%
+ 0.1%   Δp: -40.394%
+Minimum Δp: -99.754%
+RMS Δp    :  4.611 ± 0.042 %
+Same top p: 95.142 ± 0.038 %
+
+86.50.479.819 W ~llama_context:      CUDA0 compute buffer size of 764.0333 MiB, does not match expectation of 762.5333 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn3 -ctv kvarn3 --kv-tail-tokens 2048 --kl-divergence
+0.01.190.475 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.190.478 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.372.404 W cmn  common_init_: uniform KV tail override applies 2048 tokens to every canonical cache group
+1.16.709.653 I 
+1.16.709.720 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.785.765 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.51.316.754 I kl_divergence: 514.53 seconds per pass - ETA 1 hours 25.75 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8500 ±    0.1013       0.00551 ±    0.00140       0.01695 ±    0.00074     4.116 ±  0.131 %    95.593 ±  0.113 %
+   2       6.7264 ±    0.0713       0.00482 ±    0.00095       0.01704 ±    0.00051     4.227 ±  0.095 %    95.674 ±  0.079 %
+   3       6.6695 ±    0.0580       0.00477 ±    0.00080       0.01793 ±    0.00042     4.401 ±  0.080 %    95.519 ±  0.066 %
+   4       6.5632 ±    0.0493       0.00328 ±    0.00069       0.01813 ±    0.00039     4.397 ±  0.069 %    95.517 ±  0.057 %
+   5       6.6309 ±    0.0448       0.00322 ±    0.00062       0.01868 ±    0.00036     4.433 ±  0.061 %    95.504 ±  0.051 %
+   6       6.8950 ±    0.0432       0.00330 ±    0.00057       0.01904 ±    0.00032     4.472 ±  0.055 %    95.388 ±  0.047 %
+   7       6.8999 ±    0.0400       0.00351 ±    0.00054       0.01945 ±    0.00030     4.490 ±  0.051 %    95.369 ±  0.044 %
+   8       6.9552 ±    0.0377       0.00316 ±    0.00051       0.01972 ±    0.00028     4.529 ±  0.048 %    95.306 ±  0.041 %
+   9       7.0038 ±    0.0358       0.00323 ±    0.00048       0.01992 ±    0.00027     4.535 ±  0.045 %    95.288 ±  0.039 %
+  10       6.9314 ±    0.0335       0.00277 ±    0.00046       0.01979 ±    0.00026     4.524 ±  0.043 %    95.299 ±  0.037 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.931447 ±   0.033504
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.55%
+Mean ln(PPL(Q)/PPL(base))     :   0.002773 ±   0.000456
+Mean PPL(Q)/PPL(base)         :   1.002777 ±   0.000457
+Mean PPL(Q)-PPL(base)         :   0.019194 ±   0.003160
+
+====== KL divergence statistics ======
+Mean    KLD:   0.019794 ±   0.000257
+Maximum KLD:  14.401375
+99.9%   KLD:   1.625980
+99.0%   KLD:   0.211020
+95.0%   KLD:   0.056717
+90.0%   KLD:   0.032275
+Median  KLD:   0.004573
+10.0%   KLD:   0.000081
+ 5.0%   KLD:   0.000020
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000032
+
+====== Token probability statistics ======
+Mean    Δp: -0.024 ± 0.008 %
+Maximum Δp: 99.953%
+99.9%   Δp: 39.534%
+99.0%   Δp: 11.539%
+95.0%   Δp:  4.306%
+90.0%   Δp:  2.321%
+75.0%   Δp:  0.389%
+Median  Δp:  0.000%
+25.0%   Δp: -0.399%
+10.0%   Δp: -2.366%
+ 5.0%   Δp: -4.451%
+ 1.0%   Δp: -11.925%
+ 0.1%   Δp: -39.863%
+Minimum Δp: -99.970%
+RMS Δp    :  4.524 ± 0.043 %
+Same top p: 95.299 ± 0.037 %
+
+86.56.569.576 W ~llama_context:      CUDA0 compute buffer size of 764.0372 MiB, does not match expectation of 763.5372 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn2 -ctv kvarn2 --kl-divergence
+0.01.045.610 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.045.613 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.392.686 I 
+1.16.392.760 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.470.184 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.52.993.187 I kl_divergence: 516.52 seconds per pass - ETA 1 hours 26.08 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.9662 ±    0.1032       0.02234 ±    0.00275       0.07186 ±    0.00143     7.809 ±  0.124 %    89.938 ±  0.166 %
+   2       6.8650 ±    0.0729       0.02522 ±    0.00199       0.07521 ±    0.00100     8.131 ±  0.090 %    89.805 ±  0.118 %
+   3       6.7967 ±    0.0593       0.02366 ±    0.00166       0.07801 ±    0.00086     8.293 ±  0.075 %    89.806 ±  0.097 %
+   4       6.6834 ±    0.0503       0.02144 ±    0.00145       0.07875 ±    0.00075     8.349 ±  0.065 %    89.730 ±  0.084 %
+   5       6.7549 ±    0.0458       0.02176 ±    0.00128       0.07891 ±    0.00068     8.404 ±  0.058 %    89.809 ±  0.075 %
+   6       7.0315 ±    0.0442       0.02291 ±    0.00120       0.08233 ±    0.00065     8.533 ±  0.054 %    89.596 ±  0.069 %
+   7       7.0311 ±    0.0409       0.02234 ±    0.00112       0.08286 ±    0.00060     8.571 ±  0.050 %    89.575 ±  0.064 %
+   8       7.0931 ±    0.0385       0.02279 ±    0.00105       0.08365 ±    0.00056     8.568 ±  0.046 %    89.480 ±  0.060 %
+   9       7.1357 ±    0.0366       0.02188 ±    0.00098       0.08337 ±    0.00054     8.562 ±  0.044 %    89.484 ±  0.056 %
+  10       7.0658 ±    0.0342       0.02197 ±    0.00094       0.08362 ±    0.00050     8.600 ±  0.042 %    89.477 ±  0.054 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   7.065766 ±   0.034239
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  98.12%
+Mean ln(PPL(Q)/PPL(base))     :   0.021966 ±   0.000937
+Mean PPL(Q)/PPL(base)         :   1.022209 ±   0.000958
+Mean PPL(Q)-PPL(base)         :   0.153512 ±   0.006608
+
+====== KL divergence statistics ======
+Mean    KLD:   0.083620 ±   0.000502
+Maximum KLD:  20.892305
+99.9%   KLD:   3.658731
+99.0%   KLD:   0.916970
+95.0%   KLD:   0.306881
+90.0%   KLD:   0.178968
+Median  KLD:   0.024814
+10.0%   KLD:   0.000353
+ 5.0%   KLD:   0.000087
+ 1.0%   KLD:   0.000007
+ 0.1%   KLD:  -0.000000
+Minimum KLD:  -0.000019
+
+====== Token probability statistics ======
+Mean    Δp: -0.508 ± 0.015 %
+Maximum Δp: 99.983%
+99.9%   Δp: 65.696%
+99.0%   Δp: 24.191%
+95.0%   Δp:  9.203%
+90.0%   Δp:  4.822%
+75.0%   Δp:  0.667%
+Median  Δp: -0.005%
+25.0%   Δp: -1.267%
+10.0%   Δp: -6.409%
+ 5.0%   Δp: -11.680%
+ 1.0%   Δp: -29.849%
+ 0.1%   Δp: -71.067%
+Minimum Δp: -99.971%
+RMS Δp    :  8.600 ± 0.042 %
+Same top p: 89.477 ± 0.054 %
+
+87.27.763.378 W ~llama_context:      CUDA0 compute buffer size of 765.0491 MiB, does not match expectation of 762.5491 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn2 -ctv kvarn2 --kv-tail-tokens 512 --kl-divergence
+0.01.003.307 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.003.311 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.15.708.350 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.16.020.563 I 
+1.16.020.639 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.096.581 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.47.976.501 I kl_divergence: 511.88 seconds per pass - ETA 1 hours 25.30 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.9063 ±    0.1022       0.01369 ±    0.00230       0.04919 ±    0.00111     6.517 ±  0.117 %    91.925 ±  0.151 %
+   2       6.7852 ±    0.0719       0.01353 ±    0.00162       0.05096 ±    0.00086     6.683 ±  0.085 %    91.865 ±  0.107 %
+   3       6.7218 ±    0.0585       0.01259 ±    0.00138       0.05481 ±    0.00073     6.983 ±  0.072 %    91.678 ±  0.088 %
+   4       6.6200 ±    0.0497       0.01190 ±    0.00121       0.05524 ±    0.00064     7.057 ±  0.062 %    91.633 ±  0.076 %
+   5       6.6912 ±    0.0453       0.01227 ±    0.00108       0.05566 ±    0.00058     7.183 ±  0.057 %    91.679 ±  0.068 %
+   6       6.9564 ±    0.0436       0.01216 ±    0.00100       0.05795 ±    0.00055     7.272 ±  0.053 %    91.514 ±  0.063 %
+   7       6.9600 ±    0.0404       0.01218 ±    0.00093       0.05857 ±    0.00051     7.319 ±  0.049 %    91.444 ±  0.058 %
+   8       7.0096 ±    0.0380       0.01095 ±    0.00088       0.05992 ±    0.00048     7.360 ±  0.046 %    91.321 ±  0.055 %
+   9       7.0537 ±    0.0361       0.01033 ±    0.00083       0.05964 ±    0.00046     7.354 ±  0.043 %    91.344 ±  0.052 %
+  10       6.9859 ±    0.0338       0.01059 ±    0.00079       0.05969 ±    0.00043     7.384 ±  0.041 %    91.334 ±  0.049 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.985863 ±   0.033771
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  98.68%
+Mean ln(PPL(Q)/PPL(base))     :   0.010593 ±   0.000786
+Mean PPL(Q)/PPL(base)         :   1.010649 ±   0.000794
+Mean PPL(Q)-PPL(base)         :   0.073610 ±   0.005478
+
+====== KL divergence statistics ======
+Mean    KLD:   0.059694 ±   0.000428
+Maximum KLD:  23.591669
+99.9%   KLD:   3.065698
+99.0%   KLD:   0.679617
+95.0%   KLD:   0.214093
+90.0%   KLD:   0.122355
+Median  KLD:   0.016014
+10.0%   KLD:   0.000231
+ 5.0%   KLD:   0.000056
+ 1.0%   KLD:   0.000004
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000046
+
+====== Token probability statistics ======
+Mean    Δp: -0.269 ± 0.013 %
+Maximum Δp: 99.978%
+99.9%   Δp: 59.793%
+99.0%   Δp: 20.932%
+95.0%   Δp:  7.781%
+90.0%   Δp:  4.087%
+75.0%   Δp:  0.611%
+Median  Δp: -0.001%
+25.0%   Δp: -0.905%
+10.0%   Δp: -4.949%
+ 5.0%   Δp: -9.205%
+ 1.0%   Δp: -23.908%
+ 0.1%   Δp: -63.497%
+Minimum Δp: -99.911%
+RMS Δp    :  7.384 ± 0.041 %
+Same top p: 91.334 ± 0.049 %
+
+86.37.271.618 W ~llama_context:      CUDA0 compute buffer size of 764.0314 MiB, does not match expectation of 762.0314 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn2 -ctv kvarn2 --kv-tail-tokens 1024 --kl-divergence
+0.01.030.972 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.030.976 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.287.908 W cmn  common_init_: uniform KV tail override applies 1024 tokens to every canonical cache group
+1.16.598.168 I 
+1.16.598.249 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.673.595 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.48.461.763 I kl_divergence: 511.79 seconds per pass - ETA 1 hours 25.28 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8880 ±    0.1020       0.01103 ±    0.00209       0.04320 ±    0.00102     6.181 ±  0.118 %    92.236 ±  0.148 %
+   2       6.7458 ±    0.0714       0.00770 ±    0.00150       0.04475 ±    0.00085     6.345 ±  0.087 %    92.380 ±  0.104 %
+   3       6.6900 ±    0.0581       0.00784 ±    0.00128       0.04777 ±    0.00072     6.604 ±  0.075 %    92.259 ±  0.085 %
+   4       6.5926 ±    0.0495       0.00776 ±    0.00112       0.04814 ±    0.00063     6.641 ±  0.064 %    92.215 ±  0.074 %
+   5       6.6684 ±    0.0451       0.00886 ±    0.00100       0.04852 ±    0.00056     6.745 ±  0.058 %    92.278 ±  0.066 %
+   6       6.9356 ±    0.0435       0.00918 ±    0.00093       0.05017 ±    0.00052     6.825 ±  0.054 %    92.124 ±  0.061 %
+   7       6.9368 ±    0.0402       0.00885 ±    0.00087       0.05104 ±    0.00049     6.874 ±  0.050 %    92.076 ±  0.056 %
+   8       6.9906 ±    0.0379       0.00823 ±    0.00082       0.05180 ±    0.00046     6.893 ±  0.046 %    91.998 ±  0.053 %
+   9       7.0393 ±    0.0360       0.00829 ±    0.00077       0.05139 ±    0.00044     6.873 ±  0.044 %    92.053 ±  0.050 %
+  10       6.9714 ±    0.0337       0.00853 ±    0.00072       0.05132 ±    0.00041     6.889 ±  0.041 %    92.040 ±  0.047 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.971450 ±   0.033700
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  98.87%
+Mean ln(PPL(Q)/PPL(base))     :   0.008528 ±   0.000725
+Mean PPL(Q)/PPL(base)         :   1.008564 ±   0.000731
+Mean PPL(Q)-PPL(base)         :   0.059197 ±   0.005046
+
+====== KL divergence statistics ======
+Mean    KLD:   0.051321 ±   0.000411
+Maximum KLD:  20.497391
+99.9%   KLD:   2.894403
+99.0%   KLD:   0.584915
+95.0%   KLD:   0.178776
+90.0%   KLD:   0.101024
+Median  KLD:   0.013432
+10.0%   KLD:   0.000201
+ 5.0%   KLD:   0.000049
+ 1.0%   KLD:   0.000003
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000026
+
+====== Token probability statistics ======
+Mean    Δp: -0.201 ± 0.012 %
+Maximum Δp: 99.988%
+99.9%   Δp: 58.772%
+99.0%   Δp: 19.335%
+95.0%   Δp:  7.172%
+90.0%   Δp:  3.769%
+75.0%   Δp:  0.583%
+Median  Δp: -0.000%
+25.0%   Δp: -0.794%
+10.0%   Δp: -4.437%
+ 5.0%   Δp: -8.266%
+ 1.0%   Δp: -21.816%
+ 0.1%   Δp: -59.124%
+Minimum Δp: -99.858%
+RMS Δp    :  6.889 ± 0.041 %
+Same top p: 92.040 ± 0.047 %
+
+86.36.645.385 W ~llama_context:      CUDA0 compute buffer size of 764.0333 MiB, does not match expectation of 762.5333 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn2 -ctv kvarn2 --kv-tail-tokens 2048 --kl-divergence
+0.01.030.294 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.030.297 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.379.906 W cmn  common_init_: uniform KV tail override applies 2048 tokens to every canonical cache group
+1.16.692.558 I 
+1.16.692.637 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.777.312 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.49.675.906 I kl_divergence: 512.90 seconds per pass - ETA 1 hours 25.47 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.9017 ±    0.1023       0.01303 ±    0.00199       0.03776 ±    0.00101     5.787 ±  0.121 %    93.081 ±  0.140 %
+   2       6.7756 ±    0.0719       0.01211 ±    0.00137       0.03694 ±    0.00068     5.800 ±  0.087 %    93.138 ±  0.099 %
+   3       6.7137 ±    0.0585       0.01137 ±    0.00117       0.03897 ±    0.00060     6.046 ±  0.075 %    93.070 ±  0.081 %
+   4       6.6069 ±    0.0497       0.00992 ±    0.00103       0.03952 ±    0.00051     6.119 ±  0.064 %    92.962 ±  0.071 %
+   5       6.6765 ±    0.0452       0.01008 ±    0.00092       0.04040 ±    0.00046     6.279 ±  0.059 %    92.989 ±  0.063 %
+   6       6.9388 ±    0.0435       0.00964 ±    0.00086       0.04178 ±    0.00044     6.335 ±  0.053 %    92.850 ±  0.058 %
+   7       6.9449 ±    0.0403       0.01001 ±    0.00080       0.04278 ±    0.00042     6.389 ±  0.049 %    92.775 ±  0.054 %
+   8       6.9948 ±    0.0379       0.00883 ±    0.00075       0.04338 ±    0.00039     6.413 ±  0.046 %    92.680 ±  0.051 %
+   9       7.0465 ±    0.0360       0.00931 ±    0.00071       0.04328 ±    0.00038     6.413 ±  0.044 %    92.712 ±  0.048 %
+  10       6.9801 ±    0.0338       0.00977 ±    0.00067       0.04324 ±    0.00036     6.429 ±  0.041 %    92.703 ±  0.045 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.980090 ±   0.033768
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.04%
+Mean ln(PPL(Q)/PPL(base))     :   0.009766 ±   0.000668
+Mean PPL(Q)/PPL(base)         :   1.009814 ±   0.000675
+Mean PPL(Q)-PPL(base)         :   0.067836 ±   0.004661
+
+====== KL divergence statistics ======
+Mean    KLD:   0.043242 ±   0.000359
+Maximum KLD:  18.046307
+99.9%   KLD:   2.639773
+99.0%   KLD:   0.493592
+95.0%   KLD:   0.147054
+90.0%   KLD:   0.082942
+Median  KLD:   0.011292
+10.0%   KLD:   0.000176
+ 5.0%   KLD:   0.000042
+ 1.0%   KLD:   0.000003
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000031
+
+====== Token probability statistics ======
+Mean    Δp: -0.210 ± 0.011 %
+Maximum Δp: 99.955%
+99.9%   Δp: 54.271%
+99.0%   Δp: 17.584%
+95.0%   Δp:  6.476%
+90.0%   Δp:  3.432%
+75.0%   Δp:  0.519%
+Median  Δp: -0.000%
+25.0%   Δp: -0.746%
+10.0%   Δp: -4.060%
+ 5.0%   Δp: -7.546%
+ 1.0%   Δp: -19.996%
+ 0.1%   Δp: -57.727%
+Minimum Δp: -99.865%
+RMS Δp    :  6.429 ± 0.041 %
+Same top p: 92.703 ± 0.045 %
+
+86.56.667.044 W ~llama_context:      CUDA0 compute buffer size of 764.0372 MiB, does not match expectation of 763.5372 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q5_0 -ctv q5_0 --kl-divergence
+0.01.083.004 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.083.007 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.619.988 I 
+1.16.620.062 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.698.165 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.44.621.804 I kl_divergence: 507.92 seconds per pass - ETA 1 hours 24.65 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8458 ±    0.1012       0.00489 ±    0.00139       0.01835 ±    0.00077     4.238 ±  0.125 %    95.160 ±  0.119 %
+   2       6.7205 ±    0.0712       0.00395 ±    0.00100       0.01893 ±    0.00052     4.350 ±  0.091 %    95.215 ±  0.083 %
+   3       6.6647 ±    0.0579       0.00404 ±    0.00084       0.01975 ±    0.00043     4.485 ±  0.075 %    95.104 ±  0.069 %
+   4       6.5602 ±    0.0492       0.00283 ±    0.00073       0.01977 ±    0.00039     4.481 ±  0.064 %    95.103 ±  0.060 %
+   5       6.6256 ±    0.0448       0.00242 ±    0.00066       0.02052 ±    0.00035     4.587 ±  0.058 %    95.075 ±  0.053 %
+   6       6.8878 ±    0.0431       0.00226 ±    0.00061       0.02101 ±    0.00033     4.594 ±  0.052 %    94.969 ±  0.049 %
+   7       6.8906 ±    0.0399       0.00216 ±    0.00057       0.02136 ±    0.00031     4.614 ±  0.048 %    94.953 ±  0.046 %
+   8       6.9497 ±    0.0376       0.00236 ±    0.00054       0.02174 ±    0.00029     4.648 ±  0.045 %    94.884 ±  0.043 %
+   9       7.0004 ±    0.0358       0.00275 ±    0.00051       0.02200 ±    0.00028     4.673 ±  0.043 %    94.868 ±  0.041 %
+  10       6.9287 ±    0.0335       0.00238 ±    0.00048       0.02198 ±    0.00026     4.670 ±  0.040 %    94.860 ±  0.039 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.928735 ±   0.033484
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.50%
+Mean ln(PPL(Q)/PPL(base))     :   0.002382 ±   0.000483
+Mean PPL(Q)/PPL(base)         :   1.002384 ±   0.000484
+Mean PPL(Q)-PPL(base)         :   0.016482 ±   0.003342
+
+====== KL divergence statistics ======
+Mean    KLD:   0.021979 ±   0.000263
+Maximum KLD:  18.577662
+99.9%   KLD:   1.624960
+99.0%   KLD:   0.232994
+95.0%   KLD:   0.066876
+90.0%   KLD:   0.038017
+Median  KLD:   0.005488
+10.0%   KLD:   0.000090
+ 5.0%   KLD:   0.000022
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000033
+
+====== Token probability statistics ======
+Mean    Δp: -0.029 ± 0.008 %
+Maximum Δp: 99.899%
+99.9%   Δp: 40.378%
+99.0%   Δp: 12.624%
+95.0%   Δp:  4.733%
+90.0%   Δp:  2.531%
+75.0%   Δp:  0.408%
+Median  Δp: -0.000%
+25.0%   Δp: -0.453%
+10.0%   Δp: -2.630%
+ 5.0%   Δp: -4.871%
+ 1.0%   Δp: -12.719%
+ 0.1%   Δp: -40.319%
+Minimum Δp: -99.771%
+RMS Δp    :  4.670 ± 0.040 %
+Same top p: 94.860 ± 0.039 %
+
+85.59.549.859 W ~llama_context:      CUDA0 compute buffer size of 764.1738 MiB, does not match expectation of 761.1738 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q5_0 -ctv q5_0 --kv-tail-tokens 512 --kl-divergence
+0.01.094.486 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.094.489 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.893.347 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.17.169.100 I 
+1.17.169.183 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.17.247.009 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.48.888.479 I kl_divergence: 511.64 seconds per pass - ETA 1 hours 25.27 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8344 ±    0.1011       0.00323 ±    0.00119       0.01379 ±    0.00061     3.657 ±  0.120 %    96.078 ±  0.107 %
+   2       6.7109 ±    0.0711       0.00251 ±    0.00087       0.01466 ±    0.00047     3.888 ±  0.094 %    96.033 ±  0.076 %
+   3       6.6449 ±    0.0577       0.00108 ±    0.00074       0.01541 ±    0.00040     4.049 ±  0.079 %    95.896 ±  0.063 %
+   4       6.5457 ±    0.0491       0.00061 ±    0.00064       0.01550 ±    0.00039     4.014 ±  0.067 %    95.872 ±  0.055 %
+   5       6.6133 ±    0.0447       0.00056 ±    0.00058       0.01623 ±    0.00036     4.113 ±  0.060 %    95.815 ±  0.049 %
+   6       6.8774 ±    0.0431       0.00075 ±    0.00054       0.01648 ±    0.00032     4.133 ±  0.055 %    95.748 ±  0.046 %
+   7       6.8833 ±    0.0399       0.00111 ±    0.00051       0.01690 ±    0.00031     4.177 ±  0.051 %    95.694 ±  0.042 %
+   8       6.9413 ±    0.0376       0.00116 ±    0.00048       0.01714 ±    0.00028     4.213 ±  0.047 %    95.655 ±  0.040 %
+   9       6.9892 ±    0.0357       0.00114 ±    0.00045       0.01734 ±    0.00027     4.229 ±  0.045 %    95.646 ±  0.038 %
+  10       6.9189 ±    0.0334       0.00097 ±    0.00042       0.01721 ±    0.00025     4.222 ±  0.042 %    95.637 ±  0.036 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.918949 ±   0.033430
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.61%
+Mean ln(PPL(Q)/PPL(base))     :   0.000968 ±   0.000425
+Mean PPL(Q)/PPL(base)         :   1.000969 ±   0.000425
+Mean PPL(Q)-PPL(base)         :   0.006696 ±   0.002939
+
+====== KL divergence statistics ======
+Mean    KLD:   0.017213 ±   0.000253
+Maximum KLD:  20.496780
+99.9%   KLD:   1.510088
+99.0%   KLD:   0.178242
+95.0%   KLD:   0.048144
+90.0%   KLD:   0.027231
+Median  KLD:   0.003875
+10.0%   KLD:   0.000068
+ 5.0%   KLD:   0.000017
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000120
+
+====== Token probability statistics ======
+Mean    Δp:  0.012 ± 0.007 %
+Maximum Δp: 99.856%
+99.9%   Δp: 38.702%
+99.0%   Δp: 10.839%
+95.0%   Δp:  4.053%
+90.0%   Δp:  2.165%
+75.0%   Δp:  0.364%
+Median  Δp:  0.000%
+25.0%   Δp: -0.362%
+10.0%   Δp: -2.150%
+ 5.0%   Δp: -4.020%
+ 1.0%   Δp: -10.595%
+ 0.1%   Δp: -35.544%
+Minimum Δp: -99.668%
+RMS Δp    :  4.222 ± 0.042 %
+Same top p: 95.637 ± 0.036 %
+
+86.25.506.453 W ~llama_context:      CUDA0 compute buffer size of 764.1837 MiB, does not match expectation of 762.1837 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q5_0 -ctv q5_0 --kv-tail-tokens 1024 --kl-divergence
+0.01.048.640 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.048.643 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.602.569 W cmn  common_init_: uniform KV tail override applies 1024 tokens to every canonical cache group
+1.16.925.222 I 
+1.16.925.285 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.17.004.266 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.45.560.534 I kl_divergence: 508.56 seconds per pass - ETA 1 hours 24.75 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8290 ±    0.1009       0.00243 ±    0.00121       0.01437 ±    0.00064     3.903 ±  0.140 %    95.950 ±  0.109 %
+   2       6.7022 ±    0.0709       0.00122 ±    0.00086       0.01478 ±    0.00045     3.966 ±  0.099 %    95.933 ±  0.077 %
+   3       6.6436 ±    0.0577       0.00088 ±    0.00074       0.01548 ±    0.00038     4.115 ±  0.082 %    95.859 ±  0.064 %
+   4       6.5438 ±    0.0491       0.00033 ±    0.00064       0.01532 ±    0.00036     4.049 ±  0.069 %    95.838 ±  0.055 %
+   5       6.6109 ±    0.0446       0.00021 ±    0.00057       0.01608 ±    0.00033     4.169 ±  0.062 %    95.824 ±  0.049 %
+   6       6.8765 ±    0.0430       0.00062 ±    0.00053       0.01639 ±    0.00030     4.191 ±  0.057 %    95.749 ±  0.046 %
+   7       6.8797 ±    0.0399       0.00058 ±    0.00050       0.01673 ±    0.00029     4.191 ±  0.052 %    95.739 ±  0.042 %
+   8       6.9362 ±    0.0376       0.00042 ±    0.00047       0.01706 ±    0.00027     4.227 ±  0.049 %    95.693 ±  0.040 %
+   9       6.9839 ±    0.0357       0.00038 ±    0.00045       0.01731 ±    0.00027     4.246 ±  0.046 %    95.664 ±  0.038 %
+  10       6.9143 ±    0.0334       0.00029 ±    0.00042       0.01718 ±    0.00025     4.224 ±  0.043 %    95.676 ±  0.036 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.914289 ±   0.033405
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.62%
+Mean ln(PPL(Q)/PPL(base))     :   0.000294 ±   0.000422
+Mean PPL(Q)/PPL(base)         :   1.000294 ±   0.000422
+Mean PPL(Q)-PPL(base)         :   0.002035 ±   0.002914
+
+====== KL divergence statistics ======
+Mean    KLD:   0.017184 ±   0.000249
+Maximum KLD:  19.447247
+99.9%   KLD:   1.569629
+99.0%   KLD:   0.177231
+95.0%   KLD:   0.047808
+90.0%   KLD:   0.026809
+Median  KLD:   0.003816
+10.0%   KLD:   0.000068
+ 5.0%   KLD:   0.000016
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000074
+
+====== Token probability statistics ======
+Mean    Δp:  0.024 ± 0.007 %
+Maximum Δp: 99.982%
+99.9%   Δp: 38.419%
+99.0%   Δp: 10.734%
+95.0%   Δp:  4.053%
+90.0%   Δp:  2.168%
+75.0%   Δp:  0.372%
+Median  Δp:  0.000%
+25.0%   Δp: -0.350%
+10.0%   Δp: -2.109%
+ 5.0%   Δp: -3.944%
+ 1.0%   Δp: -10.507%
+ 0.1%   Δp: -36.472%
+Minimum Δp: -99.884%
+RMS Δp    :  4.224 ± 0.043 %
+Same top p: 95.676 ± 0.036 %
+
+86.12.598.166 W ~llama_context:      CUDA0 compute buffer size of 764.1857 MiB, does not match expectation of 762.6857 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q5_0 -ctv q5_0 --kv-tail-tokens 2048 --kl-divergence
+0.01.077.244 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.077.248 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.20.122.760 W cmn  common_init_: uniform KV tail override applies 2048 tokens to every canonical cache group
+1.20.425.790 I 
+1.20.425.857 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.20.505.995 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+10.11.512.119 I kl_divergence: 531.01 seconds per pass - ETA 1 hours 28.50 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8301 ±    0.1010       0.00261 ±    0.00119       0.01353 ±    0.00061     3.627 ±  0.125 %    95.987 ±  0.108 %
+   2       6.6989 ±    0.0709       0.00073 ±    0.00085       0.01405 ±    0.00043     3.751 ±  0.087 %    95.985 ±  0.077 %
+   3       6.6419 ±    0.0577       0.00062 ±    0.00074       0.01491 ±    0.00038     3.987 ±  0.078 %    95.878 ±  0.063 %
+   4       6.5407 ±    0.0491      -0.00015 ±    0.00063       0.01500 ±    0.00037     3.948 ±  0.066 %    95.910 ±  0.055 %
+   5       6.6120 ±    0.0447       0.00037 ±    0.00058       0.01586 ±    0.00033     4.071 ±  0.060 %    95.872 ±  0.049 %
+   6       6.8733 ±    0.0430       0.00015 ±    0.00054       0.01625 ±    0.00031     4.118 ±  0.055 %    95.784 ±  0.045 %
+   7       6.8785 ±    0.0399       0.00040 ±    0.00050       0.01668 ±    0.00030     4.148 ±  0.051 %    95.748 ±  0.042 %
+   8       6.9369 ±    0.0376       0.00052 ±    0.00047       0.01688 ±    0.00028     4.170 ±  0.047 %    95.661 ±  0.040 %
+   9       6.9838 ±    0.0357       0.00038 ±    0.00045       0.01709 ±    0.00027     4.190 ±  0.045 %    95.648 ±  0.038 %
+  10       6.9136 ±    0.0334       0.00019 ±    0.00043       0.01704 ±    0.00025     4.192 ±  0.043 %    95.648 ±  0.036 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.913584 ±   0.033407
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.61%
+Mean ln(PPL(Q)/PPL(base))     :   0.000193 ±   0.000425
+Mean PPL(Q)/PPL(base)         :   1.000193 ±   0.000426
+Mean PPL(Q)-PPL(base)         :   0.001331 ±   0.002941
+
+====== KL divergence statistics ======
+Mean    KLD:   0.017041 ±   0.000252
+Maximum KLD:  16.614046
+99.9%   KLD:   1.461240
+99.0%   KLD:   0.175117
+95.0%   KLD:   0.048114
+90.0%   KLD:   0.026864
+Median  KLD:   0.003826
+10.0%   KLD:   0.000068
+ 5.0%   KLD:   0.000016
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000040
+
+====== Token probability statistics ======
+Mean    Δp:  0.040 ± 0.007 %
+Maximum Δp: 99.696%
+99.9%   Δp: 39.100%
+99.0%   Δp: 10.949%
+95.0%   Δp:  4.093%
+90.0%   Δp:  2.206%
+75.0%   Δp:  0.381%
+Median  Δp:  0.000%
+25.0%   Δp: -0.344%
+10.0%   Δp: -2.092%
+ 5.0%   Δp: -3.933%
+ 1.0%   Δp: -10.401%
+ 0.1%   Δp: -34.171%
+Minimum Δp: -99.860%
+RMS Δp    :  4.192 ± 0.043 %
+Same top p: 95.648 ± 0.036 %
+
+87.38.232.475 W ~llama_context:      CUDA0 compute buffer size of 764.1896 MiB, does not match expectation of 763.6896 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q4_0 -ctv q4_0 --kl-divergence
+0.01.107.753 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.107.759 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.14.344.609 I 
+1.14.344.680 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.14.423.335 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.42.615.316 I kl_divergence: 508.19 seconds per pass - ETA 1 hours 24.68 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8461 ±    0.1012       0.00494 ±    0.00176       0.02921 ±    0.00085     5.206 ±  0.120 %    93.652 ±  0.135 %
+   2       6.7189 ±    0.0711       0.00372 ±    0.00125       0.03018 ±    0.00061     5.317 ±  0.085 %    93.738 ±  0.095 %
+   3       6.6564 ±    0.0578       0.00280 ±    0.00105       0.03165 ±    0.00053     5.559 ±  0.074 %    93.650 ±  0.078 %
+   4       6.5596 ±    0.0492       0.00273 ±    0.00092       0.03165 ±    0.00047     5.536 ±  0.062 %    93.605 ±  0.068 %
+   5       6.6283 ±    0.0447       0.00283 ±    0.00083       0.03257 ±    0.00043     5.652 ±  0.057 %    93.603 ±  0.060 %
+   6       6.8939 ±    0.0431       0.00314 ±    0.00077       0.03338 ±    0.00040     5.686 ±  0.052 %    93.502 ±  0.056 %
+   7       6.9032 ±    0.0400       0.00399 ±    0.00072       0.03389 ±    0.00038     5.714 ±  0.048 %    93.455 ±  0.052 %
+   8       6.9582 ±    0.0377       0.00358 ±    0.00067       0.03448 ±    0.00036     5.745 ±  0.045 %    93.328 ±  0.049 %
+   9       7.0069 ±    0.0358       0.00368 ±    0.00064       0.03482 ±    0.00034     5.777 ±  0.043 %    93.318 ±  0.046 %
+  10       6.9377 ±    0.0335       0.00368 ±    0.00060       0.03473 ±    0.00032     5.786 ±  0.040 %    93.337 ±  0.044 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.937705 ±   0.033498
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.23%
+Mean ln(PPL(Q)/PPL(base))     :   0.003675 ±   0.000599
+Mean PPL(Q)/PPL(base)         :   1.003682 ±   0.000602
+Mean PPL(Q)-PPL(base)         :   0.025452 ±   0.004154
+
+====== KL divergence statistics ======
+Mean    KLD:   0.034732 ±   0.000323
+Maximum KLD:  19.017227
+99.9%   KLD:   2.133893
+99.0%   KLD:   0.365820
+95.0%   KLD:   0.114934
+90.0%   KLD:   0.066247
+Median  KLD:   0.009428
+10.0%   KLD:   0.000141
+ 5.0%   KLD:   0.000035
+ 1.0%   KLD:   0.000003
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000044
+
+====== Token probability statistics ======
+Mean    Δp: -0.118 ± 0.010 %
+Maximum Δp: 99.894%
+99.9%   Δp: 48.816%
+99.0%   Δp: 16.021%
+95.0%   Δp:  6.036%
+90.0%   Δp:  3.203%
+75.0%   Δp:  0.501%
+Median  Δp: -0.000%
+25.0%   Δp: -0.647%
+10.0%   Δp: -3.586%
+ 5.0%   Δp: -6.628%
+ 1.0%   Δp: -17.094%
+ 0.1%   Δp: -51.238%
+Minimum Δp: -99.894%
+RMS Δp    :  5.786 ± 0.040 %
+Same top p: 93.337 ± 0.044 %
+
+85.54.689.758 W ~llama_context:      CUDA0 compute buffer size of 764.1738 MiB, does not match expectation of 761.1738 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q4_0 -ctv q4_0 --kv-tail-tokens 512 --kl-divergence
+0.01.029.951 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.029.955 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.15.047.788 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.15.339.848 I 
+1.15.339.935 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.15.414.103 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.43.236.701 I kl_divergence: 507.82 seconds per pass - ETA 1 hours 24.63 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8176 ±    0.1007       0.00076 ±    0.00137       0.01616 ±    0.00077     3.977 ±  0.139 %    95.846 ±  0.110 %
+   2       6.6921 ±    0.0708      -0.00029 ±    0.00097       0.01667 ±    0.00060     4.012 ±  0.094 %    95.778 ±  0.079 %
+   3       6.6263 ±    0.0575      -0.00173 ±    0.00081       0.01732 ±    0.00049     4.149 ±  0.078 %    95.660 ±  0.065 %
+   4       6.5256 ±    0.0489      -0.00246 ±    0.00070       0.01708 ±    0.00040     4.121 ±  0.065 %    95.625 ±  0.056 %
+   5       6.5957 ±    0.0445      -0.00209 ±    0.00063       0.01788 ±    0.00038     4.244 ±  0.060 %    95.611 ±  0.051 %
+   6       6.8609 ±    0.0429      -0.00165 ±    0.00057       0.01819 ±    0.00035     4.263 ±  0.054 %    95.542 ±  0.047 %
+   7       6.8668 ±    0.0398      -0.00129 ±    0.00054       0.01854 ±    0.00032     4.283 ±  0.050 %    95.512 ±  0.043 %
+   8       6.9196 ±    0.0374      -0.00197 ±    0.00051       0.01879 ±    0.00029     4.317 ±  0.046 %    95.440 ±  0.041 %
+   9       6.9666 ±    0.0355      -0.00209 ±    0.00048       0.01904 ±    0.00028     4.334 ±  0.044 %    95.425 ±  0.038 %
+  10       6.8978 ±    0.0333      -0.00209 ±    0.00045       0.01898 ±    0.00027     4.354 ±  0.042 %    95.418 ±  0.037 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.897839 ±   0.033288
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.56%
+Mean ln(PPL(Q)/PPL(base))     :  -0.002088 ±   0.000455
+Mean PPL(Q)/PPL(base)         :   0.997915 ±   0.000454
+Mean PPL(Q)-PPL(base)         :  -0.014414 ±   0.003140
+
+====== KL divergence statistics ======
+Mean    KLD:   0.018977 ±   0.000268
+Maximum KLD:  18.883812
+99.9%   KLD:   1.663703
+99.0%   KLD:   0.193928
+95.0%   KLD:   0.053692
+90.0%   KLD:   0.030467
+Median  KLD:   0.004344
+10.0%   KLD:   0.000075
+ 5.0%   KLD:   0.000018
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000044
+
+====== Token probability statistics ======
+Mean    Δp:  0.038 ± 0.008 %
+Maximum Δp: 99.930%
+99.9%   Δp: 40.296%
+99.0%   Δp: 11.548%
+95.0%   Δp:  4.336%
+90.0%   Δp:  2.325%
+75.0%   Δp:  0.396%
+Median  Δp:  0.000%
+25.0%   Δp: -0.371%
+10.0%   Δp: -2.230%
+ 5.0%   Δp: -4.202%
+ 1.0%   Δp: -11.074%
+ 0.1%   Δp: -34.956%
+Minimum Δp: -99.964%
+RMS Δp    :  4.354 ± 0.042 %
+Same top p: 95.418 ± 0.037 %
+
+85.55.581.606 W ~llama_context:      CUDA0 compute buffer size of 764.1837 MiB, does not match expectation of 762.1837 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q4_0 -ctv q4_0 --kv-tail-tokens 1024 --kl-divergence
+0.01.062.321 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.062.324 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.15.121.654 W cmn  common_init_: uniform KV tail override applies 1024 tokens to every canonical cache group
+1.15.412.062 I 
+1.15.412.140 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.15.489.402 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.43.811.760 I kl_divergence: 508.32 seconds per pass - ETA 1 hours 24.72 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8159 ±    0.1006       0.00052 ±    0.00122       0.01478 ±    0.00065     3.804 ±  0.122 %    95.868 ±  0.110 %
+   2       6.6860 ±    0.0707      -0.00119 ±    0.00089       0.01582 ±    0.00052     4.016 ±  0.093 %    95.828 ±  0.078 %
+   3       6.6253 ±    0.0575      -0.00188 ±    0.00076       0.01662 ±    0.00044     4.145 ±  0.078 %    95.732 ±  0.064 %
+   4       6.5250 ±    0.0489      -0.00255 ±    0.00065       0.01659 ±    0.00042     4.103 ±  0.066 %    95.701 ±  0.056 %
+   5       6.5916 ±    0.0445      -0.00271 ±    0.00059       0.01724 ±    0.00038     4.207 ±  0.059 %    95.700 ±  0.050 %
+   6       6.8549 ±    0.0428      -0.00253 ±    0.00055       0.01763 ±    0.00035     4.252 ±  0.055 %    95.598 ±  0.046 %
+   7       6.8613 ±    0.0397      -0.00209 ±    0.00051       0.01793 ±    0.00032     4.286 ±  0.050 %    95.563 ±  0.043 %
+   8       6.9167 ±    0.0374      -0.00239 ±    0.00048       0.01819 ±    0.00029     4.311 ±  0.046 %    95.504 ±  0.040 %
+   9       6.9632 ±    0.0355      -0.00258 ±    0.00046       0.01846 ±    0.00028     4.322 ±  0.044 %    95.504 ±  0.038 %
+  10       6.8931 ±    0.0332      -0.00278 ±    0.00044       0.01833 ±    0.00026     4.317 ±  0.042 %    95.507 ±  0.036 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.893070 ±   0.033248
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.59%
+Mean ln(PPL(Q)/PPL(base))     :  -0.002779 ±   0.000436
+Mean PPL(Q)/PPL(base)         :   0.997225 ±   0.000435
+Mean PPL(Q)-PPL(base)         :  -0.019184 ±   0.003012
+
+====== KL divergence statistics ======
+Mean    KLD:   0.018327 ±   0.000263
+Maximum KLD:  21.703642
+99.9%   KLD:   1.603527
+99.0%   KLD:   0.189366
+95.0%   KLD:   0.052338
+90.0%   KLD:   0.029481
+Median  KLD:   0.004179
+10.0%   KLD:   0.000073
+ 5.0%   KLD:   0.000018
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000082
+
+====== Token probability statistics ======
+Mean    Δp:  0.033 ± 0.008 %
+Maximum Δp: 99.712%
+99.9%   Δp: 38.787%
+99.0%   Δp: 11.314%
+95.0%   Δp:  4.261%
+90.0%   Δp:  2.297%
+75.0%   Δp:  0.396%
+Median  Δp:  0.000%
+25.0%   Δp: -0.362%
+10.0%   Δp: -2.199%
+ 5.0%   Δp: -4.134%
+ 1.0%   Δp: -11.069%
+ 0.1%   Δp: -36.432%
+Minimum Δp: -99.657%
+RMS Δp    :  4.317 ± 0.042 %
+Same top p: 95.507 ± 0.036 %
+
+85.59.435.264 W ~llama_context:      CUDA0 compute buffer size of 764.1857 MiB, does not match expectation of 762.6857 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q4_0 -ctv q4_0 --kv-tail-tokens 2048 --kl-divergence
+0.01.053.744 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.053.748 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.14.921.998 W cmn  common_init_: uniform KV tail override applies 2048 tokens to every canonical cache group
+1.15.264.726 I 
+1.15.264.816 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.15.359.300 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.44.599.701 I kl_divergence: 509.24 seconds per pass - ETA 1 hours 24.87 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8180 ±    0.1007       0.00083 ±    0.00123       0.01460 ±    0.00057     3.746 ±  0.119 %    95.935 ±  0.109 %
+   2       6.6755 ±    0.0706      -0.00276 ±    0.00087       0.01488 ±    0.00042     3.831 ±  0.087 %    95.958 ±  0.077 %
+   3       6.6150 ±    0.0573      -0.00343 ±    0.00076       0.01575 ±    0.00038     4.041 ±  0.077 %    95.860 ±  0.064 %
+   4       6.5151 ±    0.0488      -0.00407 ±    0.00067       0.01591 ±    0.00036     4.022 ±  0.065 %    95.828 ±  0.055 %
+   5       6.5849 ±    0.0444      -0.00373 ±    0.00061       0.01692 ±    0.00036     4.161 ±  0.059 %    95.800 ±  0.050 %
+   6       6.8463 ±    0.0428      -0.00379 ±    0.00056       0.01734 ±    0.00033     4.182 ±  0.054 %    95.699 ±  0.046 %
+   7       6.8550 ±    0.0397      -0.00301 ±    0.00052       0.01756 ±    0.00030     4.212 ±  0.049 %    95.660 ±  0.043 %
+   8       6.9096 ±    0.0374      -0.00342 ±    0.00049       0.01781 ±    0.00028     4.245 ±  0.046 %    95.590 ±  0.040 %
+   9       6.9580 ±    0.0355      -0.00333 ±    0.00046       0.01802 ±    0.00027     4.253 ±  0.043 %    95.569 ±  0.038 %
+  10       6.8873 ±    0.0332      -0.00362 ±    0.00043       0.01797 ±    0.00026     4.251 ±  0.041 %    95.564 ±  0.036 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.887270 ±   0.033223
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.59%
+Mean ln(PPL(Q)/PPL(base))     :  -0.003621 ±   0.000434
+Mean PPL(Q)/PPL(base)         :   0.996386 ±   0.000433
+Mean PPL(Q)-PPL(base)         :  -0.024983 ±   0.002999
+
+====== KL divergence statistics ======
+Mean    KLD:   0.017969 ±   0.000257
+Maximum KLD:  21.048464
+99.9%   KLD:   1.552285
+99.0%   KLD:   0.184051
+95.0%   KLD:   0.051186
+90.0%   KLD:   0.028704
+Median  KLD:   0.004111
+10.0%   KLD:   0.000071
+ 5.0%   KLD:   0.000018
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000045
+
+====== Token probability statistics ======
+Mean    Δp:  0.062 ± 0.007 %
+Maximum Δp: 99.919%
+99.9%   Δp: 40.527%
+99.0%   Δp: 11.331%
+95.0%   Δp:  4.240%
+90.0%   Δp:  2.300%
+75.0%   Δp:  0.406%
+Median  Δp:  0.000%
+25.0%   Δp: -0.339%
+10.0%   Δp: -2.135%
+ 5.0%   Δp: -4.039%
+ 1.0%   Δp: -10.634%
+ 0.1%   Δp: -34.693%
+Minimum Δp: -99.914%
+RMS Δp    :  4.251 ± 0.041 %
+Same top p: 95.564 ± 0.036 %
+
+86.08.043.998 W ~llama_context:      CUDA0 compute buffer size of 764.1896 MiB, does not match expectation of 763.6896 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn6 -ctv kvarn6 --kv-tail-tokens 512 --kl-divergence
+0.01.012.764 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.012.768 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.14.077.685 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.14.388.953 I 
+1.14.389.024 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.14.471.624 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.46.815.365 I kl_divergence: 512.34 seconds per pass - ETA 1 hours 25.38 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8152 ±    0.1006       0.00041 ±    0.00105       0.01188 ±    0.00050     3.436 ±  0.121 %    96.261 ±  0.105 %
+   2       6.6981 ±    0.0709       0.00061 ±    0.00075       0.01221 ±    0.00037     3.500 ±  0.084 %    96.287 ±  0.074 %
+   3       6.6474 ±    0.0577       0.00145 ±    0.00066       0.01320 ±    0.00034     3.751 ±  0.077 %    96.175 ±  0.061 %
+   4       6.5494 ±    0.0491       0.00118 ±    0.00058       0.01305 ±    0.00030     3.704 ±  0.064 %    96.162 ±  0.053 %
+   5       6.6177 ±    0.0447       0.00123 ±    0.00052       0.01370 ±    0.00028     3.815 ±  0.058 %    96.149 ±  0.048 %
+   6       6.8775 ±    0.0430       0.00076 ±    0.00049       0.01387 ±    0.00026     3.816 ±  0.053 %    96.084 ±  0.044 %
+   7       6.8777 ±    0.0398       0.00028 ±    0.00046       0.01435 ±    0.00025     3.860 ±  0.049 %    96.043 ±  0.041 %
+   8       6.9379 ±    0.0376       0.00067 ±    0.00044       0.01451 ±    0.00023     3.878 ±  0.045 %    96.001 ±  0.038 %
+   9       6.9881 ±    0.0357       0.00099 ±    0.00042       0.01486 ±    0.00023     3.929 ±  0.044 %    95.973 ±  0.036 %
+  10       6.9186 ±    0.0334       0.00092 ±    0.00039       0.01488 ±    0.00022     3.938 ±  0.041 %    95.961 ±  0.034 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.918592 ±   0.033420
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.67%
+Mean ln(PPL(Q)/PPL(base))     :   0.000917 ±   0.000394
+Mean PPL(Q)/PPL(base)         :   1.000917 ±   0.000395
+Mean PPL(Q)-PPL(base)         :   0.006339 ±   0.002729
+
+====== KL divergence statistics ======
+Mean    KLD:   0.014881 ±   0.000219
+Maximum KLD:  15.585986
+99.9%   KLD:   1.269608
+99.0%   KLD:   0.151264
+95.0%   KLD:   0.041613
+90.0%   KLD:   0.023621
+Median  KLD:   0.003339
+10.0%   KLD:   0.000059
+ 5.0%   KLD:   0.000015
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000085
+
+====== Token probability statistics ======
+Mean    Δp: -0.003 ± 0.007 %
+Maximum Δp: 99.727%
+99.9%   Δp: 34.163%
+99.0%   Δp:  9.892%
+95.0%   Δp:  3.719%
+90.0%   Δp:  2.004%
+75.0%   Δp:  0.339%
+Median  Δp:  0.000%
+25.0%   Δp: -0.334%
+10.0%   Δp: -1.994%
+ 5.0%   Δp: -3.726%
+ 1.0%   Δp: -9.990%
+ 0.1%   Δp: -34.726%
+Minimum Δp: -99.211%
+RMS Δp    :  3.938 ± 0.041 %
+Same top p: 95.961 ± 0.034 %
+
+86.36.713.631 W ~llama_context:      CUDA0 compute buffer size of 764.0314 MiB, does not match expectation of 762.0314 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn8 -ctv kvarn8 --kv-tail-tokens 512 --kl-divergence
+0.01.080.329 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.080.332 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.15.789.141 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.16.106.660 I 
+1.16.106.735 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.190.782 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.48.548.491 I kl_divergence: 512.36 seconds per pass - ETA 1 hours 25.38 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8332 ±    0.1011       0.00306 ±    0.00107       0.01122 ±    0.00040     3.380 ±  0.111 %    96.127 ±  0.107 %
+   2       6.7060 ±    0.0711       0.00179 ±    0.00081       0.01177 ±    0.00032     3.394 ±  0.078 %    96.269 ±  0.074 %
+   3       6.6461 ±    0.0578       0.00125 ±    0.00069       0.01261 ±    0.00030     3.602 ±  0.071 %    96.174 ±  0.061 %
+   4       6.5465 ±    0.0491       0.00073 ±    0.00059       0.01293 ±    0.00031     3.671 ±  0.063 %    96.169 ±  0.053 %
+   5       6.6117 ±    0.0447       0.00032 ±    0.00054       0.01368 ±    0.00029     3.806 ±  0.058 %    96.169 ±  0.047 %
+   6       6.8739 ±    0.0430       0.00023 ±    0.00050       0.01379 ±    0.00026     3.789 ±  0.052 %    96.101 ±  0.044 %
+   7       6.8793 ±    0.0399       0.00052 ±    0.00047       0.01419 ±    0.00025     3.837 ±  0.049 %    96.073 ±  0.041 %
+   8       6.9382 ±    0.0376       0.00071 ±    0.00044       0.01432 ±    0.00023     3.843 ±  0.045 %    96.008 ±  0.038 %
+   9       6.9895 ±    0.0357       0.00119 ±    0.00042       0.01463 ±    0.00023     3.870 ±  0.043 %    95.991 ±  0.036 %
+  10       6.9191 ±    0.0334       0.00098 ±    0.00040       0.01453 ±    0.00022     3.860 ±  0.040 %    95.992 ±  0.034 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.919054 ±   0.033430
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.66%
+Mean ln(PPL(Q)/PPL(base))     :   0.000983 ±   0.000395
+Mean PPL(Q)/PPL(base)         :   1.000984 ±   0.000396
+Mean PPL(Q)-PPL(base)         :   0.006801 ±   0.002735
+
+====== KL divergence statistics ======
+Mean    KLD:   0.014530 ±   0.000219
+Maximum KLD:  15.038252
+99.9%   KLD:   1.200056
+99.0%   KLD:   0.149993
+95.0%   KLD:   0.040909
+90.0%   KLD:   0.023222
+Median  KLD:   0.003295
+10.0%   KLD:   0.000059
+ 5.0%   KLD:   0.000014
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000024
+
+====== Token probability statistics ======
+Mean    Δp:  0.006 ± 0.007 %
+Maximum Δp: 99.915%
+99.9%   Δp: 33.256%
+99.0%   Δp:  9.799%
+95.0%   Δp:  3.729%
+90.0%   Δp:  2.007%
+75.0%   Δp:  0.341%
+Median  Δp:  0.000%
+25.0%   Δp: -0.327%
+10.0%   Δp: -1.972%
+ 5.0%   Δp: -3.726%
+ 1.0%   Δp: -9.906%
+ 0.1%   Δp: -32.333%
+Minimum Δp: -99.627%
+RMS Δp    :  3.860 ± 0.040 %
+Same top p: 95.992 ± 0.034 %
+
+86.44.441.278 W ~llama_context:      CUDA0 compute buffer size of 764.0314 MiB, does not match expectation of 762.0314 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn3 -ctv kvarn3 --kv-tail-tokens 4096 --kl-divergence
+0.01.041.982 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.041.985 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.064.701 W cmn  common_init_: uniform KV tail override applies 4096 tokens to every canonical cache group
+1.16.403.540 I 
+1.16.403.614 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.482.114 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.50.921.498 I kl_divergence: 514.44 seconds per pass - ETA 1 hours 25.73 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8344 ±    0.1011       0.00323 ±    0.00130       0.01540 ±    0.00053     3.915 ±  0.125 %    95.560 ±  0.114 %
+   2       6.7104 ±    0.0711       0.00244 ±    0.00091       0.01614 ±    0.00044     3.989 ±  0.089 %    95.657 ±  0.080 %
+   3       6.6531 ±    0.0578       0.00231 ±    0.00077       0.01715 ±    0.00038     4.174 ±  0.075 %    95.595 ±  0.065 %
+   4       6.5490 ±    0.0491       0.00111 ±    0.00066       0.01713 ±    0.00037     4.170 ±  0.064 %    95.544 ±  0.057 %
+   5       6.6226 ±    0.0448       0.00197 ±    0.00060       0.01797 ±    0.00034     4.304 ±  0.060 %    95.524 ±  0.051 %
+   6       6.8903 ±    0.0432       0.00262 ±    0.00056       0.01842 ±    0.00032     4.320 ±  0.054 %    95.430 ±  0.047 %
+   7       6.8923 ±    0.0400       0.00241 ±    0.00052       0.01870 ±    0.00030     4.347 ±  0.050 %    95.401 ±  0.044 %
+   8       6.9498 ±    0.0377       0.00238 ±    0.00049       0.01896 ±    0.00027     4.374 ±  0.046 %    95.342 ±  0.041 %
+   9       6.9990 ±    0.0358       0.00254 ±    0.00046       0.01919 ±    0.00027     4.402 ±  0.044 %    95.331 ±  0.039 %
+  10       6.9287 ±    0.0335       0.00237 ±    0.00044       0.01907 ±    0.00025     4.400 ±  0.041 %    95.337 ±  0.037 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.928673 ±   0.033510
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.59%
+Mean ln(PPL(Q)/PPL(base))     :   0.002373 ±   0.000440
+Mean PPL(Q)/PPL(base)         :   1.002375 ±   0.000441
+Mean PPL(Q)-PPL(base)         :   0.016420 ±   0.003049
+
+====== KL divergence statistics ======
+Mean    KLD:   0.019074 ±   0.000248
+Maximum KLD:  17.718580
+99.9%   KLD:   1.608606
+99.0%   KLD:   0.199702
+95.0%   KLD:   0.055492
+90.0%   KLD:   0.031385
+Median  KLD:   0.004481
+10.0%   KLD:   0.000079
+ 5.0%   KLD:   0.000019
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000035
+
+====== Token probability statistics ======
+Mean    Δp:  0.010 ± 0.008 %
+Maximum Δp: 99.732%
+99.9%   Δp: 38.816%
+99.0%   Δp: 11.604%
+95.0%   Δp:  4.340%
+90.0%   Δp:  2.332%
+75.0%   Δp:  0.396%
+Median  Δp:  0.000%
+25.0%   Δp: -0.382%
+10.0%   Δp: -2.303%
+ 5.0%   Δp: -4.300%
+ 1.0%   Δp: -11.422%
+ 0.1%   Δp: -38.334%
+Minimum Δp: -99.901%
+RMS Δp    :  4.400 ± 0.041 %
+Same top p: 95.337 ± 0.037 %
+
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn2 -ctv kvarn2 --kv-tail-tokens 4096 --kl-divergence
+0.01.175.450 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.175.454 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.17.200.821 W cmn  common_init_: uniform KV tail override applies 4096 tokens to every canonical cache group
+1.17.524.727 I 
+1.17.524.810 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.17.604.700 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.54.286.796 I kl_divergence: 516.68 seconds per pass - ETA 1 hours 26.10 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8948 ±    0.1022       0.01202 ±    0.00184       0.03311 ±    0.00099     5.450 ±  0.116 %    93.609 ±  0.135 %
+   2       6.7703 ±    0.0719       0.01133 ±    0.00128       0.03326 ±    0.00073     5.576 ±  0.090 %    93.588 ±  0.096 %
+   3       6.7200 ±    0.0586       0.01231 ±    0.00110       0.03441 ±    0.00064     5.770 ±  0.076 %    93.585 ±  0.078 %
+   4       6.6106 ±    0.0497       0.01048 ±    0.00096       0.03461 ±    0.00055     5.805 ±  0.066 %    93.551 ±  0.068 %
+   5       6.6856 ±    0.0453       0.01144 ±    0.00087       0.03567 ±    0.00049     5.968 ±  0.060 %    93.543 ±  0.061 %
+   6       6.9457 ±    0.0436       0.01063 ±    0.00081       0.03705 ±    0.00047     6.051 ±  0.055 %    93.414 ±  0.056 %
+   7       6.9557 ±    0.0404       0.01157 ±    0.00075       0.03758 ±    0.00044     6.064 ±  0.051 %    93.353 ±  0.052 %
+   8       7.0073 ±    0.0381       0.01062 ±    0.00071       0.03810 ±    0.00041     6.083 ±  0.047 %    93.285 ±  0.049 %
+   9       7.0572 ±    0.0362       0.01083 ±    0.00066       0.03830 ±    0.00039     6.094 ±  0.045 %    93.297 ±  0.046 %
+  10       6.9918 ±    0.0339       0.01144 ±    0.00063       0.03808 ±    0.00037     6.088 ±  0.042 %    93.292 ±  0.044 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.991769 ±   0.033879
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.16%
+Mean ln(PPL(Q)/PPL(base))     :   0.011438 ±   0.000628
+Mean PPL(Q)/PPL(base)         :   1.011504 ±   0.000635
+Mean PPL(Q)-PPL(base)         :   0.079516 ±   0.004399
+
+====== KL divergence statistics ======
+Mean    KLD:   0.038085 ±   0.000369
+Maximum KLD:  18.918301
+99.9%   KLD:   2.647041
+99.0%   KLD:   0.417363
+95.0%   KLD:   0.122268
+90.0%   KLD:   0.069543
+Median  KLD:   0.009868
+10.0%   KLD:   0.000155
+ 5.0%   KLD:   0.000037
+ 1.0%   KLD:   0.000003
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000022
+
+====== Token probability statistics ======
+Mean    Δp: -0.173 ± 0.011 %
+Maximum Δp: 99.948%
+99.9%   Δp: 52.123%
+99.0%   Δp: 16.206%
+95.0%   Δp:  6.065%
+90.0%   Δp:  3.196%
+75.0%   Δp:  0.495%
+Median  Δp: -0.000%
+25.0%   Δp: -0.668%
+10.0%   Δp: -3.736%
+ 5.0%   Δp: -6.918%
+ 1.0%   Δp: -18.500%
+ 0.1%   Δp: -54.952%
+Minimum Δp: -99.938%
+RMS Δp    :  6.088 ± 0.042 %
+Same top p: 93.292 ± 0.044 %
+
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q5_0 -ctv q5_0 --kv-tail-tokens 128 --kl-divergence
+0.01.123.902 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.123.905 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.743.476 W cmn  common_init_: uniform KV tail override applies 128 tokens to every canonical cache group
+1.17.034.593 I 
+1.17.034.655 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.17.117.392 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.49.841.523 I kl_divergence: 512.72 seconds per pass - ETA 1 hours 25.45 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8133 ±    0.1006       0.00014 ±    0.00119       0.01385 ±    0.00056     3.669 ±  0.133 %    96.127 ±  0.107 %
+   2       6.6983 ±    0.0709       0.00064 ±    0.00088       0.01471 ±    0.00046     3.855 ±  0.094 %    96.031 ±  0.076 %
+   3       6.6419 ±    0.0577       0.00062 ±    0.00074       0.01543 ±    0.00040     3.998 ±  0.078 %    95.878 ±  0.063 %
+   4       6.5447 ±    0.0491       0.00046 ±    0.00064       0.01547 ±    0.00039     3.968 ±  0.065 %    95.855 ±  0.055 %
+   5       6.6067 ±    0.0446      -0.00043 ±    0.00058       0.01643 ±    0.00037     4.106 ±  0.059 %    95.809 ±  0.050 %
+   6       6.8715 ±    0.0430      -0.00012 ±    0.00054       0.01681 ±    0.00033     4.133 ±  0.054 %    95.713 ±  0.046 %
+   7       6.8745 ±    0.0398      -0.00018 ±    0.00051       0.01720 ±    0.00032     4.163 ±  0.050 %    95.664 ±  0.043 %
+   8       6.9357 ±    0.0376       0.00034 ±    0.00048       0.01742 ±    0.00029     4.183 ±  0.046 %    95.609 ±  0.040 %
+   9       6.9834 ±    0.0357       0.00031 ±    0.00046       0.01768 ±    0.00028     4.200 ±  0.044 %    95.599 ±  0.038 %
+  10       6.9154 ±    0.0334       0.00045 ±    0.00043       0.01757 ±    0.00026     4.210 ±  0.041 %    95.606 ±  0.036 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.915389 ±   0.033409
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.60%
+Mean ln(PPL(Q)/PPL(base))     :   0.000453 ±   0.000431
+Mean PPL(Q)/PPL(base)         :   1.000454 ±   0.000431
+Mean PPL(Q)-PPL(base)         :   0.003135 ±   0.002978
+
+====== KL divergence statistics ======
+Mean    KLD:   0.017572 ±   0.000263
+Maximum KLD:  21.715580
+99.9%   KLD:   1.436011
+99.0%   KLD:   0.181131
+95.0%   KLD:   0.049856
+90.0%   KLD:   0.028041
+Median  KLD:   0.003994
+10.0%   KLD:   0.000070
+ 5.0%   KLD:   0.000017
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000065
+
+====== Token probability statistics ======
+Mean    Δp:  0.018 ± 0.007 %
+Maximum Δp: 99.916%
+99.9%   Δp: 37.365%
+99.0%   Δp: 11.070%
+95.0%   Δp:  4.113%
+90.0%   Δp:  2.218%
+75.0%   Δp:  0.375%
+Median  Δp:  0.000%
+25.0%   Δp: -0.361%
+10.0%   Δp: -2.161%
+ 5.0%   Δp: -4.053%
+ 1.0%   Δp: -10.813%
+ 0.1%   Δp: -35.576%
+Minimum Δp: -99.894%
+RMS Δp    :  4.210 ± 0.041 %
+Same top p: 95.606 ± 0.036 %
+
+86.40.364.967 W ~llama_context:      CUDA0 compute buffer size of 765.1897 MiB, does not match expectation of 762.6897 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q4_0 -ctv q4_0 --kv-tail-tokens 128 --kl-divergence
+0.01.074.883 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.074.887 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.672.363 W cmn  common_init_: uniform KV tail override applies 128 tokens to every canonical cache group
+1.16.949.550 I 
+1.16.949.621 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.17.032.597 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.49.068.917 I kl_divergence: 512.04 seconds per pass - ETA 1 hours 25.33 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8379 ±    0.1010       0.00374 ±    0.00136       0.01688 ±    0.00079     4.037 ±  0.129 %    95.550 ±  0.114 %
+   2       6.6918 ±    0.0708      -0.00034 ±    0.00096       0.01718 ±    0.00054     4.105 ±  0.090 %    95.587 ±  0.080 %
+   3       6.6255 ±    0.0575      -0.00185 ±    0.00081       0.01846 ±    0.00048     4.346 ±  0.080 %    95.448 ±  0.066 %
+   4       6.5294 ±    0.0490      -0.00188 ±    0.00071       0.01833 ±    0.00041     4.281 ±  0.066 %    95.462 ±  0.057 %
+   5       6.5937 ±    0.0445      -0.00240 ±    0.00064       0.01897 ±    0.00037     4.392 ±  0.060 %    95.425 ±  0.052 %
+   6       6.8573 ±    0.0429      -0.00218 ±    0.00059       0.01933 ±    0.00033     4.409 ±  0.054 %    95.315 ±  0.048 %
+   7       6.8610 ±    0.0397      -0.00214 ±    0.00055       0.01961 ±    0.00031     4.427 ±  0.050 %    95.282 ±  0.044 %
+   8       6.9190 ±    0.0374      -0.00206 ±    0.00052       0.01976 ±    0.00028     4.440 ±  0.046 %    95.222 ±  0.042 %
+   9       6.9671 ±    0.0356      -0.00202 ±    0.00049       0.01991 ±    0.00027     4.451 ±  0.044 %    95.217 ±  0.039 %
+  10       6.8964 ±    0.0333      -0.00229 ±    0.00046       0.01988 ±    0.00025     4.465 ±  0.041 %    95.208 ±  0.037 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.896414 ±   0.033279
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.54%
+Mean ln(PPL(Q)/PPL(base))     :  -0.002294 ±   0.000461
+Mean PPL(Q)/PPL(base)         :   0.997708 ±   0.000459
+Mean PPL(Q)-PPL(base)         :  -0.015840 ±   0.003180
+
+====== KL divergence statistics ======
+Mean    KLD:   0.019880 ±   0.000254
+Maximum KLD:  13.119960
+99.9%   KLD:   1.596559
+99.0%   KLD:   0.204108
+95.0%   KLD:   0.058242
+90.0%   KLD:   0.033245
+Median  KLD:   0.004781
+10.0%   KLD:   0.000081
+ 5.0%   KLD:   0.000020
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000041
+
+====== Token probability statistics ======
+Mean    Δp:  0.035 ± 0.008 %
+Maximum Δp: 99.839%
+99.9%   Δp: 41.327%
+99.0%   Δp: 12.015%
+95.0%   Δp:  4.550%
+90.0%   Δp:  2.430%
+75.0%   Δp:  0.413%
+Median  Δp:  0.000%
+25.0%   Δp: -0.394%
+10.0%   Δp: -2.375%
+ 5.0%   Δp: -4.420%
+ 1.0%   Δp: -11.493%
+ 0.1%   Δp: -36.073%
+Minimum Δp: -99.977%
+RMS Δp    :  4.465 ± 0.041 %
+Same top p: 95.208 ± 0.037 %
+
+86.39.060.023 W ~llama_context:      CUDA0 compute buffer size of 765.1897 MiB, does not match expectation of 762.6897 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn6 -ctv kvarn6 --kl-divergence
+0.01.048.656 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.048.660 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.502.555 I 
+1.16.502.629 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.16.588.998 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.54.351.357 I kl_divergence: 517.76 seconds per pass - ETA 1 hours 26.28 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8191 ±    0.1007       0.00099 ±    0.00114       0.01217 ±    0.00057     3.395 ±  0.121 %    96.359 ±  0.103 %
+   2       6.7080 ±    0.0710       0.00209 ±    0.00081       0.01275 ±    0.00040     3.615 ±  0.090 %    96.243 ±  0.074 %
+   3       6.6529 ±    0.0578       0.00227 ±    0.00068       0.01340 ±    0.00038     3.787 ±  0.076 %    96.147 ±  0.061 %
+   4       6.5523 ±    0.0492       0.00162 ±    0.00058       0.01317 ±    0.00033     3.729 ±  0.064 %    96.165 ±  0.053 %
+   5       6.6153 ±    0.0447       0.00087 ±    0.00054       0.01394 ±    0.00030     3.889 ±  0.059 %    96.128 ±  0.048 %
+   6       6.8797 ±    0.0431       0.00108 ±    0.00049       0.01412 ±    0.00027     3.884 ±  0.053 %    96.061 ±  0.044 %
+   7       6.8855 ±    0.0399       0.00142 ±    0.00046       0.01448 ±    0.00025     3.917 ±  0.049 %    96.034 ±  0.041 %
+   8       6.9450 ±    0.0376       0.00169 ±    0.00044       0.01483 ±    0.00024     3.957 ±  0.046 %    95.962 ±  0.038 %
+   9       6.9930 ±    0.0357       0.00170 ±    0.00042       0.01512 ±    0.00024     3.977 ±  0.044 %    95.957 ±  0.036 %
+  10       6.9230 ±    0.0335       0.00155 ±    0.00040       0.01505 ±    0.00023     3.969 ±  0.042 %    95.946 ±  0.034 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.923006 ±   0.033461
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.66%
+Mean ln(PPL(Q)/PPL(base))     :   0.001554 ±   0.000397
+Mean PPL(Q)/PPL(base)         :   1.001556 ±   0.000398
+Mean PPL(Q)-PPL(base)         :   0.010753 ±   0.002749
+
+====== KL divergence statistics ======
+Mean    KLD:   0.015049 ±   0.000230
+Maximum KLD:  15.706429
+99.9%   KLD:   1.357445
+99.0%   KLD:   0.152678
+95.0%   KLD:   0.041689
+90.0%   KLD:   0.023456
+Median  KLD:   0.003347
+10.0%   KLD:   0.000061
+ 5.0%   KLD:   0.000015
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000119
+
+====== Token probability statistics ======
+Mean    Δp:  0.013 ± 0.007 %
+Maximum Δp: 99.803%
+99.9%   Δp: 35.057%
+99.0%   Δp:  9.920%
+95.0%   Δp:  3.781%
+90.0%   Δp:  2.032%
+75.0%   Δp:  0.348%
+Median  Δp:  0.000%
+25.0%   Δp: -0.329%
+10.0%   Δp: -1.969%
+ 5.0%   Δp: -3.723%
+ 1.0%   Δp: -9.989%
+ 0.1%   Δp: -34.517%
+Minimum Δp: -99.931%
+RMS Δp    :  3.969 ± 0.042 %
+Same top p: 95.946 ± 0.034 %
+
+87.36.871.323 W ~llama_context:      CUDA0 compute buffer size of 765.0491 MiB, does not match expectation of 762.5491 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk kvarn8 -ctv kvarn8 --kl-divergence
+0.01.074.608 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.074.612 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.17.009.385 I 
+1.17.009.448 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.17.094.446 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.56.700.566 I kl_divergence: 519.61 seconds per pass - ETA 1 hours 26.60 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8162 ±    0.1006       0.00056 ±    0.00109       0.01174 ±    0.00050     3.383 ±  0.125 %    96.408 ±  0.103 %
+   2       6.7019 ±    0.0709       0.00117 ±    0.00080       0.01252 ±    0.00043     3.519 ±  0.092 %    96.376 ±  0.073 %
+   3       6.6463 ±    0.0577       0.00129 ±    0.00068       0.01294 ±    0.00035     3.680 ±  0.076 %    96.294 ±  0.060 %
+   4       6.5488 ±    0.0491       0.00108 ±    0.00058       0.01298 ±    0.00035     3.669 ±  0.065 %    96.306 ±  0.052 %
+   5       6.6132 ±    0.0447       0.00055 ±    0.00053       0.01374 ±    0.00031     3.820 ±  0.060 %    96.271 ±  0.047 %
+   6       6.8757 ±    0.0430       0.00050 ±    0.00049       0.01411 ±    0.00030     3.860 ±  0.055 %    96.182 ±  0.043 %
+   7       6.8792 ±    0.0399       0.00051 ±    0.00046       0.01447 ±    0.00028     3.895 ±  0.051 %    96.135 ±  0.040 %
+   8       6.9374 ±    0.0376       0.00059 ±    0.00044       0.01461 ±    0.00026     3.911 ±  0.047 %    96.062 ±  0.038 %
+   9       6.9856 ±    0.0357       0.00063 ±    0.00041       0.01485 ±    0.00024     3.938 ±  0.044 %    96.035 ±  0.036 %
+  10       6.9152 ±    0.0334       0.00042 ±    0.00039       0.01479 ±    0.00023     3.935 ±  0.042 %    96.029 ±  0.034 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.915179 ±   0.033395
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.67%
+Mean ln(PPL(Q)/PPL(base))     :   0.000423 ±   0.000390
+Mean PPL(Q)/PPL(base)         :   1.000423 ±   0.000391
+Mean PPL(Q)-PPL(base)         :   0.002926 ±   0.002699
+
+====== KL divergence statistics ======
+Mean    KLD:   0.014786 ±   0.000231
+Maximum KLD:  22.617399
+99.9%   KLD:   1.354617
+99.0%   KLD:   0.145754
+95.0%   KLD:   0.040601
+90.0%   KLD:   0.023042
+Median  KLD:   0.003271
+10.0%   KLD:   0.000058
+ 5.0%   KLD:   0.000014
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000051
+
+====== Token probability statistics ======
+Mean    Δp:  0.004 ± 0.007 %
+Maximum Δp: 99.329%
+99.9%   Δp: 35.777%
+99.0%   Δp:  9.906%
+95.0%   Δp:  3.719%
+90.0%   Δp:  1.989%
+75.0%   Δp:  0.333%
+Median  Δp:  0.000%
+25.0%   Δp: -0.334%
+10.0%   Δp: -1.976%
+ 5.0%   Δp: -3.715%
+ 1.0%   Δp: -9.874%
+ 0.1%   Δp: -33.462%
+Minimum Δp: -99.866%
+RMS Δp    :  3.935 ± 0.042 %
+Same top p: 96.029 ± 0.034 %
+
+87.55.753.451 W ~llama_context:      CUDA0 compute buffer size of 765.0491 MiB, does not match expectation of 762.5491 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q3_0 -ctv q3_0 --kl-divergence
+0.01.064.054 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.064.058 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.16.922.193 I 
+1.16.922.268 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.17.002.337 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.48.718.734 I kl_divergence: 511.72 seconds per pass - ETA 1 hours 25.28 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       7.0030 ±    0.1039       0.02760 ±    0.00265       0.06632 ±    0.00129     7.591 ±  0.119 %    90.475 ±  0.162 %
+   2       6.8563 ±    0.0728       0.02396 ±    0.00188       0.06766 ±    0.00097     7.718 ±  0.087 %    90.362 ±  0.115 %
+   3       6.7845 ±    0.0591       0.02186 ±    0.00156       0.06948 ±    0.00080     7.893 ±  0.073 %    90.340 ±  0.094 %
+   4       6.6665 ±    0.0501       0.01891 ±    0.00135       0.06967 ±    0.00069     7.876 ±  0.062 %    90.294 ±  0.082 %
+   5       6.7251 ±    0.0454       0.01733 ±    0.00123       0.07134 ±    0.00063     7.983 ±  0.056 %    90.318 ±  0.073 %
+   6       6.9877 ±    0.0438       0.01665 ±    0.00113       0.07326 ±    0.00059     7.994 ±  0.051 %    90.125 ±  0.067 %
+   7       6.9933 ±    0.0406       0.01696 ±    0.00106       0.07421 ±    0.00055     8.078 ±  0.048 %    90.035 ±  0.063 %
+   8       7.0606 ±    0.0383       0.01819 ±    0.00100       0.07519 ±    0.00051     8.127 ±  0.045 %    89.876 ±  0.059 %
+   9       7.1047 ±    0.0363       0.01753 ±    0.00094       0.07521 ±    0.00048     8.123 ±  0.042 %    89.888 ±  0.056 %
+  10       7.0372 ±    0.0340       0.01792 ±    0.00089       0.07542 ±    0.00046     8.164 ±  0.040 %    89.882 ±  0.053 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   7.037225 ±   0.034032
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  98.29%
+Mean ln(PPL(Q)/PPL(base))     :   0.017918 ±   0.000892
+Mean PPL(Q)/PPL(base)         :   1.018080 ±   0.000908
+Mean PPL(Q)-PPL(base)         :   0.124971 ±   0.006260
+
+====== KL divergence statistics ======
+Mean    KLD:   0.075420 ±   0.000459
+Maximum KLD:  20.196743
+99.9%   KLD:   3.337621
+99.0%   KLD:   0.806782
+95.0%   KLD:   0.277955
+90.0%   KLD:   0.162295
+Median  KLD:   0.023366
+10.0%   KLD:   0.000313
+ 5.0%   KLD:   0.000078
+ 1.0%   KLD:   0.000006
+ 0.1%   KLD:  -0.000000
+Minimum KLD:  -0.000020
+
+====== Token probability statistics ======
+Mean    Δp: -0.456 ± 0.014 %
+Maximum Δp: 99.982%
+99.9%   Δp: 60.344%
+99.0%   Δp: 23.375%
+95.0%   Δp:  8.983%
+90.0%   Δp:  4.667%
+75.0%   Δp:  0.645%
+Median  Δp: -0.004%
+25.0%   Δp: -1.231%
+10.0%   Δp: -6.139%
+ 5.0%   Δp: -11.042%
+ 1.0%   Δp: -27.732%
+ 0.1%   Δp: -68.216%
+Minimum Δp: -99.934%
+RMS Δp    :  8.164 ± 0.040 %
+Same top p: 89.882 ± 0.053 %
+
+87.04.061.168 W ~llama_context:      CUDA0 compute buffer size of 764.1738 MiB, does not match expectation of 761.1738 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q3_0 -ctv q3_0 --kv-tail-tokens 128 --kl-divergence
+0.01.118.407 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.118.411 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.22.628.283 W cmn  common_init_: uniform KV tail override applies 128 tokens to every canonical cache group
+1.22.918.061 I 
+1.22.918.125 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.23.002.649 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+10.20.477.036 I kl_divergence: 537.47 seconds per pass - ETA 1 hours 29.57 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8480 ±    0.1012       0.00522 ±    0.00168       0.02525 ±    0.00087     4.868 ±  0.128 %    94.403 ±  0.127 %
+   2       6.7240 ±    0.0711       0.00446 ±    0.00119       0.02665 ±    0.00064     5.144 ±  0.095 %    94.261 ±  0.091 %
+   3       6.6581 ±    0.0578       0.00307 ±    0.00099       0.02779 ±    0.00056     5.257 ±  0.079 %    94.231 ±  0.074 %
+   4       6.5530 ±    0.0491       0.00173 ±    0.00085       0.02776 ±    0.00050     5.213 ±  0.065 %    94.216 ±  0.064 %
+   5       6.6113 ±    0.0446       0.00026 ±    0.00076       0.02811 ±    0.00044     5.268 ±  0.059 %    94.263 ±  0.057 %
+   6       6.8753 ±    0.0430       0.00044 ±    0.00071       0.02895 ±    0.00040     5.308 ±  0.053 %    94.113 ±  0.053 %
+   7       6.8801 ±    0.0398       0.00064 ±    0.00066       0.02931 ±    0.00037     5.325 ±  0.049 %    94.082 ±  0.049 %
+   8       6.9376 ±    0.0375       0.00062 ±    0.00062       0.02966 ±    0.00034     5.356 ±  0.046 %    94.018 ±  0.046 %
+   9       6.9896 ±    0.0356       0.00120 ±    0.00059       0.02981 ±    0.00033     5.355 ±  0.043 %    94.034 ±  0.044 %
+  10       6.9216 ±    0.0334       0.00135 ±    0.00056       0.02974 ±    0.00031     5.364 ±  0.041 %    94.009 ±  0.041 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.921603 ±   0.033389
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.33%
+Mean ln(PPL(Q)/PPL(base))     :   0.001352 ±   0.000558
+Mean PPL(Q)/PPL(base)         :   1.001353 ±   0.000559
+Mean PPL(Q)-PPL(base)         :   0.009350 ±   0.003859
+
+====== KL divergence statistics ======
+Mean    KLD:   0.029739 ±   0.000309
+Maximum KLD:  17.012058
+99.9%   KLD:   2.067041
+99.0%   KLD:   0.314360
+95.0%   KLD:   0.095017
+90.0%   KLD:   0.054254
+Median  KLD:   0.007572
+10.0%   KLD:   0.000124
+ 5.0%   KLD:   0.000031
+ 1.0%   KLD:   0.000002
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000042
+
+====== Token probability statistics ======
+Mean    Δp: -0.074 ± 0.009 %
+Maximum Δp: 99.916%
+99.9%   Δp: 45.935%
+99.0%   Δp: 14.611%
+95.0%   Δp:  5.494%
+90.0%   Δp:  2.918%
+75.0%   Δp:  0.474%
+Median  Δp: -0.000%
+25.0%   Δp: -0.552%
+10.0%   Δp: -3.150%
+ 5.0%   Δp: -5.885%
+ 1.0%   Δp: -15.528%
+ 0.1%   Δp: -45.591%
+Minimum Δp: -99.937%
+RMS Δp    :  5.364 ± 0.041 %
+Same top p: 94.009 ± 0.041 %
+
+89.52.485.809 W ~llama_context:      CUDA0 compute buffer size of 765.1897 MiB, does not match expectation of 762.6897 MiB
+------------------------------
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock -ctk q3_0 -ctv q3_0 --kv-tail-tokens 512 --kl-divergence
+0.01.120.113 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.01.120.116 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.17.096.127 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.17.361.999 I 
+1.17.362.074 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.17.439.280 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.46.153.222 I kl_divergence: 508.71 seconds per pass - ETA 1 hours 24.78 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8733 ±    0.1018       0.00891 ±    0.00149       0.02125 ±    0.00086     4.515 ±  0.125 %    95.123 ±  0.119 %
+   2       6.7431 ±    0.0714       0.00731 ±    0.00106       0.02156 ±    0.00056     4.662 ±  0.093 %    94.964 ±  0.085 %
+   3       6.6838 ±    0.0581       0.00692 ±    0.00089       0.02244 ±    0.00046     4.787 ±  0.076 %    94.834 ±  0.071 %
+   4       6.5790 ±    0.0494       0.00569 ±    0.00077       0.02281 ±    0.00044     4.796 ±  0.065 %    94.842 ±  0.061 %
+   5       6.6374 ±    0.0448       0.00421 ±    0.00070       0.02344 ±    0.00041     4.883 ±  0.060 %    94.836 ±  0.055 %
+   6       6.8987 ±    0.0432       0.00385 ±    0.00065       0.02404 ±    0.00037     4.917 ±  0.054 %    94.700 ±  0.051 %
+   7       6.9037 ±    0.0400       0.00406 ±    0.00061       0.02456 ±    0.00035     4.965 ±  0.050 %    94.657 ±  0.047 %
+   8       6.9612 ±    0.0377       0.00402 ±    0.00057       0.02473 ±    0.00032     4.982 ±  0.046 %    94.604 ±  0.044 %
+   9       7.0102 ±    0.0358       0.00415 ±    0.00054       0.02509 ±    0.00031     5.017 ±  0.045 %    94.608 ±  0.042 %
+  10       6.9420 ±    0.0335       0.00429 ±    0.00051       0.02505 ±    0.00029     5.027 ±  0.042 %    94.599 ±  0.039 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.941983 ±   0.033547
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.44%
+Mean ln(PPL(Q)/PPL(base))     :   0.004292 ±   0.000512
+Mean PPL(Q)/PPL(base)         :   1.004301 ±   0.000515
+Mean PPL(Q)-PPL(base)         :   0.029730 ±   0.003555
+
+====== KL divergence statistics ======
+Mean    KLD:   0.025047 ±   0.000291
+Maximum KLD:  20.881088
+99.9%   KLD:   1.850073
+99.0%   KLD:   0.267770
+95.0%   KLD:   0.077340
+90.0%   KLD:   0.043631
+Median  KLD:   0.006049
+10.0%   KLD:   0.000102
+ 5.0%   KLD:   0.000025
+ 1.0%   KLD:   0.000002
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000018
+
+====== Token probability statistics ======
+Mean    Δp: -0.072 ± 0.009 %
+Maximum Δp: 99.841%
+99.9%   Δp: 42.283%
+99.0%   Δp: 13.247%
+95.0%   Δp:  4.955%
+90.0%   Δp:  2.624%
+75.0%   Δp:  0.427%
+Median  Δp: -0.000%
+25.0%   Δp: -0.493%
+10.0%   Δp: -2.804%
+ 5.0%   Δp: -5.261%
+ 1.0%   Δp: -14.254%
+ 0.1%   Δp: -44.489%
+Minimum Δp: -99.733%
+RMS Δp    :  5.027 ± 0.042 %
+Same top p: 94.599 ± 0.039 %
+
+86.01.294.685 W ~llama_context:      CUDA0 compute buffer size of 764.1837 MiB, does not match expectation of 762.1837 MiB
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk f16 -ctv f16 --kl-divergence
+0.00.828.796 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.828.801 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.19.105.268 I 
+1.19.105.345 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.19.179.260 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.45.197.770 I kl_divergence: 506.02 seconds per pass - ETA 1 hours 24.33 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8154 ±    0.1006       0.00044 ±    0.00022       0.00000 ±    0.00000     0.001 ±  0.000 %    99.991 ±  0.005 %
+   2       6.6976 ±    0.0709       0.00054 ±    0.00015       0.00000 ±    0.00000     0.001 ±  0.000 %    99.994 ±  0.003 %
+   3       6.6426 ±    0.0577       0.00073 ±    0.00015       0.00000 ±    0.00000     0.001 ±  0.000 %    99.994 ±  0.002 %
+   4       6.5467 ±    0.0491       0.00076 ±    0.00013       0.00000 ±    0.00000     0.001 ±  0.000 %    99.994 ±  0.002 %
+   5       6.6157 ±    0.0447       0.00093 ±    0.00013       0.00000 ±    0.00000     0.001 ±  0.000 %    99.995 ±  0.002 %
+   6       6.8790 ±    0.0431       0.00099 ±    0.00012       0.00000 ±    0.00000     0.001 ±  0.000 %    99.994 ±  0.002 %
+   7       6.8829 ±    0.0399       0.00104 ±    0.00012       0.00000 ±    0.00000     0.001 ±  0.000 %    99.995 ±  0.001 %
+   8       6.9401 ±    0.0376       0.00098 ±    0.00011       0.00000 ±    0.00000     0.001 ±  0.000 %    99.996 ±  0.001 %
+   9       6.9880 ±    0.0357       0.00097 ±    0.00010       0.00000 ±    0.00000     0.001 ±  0.000 %    99.996 ±  0.001 %
+  10       6.9190 ±    0.0334       0.00098 ±    0.00009       0.00000 ±    0.00000     0.001 ±  0.000 %    99.996 ±  0.001 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.919034 ±   0.033428
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.98%
+Mean ln(PPL(Q)/PPL(base))     :   0.000981 ±   0.000093
+Mean PPL(Q)/PPL(base)         :   1.000981 ±   0.000094
+Mean PPL(Q)-PPL(base)         :   0.006781 ±   0.000651
+
+====== KL divergence statistics ======
+Mean    KLD:   0.000000 ±   0.000000
+Maximum KLD:   0.000072
+99.9%   KLD:   0.000052
+99.0%   KLD:   0.000039
+95.0%   KLD:   0.000024
+90.0%   KLD:   0.000016
+Median  KLD:   0.000000
+10.0%   KLD:  -0.000016
+ 5.0%   KLD:  -0.000024
+ 1.0%   KLD:  -0.000039
+ 0.1%   KLD:  -0.000052
+Minimum KLD:  -0.000071
+
+====== Token probability statistics ======
+Mean    Δp: -0.000 ± 0.000 %
+Maximum Δp:  0.006%
+99.9%   Δp:  0.004%
+99.0%   Δp:  0.002%
+95.0%   Δp:  0.001%
+90.0%   Δp:  0.000%
+75.0%   Δp:  0.000%
+Median  Δp:  0.000%
+25.0%   Δp:  0.000%
+10.0%   Δp: -0.000%
+ 5.0%   Δp: -0.001%
+ 1.0%   Δp: -0.002%
+ 0.1%   Δp: -0.004%
+Minimum Δp: -0.006%
+RMS Δp    :  0.001 ± 0.000 %
+Same top p: 99.996 ± 0.001 %
+
+85.52.188.466 W ~llama_context:      CUDA0 compute buffer size of 764.0176 MiB, does not match expectation of 761.0176 MiB
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk q3_0 -ctv q3_0 --kv-tail-tokens 1024 --kl-divergence
+0.00.795.503 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.795.511 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.20.491.831 W cmn  common_init_: uniform KV tail override applies 1024 tokens to every canonical cache group
+1.20.795.359 I 
+1.20.795.442 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.20.895.655 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.48.989.529 I kl_divergence: 508.09 seconds per pass - ETA 1 hours 24.67 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8723 ±    0.1018       0.00876 ±    0.00145       0.01970 ±    0.00084     4.398 ±  0.129 %    95.172 ±  0.118 %
+   2       6.7342 ±    0.0714       0.00599 ±    0.00102       0.01996 ±    0.00054     4.511 ±  0.091 %    95.178 ±  0.084 %
+   3       6.6754 ±    0.0580       0.00566 ±    0.00088       0.02145 ±    0.00048     4.727 ±  0.078 %    95.078 ±  0.069 %
+   4       6.5628 ±    0.0492       0.00323 ±    0.00075       0.02162 ±    0.00044     4.709 ±  0.066 %    95.074 ±  0.060 %
+   5       6.6235 ±    0.0447       0.00210 ±    0.00068       0.02226 ±    0.00039     4.801 ±  0.060 %    95.058 ±  0.054 %
+   6       6.8871 ±    0.0431       0.00216 ±    0.00063       0.02273 ±    0.00036     4.823 ±  0.054 %    94.952 ±  0.049 %
+   7       6.8893 ±    0.0399       0.00197 ±    0.00059       0.02322 ±    0.00035     4.840 ±  0.050 %    94.933 ±  0.046 %
+   8       6.9462 ±    0.0376       0.00185 ±    0.00056       0.02346 ±    0.00032     4.874 ±  0.047 %    94.862 ±  0.043 %
+   9       6.9972 ±    0.0357       0.00229 ±    0.00053       0.02369 ±    0.00031     4.889 ±  0.045 %    94.863 ±  0.041 %
+  10       6.9285 ±    0.0335       0.00235 ±    0.00050       0.02369 ±    0.00030     4.900 ±  0.043 %    94.857 ±  0.039 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.928549 ±   0.033475
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.46%
+Mean ln(PPL(Q)/PPL(base))     :   0.002355 ±   0.000502
+Mean PPL(Q)/PPL(base)         :   1.002357 ±   0.000503
+Mean PPL(Q)-PPL(base)         :   0.016295 ±   0.003479
+
+====== KL divergence statistics ======
+Mean    KLD:   0.023692 ±   0.000297
+Maximum KLD:  19.513798
+99.9%   KLD:   1.910206
+99.0%   KLD:   0.251690
+95.0%   KLD:   0.070609
+90.0%   KLD:   0.039631
+Median  KLD:   0.005556
+10.0%   KLD:   0.000096
+ 5.0%   KLD:   0.000023
+ 1.0%   KLD:   0.000002
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000038
+
+====== Token probability statistics ======
+Mean    Δp: -0.025 ± 0.009 %
+Maximum Δp: 99.982%
+99.9%   Δp: 41.435%
+99.0%   Δp: 12.800%
+95.0%   Δp:  4.852%
+90.0%   Δp:  2.577%
+75.0%   Δp:  0.434%
+Median  Δp:  0.000%
+25.0%   Δp: -0.443%
+10.0%   Δp: -2.612%
+ 5.0%   Δp: -4.958%
+ 1.0%   Δp: -13.395%
+ 0.1%   Δp: -43.474%
+Minimum Δp: -99.962%
+RMS Δp    :  4.900 ± 0.043 %
+Same top p: 94.857 ± 0.039 %
+
+86.29.555.268 W ~llama_context:      CUDA0 compute buffer size of 764.1857 MiB, does not match expectation of 762.6857 MiB
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk q3_0 -ctv q3_0 --kv-tail-tokens 2048 --kl-divergence
+0.00.833.667 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.833.672 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.22.810.468 W cmn  common_init_: uniform KV tail override applies 2048 tokens to every canonical cache group
+1.23.134.595 I 
+1.23.134.663 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.23.214.936 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.57.197.877 I kl_divergence: 513.98 seconds per pass - ETA 1 hours 25.65 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8459 ±    0.1012       0.00491 ±    0.00136       0.01829 ±    0.00082     4.150 ±  0.122 %    95.404 ±  0.116 %
+   2       6.7199 ±    0.0712       0.00386 ±    0.00096       0.01835 ±    0.00053     4.272 ±  0.089 %    95.387 ±  0.082 %
+   3       6.6588 ±    0.0579       0.00317 ±    0.00083       0.01919 ±    0.00045     4.417 ±  0.075 %    95.318 ±  0.067 %
+   4       6.5507 ±    0.0491       0.00137 ±    0.00072       0.01946 ±    0.00042     4.430 ±  0.064 %    95.301 ±  0.058 %
+   5       6.6127 ±    0.0446       0.00048 ±    0.00065       0.02018 ±    0.00038     4.521 ±  0.058 %    95.264 ±  0.052 %
+   6       6.8725 ±    0.0430       0.00004 ±    0.00060       0.02061 ±    0.00035     4.565 ±  0.054 %    95.153 ±  0.048 %
+   7       6.8746 ±    0.0398      -0.00015 ±    0.00056       0.02113 ±    0.00032     4.609 ±  0.050 %    95.099 ±  0.045 %
+   8       6.9293 ±    0.0375      -0.00057 ±    0.00053       0.02148 ±    0.00031     4.658 ±  0.047 %    95.046 ±  0.042 %
+   9       6.9807 ±    0.0356      -0.00007 ±    0.00050       0.02176 ±    0.00030     4.688 ±  0.045 %    95.043 ±  0.040 %
+  10       6.9123 ±    0.0334       0.00001 ±    0.00047       0.02162 ±    0.00028     4.683 ±  0.042 %    95.050 ±  0.038 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.912325 ±   0.033377
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.52%
+Mean ln(PPL(Q)/PPL(base))     :   0.000010 ±   0.000474
+Mean PPL(Q)/PPL(base)         :   1.000010 ±   0.000474
+Mean PPL(Q)-PPL(base)         :   0.000072 ±   0.003278
+
+====== KL divergence statistics ======
+Mean    KLD:   0.021624 ±   0.000280
+Maximum KLD:  17.219488
+99.9%   KLD:   1.714519
+99.0%   KLD:   0.229600
+95.0%   KLD:   0.064166
+90.0%   KLD:   0.036094
+Median  KLD:   0.005125
+10.0%   KLD:   0.000089
+ 5.0%   KLD:   0.000021
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000032
+
+====== Token probability statistics ======
+Mean    Δp:  0.004 ± 0.008 %
+Maximum Δp: 99.804%
+99.9%   Δp: 40.565%
+99.0%   Δp: 12.429%
+95.0%   Δp:  4.635%
+90.0%   Δp:  2.512%
+75.0%   Δp:  0.428%
+Median  Δp:  0.000%
+25.0%   Δp: -0.408%
+10.0%   Δp: -2.460%
+ 5.0%   Δp: -4.641%
+ 1.0%   Δp: -12.562%
+ 0.1%   Δp: -40.370%
+Minimum Δp: -99.604%
+RMS Δp    :  4.683 ± 0.042 %
+Same top p: 95.050 ± 0.038 %
+
+86.51.972.788 W ~llama_context:      CUDA0 compute buffer size of 764.1896 MiB, does not match expectation of 763.6896 MiB
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk q3_0 -ctv q3_0 --kv-tail-tokens 4096 --kl-divergence
+0.00.793.411 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.793.416 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.22.569.082 W cmn  common_init_: uniform KV tail override applies 4096 tokens to every canonical cache group
+1.22.924.179 I 
+1.22.924.255 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.23.008.977 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.55.743.315 I kl_divergence: 512.73 seconds per pass - ETA 1 hours 25.45 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8505 ±    0.1014       0.00559 ±    0.00133       0.01671 ±    0.00068     3.929 ±  0.111 %    95.340 ±  0.116 %
+   2       6.7171 ±    0.0712       0.00344 ±    0.00093       0.01738 ±    0.00052     4.132 ±  0.091 %    95.405 ±  0.082 %
+   3       6.6556 ±    0.0578       0.00269 ±    0.00079       0.01827 ±    0.00044     4.303 ±  0.077 %    95.401 ±  0.067 %
+   4       6.5444 ±    0.0491       0.00041 ±    0.00069       0.01868 ±    0.00043     4.347 ±  0.067 %    95.357 ±  0.058 %
+   5       6.6074 ±    0.0446      -0.00032 ±    0.00063       0.01922 ±    0.00038     4.437 ±  0.060 %    95.358 ±  0.052 %
+   6       6.8663 ±    0.0429      -0.00086 ±    0.00058       0.01965 ±    0.00035     4.453 ±  0.054 %    95.244 ±  0.048 %
+   7       6.8664 ±    0.0397      -0.00136 ±    0.00055       0.02010 ±    0.00032     4.506 ±  0.050 %    95.215 ±  0.045 %
+   8       6.9199 ±    0.0374      -0.00194 ±    0.00052       0.02039 ±    0.00030     4.543 ±  0.047 %    95.167 ±  0.042 %
+   9       6.9709 ±    0.0356      -0.00148 ±    0.00049       0.02064 ±    0.00029     4.574 ±  0.045 %    95.158 ±  0.040 %
+  10       6.9030 ±    0.0333      -0.00133 ±    0.00046       0.02058 ±    0.00027     4.583 ±  0.042 %    95.146 ±  0.038 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.903045 ±   0.033320
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.54%
+Mean ln(PPL(Q)/PPL(base))     :  -0.001333 ±   0.000463
+Mean PPL(Q)/PPL(base)         :   0.998668 ±   0.000463
+Mean PPL(Q)-PPL(base)         :  -0.009209 ±   0.003199
+
+====== KL divergence statistics ======
+Mean    KLD:   0.020579 ±   0.000271
+Maximum KLD:  18.323265
+99.9%   KLD:   1.621308
+99.0%   KLD:   0.216436
+95.0%   KLD:   0.060270
+90.0%   KLD:   0.034005
+Median  KLD:   0.004843
+10.0%   KLD:   0.000085
+ 5.0%   KLD:   0.000021
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000096
+
+====== Token probability statistics ======
+Mean    Δp:  0.030 ± 0.008 %
+Maximum Δp: 99.990%
+99.9%   Δp: 40.759%
+99.0%   Δp: 12.176%
+95.0%   Δp:  4.592%
+90.0%   Δp:  2.493%
+75.0%   Δp:  0.434%
+Median  Δp:  0.000%
+25.0%   Δp: -0.380%
+10.0%   Δp: -2.357%
+ 5.0%   Δp: -4.438%
+ 1.0%   Δp: -12.216%
+ 0.1%   Δp: -39.673%
+Minimum Δp: -99.919%
+RMS Δp    :  4.583 ± 0.042 %
+Same top p: 95.146 ± 0.038 %
+
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk q2_0 -ctv q2_0 --kl-divergence
+0.00.813.818 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.813.822 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.22.053.965 I 
+1.22.054.045 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.22.136.088 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.58.173.636 I kl_divergence: 516.04 seconds per pass - ETA 1 hours 26.00 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       7.6780 ±    0.1147       0.11962 ±    0.00501       0.23038 ±    0.00272    14.011 ±  0.140 %    81.664 ±  0.214 %
+   2       7.4464 ±    0.0795       0.10652 ±    0.00349       0.22773 ±    0.00195    14.008 ±  0.101 %    81.957 ±  0.150 %
+   3       7.3462 ±    0.0642       0.10141 ±    0.00288       0.23277 ±    0.00164    14.266 ±  0.085 %    81.874 ±  0.123 %
+   4       7.2241 ±    0.0545       0.09922 ±    0.00251       0.23418 ±    0.00143    14.313 ±  0.073 %    81.804 ±  0.107 %
+   5       7.2775 ±    0.0494       0.09627 ±    0.00225       0.23630 ±    0.00129    14.413 ±  0.066 %    81.812 ±  0.095 %
+   6       7.5681 ±    0.0476       0.09645 ±    0.00207       0.24208 ±    0.00119    14.462 ±  0.060 %    81.500 ±  0.088 %
+   7       7.5755 ±    0.0441       0.09693 ±    0.00192       0.24392 ±    0.00110    14.541 ±  0.056 %    81.421 ±  0.081 %
+   8       7.6530 ±    0.0417       0.09877 ±    0.00181       0.24723 ±    0.00104    14.611 ±  0.052 %    81.230 ±  0.076 %
+   9       7.7025 ±    0.0395       0.09832 ±    0.00170       0.24644 ±    0.00097    14.573 ±  0.049 %    81.259 ±  0.072 %
+  10       7.6408 ±    0.0371       0.10020 ±    0.00162       0.24715 ±    0.00093    14.657 ±  0.047 %    81.271 ±  0.068 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   7.640767 ±   0.037106
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  94.41%
+Mean ln(PPL(Q)/PPL(base))     :   0.100202 ±   0.001618
+Mean PPL(Q)/PPL(base)         :   1.105395 ±   0.001789
+Mean PPL(Q)-PPL(base)         :   0.728514 ±   0.012350
+
+====== KL divergence statistics ======
+Mean    KLD:   0.247147 ±   0.000930
+Maximum KLD:  23.863085
+99.9%   KLD:   6.211388
+99.0%   KLD:   2.388156
+95.0%   KLD:   0.971153
+90.0%   KLD:   0.592628
+Median  KLD:   0.093900
+10.0%   KLD:   0.001422
+ 5.0%   KLD:   0.000349
+ 1.0%   KLD:   0.000029
+ 0.1%   KLD:   0.000002
+Minimum KLD:  -0.000004
+
+====== Token probability statistics ======
+Mean    Δp: -2.867 ± 0.025 %
+Maximum Δp: 99.987%
+99.9%   Δp: 77.744%
+99.0%   Δp: 35.528%
+95.0%   Δp: 13.491%
+90.0%   Δp:  6.507%
+75.0%   Δp:  0.456%
+Median  Δp: -0.150%
+25.0%   Δp: -4.495%
+10.0%   Δp: -16.051%
+ 5.0%   Δp: -27.109%
+ 1.0%   Δp: -60.043%
+ 0.1%   Δp: -93.810%
+Minimum Δp: -99.994%
+RMS Δp    : 14.657 ± 0.047 %
+Same top p: 81.271 ± 0.068 %
+
+87.20.085.159 W ~llama_context:      CUDA0 compute buffer size of 764.1738 MiB, does not match expectation of 761.1738 MiB
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk q2_0 -ctv q2_0 --kv-tail-tokens 128 --kl-divergence
+0.00.840.451 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.840.455 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.21.063.365 W cmn  common_init_: uniform KV tail override applies 128 tokens to every canonical cache group
+1.21.395.039 I 
+1.21.395.107 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.21.474.914 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.55.350.560 I kl_divergence: 513.88 seconds per pass - ETA 1 hours 25.63 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.9354 ±    0.1019       0.01790 ±    0.00273       0.07090 ±    0.00138     8.130 ±  0.125 %    90.017 ±  0.166 %
+   2       6.7967 ±    0.0715       0.01522 ±    0.00195       0.07378 ±    0.00100     8.443 ±  0.093 %    89.937 ±  0.118 %
+   3       6.7460 ±    0.0583       0.01617 ±    0.00166       0.07851 ±    0.00088     8.793 ±  0.079 %    89.791 ±  0.097 %
+   4       6.6560 ±    0.0497       0.01732 ±    0.00144       0.07903 ±    0.00080     8.789 ±  0.068 %    89.796 ±  0.084 %
+   5       6.6889 ±    0.0449       0.01193 ±    0.00129       0.07887 ±    0.00072     8.757 ±  0.061 %    89.904 ±  0.074 %
+   6       6.9656 ±    0.0433       0.01349 ±    0.00120       0.08212 ±    0.00068     8.855 ±  0.056 %    89.675 ±  0.069 %
+   7       6.9589 ±    0.0401       0.01203 ±    0.00112       0.08293 ±    0.00063     8.890 ±  0.052 %    89.643 ±  0.064 %
+   8       7.0123 ±    0.0377       0.01133 ±    0.00105       0.08340 ±    0.00058     8.868 ±  0.049 %    89.569 ±  0.060 %
+   9       7.0515 ±    0.0358       0.01002 ±    0.00099       0.08292 ±    0.00055     8.814 ±  0.046 %    89.623 ±  0.056 %
+  10       6.9926 ±    0.0336       0.01155 ±    0.00094       0.08339 ±    0.00052     8.851 ±  0.043 %    89.591 ±  0.053 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.992583 ±   0.033579
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  98.10%
+Mean ln(PPL(Q)/PPL(base))     :   0.011554 ±   0.000938
+Mean PPL(Q)/PPL(base)         :   1.011621 ±   0.000949
+Mean PPL(Q)-PPL(base)         :   0.080329 ±   0.006522
+
+====== KL divergence statistics ======
+Mean    KLD:   0.083394 ±   0.000521
+Maximum KLD:  19.903399
+99.9%   KLD:   3.992635
+99.0%   KLD:   0.948962
+95.0%   KLD:   0.305101
+90.0%   KLD:   0.174570
+Median  KLD:   0.023535
+10.0%   KLD:   0.000335
+ 5.0%   KLD:   0.000082
+ 1.0%   KLD:   0.000006
+ 0.1%   KLD:  -0.000000
+Minimum KLD:  -0.000009
+
+====== Token probability statistics ======
+Mean    Δp: -0.647 ± 0.015 %
+Maximum Δp: 99.989%
+99.9%   Δp: 62.995%
+99.0%   Δp: 24.039%
+95.0%   Δp:  8.974%
+90.0%   Δp:  4.611%
+75.0%   Δp:  0.609%
+Median  Δp: -0.005%
+25.0%   Δp: -1.356%
+10.0%   Δp: -6.528%
+ 5.0%   Δp: -11.982%
+ 1.0%   Δp: -31.665%
+ 0.1%   Δp: -77.429%
+Minimum Δp: -99.985%
+RMS Δp    :  8.851 ± 0.043 %
+Same top p: 89.591 ± 0.053 %
+
+87.09.849.096 W ~llama_context:      CUDA0 compute buffer size of 765.1897 MiB, does not match expectation of 762.6897 MiB
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk q2_0 -ctv q2_0 --kv-tail-tokens 512 --kl-divergence
+0.00.793.536 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.793.540 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.20.659.437 W cmn  common_init_: uniform KV tail override applies 512 tokens to every canonical cache group
+1.20.964.455 I 
+1.20.964.527 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.21.043.316 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+10.12.902.849 I kl_divergence: 531.86 seconds per pass - ETA 1 hours 28.63 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.9662 ±    0.1029       0.02233 ±    0.00241       0.05229 ±    0.00110     7.044 ±  0.124 %    91.559 ±  0.154 %
+   2       6.8063 ±    0.0721       0.01663 ±    0.00168       0.05157 ±    0.00087     6.996 ±  0.089 %    91.821 ±  0.107 %
+   3       6.7401 ±    0.0586       0.01531 ±    0.00142       0.05473 ±    0.00073     7.260 ±  0.075 %    91.686 ±  0.088 %
+   4       6.6385 ±    0.0498       0.01470 ±    0.00123       0.05529 ±    0.00065     7.306 ±  0.065 %    91.642 ±  0.076 %
+   5       6.6872 ±    0.0451       0.01168 ±    0.00109       0.05556 ±    0.00061     7.358 ±  0.060 %    91.750 ±  0.068 %
+   6       6.9671 ±    0.0436       0.01371 ±    0.00102       0.05792 ±    0.00056     7.481 ±  0.055 %    91.560 ±  0.063 %
+   7       6.9688 ±    0.0404       0.01345 ±    0.00096       0.05881 ±    0.00053     7.535 ±  0.051 %    91.522 ±  0.058 %
+   8       7.0233 ±    0.0380       0.01290 ±    0.00090       0.05914 ±    0.00049     7.533 ±  0.048 %    91.477 ±  0.055 %
+   9       7.0599 ±    0.0360       0.01122 ±    0.00084       0.05873 ±    0.00047     7.491 ±  0.046 %    91.512 ±  0.051 %
+  10       6.9972 ±    0.0338       0.01221 ±    0.00080       0.05889 ±    0.00044     7.531 ±  0.043 %    91.506 ±  0.049 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.997186 ±   0.033777
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  98.63%
+Mean ln(PPL(Q)/PPL(base))     :   0.012212 ±   0.000797
+Mean PPL(Q)/PPL(base)         :   1.012287 ±   0.000807
+Mean PPL(Q)-PPL(base)         :   0.084933 ±   0.005562
+
+====== KL divergence statistics ======
+Mean    KLD:   0.058893 ±   0.000439
+Maximum KLD:  23.636261
+99.9%   KLD:   3.344065
+99.0%   KLD:   0.702846
+95.0%   KLD:   0.208789
+90.0%   KLD:   0.114909
+Median  KLD:   0.014930
+10.0%   KLD:   0.000232
+ 5.0%   KLD:   0.000058
+ 1.0%   KLD:   0.000005
+ 0.1%   KLD:  -0.000000
+Minimum KLD:  -0.000019
+
+====== Token probability statistics ======
+Mean    Δp: -0.369 ± 0.013 %
+Maximum Δp: 99.898%
+99.9%   Δp: 58.537%
+99.0%   Δp: 20.255%
+95.0%   Δp:  7.519%
+90.0%   Δp:  3.913%
+75.0%   Δp:  0.574%
+Median  Δp: -0.002%
+25.0%   Δp: -0.929%
+10.0%   Δp: -4.885%
+ 5.0%   Δp: -9.150%
+ 1.0%   Δp: -25.391%
+ 0.1%   Δp: -70.370%
+Minimum Δp: -99.920%
+RMS Δp    :  7.531 ± 0.043 %
+Same top p: 91.506 ± 0.049 %
+
+88.02.071.929 W ~llama_context:      CUDA0 compute buffer size of 764.1837 MiB, does not match expectation of 762.1837 MiB
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk q2_0 -ctv q2_0 --kv-tail-tokens 1024 --kl-divergence
+0.00.804.724 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.804.728 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.20.440.401 W cmn  common_init_: uniform KV tail override applies 1024 tokens to every canonical cache group
+1.20.733.692 I 
+1.20.733.765 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.20.815.093 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.49.356.291 I kl_divergence: 508.54 seconds per pass - ETA 1 hours 24.75 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.9201 ±    0.1023       0.01570 ±    0.00220       0.04524 ±    0.00106     6.610 ±  0.121 %    92.267 ±  0.148 %
+   2       6.7619 ±    0.0716       0.01009 ±    0.00153       0.04496 ±    0.00080     6.598 ±  0.089 %    92.439 ±  0.103 %
+   3       6.6925 ±    0.0581       0.00821 ±    0.00132       0.04773 ±    0.00067     6.858 ±  0.076 %    92.233 ±  0.085 %
+   4       6.5974 ±    0.0495       0.00848 ±    0.00115       0.04821 ±    0.00062     6.880 ±  0.066 %    92.243 ±  0.074 %
+   5       6.6525 ±    0.0449       0.00648 ±    0.00102       0.04879 ±    0.00056     6.972 ±  0.060 %    92.315 ±  0.066 %
+   6       6.9245 ±    0.0433       0.00758 ±    0.00095       0.05058 ±    0.00053     7.055 ±  0.056 %    92.141 ±  0.061 %
+   7       6.9173 ±    0.0400       0.00603 ±    0.00088       0.05157 ±    0.00049     7.113 ±  0.051 %    92.087 ±  0.056 %
+   8       6.9706 ±    0.0377       0.00536 ±    0.00083       0.05184 ±    0.00046     7.119 ±  0.048 %    92.036 ±  0.053 %
+   9       7.0085 ±    0.0357       0.00391 ±    0.00078       0.05168 ±    0.00044     7.102 ±  0.046 %    92.078 ±  0.050 %
+  10       6.9411 ±    0.0335       0.00417 ±    0.00074       0.05146 ±    0.00041     7.102 ±  0.043 %    92.086 ±  0.047 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.941127 ±   0.033462
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  98.82%
+Mean ln(PPL(Q)/PPL(base))     :   0.004169 ±   0.000740
+Mean PPL(Q)/PPL(base)         :   1.004177 ±   0.000743
+Mean PPL(Q)-PPL(base)         :   0.028874 ±   0.005126
+
+====== KL divergence statistics ======
+Mean    KLD:   0.051459 ±   0.000411
+Maximum KLD:  19.104948
+99.9%   KLD:   3.207869
+99.0%   KLD:   0.615987
+95.0%   KLD:   0.176076
+90.0%   KLD:   0.097448
+Median  KLD:   0.012986
+10.0%   KLD:   0.000203
+ 5.0%   KLD:   0.000050
+ 1.0%   KLD:   0.000004
+ 0.1%   KLD:  -0.000000
+Minimum KLD:  -0.000018
+
+====== Token probability statistics ======
+Mean    Δp: -0.215 ± 0.012 %
+Maximum Δp: 99.821%
+99.9%   Δp: 57.533%
+99.0%   Δp: 19.312%
+95.0%   Δp:  7.218%
+90.0%   Δp:  3.818%
+75.0%   Δp:  0.611%
+Median  Δp: -0.001%
+25.0%   Δp: -0.768%
+10.0%   Δp: -4.315%
+ 5.0%   Δp: -8.175%
+ 1.0%   Δp: -22.983%
+ 0.1%   Δp: -66.664%
+Minimum Δp: -99.941%
+RMS Δp    :  7.102 ± 0.043 %
+Same top p: 92.086 ± 0.047 %
+
+86.12.905.652 W ~llama_context:      CUDA0 compute buffer size of 764.1857 MiB, does not match expectation of 762.6857 MiB
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk q2_0 -ctv q2_0 --kv-tail-tokens 2048 --kl-divergence
+0.00.792.710 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.792.714 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.20.998.564 W cmn  common_init_: uniform KV tail override applies 2048 tokens to every canonical cache group
+1.21.318.110 I 
+1.21.318.178 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.21.396.623 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.49.772.885 I kl_divergence: 508.38 seconds per pass - ETA 1 hours 24.72 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8824 ±    0.1018       0.01023 ±    0.00213       0.03987 ±    0.00112     6.087 ±  0.123 %    92.953 ±  0.141 %
+   2       6.7132 ±    0.0710       0.00286 ±    0.00143       0.03855 ±    0.00076     6.134 ±  0.090 %    93.101 ±  0.099 %
+   3       6.6487 ±    0.0577       0.00165 ±    0.00121       0.04055 ±    0.00063     6.324 ±  0.074 %    92.939 ±  0.082 %
+   4       6.5581 ±    0.0491       0.00251 ±    0.00105       0.04104 ±    0.00059     6.355 ±  0.066 %    93.002 ±  0.070 %
+   5       6.6130 ±    0.0446       0.00052 ±    0.00094       0.04209 ±    0.00054     6.498 ±  0.060 %    92.958 ±  0.063 %
+   6       6.8811 ±    0.0430       0.00129 ±    0.00088       0.04330 ±    0.00050     6.564 ±  0.056 %    92.797 ±  0.058 %
+   7       6.8745 ±    0.0397      -0.00018 ±    0.00082       0.04415 ±    0.00046     6.612 ±  0.051 %    92.732 ±  0.054 %
+   8       6.9256 ±    0.0374      -0.00111 ±    0.00077       0.04422 ±    0.00043     6.610 ±  0.048 %    92.694 ±  0.051 %
+   9       6.9664 ±    0.0355      -0.00213 ±    0.00072       0.04405 ±    0.00041     6.584 ±  0.045 %    92.718 ±  0.048 %
+  10       6.8971 ±    0.0332      -0.00220 ±    0.00068       0.04364 ±    0.00038     6.554 ±  0.043 %    92.750 ±  0.045 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.897093 ±   0.033230
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.01%
+Mean ln(PPL(Q)/PPL(base))     :  -0.002196 ±   0.000677
+Mean PPL(Q)/PPL(base)         :   0.997807 ±   0.000675
+Mean PPL(Q)-PPL(base)         :  -0.015161 ±   0.004674
+
+====== KL divergence statistics ======
+Mean    KLD:   0.043643 ±   0.000379
+Maximum KLD:  18.228773
+99.9%   KLD:   2.859540
+99.0%   KLD:   0.507887
+95.0%   KLD:   0.145054
+90.0%   KLD:   0.080386
+Median  KLD:   0.011071
+10.0%   KLD:   0.000179
+ 5.0%   KLD:   0.000044
+ 1.0%   KLD:   0.000003
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000048
+
+====== Token probability statistics ======
+Mean    Δp: -0.054 ± 0.011 %
+Maximum Δp: 99.687%
+99.9%   Δp: 55.507%
+99.0%   Δp: 18.507%
+95.0%   Δp:  6.881%
+90.0%   Δp:  3.712%
+75.0%   Δp:  0.617%
+Median  Δp: -0.000%
+25.0%   Δp: -0.630%
+10.0%   Δp: -3.715%
+ 5.0%   Δp: -7.054%
+ 1.0%   Δp: -19.833%
+ 0.1%   Δp: -60.480%
+Minimum Δp: -99.967%
+RMS Δp    :  6.554 ± 0.043 %
+Same top p: 92.750 ± 0.045 %
+
+86.13.859.433 W ~llama_context:      CUDA0 compute buffer size of 764.1896 MiB, does not match expectation of 763.6896 MiB
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk q2_0 -ctv q2_0 --kv-tail-tokens 4096 --kl-divergence
+0.00.789.079 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.789.083 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.21.504.101 W cmn  common_init_: uniform KV tail override applies 4096 tokens to every canonical cache group
+1.21.798.465 I 
+1.21.798.540 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.21.878.070 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+9.51.304.660 I kl_divergence: 509.43 seconds per pass - ETA 1 hours 24.90 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8205 ±    0.1007       0.00119 ±    0.00200       0.03441 ±    0.00105     5.671 ±  0.122 %    93.402 ±  0.137 %
+   2       6.6692 ±    0.0705      -0.00371 ±    0.00134       0.03339 ±    0.00072     5.648 ±  0.088 %    93.506 ±  0.096 %
+   3       6.6061 ±    0.0573      -0.00478 ±    0.00111       0.03525 ±    0.00062     5.875 ±  0.075 %    93.433 ±  0.079 %
+   4       6.5120 ±    0.0488      -0.00455 ±    0.00096       0.03573 ±    0.00057     5.909 ±  0.066 %    93.473 ±  0.068 %
+   5       6.5655 ±    0.0442      -0.00669 ±    0.00087       0.03700 ±    0.00053     6.045 ±  0.060 %    93.457 ±  0.061 %
+   6       6.8312 ±    0.0426      -0.00600 ±    0.00081       0.03801 ±    0.00049     6.104 ±  0.055 %    93.328 ±  0.056 %
+   7       6.8212 ±    0.0394      -0.00795 ±    0.00075       0.03838 ±    0.00045     6.109 ±  0.051 %    93.316 ±  0.052 %
+   8       6.8715 ±    0.0370      -0.00895 ±    0.00071       0.03880 ±    0.00042     6.147 ±  0.048 %    93.229 ±  0.049 %
+   9       6.9162 ±    0.0352      -0.00936 ±    0.00067       0.03900 ±    0.00040     6.152 ±  0.045 %    93.210 ±  0.046 %
+  10       6.8490 ±    0.0329      -0.00919 ±    0.00063       0.03858 ±    0.00037     6.137 ±  0.042 %    93.247 ±  0.044 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.849022 ±   0.032943
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.15%
+Mean ln(PPL(Q)/PPL(base))     :  -0.009190 ±   0.000628
+Mean PPL(Q)/PPL(base)         :   0.990852 ±   0.000622
+Mean PPL(Q)-PPL(base)         :  -0.063232 ±   0.004338
+
+====== KL divergence statistics ======
+Mean    KLD:   0.038577 ±   0.000370
+Maximum KLD:  20.669653
+99.9%   KLD:   2.610638
+99.0%   KLD:   0.432449
+95.0%   KLD:   0.123153
+90.0%   KLD:   0.069251
+Median  KLD:   0.010006
+10.0%   KLD:   0.000155
+ 5.0%   KLD:   0.000038
+ 1.0%   KLD:   0.000003
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000064
+
+====== Token probability statistics ======
+Mean    Δp:  0.058 ± 0.011 %
+Maximum Δp: 99.685%
+99.9%   Δp: 53.513%
+99.0%   Δp: 17.593%
+95.0%   Δp:  6.648%
+90.0%   Δp:  3.625%
+75.0%   Δp:  0.641%
+Median  Δp:  0.000%
+25.0%   Δp: -0.533%
+10.0%   Δp: -3.345%
+ 5.0%   Δp: -6.389%
+ 1.0%   Δp: -17.377%
+ 0.1%   Δp: -54.376%
+Minimum Δp: -99.873%
+RMS Δp    :  6.137 ± 0.042 %
+Same top p: 93.247 ± 0.044 %
+
+------------------------------
+# llama-perplexity: version: 10846 (358fc2131) | built with GNU 15.2.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00001-of-00003.gguf size=3683648 mtime=2026-07-22T14:51:24+00:00 sha256/1048576B=56af1e41c2236b388377397d4bcd2704e63dae9318935342f571137e6bc214a8
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00002-of-00003.gguf size=49820135904 mtime=2026-07-22T15:02:10+00:00 sha256/1048576B=9b120d435d57a8301bbf915bcd1e2c1ed4a336f86c1f7032aeba9583a35f9a43
+# model: /home/crusaderky/.cache/huggingface/hub/models--unsloth--Laguna-S-2.1-GGUF/snapshots/0d1759155994f502f12d8ce84d73cf316e00f42e/UD-IQ4_XS/Laguna-S-2.1-UD-IQ4_XS-00003-of-00003.gguf size=7742884768 mtime=2026-07-22T14:55:16+00:00 sha256/1048576B=6360cea3fe3b3b17d5367be72e1ed123339313ef220cb69e9b89aa7d105403c1
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock --offline -ctk f16 -ctv q8_0 --kl-divergence
+0.00.832.820 W common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 99, abort
+0.00.932.337 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.00.932.341 W load: special_eot_id is not in special_eog_ids - the tokenizer config may be incorrect
+1.23.639.589 I 
+1.23.642.328 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.23.723.240 I kl_divergence: computing over 10 chunks, n_ctx=65536, batch_size=512, n_seq=1
+11.08.341.879 I kl_divergence: 584.62 seconds per pass - ETA 1 hours 37.43 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+   1       6.8057 ±    0.1004      -0.00098 ±    0.00115       0.01335 ±    0.00063     3.666 ±  0.125 %    96.176 ±  0.106 %
+   2       6.6967 ±    0.0709       0.00039 ±    0.00086       0.01441 ±    0.00050     3.850 ±  0.098 %    96.142 ±  0.075 %
+   3       6.6426 ±    0.0577       0.00073 ±    0.00073       0.01513 ±    0.00042     4.001 ±  0.081 %    96.004 ±  0.062 %
+   4       6.5420 ±    0.0491       0.00006 ±    0.00063       0.01491 ±    0.00036     3.935 ±  0.067 %    95.976 ±  0.054 %
+   5       6.6084 ±    0.0446      -0.00018 ±    0.00057       0.01579 ±    0.00034     4.067 ±  0.062 %    95.949 ±  0.049 %
+   6       6.8714 ±    0.0430      -0.00012 ±    0.00053       0.01606 ±    0.00031     4.093 ±  0.056 %    95.873 ±  0.045 %
+   7       6.8754 ±    0.0398      -0.00004 ±    0.00049       0.01630 ±    0.00029     4.087 ±  0.051 %    95.846 ±  0.042 %
+   8       6.9344 ±    0.0375       0.00016 ±    0.00047       0.01652 ±    0.00027     4.107 ±  0.047 %    95.802 ±  0.039 %
+   9       6.9818 ±    0.0356       0.00009 ±    0.00045       0.01676 ±    0.00027     4.116 ±  0.045 %    95.784 ±  0.037 %
+  10       6.9139 ±    0.0334       0.00023 ±    0.00042       0.01669 ±    0.00025     4.109 ±  0.042 %    95.787 ±  0.035 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :   6.913877 ±   0.033393
+Mean PPL(base)                :   6.912253 ±   0.033327
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.62%
+Mean ln(PPL(Q)/PPL(base))     :   0.000235 ±   0.000420
+Mean PPL(Q)/PPL(base)         :   1.000235 ±   0.000420
+Mean PPL(Q)-PPL(base)         :   0.001624 ±   0.002906
+
+====== KL divergence statistics ======
+Mean    KLD:   0.016688 ±   0.000250
+Maximum KLD:  16.529240
+99.9%   KLD:   1.426137
+99.0%   KLD:   0.169443
+95.0%   KLD:   0.046501
+90.0%   KLD:   0.026304
+Median  KLD:   0.003756
+10.0%   KLD:   0.000066
+ 5.0%   KLD:   0.000016
+ 1.0%   KLD:   0.000001
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000083
+
+====== Token probability statistics ======
+Mean    Δp:  0.015 ± 0.007 %
+Maximum Δp: 99.916%
+99.9%   Δp: 36.795%
+99.0%   Δp: 10.742%
+95.0%   Δp:  3.973%
+90.0%   Δp:  2.132%
+75.0%   Δp:  0.365%
+Median  Δp:  0.000%
+25.0%   Δp: -0.350%
+10.0%   Δp: -2.098%
+ 5.0%   Δp: -3.957%
+ 1.0%   Δp: -10.479%
+ 0.1%   Δp: -34.311%
+Minimum Δp: -99.795%
+RMS Δp    :  4.109 ± 0.042 %
+Same top p: 95.787 ± 0.035 %
+
+93.07.813.164 W ~llama_context:      CUDA0 compute buffer size of 764.0488 MiB, does not match expectation of 761.0488 MiB
+------------------------------
