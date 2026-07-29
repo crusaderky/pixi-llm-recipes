@@ -83,7 +83,8 @@ pixi-llm-recipes/
     ├── llama-cpp-source/
     │   ├── recipe.yaml              # Source build recipe — all backends via `flags`
     │   ├── variants.yaml            # Backend `backend` matrix (cpu/cuda/vulkan/rocm)
-    │   └── build.sh                 # Shared CMake build + install + symlink script
+    │   ├── build.sh                 # Shared CMake build + install + symlink script
+    │   └── patches/                 # Source patches applied by `source.patches`
     ├── llama-cpp-binary/
     │   ├── recipe.yaml              # Binary build recipe — all backends via `flags`
     │   ├── variants.yaml            # Backend `backend` matrix (cpu/cuda/vulkan/rocm)
@@ -643,6 +644,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `pixi-recipes/llama-cpp-source/recipe.yaml`                | Source build recipe — all backends (cpu/cuda/vulkan/rocm) via `flags`                                                                                   |
 | `pixi-recipes/llama-cpp-source/variants.yaml`              | Backend `backend` matrix for the source recipe                                                                                                          |
 | `pixi-recipes/llama-cpp-source/build.sh`                   | Shared CMake build + install + symlink script (reads `BACKEND`/`GPU_TARGETS` env)                                                                       |
+| `pixi-recipes/llama-cpp-source/patches/*.patch`            | Source patches applied by `source.patches`; currently guards the glibc-2.29 `posix_spawn_file_actions_addchdir_np` call in vendored `subprocess.h`      |
 | `pixi-recipes/llama-cpp-binary/build.sh`                   | Linux: copy pre-built binaries + create symlinks                                                                                                        |
 | `pixi-recipes/llama-cpp-binary/build.bat`                  | Windows: copy pre-built exes + DLLs into `bin`                                                                                                          |
 | `pixi-recipes/llama-cpp-binary/recipe.yaml`                | Binary build recipe — all backends (cpu/cuda/vulkan/rocm) via `flags`                                                                                   |

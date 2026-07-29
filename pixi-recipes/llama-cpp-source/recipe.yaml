@@ -48,6 +48,24 @@ source:
   git: https://github.com/${{ fork }}
   tag: ${{ version }}
   # rev: ${{ version }}
+  patches:
+    # conda-forge's default build sysroot is glibc 2.28, and pixi pins it there:
+    # `stdlib('c')` resolves to an exact `sysroot_linux-64 =2.28` injected by
+    # pixi, which overrides `c_stdlib_version` in a recipe-local variants.yaml,
+    # and the `glibc` system requirement in pixi.toml never reaches the build
+    # solve. Reproducer: https://github.com/crusaderky/pixi-glibc-version-poc
+    #
+    # Mainline llama.cpp commit 0cea362 ("vendor: update subprocess.h", #26061,
+    # 2026-07-24) updated the vendored sheredom/subprocess.h to implement
+    # per-child working directories with posix_spawn_file_actions_addchdir_np(),
+    # a glibc 2.29 symbol guarded only for Apple. It reached this fork via merge
+    # 8ef0af3 and so is present from beellama-staging-v0.4.2-r1 onwards, where it
+    # breaks the build of common/subproc.cpp. The patch makes the call
+    # conditional on __GLIBC_PREREQ(2, 29), returning ENOSYS below that; only a
+    # server-mcp.cpp config with an explicit "cwd" passes a non-null cwd, and
+    # router mode / server-tools pass nullptr, so they are unaffected. Drop this
+    # once upstream guards the call itself or the sysroot becomes selectable.
+    - patches/0001-subprocess-guard-addchdir-np-on-glibc-lt-2.29.patch
 
 build:
   number: 0
