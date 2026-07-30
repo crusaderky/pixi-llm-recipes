@@ -92,9 +92,9 @@ a version bump.
    If the source recipe's `version:` is a raw commit SHA with a `# vX.Y.Z`
    comment (e.g. `4a834dd7...  # v0.4.2 preview`), then:
    a. Is there a stable version newer than `vX.Y.Z`? If so, replace the hash and
-      version with `LATEST_BEELLAMA`.
+   version with `LATEST_BEELLAMA`.
    b. Otherwise, search the same branch for a more recent commit SHA that still
-      corresponds to `vX.Y.Z`. Update the hash only.
+   corresponds to `vX.Y.Z`. Update the hash only.
 
 ### Phase 3 — Update the commented (mainline) variant pins
 
