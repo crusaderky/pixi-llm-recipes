@@ -227,7 +227,6 @@ pixi r install                        # One-off
 cd /path/to/workspace && pi           # Sandboxed
 pi --bind /data                       # Bind extra directories into the sandbox
 pi --with-git                         # Enable `git push`, `git` pull/fetch from private repos, and `gh`
-pi --with-herdr                       # Let the agent drive the herdr it runs inside (SANDBOX ESCAPE — see below)
 ```
 
 If you need full host access for development or debugging, or if you are on Windows,
@@ -252,7 +251,6 @@ cd /path/to/workspace && claude       # Sandboxed
 claude --no-sandbox                   # Full system access
 claude --bind /data                   # Bind extra directories into the sandbox
 claude --with-git                     # Enable `git push`, `git` pull/fetch from private repos, and `gh`
-claude --with-herdr                   # Let the agent drive the herdr it runs inside (SANDBOX ESCAPE — see below)
 ```
 
 Windows:
@@ -285,21 +283,6 @@ Windows:
 pixi r herdr        # Launch herdr
 ```
 
-### herdr integration in pi and claude
-
-pi and claude know how to control the herdr they run inside of. This requires the
-`--with-herdr` flag, which binds herdr's control socket into the sandbox. Try:
-
-```bash
-herdr     # or pixi r herdr
-```
-
-Then from the terminal inside herdr:
-
-```bash
-pi --with-herdr "split panes and echo 'hello world' in the new pane"
-```
-
 ### herdr-file-viewer plugin
 
 herdr comes with [herdr-file-viewer](https://github.com/smarzban/herdr-file-viewer)
@@ -310,18 +293,6 @@ pre-installed and pre-configured, bound to the following keyboard shortcuts:
 
 `pixi r install` also installs its optional Markdown/terminal renderers (`delta`, `bat`,
 `glow`) when missing, so files render nicely inside the viewer.
-
-### ⚠️ Security: `--with-herdr` is a sandbox escape ⚠️
-
-`~/.config/herdr/herdr.sock` is herdr's full-control JSON-RPC socket, and herdr itself
-runs **outside** the sandbox. An agent that can reach the socket can ask herdr to spawn
-a new **host-side** (unsandboxed) pane and run arbitrary commands in it — i.e. full
-access to your machine. This means it's still harder to break things _from the main pane_,
-but anything on a separate pane has unlimited access.
-
-The socket is therefore **not** bound by default. Only pass `--with-herdr` when you
-would also be comfortable running the agent with `--no-sandbox`. Without the flag,
-the herdr skill detects the missing socket and the agent cannot drive herdr.
 
 ## git and GitHub CLI
 

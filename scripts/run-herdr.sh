@@ -7,7 +7,7 @@
 # shadow the `~/.local/bin/pi` and `~/.local/bin/claude` wrappers installed by
 # `pixi r install`. Children spawned inside herdr inherit this PATH, so `pi`
 # inside a herdr pane would skip the bubblewrap sandbox and the `--with-git` /
-# `--with-herdr` / `--bind` / `--no-sandbox` argument handling that lives in
+# `--bind` / `--no-sandbox` argument handling that lives in
 # those wrappers.
 #
 # Reorder so `~/.local/bin` wins, but resolve the real herdr binary *before*

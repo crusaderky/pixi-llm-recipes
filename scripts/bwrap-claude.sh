@@ -3,7 +3,7 @@
 # Needs an AppArmor profile at /etc/apparmor.d/bwrap; install it with
 # `pixi run install-apparmor` (see scripts/install-apparmor.sh).
 #
-# Usage: bwrap-claude.sh <dir|-> [--with-git] [--with-herdr] [--bind <dir>] ... [-- claude-args...]
+# Usage: bwrap-claude.sh <dir|-> [--with-git] [--bind <dir>] ... [-- claude-args...]
 #   Forwarded args are read from _FWD_ARGS env var (base64-encoded, null-separated,
 #   set by the scripts/claude wrapper) or, as a fallback, from positional args $2 onward
 #   (for direct `pixi r claude -- <args>` invocations).
@@ -45,10 +45,9 @@ elif [ $# -ge 2 ]; then
   FWD_ARGS=("${@:2}")
 fi
 
-# Parse --bind <dir> pairs and --with-git / --with-herdr flags from forwarded args
+# Parse --bind <dir> pairs and --with-git flags from forwarded args
 EXTRA_BINDS=""
 WITH_GIT=false
-WITH_HERDR=false
 CLAUDE_ARGS=()
 i=0
 while [ $i -lt ${#FWD_ARGS[@]} ]; do
@@ -60,9 +59,6 @@ while [ $i -lt ${#FWD_ARGS[@]} ]; do
     i=$((i + 2))
   elif [ "$arg" = "--with-git" ]; then
     WITH_GIT=true
-    i=$((i + 1))
-  elif [ "$arg" = "--with-herdr" ]; then
-    WITH_HERDR=true
     i=$((i + 1))
   else
     CLAUDE_ARGS+=("$arg")
@@ -107,17 +103,6 @@ if [ "$WITH_GIT" = true ]; then
   fi
 fi
 
-# --with-herdr: bind ~/.config/herdr (which holds herdr.sock) into the sandbox so the
-# agent can drive the herdr instance it runs inside. SECURITY: herdr.sock is a
-# full-control socket and herdr runs OUTSIDE the sandbox, so an agent with access can
-# spawn unsandboxed host-side shells via the socket — a full sandbox escape. Only pass
-# this when you trust the agent with full host access.
-HERDR_BINDS=""
-if [ "$WITH_HERDR" = true ]; then
-  mkdir -p ~/.config/herdr
-  HERDR_BINDS="--bind $HOME/.config/herdr $HOME/.config/herdr"
-fi
-
 # Unset all PIXI_*/CONDA_* and the pixi-activation env vars so they don't leak
 # into the sandboxed Claude Code process.
 while IFS= read -r var; do
@@ -148,7 +133,6 @@ exec bwrap \
   $EXTRA_BINDS \
   $WORKTREE_BINDS \
   $GIT_BINDS \
-  $HERDR_BINDS \
   $ARGS \
   --die-with-parent \
   --unshare-all --share-net \

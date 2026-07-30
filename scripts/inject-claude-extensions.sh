@@ -14,8 +14,7 @@ fi
 mkdir -p "$DST"
 
 # Copy hook files from the package if they don't exist on the host.
-# Managed by herdr — if the hook file exists, assume the user has a newer
-# version and skip.
+# If the hook file exists, assume the user has a newer version and skip.
 if [ -d "$SRC/hooks" ]; then
     mkdir -p "$DST/hooks"
     for f in "$SRC/hooks/"*; do

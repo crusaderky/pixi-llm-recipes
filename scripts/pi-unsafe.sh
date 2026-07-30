@@ -19,8 +19,7 @@ if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
   _WIN_PREFIX="${CONDA_PREFIX//\//\\}"
   _WIN_SRC="${_WIN_PREFIX}/home/.pi/agent"
   for _item in bin extensions npm skills AGENTS.md keybindings.json; do
-    # herdr's pi integration (which creates extensions/) is skipped on Windows,
-    # so some items may be absent — copy only what exists.
+    # Some items may be absent — copy only what exists.
     if [ -e "${_WIN_SRC}/${_item}" ]; then
       cp -r "${_WIN_SRC}/${_item}" ~/.pi/agent/
     fi

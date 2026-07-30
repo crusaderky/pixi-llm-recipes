@@ -90,24 +90,7 @@ Edit `pixi-recipes/herdr/recipe.yaml` in-place:
   sha256_preview_win_64: <new_preview_digest>
 ```
 
-### 7. Update herdr SKILL.md files
-
-Fetch the latest herdr SKILL.md from upstream:
-
-```bash
-curl -fsSL "https://raw.githubusercontent.com/ogulcancelik/herdr/master/SKILL.md"
-```
-
-Compare the fetched content with both local copies:
-
-- `pixi-recipes/pi-home/skills/herdr/SKILL.md`
-- `pixi-recipes/claude-home/skills/herdr/SKILL.md`
-
-If the content differs from either local copy, overwrite that copy with the new content. If the content is identical, do NOT touch the file (preserve timestamp).
-
-Both files must always be identical to each other and to upstream.
-
-### 8. Report the result
+### 7. Report the result
 
 ```
 Updated herdr recipe:
@@ -116,5 +99,4 @@ Updated herdr recipe:
   sha256 aarch64:   3d757ac3... → <new>
   version_preview:  preview-2026-06-22-24c7377de01c → preview-2026-06-25-deadbeef0001
   sha256_preview_win_64:   9eb8b028... → <new>
-  SKILL.md:         unchanged / updated from upstream
 ```
