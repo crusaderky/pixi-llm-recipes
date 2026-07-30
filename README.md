@@ -130,7 +130,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | Ternary-Bonsai-27B | Q2_0               | 7.7 GB       | 64k kvarn3 t2048    | 8.6 GB             | 966 tok/s             | 38 tok/s             | full context in host RAM; even tighter fit                                                                              |
 | Bonsai-27B         | Q1_0               | 4.2 GB       | 128k kvarn4 t1024   | 7.3 GB             | 654 tok/s             | 50 tok/s             | limited context in VRAM                                                                                                 |
 | Laguna-S-2.1       | IQ4_XS             | 54 GB        | 256k kvarn3 t2048   | 8.5 GB             | 120 tok/s             | 10 tok/s             | very tight fit; most layers have SWA 512 bytes so they use fully fp16 context                                           |
-| Nanbeige4.2-3B     | Q6_K               | 3.4 GB       | 64k kvarn5 t1024    | 7.3 GB             | 1831 tok/s            | 58 tok/s             | limited context in VRAM                                                                                                 |
+| Nanbeige4.2-3B     | Q4_K_M             | 2.4 GB       | 128k kvarn3 t2048   | 7.9 GB             | 1554 tok/s            | 57 tok/s             | limited context in VRAM                                                                                                 |
 
 **Notes:**
 
