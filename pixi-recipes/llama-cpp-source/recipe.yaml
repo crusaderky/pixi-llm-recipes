@@ -1,7 +1,7 @@
 context:
   # Main branch (upstream llama.cpp)
   # fork: ggml-org/llama.cpp
-  # version: b10173
+  # version: b10189
 
   # https://github.com/ggml-org/llama.cpp/pull/21067
   # Forked from main at b8533 (2026-03-26)
@@ -16,15 +16,16 @@ context:
   # + Ternary-Bonsai CUDA
   # https://github.com/Anbeeld/beellama.cpp
   # fork: Anbeeld/beellama.cpp
-  # version: 4a834dd7aae807c36f8aef3ff2d39e826eac9fe7  # v0.4.2 preview
+  # version: v0.4.2
 
-  # Beellama-v0.4.2 preview
+  # Beellama-v0.4.2
   # + laguna-S-2.1 cosmetic tweaks
   # + laguna-S-2.1 DFlash
   # + llama-perplexity collision probability measure
   # + fix compilation warnings in the kvarn headers
+  # + Nanbeige tool-call fix
   fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.4.2-r2
+  version: beellama-staging-v0.4.2-r4
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).

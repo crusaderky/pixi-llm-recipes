@@ -11,13 +11,18 @@ Both `pixi-recipes/llama-cpp-source/recipe.yaml` and
 `pixi-recipes/llama-cpp-binary/recipe.yaml` pin **two** forks in their
 `context:` blocks:
 
-- **Active fork** (uncommented) — `fork: Anbeeld/beellama.cpp`,
-  `version: vX.Y.Z` (stable releases only; ignore `preview-vX.Y.Z`).
-- **Mainline variant** (commented out) — `# fork: ggml-org/llama.cpp`,
-  `# version: bNNNN` — a ready-to-switch fallback that must be kept current.
+- **Fork** — `fork: Anbeeld/beellama.cpp`,
+  `version: vX.Y.Z` (for stable releases; otherwise `preview-vX.Y.Z`).
+- **Mainline variant** — `# fork: ggml-org/llama.cpp`,
+  `# version: bNNNN`
+- other, experimental forks (source only)
 
-Every update run bumps **both** pins in **both** recipes (four version
-strings total), so the commented mainline variant never goes stale.
+You will find any one of them uncommented and and the rest commented out.
+The uncommented block may not match between binary and source.
+
+Every update run bumps the `Anbeeld/beellama.cpp` pin **and** `ggml-org/llama.cpp`
+(four version strings total across two recipes), so the commented variants never go stale.
+The update does NOT bump up other forks.
 
 The source recipe's `source:` block uses `${{ fork }}` and `${{ version }}` —
 there is NO separate `source.rev` / commit SHA field. The binary recipe
@@ -54,6 +59,25 @@ Do NOT use the GitHub REST API for tag discovery (rate-limited without auth).
 4. Same for the uncommented `version:` in
    `pixi-recipes/llama-cpp-binary/recipe.yaml`. Report
    `Binary beellama: vOLD → vNEW`.
+
+#### Upgrade from preview to stable
+If the recipe targets `preview-vA.B.C` and
+the latest stable is `vD.E.F`, with `vD.E.F` _strictly greater_ than
+`vA.B.C`, then migrate to the stable version. Otherwise, keep the preview.
+Examples:
+
+- recipe contains `preview-v1.2.3` → latest stable is `v1.2.3` or lower → NO CHANGE
+- recipe contains `preview-v1.2.3` → latest stable is `v1.2.4` or higher → change to `v1.2.4`
+
+#### Upgrade git hash (source only)
+`pixi-recipes/llama-cpp-source/recipe.yaml` may look like this:
+
+`version: 4a834dd7aae807c36f8aef3ff2d39e826eac9fe7  # v0.4.2 preview`
+In this case, 
+a. Is there a stable version that is newer? If so, just remove the hash and upgrade to
+   the newer stable tag.
+b. Otherwise, is there a more recent hash in the same branch (`v0.4.2` in this case?)
+   If so, update the hash.
 
 ### Phase 3 — Update the commented (mainline) variant pins
 
