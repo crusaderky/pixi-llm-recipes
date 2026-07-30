@@ -12,14 +12,12 @@
 
 common: >
     llama-perplexity --kl-divergence-base /tmp/logits.dat
-    --ctx-size 65536 -f sample-data/wiki.train.head-10k.raw
-    -hf unsloth/Laguna-S-2.1-GGUF:UD-IQ4_XS
-    -fa on -ngl 99 --n-cpu-moe 99 --no-mmap --mlock
+    --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw
+    -hf owao/Nanbeige4.2-3B-GGUF:Q4_K_M
+    -fa on -ngl 99
 
 # K-quant types to test.
 k_quants:
-  - q8_0
-  - kvarn5
   - kvarn4
   - kvarn3
   - kvarn2
@@ -28,49 +26,49 @@ k_quants:
 # Auto-skip all combos where v_quant is higher precision than k_quant
 # Auto-skip all combos of asymmetric kvarn
 v_quants:
-  - q8_0
-  - kvarn5
   - kvarn4
   - kvarn3
   - kvarn2
 
 # f16/bf16 KV-cache tail sizes to test (requires beellama.cpp). 0 = no tail
-kv-tail-tokens: [0, 512, 1024, 2048]
+kv-tail-tokens: [0, 1024, 2048]
 
 # Baseline combo that creates logits.dat (no --kl-divergence).
 baseline: {cache-type-k: f16, cache-type-v: f16, kv-tail-tokens: 0}
 
 # Extra combos to add beyond the cartesian product (same syntax as baseline)
 include:
+  - {cache-type-k: kvarn8, cache-type-v: kvarn8, kv-tail-tokens: 0}
+  - {cache-type-k: kvarn6, cache-type-v: kvarn6, kv-tail-tokens: 0}
+  - {cache-type-k: kvarn5, cache-type-v: kvarn5, kv-tail-tokens: 0}
+  - {cache-type-k: kvarn5, cache-type-v: kvarn5, kv-tail-tokens: 1024}
+
   - {cache-type-k: f16, cache-type-v: q8_0, kv-tail-tokens: 0}
+  - {cache-type-k: q8_0, cache-type-v: q8_0, kv-tail-tokens: 0}
+  - {cache-type-k: q8_0, cache-type-v: q8_0, kv-tail-tokens: 128}
+  - {cache-type-k: q8_0, cache-type-v: q5_0, kv-tail-tokens: 0}
+  - {cache-type-k: q8_0, cache-type-v: q5_0, kv-tail-tokens: 128}
+  - {cache-type-k: q6_0, cache-type-v: q6_0, kv-tail-tokens: 0}
+  - {cache-type-k: q6_0, cache-type-v: q6_0, kv-tail-tokens: 128}
+
   - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 0}
   - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 128}
-  - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 512}
   - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 1024}
-  - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 2048}
+
   - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 0}
   - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 128}
-  - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 512}
   - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 1024}
   - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 2048}
-  - {cache-type-k: kvarn6, cache-type-v: kvarn6, kv-tail-tokens: 0}
-  - {cache-type-k: kvarn6, cache-type-v: kvarn6, kv-tail-tokens: 512}
-  - {cache-type-k: kvarn8, cache-type-v: kvarn8, kv-tail-tokens: 0}
-  - {cache-type-k: kvarn8, cache-type-v: kvarn8, kv-tail-tokens: 512}
-  - {cache-type-k: kvarn3, cache-type-v: kvarn3, kv-tail-tokens: 4096}
-  - {cache-type-k: kvarn2, cache-type-v: kvarn2, kv-tail-tokens: 4096}
+
   - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 0}
   - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 128}
-  - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 512}
   - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 1024}
   - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 2048}
-  - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 4096}
+
   - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 0}
   - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 128}
-  - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 512}
   - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 1024}
   - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 2048}
-  - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 4096}
 
 # Combos to remove from the cartesian product (same syntax as baseline)
 exclude: []

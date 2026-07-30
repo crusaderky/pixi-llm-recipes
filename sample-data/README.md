@@ -8,6 +8,14 @@
 - ~295k tokens
 - ~600 llama-perplexity chunks @ `-c 512`
 
+## wiki.test.head-2.4k.raw
+
+Same as above, first 2400 lines
+
+- ~0.7m characters
+- ~159k tokens
+- ~5 llama-perplexity chunks @ `-c 32768`
+
 ## wiki.train.head-10k.raw
 
 `wiki.train.raw` from the same dataset linked above, first 10k lines
