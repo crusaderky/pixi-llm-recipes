@@ -410,6 +410,7 @@ MODEL_KV: dict[str, ModelKV] = {
     ),
 }
 MODEL_KV["Ornith-1.0-35B"] = MODEL_KV["Qwen3.6-35B-A3B"]
+MODEL_KV["Kat-Coder-V2.5-Dev"] = MODEL_KV["Qwen3.6-35B-A3B"]
 MODEL_KV["Ternary-Bonsai-27B"] = MODEL_KV["Qwen3.6-27B"]
 MODEL_KV["Bonsai-27B"] = MODEL_KV["Qwen3.6-27B"]
 
