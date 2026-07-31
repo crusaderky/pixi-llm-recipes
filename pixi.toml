@@ -162,6 +162,9 @@ herdr-file-viewer = { path = "pixi-recipes/herdr-file-viewer" }
 [feature.herdr.target.win-64.dependencies]
 herdr-file-viewer = { path = "pixi-recipes/herdr-file-viewer" }
 
+[feature.herdr.activation.env]
+EDITOR = "vim"
+
 [feature.herdr.tasks]
 # Route through run-herdr.sh so children spawned inside herdr see the
 # `~/.local/bin/{pi,claude}` sandbox wrappers ($CONDA_PREFIX/bin comes first
