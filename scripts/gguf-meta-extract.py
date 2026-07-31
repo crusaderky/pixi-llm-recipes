@@ -52,7 +52,7 @@ import sys
 from urllib.parse import unquote, urlparse
 
 import requests
-from kv_cache_common import ModelKV, resolve_bpw
+from kv_cache_common import KVARN_FALLBACK, CompressedKV, ModelKV, resolve_bpw
 
 try:
     from huggingface_hub import HfApi, hf_hub_url
@@ -531,6 +531,44 @@ _ARCH_SWA_PATTERN = {
     "smallthinker": (4, True),
 }
 
+# Architectures whose loader forces K-only cache storage without the GGUF saying
+# so. DeepSeek-V4 fakes `is_mla()` on all four of its cache hparam copies
+# (`dsv4_make_k_only` in llama-kv-cache-dsv4.cpp) purely to get `has_v = false`
+# storage, so `attention.value_length` is never allocated -- exactly as for a real
+# MLA model, but without `key_length_mla` / `value_length_mla` in the header.
+_ARCH_K_ONLY_CACHE = {"deepseek4"}
+
+# Architectures that keep their lightning-indexer keys in the *main* KV cache, as
+# an extra f32 stream of `n_embd_k_idx(il)` next to K/V (`hparams.indexer_kv =
+# true`, allocated in llama-kv-cache.cpp). MiniMax-M3's MSA is the only one.
+# The other three architectures that ship `.indexer.` tensors -- deepseek32,
+# glm-dsa and deepseek4 -- put those keys in a side cache of their own instead, at
+# the run's K quant and (for deepseek4) at one row per 4 tokens; `_compressed_groups`
+# models those, so charging them a full-context f32 stream as well would both
+# double-count and overstate the rate.
+_ARCH_INDEXER_KV = {"minimax-m3"}
+
+# Architectures whose bespoke cache never receives the KVarN params, so
+# `-ctk kvarnN` silently stores the plain fallback type instead
+# (`kv_cache_common.KVARN_FALLBACK`). llama-model.cpp branches to these caches
+# before the `params.kvarn.type != DISABLED` test that everything else goes
+# through: `llama_kv_cache_dsa` (deepseek32 / glm-dsa) has no KVarN parameter at
+# all and builds both its children as plain `llama_kv_cache`, and
+# `llama_kv_cache_dsv4` passes `llama_kvarn_default_params()` (DISABLED) to its raw
+# cache and nothing to its compressed ones.
+_ARCH_NO_KVARN = {"deepseek32", "deepseek4", "glm-dsa"}
+
+# DeepSeek-V4 compressed caches, mirroring llama-kv-cache-dsv4.cpp: the only two
+# `attention.compress_ratios` values the loader accepts (0 = no compressed cache
+# on that layer), the 256-cell padding every compressed cache gets, and each
+# cache's compressor ring state (`state_size` rows of two f32 tensors, kv+score,
+# of `n_embd_state` each, per layer). CSA layers additionally drive the
+# lightning-indexer (LID) cache, which shares their ratio at the indexer head dim.
+_DSV4_CSA_RATIO = 4
+_DSV4_HCA_RATIO = 128
+_DSV4_COMP_PAD = 256
+_DSV4_STATE_BPW = 32.0  # compressor state is f32 regardless of the cache quant
+
 
 # KV-cache configurations reported on: (symmetric K/V cache quant, beellama
 # --kv-tail-tokens). Bits-per-element come from kv_cache_common.BPW, which folds
@@ -557,6 +595,26 @@ def _kv_label(quant, tail):
     return f"{quant} t{tail}" if tail else quant
 
 
+def _kv_display_label(quant, tail, arch):
+    """Headline label for a (quant, tail) pair, naming the type actually stored
+    when it differs from the one asked for: ``kvarn5 -> q5_0 t128``."""
+    effective = _effective_quant(quant, arch)
+    name = quant if effective == quant else f"{quant} -> {effective}"
+    return f"{name} t{tail}" if tail else name
+
+
+def _effective_quant(quant, arch):
+    """The quant `arch` actually stores when the run asks for `quant`.
+
+    Identity everywhere except the `_ARCH_NO_KVARN` architectures, whose caches
+    never see the KVarN params: there `-ctk kvarnN` falls through to the plain
+    `qN_0` type the CLI pairs it with, which is a slightly *wider* body.
+    """
+    if arch in _ARCH_NO_KVARN:
+        return KVARN_FALLBACK.get(quant, quant)
+    return quant
+
+
 # Width of the widest label, so the byte columns line up.
 _KV_LABEL_W = max(len(_kv_label(q, t)) for q, t in KV_QUANTS)
 
@@ -574,6 +632,158 @@ def _group_kv_heads(head_kv, layers):
     if len(counts) == 1:
         return counts.pop()
     return sum(head_kv[il] for il in layers) / len(layers)
+
+
+def _compressed_groups(md, arch, head_kv, key_length, cached, n_layer):
+    """Cache groups an architecture allocates *besides* its token KV cache.
+
+    Empty for all but the sparse-attention architectures, which cache their
+    lightning-indexer keys in a side cache of their own instead of in the main one
+    (`_ARCH_INDEXER_KV`):
+
+      * `deepseek32` / `glm-dsa` -- `llama_kv_cache_dsa` builds one extra
+        full-context K-only cache with `head_count_kv` forced to 1 and the head
+        dim replaced by `attention.indexer.key_length`, at the run's K quant and
+        with no exact tail;
+      * `deepseek4` -- three *compressed* caches plus compressor state, see
+        `_dsv4_compressed_groups`, and the raw token cache holds only a
+        128-token window.
+    """
+    if arch == "deepseek4":
+        return _dsv4_compressed_groups(md, arch, head_kv, key_length, n_layer)
+    if arch not in ("deepseek32", "glm-dsa"):
+        return ()
+
+    indexer_dim = md.get(f"{arch}.attention.indexer.key_length")
+    if not indexer_dim:
+        sys.stderr.write(
+            f"WARNING: '{arch}' carries no attention.indexer.key_length; its "
+            "lightning-indexer key cache is not counted below.\n"
+        )
+        return ()
+    return (
+        CompressedKV(
+            "lid (indexer)",
+            len(cached),
+            1,  # hparams_lid.n_head_kv_arr is filled with 1
+            indexer_dim,
+            0,  # K-only (these archs are MLA, so `has_v` is already false)
+            ratio=1,
+            per_seq=False,  # follows the main cache's kv_unified
+        ),
+    )
+
+
+def _dsv4_compressed_groups(md, arch, head_kv, key_length, n_layer):
+    """DeepSeek-V4's compressed cache groups, as a tuple of CompressedKV.
+
+    DSV4's raw token cache is a 128-token sliding window -- by itself a rounding
+    error. The history lives in three compressed caches that
+    `llama_kv_cache_dsv4` allocates next to it, each a plain `llama_kv_cache` of
+    `GGML_PAD(ceil(n_ctx / ratio), 256)` K-only cells per sequence:
+
+      * CSA -- the `attention.compress_ratios == 4` layers, at the ordinary
+        `n_embd_k_gqa` width (`attention.key_length` x `head_count_kv`);
+      * HCA -- the `compress_ratios == 128` layers, same width;
+      * LID -- the lightning indexer, on the *CSA* layers at the CSA ratio, but
+        with `head_count_kv` forced to 1 and the head dim replaced by
+        `attention.indexer.key_length`.
+
+    Each also owns a fixed-size f32 compressor ring state, two tensors (kv and
+    score) of `n_embd_state` per layer over `state_size` rows: CSA and LID use
+    `2 x ratio` rows of `2 x head_dim`, HCA `ratio` rows of `head_dim`.
+
+    Returns () when the metadata does not describe the compressed layout, after
+    warning -- the caller then reports the raw sliding-window cache alone, which
+    is a large *under*estimate.
+    """
+    ratios = _norm_per_layer(md.get(f"{arch}.attention.compress_ratios"), n_layer)
+    indexer_dim = md.get(f"{arch}.attention.indexer.key_length")
+    if ratios is None:
+        sys.stderr.write(
+            f"WARNING: '{arch}' carries no per-layer attention.compress_ratios; "
+            "its compressed KV caches -- which hold the entire context -- cannot "
+            "be sized. The KV-cache figures below cover only the "
+            "sliding-window cache and are a drastic UNDERESTIMATE.\n"
+        )
+        return ()
+    unknown = sorted({r for r in ratios} - {0, _DSV4_CSA_RATIO, _DSV4_HCA_RATIO})
+    if unknown:
+        # llama.cpp itself refuses to load these ("only supports compression
+        # ratios 0, 4, and 128"), so they are sized but not trusted.
+        sys.stderr.write(
+            f"WARNING: '{arch}' declares compression ratios {unknown}, which "
+            "llama.cpp does not support; sizing them as ordinary compressed "
+            "caches.\n"
+        )
+
+    groups = []
+    csa_layers = [il for il in range(n_layer) if ratios[il] == _DSV4_CSA_RATIO]
+    other = sorted({r for r in ratios if r and r != _DSV4_CSA_RATIO})
+    for ratio in [_DSV4_CSA_RATIO] + other:
+        layers = [il for il in range(n_layer) if ratios[il] == ratio]
+        if not layers:
+            continue
+        name = {_DSV4_CSA_RATIO: "csa", _DSV4_HCA_RATIO: "hca"}.get(
+            ratio, f"comp/{ratio}"
+        )
+        groups.append(
+            CompressedKV(
+                name,
+                len(layers),
+                _group_kv_heads(head_kv, layers),
+                key_length,
+                0,  # K-only: dsv4_make_k_only()
+                ratio=ratio,
+                pad=_DSV4_COMP_PAD,
+            )
+        )
+        # Compressor state: `2 x ratio` rows of `2 x head_dim` for CSA (and LID
+        # below), `ratio` rows of `head_dim` for HCA.
+        wide = ratio == _DSV4_CSA_RATIO
+        state_dim = 2 * key_length if wide else key_length
+        groups.append(
+            CompressedKV(
+                f"{name} state",
+                len(layers),
+                1,
+                state_dim,
+                state_dim,  # two f32 tensors per layer: kv + score
+                fixed_rows=2 * ratio if wide else ratio,
+                elem_bpw=_DSV4_STATE_BPW,
+            )
+        )
+
+    if csa_layers and indexer_dim:
+        groups.append(
+            CompressedKV(
+                "lid (indexer)",
+                len(csa_layers),
+                1,  # hparams_lid.n_head_kv_arr is filled with 1
+                indexer_dim,
+                0,
+                ratio=_DSV4_CSA_RATIO,
+                pad=_DSV4_COMP_PAD,
+            )
+        )
+        groups.append(
+            CompressedKV(
+                "lid state",
+                len(csa_layers),
+                1,
+                2 * indexer_dim,
+                2 * indexer_dim,
+                fixed_rows=2 * _DSV4_CSA_RATIO,
+                elem_bpw=_DSV4_STATE_BPW,
+            )
+        )
+    elif csa_layers:
+        sys.stderr.write(
+            f"WARNING: '{arch}' has compressed layers but no "
+            "attention.indexer.key_length; its lightning-indexer cache is not "
+            "counted below.\n"
+        )
+    return tuple(groups)
 
 
 def _model_kv_from_metadata(md):
@@ -632,7 +842,10 @@ def _model_kv_from_metadata(md):
     is_mla = bool(g("attention.key_length_mla")) and bool(
         g("attention.value_length_mla")
     )
-    if is_mla:
+    # `_ARCH_K_ONLY_CACHE` archs get the same K-only storage without declaring
+    # MLA head dims, so their `attention.value_length` must be dropped too.
+    k_only = arch in _ARCH_K_ONLY_CACHE
+    if is_mla or k_only:
         value_length = 0
 
     head_kv = _norm_per_layer(head_kv, n_layer)
@@ -678,6 +891,10 @@ def _model_kv_from_metadata(md):
     swa_set = set(swa_layers)
     full_layers = [il for il in cached if il not in swa_set]
 
+    # Side caches allocated *in addition* to the token cache above; () for all
+    # but the sparse-attention architectures.
+    compressed = _compressed_groups(md, arch, head_kv, key_length, cached, n_layer)
+
     spec = ModelKV(
         full_attn_layers=len(full_layers),
         full_attn_kv_heads=_group_kv_heads(head_kv, full_layers),
@@ -687,12 +904,20 @@ def _model_kv_from_metadata(md):
         key_dim=key_length,
         value_dim=value_length,
         n_loops=n_loops,
+        compressed=compressed,
     )
 
     gqa = isinstance(n_head, int) and any(head_kv[il] < n_head for il in cached)
     attn_kind = "MLA" if is_mla else ("GQA" if gqa else "MHA")
     if swa_layers:
         attn_kind += "+SWA"
+    if k_only and not is_mla:
+        attn_kind += " (K-only)"
+    # Name the side caches rather than counting them; their fixed-size compressor
+    # state buffers (ratio 0) are an implementation detail of the named ones.
+    side_caches = [grp.name for grp in compressed if grp.ratio]
+    if side_caches:
+        attn_kind += " + " + ", ".join(side_caches)
     if len(cached) < n_layer:
         # Hybrid: the remaining layers are conv / recurrent / linear-attention
         # blocks that keep a fixed-size state instead of a KV cache.
@@ -813,33 +1038,36 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
     # of a hybrid hold a KV cache at all (head_count_kv == 0 marks the conv /
     # recurrent / linear-attention blocks). Tensor shapes are the fallback for
     # GGUFs whose hparams are missing.
+    arch = metadata.get("general.architecture")
     result = _model_kv_from_metadata(metadata)
     if result is None:
         result = _model_kv_from_tensors(tensors, _n_loops(metadata))
     spec, info = result
+    quant_bpw = {q: resolve_bpw(_effective_quant(q, arch)) for q, _ in KV_QUANTS}
     kv_by_quant = {
         _kv_label(q, tail): int(
             spec.get_total_kv_cache_size(
-                n_ctx, resolve_bpw(q), resolve_bpw(q), tail, KV_N_PARALLEL
+                n_ctx, quant_bpw[q], quant_bpw[q], tail, KV_N_PARALLEL
             )
         )
         for q, tail in KV_QUANTS
     }
 
-    # Lightning-indexer key cache (DeepSeek-V3.2 DSA / MiniMax-M3 MSA,
-    # llama.cpp PR #24908). Block-sparse attention stores one extra key per
-    # token per indexer layer -- a single MQA head of `indexer.key_length`
-    # dims, kept in f32 *alongside* the full K/V cache. Sparsity cuts attention
-    # compute (a constant top-k blocks per query), not cache size, so this is
-    # purely additive. Present only when the GGUF carries indexer tensors;
-    # dense conversions omit them and this term stays zero.
-    arch = metadata.get("general.architecture")
+    # Lightning-indexer key cache (MiniMax-M3 MSA, llama.cpp PR #24908).
+    # Block-sparse attention stores one extra key per token per indexer layer -- a
+    # single MQA head of `indexer.key_length` dims, kept in f32 *alongside* the
+    # full K/V cache (`n_embd_k_idx` in llama-kv-cache.cpp). Sparsity cuts
+    # attention compute (a constant top-k blocks per query), not cache size, so
+    # this is purely additive. Only the `_ARCH_INDEXER_KV` architectures store
+    # their indexer keys this way; DeepSeek-V4 puts them in a compressed cache of
+    # their own, already counted as a `spec.compressed` group above.
     idx_layers = set()
-    for name, _, _ in tensors:
-        if ".indexer." in name:
-            m = _BLK.match(name)
-            if m:
-                idx_layers.add(int(m.group(1)))
+    if arch in _ARCH_INDEXER_KV:
+        for name, _, _ in tensors:
+            if ".indexer." in name:
+                m = _BLK.match(name)
+                if m:
+                    idx_layers.add(int(m.group(1)))
     idx_head = (
         metadata.get(f"{arch}.attention.indexer.key_length") if arch else 0
     ) or 0
@@ -860,7 +1088,47 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
     info["n_idx_layers"] = len(idx_layers)
     info["idx_head"] = idx_head
     info["kv_by_quant"] = kv_by_quant
+    info["arch"] = arch
+    info["quant_bpw"] = quant_bpw
     return kv_by_quant, overhead_bytes, info
+
+
+def _kv_tail_caveats(spec, n_ctx):
+    """Notes for the `tN` column of the headline table, where the exact tail this
+    script pairs each quant with reaches less of the cache than the label implies.
+
+    Two things are worth saying out loud, both read off the spec:
+
+    * A side cache (`spec.compressed`) is constructed with `tail_tokens = 0` --
+      llama.cpp passes it no tail arguments at all -- so no exact tail ever
+      protects it, however large `--kv-tail-tokens` is. On DeepSeek-V4 that is
+      >99% of the cache.
+    * `llama-context.cpp` clamps the sliding-window tail to the window itself
+      (`kv_tail_tokens_swa = min(N, n_swa)`). A model with full-attention layers
+      still gets the unclamped tail on those, but one whose *every* layer is
+      sliding-window (again DeepSeek-V4) gets the same allocation for every tail
+      at or above its window.
+    """
+    tails = sorted({t for _, t in KV_QUANTS if t})
+    if not tails:
+        return []
+    lines = []
+    side = [grp.name for grp in spec.compressed if grp.ratio]
+    if side:
+        lines.append(
+            f"  note: the exact tail never reaches {', '.join(side)} -- llama.cpp "
+            "builds those with tail 0,\n"
+            "        so the tN column below protects only the token cache."
+        )
+    window = min(n_ctx, spec.sliding_window_size) if spec.sliding_window_layers else 0
+    if window and not spec.full_attn_layers and min(tails) >= window:
+        tail_list = "/".join(f"t{t}" for t in tails)
+        lines.append(
+            f"  note: every layer is sliding-window, and the tail is clamped to the "
+            f"window ({window} tok),\n"
+            f"        so {tail_list} are all the same allocation here."
+        )
+    return lines
 
 
 def _kv_cache_breakdown(info, kv_by_quant):
@@ -926,6 +1194,16 @@ def _kv_cache_breakdown(info, kv_by_quant):
                     f"{info['swa_window']} tok not {n_ctx} tok -- saves "
                     f"{saved} elems -> actual {full_ctx_elems - saved} elems"
                 )
+        for grp in spec.compressed:
+            # Side caches, which for DeepSeek-V4 hold the history the 128-token
+            # window above does not. The row derivation comes out of ModelKV so
+            # it cannot drift from the bytes below.
+            lines.append(
+                f"      + {grp.name}: {grp.layers * spec.n_loops} layers x"
+                f"{grp.kv_heads:g} kv-heads x ({grp.key_dim} key + "
+                f"{grp.value_dim} value) dims, "
+                + spec.compressed_note(grp, n_ctx, KV_N_PARALLEL)
+            )
     else:  # tensor-shape path (hparams missing)
         kv_width = info["kv_width"]
         n_layer = info["n_attn_layers"]
@@ -946,28 +1224,37 @@ def _kv_cache_breakdown(info, kv_by_quant):
         f"      KV cache size by quantization and exact tail, n_parallel="
         f"{KV_N_PARALLEL} (bpw from kv_cache_common.BPW, bytes from ModelKV):"
     )
+    arch = info.get("arch")
     for qname, tail in KV_QUANTS:
-        bpw = resolve_bpw(qname)
+        # `_effective_quant` differs from `qname` only where the architecture
+        # cannot use KVarN and the CLI's plain fallback type is stored instead.
+        effective = _effective_quant(qname, arch)
+        bpw = info["quant_bpw"][qname]
         label = _kv_label(qname, tail)
         nbytes = kv_by_quant[label]
+        subst = f", {qname} unsupported -> {effective}" if effective != qname else ""
         lines.append(
-            f"        {label:{_KV_LABEL_W}s}  ({bpw:7.4f} bpw, {bpw / 8:6.4f} B/elem): "
-            f"{nbytes:>14,d} B = {nbytes / gib:7.2f} GiB  "
+            f"        {label:{_KV_LABEL_W}s}  ({bpw:7.4f} bpw, {bpw / 8:6.4f} B/elem"
+            f"{subst}): {nbytes:>14,d} B = {nbytes / gib:7.2f} GiB  "
             f"{nbytes / gb:7.2f} GB"
         )
         groups = spec.cache_breakdown(n_ctx, bpw, bpw, tail, KV_N_PARALLEL)
         if len(groups) < 2 and not tail:  # nothing the headline doesn't say
             continue
-        for name, layers, kv_heads, note, group_bytes in groups:
+        for grp in groups:
             if info.get("source") == "tensors":
                 # The tensor path recovers no per-layer factorisation (see
                 # _model_kv_from_tensors), so its notional 1 layer x 1 head
                 # would only mislead -- report the real totals instead.
                 geom = f"{info['n_attn_layers']} layers, {total_width} elems/token"
             else:
-                geom = f"{layers} layers x{kv_heads:g} kv-heads"
+                geom = (
+                    f"{grp.layers} layers x{grp.kv_heads:g} kv-heads x"
+                    f"{grp.key_dim}/{grp.value_dim} dim"
+                )
             lines.append(
-                f"          {name:15s} {geom}; {note} -> {group_bytes / gib:7.2f} GiB"
+                f"          {grp.name:15s} {geom}; {grp.note} "
+                f"-> {grp.nbytes / gib:7.2f} GiB"
             )
     return lines
 
@@ -1161,12 +1448,29 @@ def main():
             f"  KV cache @ {n_ctx // 1024}k tokens:\n"
         )
         # Per-quant headline, padded so the GiB/GB columns line up. `tN` is the
-        # beellama --kv-tail-tokens the quant is paired with (see KV_QUANTS).
-        for qname, tail in KV_QUANTS:
-            label = _kv_label(qname, tail)
-            nbytes = kv_by_quant[label]
+        # beellama --kv-tail-tokens the quant is paired with (see KV_QUANTS). A
+        # `kvarnN -> qN_0` label means this architecture cannot use KVarN and the
+        # figure is the fallback type it stores instead; the substitution has to
+        # be visible HERE, not only in the derivation block below, or the headline
+        # silently attributes KVarN sizes to a model that never gets them.
+        arch = info.get("arch")
+        labels = {(q, t): _kv_display_label(q, t, arch) for q, t in KV_QUANTS}
+        width = max(len(lbl) for lbl in labels.values())
+        if any(_effective_quant(q, arch) != q for q, _ in KV_QUANTS):
             sys.stderr.write(
-                f"    {label:{_KV_LABEL_W}s}  {nbytes / gib:7.2f} GiB  "
+                f"  note: '{arch}' builds its own KV cache and is never handed the "
+                "KVarN params (llama-model.cpp\n"
+                "        branches before the KVarN test), so -ctk kvarnN silently "
+                "stores the plain qN_0\n"
+                "        fallback it is paired with -- the kvarn rows below are "
+                "sized at that fallback.\n"
+            )
+        for line in _kv_tail_caveats(info["spec"], n_ctx):
+            sys.stderr.write(line + "\n")
+        for qname, tail in KV_QUANTS:
+            nbytes = kv_by_quant[_kv_label(qname, tail)]
+            sys.stderr.write(
+                f"    {labels[qname, tail]:{width}s}  {nbytes / gib:7.2f} GiB  "
                 f"{nbytes / gb:7.2f} GB\n"
             )
         sys.stderr.write(

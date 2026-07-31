@@ -75,6 +75,21 @@ def resolve_bpw(name: str) -> float:
         return 32.0
 
 
+# `-ctk kvarnN` selects a structured KVarN cache *and* a plain ggml fallback type
+# (`kvarn_fallback_cache_type` in common/arg.cpp), which is what actually gets
+# stored by a cache that never receives the KVarN params -- e.g. every component
+# of DeepSeek-V4's bespoke cache (llama-kv-cache-dsv4.cpp passes
+# `llama_kvarn_default_params()`, i.e. DISABLED).
+KVARN_FALLBACK = {
+    "kvarn2": "q2_0",
+    "kvarn3": "q3_0",
+    "kvarn4": "q4_0",
+    "kvarn5": "q5_0",
+    "kvarn6": "q6_0",
+    "kvarn8": "q8_0",
+}
+
+
 # ---------------------------------------------------------------------------
 #  Per-model KV-cache geometry.
 #
@@ -85,7 +100,10 @@ def resolve_bpw(name: str) -> float:
 #      (kv_unified) plus a per-sequence f16 exact-tail overlay of (N + R) rows;
 #    * a sliding-window group whose tail covers its window is a bodyless exact
 #      f16 ring of (window + R) rows per sequence; otherwise a quant body over
-#      the window plus a per-sequence (tail + R) f16 overlay.
+#      the window plus a per-sequence (tail + R) f16 overlay;
+#    * a `compressed` group (DeepSeek-V4's CSA / HCA / lightning-indexer caches)
+#      keeps one row per `ratio` tokens per sequence, tail-less, padded to 256
+#      cells -- see CompressedKV.
 #  N is the resolved tail, R the rollback horizon (=1 whenever a tail exists;
 #  llama-kv-cache-tail.cpp: persistent rows = (N + R) * n_seq_max, sink = 0).
 #  The pre-v0.4.1 per-stream sink / batch / ubatch / tile padding are now
@@ -99,6 +117,57 @@ F16_BPW = 16  # bits per f16 cache element
 # R = rollback horizon (cparams kv_tail_rollback_tokens; defaults to 1 when a
 # tail is present). The sink / ubatch / tile padding are graph-local, not here.
 KV_TAIL_ROLLBACK = 1
+
+
+class CacheGroupSize(NamedTuple):
+    """One layer group's contribution to the cache, as returned by
+    ``ModelKV.cache_breakdown``. ``key_dim`` / ``value_dim`` are that group's own
+    head dims (``value_dim == 0`` for a K-only group), so a caller never has to
+    reach back into ``ModelKV`` for them."""
+
+    name: str
+    layers: int  # cache layers, loop expansion included
+    kv_heads: float
+    key_dim: int
+    value_dim: int
+    note: str  # human-readable row derivation
+    nbytes: float
+
+
+class CompressedKV(NamedTuple):
+    """A cache group that stores one row per ``ratio`` tokens, not one per token.
+
+    DeepSeek-V4 keeps its whole history in three of these alongside a tiny raw
+    sliding-window cache (llama-kv-cache-dsv4.cpp): CSA (one row per 4 tokens),
+    HCA (one row per 128) and the lightning-indexer LID (one row per 4, at the
+    indexer head dim). Each is a plain ``llama_kv_cache`` of
+    ``GGML_PAD(ceil(n_ctx / ratio), 256)`` cells *per sequence*, K-only, stored at
+    the run's K quant and with no exact tail.
+
+    ``ratio = 1`` is therefore also meaningful -- one row per token, i.e. a plain
+    full-context side cache such as the DeepSeek-V3.2 / GLM-DSA lightning-indexer
+    key cache (llama-kv-cache-dsa.cpp), which is tail-less and so cannot be
+    expressed as a full-attention group.
+
+    ``ratio = 0`` instead describes a buffer that does not scale with the context
+    at all, of ``fixed_rows`` rows -- DSV4's per-cache compressor ring state, two
+    f32 tensors (kv + score) of ``n_embd_state`` per layer, hence ``key_dim ==
+    value_dim == n_embd_state`` and ``elem_bpw = 32``.
+    """
+
+    name: str
+    layers: int  # physical blocks in the group, before loop expansion
+    kv_heads: float
+    key_dim: int  # per-head key dim (the whole row width when kv_heads == 1)
+    value_dim: int  # 0 for a K-only cache
+    ratio: int = 0  # tokens per stored row; 0 => `fixed_rows`
+    fixed_rows: int = 0  # rows when ratio == 0
+    pad: int = 1  # row count is padded up to a multiple of this
+    elem_bpw: float = 0.0  # 0 => the run's K/V quant; >0 => forced (f32 state)
+    # One set of rows per sequence, as for a `unified = false` cache. False means
+    # a single shared allocation, which is how the full-attention body above is
+    # modelled (kv_unified).
+    per_seq: bool = True
 
 
 class ModelKV(NamedTuple):
@@ -129,6 +198,11 @@ class ModelKV(NamedTuple):
     below expands both groups for you. Never pre-multiply the layer counts by
     hand -- ``layers_all`` / ``elems_per_token`` are the only loop-aware
     quantities and every caller must go through them.
+
+    ``compressed`` holds any cache groups that are not one row per token -- see
+    ``CompressedKV``. They are additive to the two token groups above: a
+    DeepSeek-V4 layer holds a raw sliding-window row *and* a compressed row, so
+    the same layer is counted in both.
     """
 
     full_attn_layers: int  # physical blocks, before loop expansion
@@ -142,6 +216,9 @@ class ModelKV(NamedTuple):
     # cache layer (llama.cpp: `n_layer_all = block_count * num_loops`). 1 for
     # every ordinary transformer.
     n_loops: int = 1
+    # Sub-token-rate cache groups (DeepSeek-V4's CSA / HCA / LID + their
+    # compressor state); empty for every ordinary transformer.
+    compressed: tuple[CompressedKV, ...] = ()
 
     @property
     def full_attn_layers_all(self) -> int:
@@ -155,10 +232,12 @@ class ModelKV(NamedTuple):
 
     @property
     def elems_per_token(self) -> int:
-        """K+V cache elements per token over all cache layers, loop expansion
-        included and *ignoring* the SWA window cap (so it is the no-SWA
+        """K+V cache elements per token over all *token-rate* cache layers, loop
+        expansion included and *ignoring* the SWA window cap (so it is the no-SWA
         baseline, not the allocation). The quant-independent half of the sizing:
-        multiply by a context length for elems, by bpw/8 for bytes."""
+        multiply by a context length for elems, by bpw/8 for bytes.
+        ``compressed`` groups are excluded -- their rows are not per-token, so
+        they have no elems/token; use ``compressed_rows`` for their geometry."""
         width = self.key_dim + self.value_dim
         return int(
             self.full_attn_layers_all * self.full_attn_kv_heads * width
@@ -209,6 +288,49 @@ class ModelKV(NamedTuple):
 
         return side(self.key_dim, bpw_k) + side(self.value_dim, bpw_v)
 
+    def compressed_rows(self, group: CompressedKV, ctx_size: int) -> int:
+        """Rows a compressed group holds per sequence at ``ctx_size`` tokens:
+        ``GGML_PAD(ceil(ctx / ratio), pad)``, or its fixed row count when the
+        group does not scale with the context."""
+        rows = group.fixed_rows if group.ratio <= 0 else -(-ctx_size // group.ratio)
+        pad = max(1, group.pad)
+        return -(-rows // pad) * pad
+
+    def _comp_group_bytes(
+        self,
+        group: CompressedKV,
+        ctx_size: int,
+        bpw_k: float,
+        bpw_v: float,
+        n_parallel: int,
+    ) -> float:
+        """A compressed group: one row per ``ratio`` tokens (or a fixed row
+        count), with no exact-tail overlay."""
+        rows = self.compressed_rows(group, ctx_size)
+        if group.per_seq:
+            rows *= n_parallel
+        layers = group.layers * self.n_loops
+        width = group.key_dim * (group.elem_bpw or bpw_k) + group.value_dim * (
+            group.elem_bpw or bpw_v
+        )
+        return layers * group.kv_heads * width / 8 * rows
+
+    def compressed_note(
+        self, group: CompressedKV, ctx_size: int, n_parallel: int
+    ) -> str:
+        rows = self.compressed_rows(group, ctx_size)
+        if group.ratio == 1:
+            note = f"1 row per tok -> {rows} rows"
+        elif group.ratio > 1:
+            note = f"1 row per {group.ratio} tok -> {rows} rows"
+        else:
+            note = f"{rows} fixed rows"
+        if group.elem_bpw:
+            note += f" @ {group.elem_bpw:g} bpw"
+        if n_parallel > 1 and group.per_seq:
+            note += f" x{n_parallel} seq"
+        return note
+
     def get_total_kv_cache_size(
         self,
         ctx_size: int,
@@ -220,13 +342,17 @@ class ModelKV(NamedTuple):
         """Total K+V cache bytes at ``ctx_size`` tokens for ``n_parallel``
         parallel sequences, modelling llama-server's actual allocation. K/V quant
         widths are ``bpw_k`` / ``bpw_v`` (bits per element)."""
-        total = self._full_group_bytes(
-            ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
-        )
+        total = 0.0
+        if self.full_attn_layers:
+            total += self._full_group_bytes(
+                ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
+            )
         if self.sliding_window_layers:
             total += self._swa_group_bytes(
                 ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
             )
+        for group in self.compressed:
+            total += self._comp_group_bytes(group, ctx_size, bpw_k, bpw_v, n_parallel)
         return total
 
     def cache_breakdown(
@@ -236,28 +362,33 @@ class ModelKV(NamedTuple):
         bpw_v: float,
         kv_tail_tokens: int,
         n_parallel: int,
-    ):
-        """Per-group derivation for the tooltip: a list of
-        (name, layers, kv_heads, note, bytes)."""
+    ) -> list[CacheGroupSize]:
+        """Per-group derivation for the tooltip. Groups with no layers are
+        omitted, so a model whose every layer is sliding-window (DeepSeek-V4)
+        yields no full-attention row."""
         lossy = max(bpw_k, bpw_v) < F16_BPW
+        rows: list[CacheGroupSize] = []
 
-        full_note = (
-            f"body {ctx_size} tok + f16 exact tail "
-            f"{self._exact_rows(kv_tail_tokens, n_parallel)} rows"
-            if lossy and kv_tail_tokens > 0
-            else f"exact f16 body {ctx_size} tok"
-        )
-        rows = [
-            (
-                "full-attn",
-                self.full_attn_layers_all,
-                self.full_attn_kv_heads,
-                full_note,
-                self._full_group_bytes(
-                    ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
-                ),
+        if self.full_attn_layers:
+            full_note = (
+                f"body {ctx_size} tok + f16 exact tail "
+                f"{self._exact_rows(kv_tail_tokens, n_parallel)} rows"
+                if lossy and kv_tail_tokens > 0
+                else f"exact f16 body {ctx_size} tok"
             )
-        ]
+            rows.append(
+                CacheGroupSize(
+                    "full-attn",
+                    self.full_attn_layers_all,
+                    self.full_attn_kv_heads,
+                    self.key_dim,
+                    self.value_dim,
+                    full_note,
+                    self._full_group_bytes(
+                        ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
+                    ),
+                )
+            )
         if self.sliding_window_layers:
             window = min(ctx_size, self.sliding_window_size)
             if kv_tail_tokens >= window or not lossy:
@@ -271,14 +402,28 @@ class ModelKV(NamedTuple):
             else:
                 swa_note = f"quant body {window} tok"
             rows.append(
-                (
+                CacheGroupSize(
                     "sliding-window",
                     self.sliding_window_layers_all,
                     self.sliding_window_kv_heads,
+                    self.key_dim,
+                    self.value_dim,
                     swa_note,
                     self._swa_group_bytes(
                         ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
                     ),
+                )
+            )
+        for group in self.compressed:
+            rows.append(
+                CacheGroupSize(
+                    group.name,
+                    group.layers * self.n_loops,
+                    group.kv_heads,
+                    group.key_dim,
+                    group.value_dim,
+                    self.compressed_note(group, ctx_size, n_parallel),
+                    self._comp_group_bytes(group, ctx_size, bpw_k, bpw_v, n_parallel),
                 )
             )
         return rows
@@ -407,6 +552,42 @@ MODEL_KV: dict[str, ModelKV] = {
         sliding_window_size=512,
         key_dim=128,
         value_dim=128,
+    ),
+    # The one entry whose token cache is NOT where the context lives. `deepseek4`
+    # calls set_swa_pattern(0), so all 43 blocks are sliding-window at the
+    # 128-token `attention.sliding_window` -- ~5 MiB, a rounding error -- and the
+    # history sits in the three compressed side caches below, which
+    # `llama_kv_cache_dsv4` allocates next to it. K-only throughout:
+    # `dsv4_make_k_only()` fakes is_mla() on every one of its cache hparam copies
+    # to get `has_v = false`, so `attention.value_length` (512) is never allocated.
+    #
+    # The groups follow `attention.compress_ratios` (2 layers at 0, i.e. no
+    # compressed cache; 21 at 4 -> CSA; 20 at 128 -> HCA) and, on the CSA layers,
+    # `attention.indexer.key_length` = 128 -> LID with head_count_kv forced to 1.
+    # Each compressed cache owns a context-independent f32 compressor ring state of
+    # `state_size` rows x two tensors (kv + score) of `n_embd_state`.
+    #
+    # Two caveats for a sweep on this model, both arch facts rather than geometry:
+    # KVarN never reaches any of these caches (see KVARN_FALLBACK), and the exact
+    # tail reaches only the raw window -- the compressed caches are built with
+    # tail 0, and llama-context.cpp clamps the SWA tail to the window, so every
+    # `--kv-tail-tokens >= 128` is the same allocation.
+    "DeepSeek-V4-Flash": ModelKV(
+        full_attn_layers=0,
+        full_attn_kv_heads=0,
+        sliding_window_layers=43,
+        sliding_window_kv_heads=1,
+        sliding_window_size=128,
+        key_dim=512,
+        value_dim=0,
+        compressed=(
+            CompressedKV("csa", 21, 1, 512, 0, ratio=4, pad=256),
+            CompressedKV("csa state", 21, 1, 1024, 1024, fixed_rows=8, elem_bpw=32.0),
+            CompressedKV("hca", 20, 1, 512, 0, ratio=128, pad=256),
+            CompressedKV("hca state", 20, 1, 512, 512, fixed_rows=128, elem_bpw=32.0),
+            CompressedKV("lid (indexer)", 21, 1, 128, 0, ratio=4, pad=256),
+            CompressedKV("lid state", 21, 1, 256, 256, fixed_rows=8, elem_bpw=32.0),
+        ),
     ),
 }
 MODEL_KV["Ornith-1.0-35B"] = MODEL_KV["Qwen3.6-35B-A3B"]

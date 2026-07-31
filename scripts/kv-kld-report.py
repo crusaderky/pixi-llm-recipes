@@ -100,13 +100,11 @@ def _context_calc(
         f"{model_key}: {n_ctx} tok, tail {tail}, n_parallel {n_parallel}",
         f"K {ctk} {bpw_k:g} bpw, V {ctv} {bpw_v:g} bpw",
     ]
-    for name, layers, kv_heads, note, group_bytes in spec.cache_breakdown(
-        n_ctx, bpw_k, bpw_v, tail, n_parallel
-    ):
+    for grp in spec.cache_breakdown(n_ctx, bpw_k, bpw_v, tail, n_parallel):
         lines.append(
-            f"{name}: {layers} layers x{kv_heads} kv-heads x"
-            f"{spec.key_dim}/{spec.value_dim} dim; {note} "
-            f"-> {group_bytes / BYTES_PER_MIB:,.0f} MiB"
+            f"{grp.name}: {grp.layers} layers x{grp.kv_heads} kv-heads x"
+            f"{grp.key_dim}/{grp.value_dim} dim; {grp.note} "
+            f"-> {grp.nbytes / BYTES_PER_MIB:,.0f} MiB"
         )
     lines.append(f"total {mib:,.0f} MiB")
     return mib, "\n".join(lines)

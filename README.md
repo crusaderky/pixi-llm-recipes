@@ -132,6 +132,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | Bonsai-27B         | Q1_0               | 4.2 GB       | 128k kvarn4 t1024   | 7.3 GB             | 654 tok/s             | 50 tok/s             | limited context in VRAM                                                                                                 |
 | Laguna-S-2.1       | IQ4_XS             | 54 GB        | 256k kvarn3 t2048   | 8.5 GB             | 120 tok/s             | 10 tok/s             | very tight fit; most layers have SWA 512 bytes so they use fully fp16 context                                           |
 | Nanbeige4.2-3B     | Q4_K_M             | 2.4 GB       | 128k kvarn3 t2048   | 7.9 GB             | 1554 tok/s            | 57 tok/s             | limited context in VRAM                                                                                                 |
+| DeepSeek-V4-Flash  | Q1_K_S             | 77 GB        | 256k q8/q8          | 9.5 GB             | -                     | -                    | doesn't fit                                                                                                             |
 
 **Notes:**
 
