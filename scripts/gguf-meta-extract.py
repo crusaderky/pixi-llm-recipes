@@ -49,6 +49,7 @@ import math
 import re
 import struct
 import sys
+import textwrap
 from urllib.parse import unquote, urlparse
 
 import requests
@@ -1483,12 +1484,26 @@ def main():
         labels = {(q, t): _kv_display_label(q, t, arch) for q, t in kv_quants}
         width = max(len(lbl) for lbl in labels.values())
         if not info["spec"].support_kvarn:
+            # `support_kvarn` answers head dims only, and on an MLA model that is
+            # not even the check that fires: `llama_kvarn_validate_runtime` tests
+            # `attention_supported` (which excludes `is_mla()`) *before* the head
+            # dims, so quoting the head dim as the sole reason would misdescribe
+            # the failure. Say both.
+            note = (
+                "note: -ctk kvarnN is not usable here: KVarN needs 128/256/512-dim "
+                f"heads and this model's are {info['spec'].key_dim}"
+            )
+            if "MLA" in info["attn_kind"]:
+                note += " -- and llama.cpp rejects an MLA cache path outright besides"
+            note += (
+                ". llama-server refuses to start, so the rows below quote the plain "
+                "qN_0 types the CLI pairs each kvarnN with instead."
+            )
             sys.stderr.write(
-                "  note: KVarN needs 128/256/512-dim heads and this model's are "
-                f"{info['spec'].key_dim}, so llama-server\n"
-                "        refuses to start with -ctk kvarnN -- the rows below quote "
-                "the plain qN_0 types\n"
-                "        the CLI pairs each kvarnN with instead.\n"
+                textwrap.fill(
+                    note, width=88, initial_indent="  ", subsequent_indent=" " * 8
+                )
+                + "\n"
             )
         if any(_effective_quant(q, arch) != q for q, _ in kv_quants):
             sys.stderr.write(

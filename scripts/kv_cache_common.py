@@ -573,6 +573,31 @@ MODEL_KV: dict[str, ModelKV] = {
         key_dim=64,  # kvarn not supported
         value_dim=64,
     ),
+    # `bailingmoe3` hybrid: of its 42 blocks, `attention.head_count_kv` is 1 on
+    # blocks 5, 11, 17, 23, 29, 35, 41 (MLA) and 0 on the other 35, which are KDA
+    # (Kimi delta-net) linear-attention blocks holding a fixed-size recurrent state
+    # instead of a KV cache -- so they contribute nothing here, and ModelKV does not
+    # model them (llama_hparams::n_embd_r/n_embd_s: 3*(ssm.conv_kernel-1)*n_head*
+    # kda.head_dim + kda.head_dim^2*n_head = 561152 f32 elems per layer per
+    # sequence, ~0.07 GiB over the 35 blocks -- context-independent).
+    #
+    # `attention.key_length` = 576 is already the cached latent (kv_lora_rank 512 +
+    # rope.dimension_count 64), and `key_length_mla`/`value_length_mla` (192/128)
+    # are present, so `is_mla()` holds and llama.cpp allocates no V cache:
+    # `attention.value_length` (512) must not be counted. KVarN is doubly out here
+    # -- the MLA cache path is rejected outright and 576 is not a KVarN head dim.
+    #
+    # `nextn_predict_layers = 1`, but the GGUF ships no `nextn.*` tensors and no
+    # 43rd block, so all 7 MLA blocks are real cached layers.
+    "Ling-3.0-flash": ModelKV(
+        full_attn_layers=7,
+        full_attn_kv_heads=1,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=576,  # kvarn not supported
+        value_dim=0,
+    ),
     # Looped transformer: block_count=22, num_loops=2 -> 44 cache layers.
     # Both values go in as-is; ModelKV does the multiplication.
     "Nanbeige4.2-3B": ModelKV(
