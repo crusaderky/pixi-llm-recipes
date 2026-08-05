@@ -24,8 +24,9 @@ context:
   # + llama-perplexity collision probability measure
   # + fix compilation warnings in the kvarn headers
   # + Nanbeige tool-call fix
+  # + pi-llama-cpp context size fix
   fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.4.2-r4
+  version: beellama-staging-v0.4.2-r5
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
