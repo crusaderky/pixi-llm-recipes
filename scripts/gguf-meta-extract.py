@@ -576,6 +576,9 @@ _DSV4_STATE_BPW = 32.0  # compressor state is f32 regardless of the cache quant
 # and is shared with the KLD sweep tooling. The tails pair each quant with the
 # exact-tail size that makes it usable in practice: the lossier the body, the
 # longer the f16 tail needed to hold recent tokens exactly.
+#
+# Read through `_kv_quants`, never directly: a model whose head dims KVarN cannot
+# quantize gets the plain fallback types instead.
 KV_QUANTS = (
     ("f16", 0),
     ("q8_0", 0),
@@ -588,6 +591,22 @@ KV_QUANTS = (
 # f16 exact-tail overlay ModelKV adds is per-sequence, so raise this to size a
 # multi-slot deployment.
 KV_N_PARALLEL = 1
+
+
+def _kv_quants(spec):
+    """The (quant, tail) pairs to report on for `spec`.
+
+    `KV_QUANTS` verbatim for a model KVarN can quantize. Otherwise -- head dims
+    outside `kv_cache_common.KVARN_HEAD_DIMS`, e.g. every 64-dim-head LFM2 --
+    each `kvarnN` is *replaced* by the plain `qN_0` type the CLI pairs it with.
+    Not merely relabelled as `_effective_quant` does: there the run starts and
+    silently stores the fallback, whereas here llama-server refuses to start at
+    all (`fail_if_unsupported`), so a kvarn row would size a run that cannot
+    exist. The tails are unaffected -- `--kv-tail-tokens` is independent of KVarN.
+    """
+    if spec.support_kvarn:
+        return KV_QUANTS
+    return tuple((KVARN_FALLBACK.get(quant, quant), tail) for quant, tail in KV_QUANTS)
 
 
 def _kv_label(quant, tail):
@@ -615,8 +634,9 @@ def _effective_quant(quant, arch):
     return quant
 
 
-# Width of the widest label, so the byte columns line up.
-_KV_LABEL_W = max(len(_kv_label(q, t)) for q, t in KV_QUANTS)
+def _kv_label_width(quants):
+    """Width of the widest label in `quants`, so the byte columns line up."""
+    return max(len(_kv_label(q, t)) for q, t in quants)
 
 
 def _group_kv_heads(head_kv, layers):
@@ -1010,7 +1030,7 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
     Returns (kv_by_quant, overhead_bytes, info_dict).
 
     kv_by_quant is a dict {label: bytes}, keyed by `_kv_label`, with one entry
-    per KV_QUANTS (quant, tail) pair. The cache geometry is derived from GGUF
+    per `_kv_quants` (quant, tail) pair. The cache geometry is derived from GGUF
     hparams when available (`_model_kv_from_metadata`), which reflects fused
     QKV, per-layer GQA, distinct K/V head dims, and sliding-window attention.
     For MLA models, or when the hparams are missing, it falls back to per-layer
@@ -1043,14 +1063,15 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
     if result is None:
         result = _model_kv_from_tensors(tensors, _n_loops(metadata))
     spec, info = result
-    quant_bpw = {q: resolve_bpw(_effective_quant(q, arch)) for q, _ in KV_QUANTS}
+    kv_quants = _kv_quants(spec)
+    quant_bpw = {q: resolve_bpw(_effective_quant(q, arch)) for q, _ in kv_quants}
     kv_by_quant = {
         _kv_label(q, tail): int(
             spec.get_total_kv_cache_size(
                 n_ctx, quant_bpw[q], quant_bpw[q], tail, KV_N_PARALLEL
             )
         )
-        for q, tail in KV_QUANTS
+        for q, tail in kv_quants
     }
 
     # Lightning-indexer key cache (MiniMax-M3 MSA, llama.cpp PR #24908).
@@ -1090,6 +1111,7 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
     info["kv_by_quant"] = kv_by_quant
     info["arch"] = arch
     info["quant_bpw"] = quant_bpw
+    info["kv_quants"] = kv_quants
     return kv_by_quant, overhead_bytes, info
 
 
@@ -1109,7 +1131,7 @@ def _kv_tail_caveats(spec, n_ctx):
       sliding-window (again DeepSeek-V4) gets the same allocation for every tail
       at or above its window.
     """
-    tails = sorted({t for _, t in KV_QUANTS if t})
+    tails = sorted({t for _, t in _kv_quants(spec) if t})
     if not tails:
         return []
     lines = []
@@ -1136,7 +1158,7 @@ def _kv_cache_breakdown(info, kv_by_quant):
     `info` (set by `_model_kv_from_metadata` / `_model_kv_from_tensors`) and the
     `kv_by_quant` dict. Returned as a list of indented lines for stderr.
     Shows the elems (quant-independent) derivation once, then a per-quant table
-    of bytes for the types in KV_QUANTS, split per layer group when the model
+    of bytes for the types in `info["kv_quants"]`, split per layer group when the model
     has more than one."""
     spec = info["spec"]
     n_ctx = info["n_ctx"]
@@ -1225,7 +1247,8 @@ def _kv_cache_breakdown(info, kv_by_quant):
         f"{KV_N_PARALLEL} (bpw from kv_cache_common.BPW, bytes from ModelKV):"
     )
     arch = info.get("arch")
-    for qname, tail in KV_QUANTS:
+    label_w = _kv_label_width(info["kv_quants"])
+    for qname, tail in info["kv_quants"]:
         # `_effective_quant` differs from `qname` only where the architecture
         # cannot use KVarN and the CLI's plain fallback type is stored instead.
         effective = _effective_quant(qname, arch)
@@ -1234,7 +1257,7 @@ def _kv_cache_breakdown(info, kv_by_quant):
         nbytes = kv_by_quant[label]
         subst = f", {qname} unsupported -> {effective}" if effective != qname else ""
         lines.append(
-            f"        {label:{_KV_LABEL_W}s}  ({bpw:7.4f} bpw, {bpw / 8:6.4f} B/elem"
+            f"        {label:{label_w}s}  ({bpw:7.4f} bpw, {bpw / 8:6.4f} B/elem"
             f"{subst}): {nbytes:>14,d} B = {nbytes / gib:7.2f} GiB  "
             f"{nbytes / gb:7.2f} GB"
         )
@@ -1448,15 +1471,26 @@ def main():
             f"  KV cache @ {n_ctx // 1024}k tokens:\n"
         )
         # Per-quant headline, padded so the GiB/GB columns line up. `tN` is the
-        # beellama --kv-tail-tokens the quant is paired with (see KV_QUANTS). A
-        # `kvarnN -> qN_0` label means this architecture cannot use KVarN and the
-        # figure is the fallback type it stores instead; the substitution has to
-        # be visible HERE, not only in the derivation block below, or the headline
-        # silently attributes KVarN sizes to a model that never gets them.
+        # beellama --kv-tail-tokens the quant is paired with (see `_kv_quants`).
+        # Both ways a run can fail to get the KVarN cache it asked for have to be
+        # visible HERE, not only in the derivation block below, or the headline
+        # silently attributes KVarN sizes to a model that never gets them: a
+        # `kvarnN -> qN_0` label for an architecture whose bespoke cache never
+        # sees the KVarN params, and absent kvarn rows (plus the note) for a model
+        # whose head dims KVarN cannot quantize at all.
         arch = info.get("arch")
-        labels = {(q, t): _kv_display_label(q, t, arch) for q, t in KV_QUANTS}
+        kv_quants = info["kv_quants"]
+        labels = {(q, t): _kv_display_label(q, t, arch) for q, t in kv_quants}
         width = max(len(lbl) for lbl in labels.values())
-        if any(_effective_quant(q, arch) != q for q, _ in KV_QUANTS):
+        if not info["spec"].support_kvarn:
+            sys.stderr.write(
+                "  note: KVarN needs 128/256/512-dim heads and this model's are "
+                f"{info['spec'].key_dim}, so llama-server\n"
+                "        refuses to start with -ctk kvarnN -- the rows below quote "
+                "the plain qN_0 types\n"
+                "        the CLI pairs each kvarnN with instead.\n"
+            )
+        if any(_effective_quant(q, arch) != q for q, _ in kv_quants):
             sys.stderr.write(
                 f"  note: '{arch}' builds its own KV cache and is never handed the "
                 "KVarN params (llama-model.cpp\n"
@@ -1467,7 +1501,7 @@ def main():
             )
         for line in _kv_tail_caveats(info["spec"], n_ctx):
             sys.stderr.write(line + "\n")
-        for qname, tail in KV_QUANTS:
+        for qname, tail in kv_quants:
             nbytes = kv_by_quant[_kv_label(qname, tail)]
             sys.stderr.write(
                 f"    {labels[qname, tail]:{width}s}  {nbytes / gib:7.2f} GiB  "

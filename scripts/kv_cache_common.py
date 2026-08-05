@@ -89,6 +89,13 @@ KVARN_FALLBACK = {
     "kvarn8": "q8_0",
 }
 
+# Head dims KVarN can quantize (`llama_kvarn_head_slices` in src/llama-kvarn.cpp):
+# the CUDA kernels rotate each head through a Walsh-Hadamard transform in fixed
+# 128-element slices (`KVAR_N_DIM = 128`, 128-thread launches,
+# `GGML_ASSERT(head_width == 128 || 256 || 512)`), so a head must be exactly 1, 2
+# or 4 slices wide. See ModelKV.support_kvarn.
+KVARN_HEAD_DIMS = (128, 256, 512)
+
 
 # ---------------------------------------------------------------------------
 #  Per-model KV-cache geometry.
@@ -229,6 +236,29 @@ class ModelKV(NamedTuple):
     def sliding_window_layers_all(self) -> int:
         """Sliding-window cache layers, loop expansion included."""
         return self.sliding_window_layers * self.n_loops
+
+    @property
+    def support_kvarn(self) -> bool:
+        """Whether this geometry admits a ``kvarn*`` cache type at all.
+
+        KVarN quantizes a 128x128 tile, so every cached head dim must be one of
+        ``KVARN_HEAD_DIMS``. llama-context.cpp checks that per layer before
+        allocating anything, and because ``fail_if_unsupported`` defaults to true
+        with no CLI override, a run that asks for ``-ctk kvarnN`` on a narrower
+        head *fails to start* -- it does not fall back. So a report must not
+        quote KVarN figures for such a model: the whole LFM2 family, for one, has
+        64-dim heads.
+
+        A zero ``value_dim`` is not checked: it encodes the absence of a V cache
+        (MLA / fused-latent / K-only), not a head dim.
+
+        Head dims are all the geometry can answer. The arch-level exclusions --
+        MLA, DSA, DFlash, and the architectures whose bespoke cache is never
+        handed the KVarN params (see ``KVARN_FALLBACK``) -- are the caller's to
+        apply.
+        """
+        dims = (self.key_dim, self.value_dim) if self.value_dim else (self.key_dim,)
+        return all(dim in KVARN_HEAD_DIMS for dim in dims)
 
     @property
     def elems_per_token(self) -> int:
@@ -512,13 +542,16 @@ MODEL_KV: dict[str, ModelKV] = {
         key_dim=512,
         value_dim=512,
     ),
+    # Layer counts are the non-zero entries of the per-layer `attention.head_count_kv`
+    # array, not `block_count`: the remaining blocks are shortconv layers with no KV
+    # cache.
     "LFM2.5-230M": ModelKV(
         full_attn_layers=6,
         full_attn_kv_heads=8,
         sliding_window_layers=0,
         sliding_window_kv_heads=0,
         sliding_window_size=0,
-        key_dim=64,
+        key_dim=64,  # kvarn not supported
         value_dim=64,
     ),
     "LFM2.5-8B-A1B": ModelKV(
@@ -527,7 +560,17 @@ MODEL_KV: dict[str, ModelKV] = {
         sliding_window_layers=0,
         sliding_window_kv_heads=0,
         sliding_window_size=0,
-        key_dim=64,
+        key_dim=64,  # kvarn not supported
+        value_dim=64,
+    ),
+    # block_count=30; head_count_kv is 8 on blocks 2, 5, 9, 13, 17, 21, 24, 27.
+    "LFM2.5-2.6B": ModelKV(
+        full_attn_layers=8,
+        full_attn_kv_heads=8,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=64,  # kvarn not supported
         value_dim=64,
     ),
     # Looped transformer: block_count=22, num_loops=2 -> 44 cache layers.
