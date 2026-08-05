@@ -14,7 +14,7 @@ case "$ARCH" in
     *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
 
-URL="https://github.com/ogulcancelik/herdr/releases/download/v${VERSION_STABLE}/herdr-${TARGET}"
+URL="https://github.com/herdrdev/herdr/releases/download/v${VERSION_STABLE}/herdr-${TARGET}"
 
 echo "Downloading ${URL}"
 curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "${URL}" -o herdr

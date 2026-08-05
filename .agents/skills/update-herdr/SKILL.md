@@ -54,8 +54,8 @@ If neither changed: print "herdr is already at the latest versions. Nothing to d
 Download each stable binary and compute its sha256:
 
 ```bash
-curl -fsSL "https://github.com/ogulcancelik/herdr/releases/download/v{version}/herdr-linux-x86_64" | sha256sum
-curl -fsSL "https://github.com/ogulcancelik/herdr/releases/download/v{version}/herdr-linux-aarch64" | sha256sum
+curl -fsSL "https://github.com/herdrdev/herdr/releases/download/v{version}/herdr-linux-x86_64" | sha256sum
+curl -fsSL "https://github.com/herdrdev/herdr/releases/download/v{version}/herdr-linux-aarch64" | sha256sum
 ```
 
 Extract the hex digests (first field of output).

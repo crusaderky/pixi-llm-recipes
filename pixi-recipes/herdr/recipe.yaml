@@ -1,11 +1,11 @@
 context:
   # Stable release (Linux — from latest.json)
-  version_stable: "0.7.5"
-  sha256_stable_x86_64: 3dc83288073e4c2d3c679a30e7be97bcca9141c6fd17dbbb9219142e95c59253
-  sha256_stable_aarch64: 32e763a1499a6b694b1d708e4f062b743be1da9f34fcfa4d212d6db6fe09a8b9
+  version_stable: "0.8.0"
+  sha256_stable_x86_64: b872ea7e40fa2cb17e857ac9b62b1bf26db7b403c622f5d2f3f5b35f6e9acd28
+  sha256_stable_aarch64: f647ac66468d9efbc642fe534fb284468f0aea60641606fc008dfc0d82a3ca87
   # Preview release (Windows — from preview.json; Windows builds are preview-only)
-  version_preview: preview-2026-07-29-44b3adb12552
-  sha256_preview_win_64: 75c85763db0ca5fd13b485d0728cc3e9ea1152964a4e976e1d49f2e86b01a92b
+  version_preview: preview-2026-08-04-d78e3d3b5126
+  sha256_preview_win_64: b1d288118848ecd3ef33532a34506edc53a38a416057aee5b7fe1de4188a16fc
 
 package:
   name: herdr
@@ -32,6 +32,6 @@ requirements:
 
 about:
   homepage: https://herdr.dev
-  repository: https://github.com/ogulcancelik/herdr
+  repository: https://github.com/herdrdev/herdr
   license: LicenseRef-herdr
   summary: Agent-first terminal multiplexer and coding-agent orchestrator

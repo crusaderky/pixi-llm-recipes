@@ -5,6 +5,40 @@ compatibility: Requires network access to api.github.com and registry.npmjs.org.
 allowed-tools: Bash, Read, Edit, WebFetch
 ---
 
+## CRITICAL: never reinstall the agents env inside the sandbox
+
+> **NEVER run `pixi install -e agents` (or `pixi r install -e agents`) from
+> inside the bwrap sandbox.** It is **impossible** there: the sandbox
+> bind-mounts the host's `~/.pi/agent/settings.json` over the package-owned
+> copy in `$CONDA_PREFIX/home/.pi/agent/`, so any reinstall of pi-extensions
+> fails when rattler-build tries to replace that file (`unlink` returns EBUSY
+> on a mountpoint). The install hard-fails and the env is left half-extracted
+> (missing binaries like `claude`, `pi`; `conda-meta` incomplete):
+>
+> ```
+> Error:   × failed to unlink pi-extensions-1-hb0f4dca_0.conda
+>   ╰─▶ failed to delete file: home/.pi/agent/settings.json
+> ```
+>
+> This update's Phase 6 only runs `pixi update` (lockfile refresh) — pixi
+> never re-extracts the envs there. But beware that ANY `pixi run <task>` in
+> the `agents` env (e.g. the `llama-cpp-changelog` task in Phase 1/4) triggers
+> an implicit `pixi install -e agents` whenever a local recipe (claude,
+> pi-extensions, pi-home, …) changed, which hits the same failure and blocks
+> the task from running.
+>
+> Workarounds, in order of preference:
+>
+> 1. Run the env reinstall from the **host** (outside the sandbox):
+>    `pixi install -e agents`. The bind mounts do not exist there, so the
+>    unlink succeeds.
+> 2. If only running the changelog, pass `--repo`/refs and run it via the
+>    script directly if the agents env is already installed, or wait for a
+>    host-side `pixi install -e agents`.
+>
+> If an env is left half-extracted, repair it from the host with
+> `pixi install -e agents` before continuing.
+
 ## Trigger phrases
 
 - "update yourself"
