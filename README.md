@@ -128,7 +128,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | LFM2.5-230M        | Q4_K_M             | 147 MB       | 32k q8/q8           | 712 MB             | 42,495 tok/s          | 700 tok/s            | for smoke testing purposes                                                                                              |
 | LFM2.5-8B-A1B      | APEX I-Quality     | 5.7 GB       | 128k q8/q8          | 7.3 GB             | 9,444 tok/s           | 256 tok/s            |                                                                                                                         |
 |                    | APEX I-Quality     | 5.7 GB       | 128k q8/q8          | 2.1 GB             | 1,104 tok/s           | 37 tok/s             | cpu-moe; best model that fits on 4GB VRAM desktops                                                                      |
-| LFM2.5-2.6B        | Q4_K_M             | 1.6 GB       | 128k q8/q8          | 3.3 GB             | 10,312 tok/s          | 203 tok/s            |                                                                                                                         |
+| LFM2.5-2.6B        | Q8_0               | 2.7 GB       | 128k q8/q8          | 4.5 GB             | 11,127 tok/s          | 155 tok/s            |                                                                                                                         |
 | Ternary-Bonsai-27B | Q2_0               | 7.7 GB       | 64k kvarn3 t2048    | 8.6 GB             | 966 tok/s             | 38 tok/s             | full context in host RAM; even tighter fit                                                                              |
 | Bonsai-27B         | Q1_0               | 4.2 GB       | 128k kvarn4 t1024   | 7.3 GB             | 654 tok/s             | 50 tok/s             | limited context in VRAM                                                                                                 |
 | Laguna-S-2.1       | IQ4_XS             | 54 GB        | 256k kvarn3 t2048   | 8.5 GB             | 120 tok/s             | 10 tok/s             | very tight fit; most layers have SWA 512 bytes so they use fully fp16 context                                           |
@@ -341,19 +341,25 @@ To get the list, you can just run:
 pixi r llama-benchy
 ```
 
-### KV cache quantization quality
+### Model and KV cache quantization quality
 
-`kv-perplexity` runs `llama-perplexity` over the cartesian product of K-quant × V-quant
-combinations, measuring KL divergence against an f16/f16 baseline. Edit
-`scripts/kv-perplexity.yaml` to set the model and quant lists, then:
+`perplexity` runs `llama-perplexity` over a cross-product of arbitrary command-line
+options, measuring KL divergence against a single high-precision baseline. The options are
+not restricted to the KV cache: one sweep can vary the cache quants
+(`cache-type-k`/`cache-type-v`/`kv-tail-tokens`), the model quantization (`hf-repo`), or
+both at once. Edit `perplexity.yaml`, then:
 
 ```bash
-pixi r -e llamacpp-source-cuda kv-perplexity -c scripts/kv-perplexity.yaml
-pixi r kv-kld-report perplexity.log -o kv-kld-report.html
+pixi r -e llamacpp-source-cuda perplexity -c perplexity.yaml
+pixi r perplexity-report perplexity.log -o perplexity-report
 ```
 
-`kv-kld-report.py` parses the log and generates an HTML report (interactive Chart.js plot)
-plus a Markdown report with a static SVG.
+`perplexity-report.py` parses the log and generates an HTML report (interactive Chart.js
+plot) plus a Markdown report with static SVGs. Each run is labelled with whatever the
+sweep varied — `q8_0/q5_1 t1024`, `UD-Q4_K_XL`, `LiquidAI:Q8_0`, or
+`UD-Q4_K_XL|q8_0/q5_1 t1024` — and the
+Pareto/x-axis cost is total VRAM: the model weights (read off the log's own provenance)
+plus the KV cache at the projected context.
 
 The [`perplexity/`](perplexity/README.md) folder holds committed sweeps for
 Qwen3.6-35B-A3B and Gemma4-E2B with a summary of the findings — in short: `q8/q8` is
@@ -373,7 +379,7 @@ pixi r context-bench sample-data/context-bench/config.toml -o results.toml
 ```
 
 It's an extractive needle-recall task, which is deliberately robust: it will not show the
-KV-cache quantization harm that `kv-perplexity` does, and its run-to-run variance is
+KV-cache quantization harm that `perplexity` does, and its run-to-run variance is
 large. See [`sample-data/context-bench/README.md`](sample-data/context-bench/README.md)
 for why, and how to read the numbers without over-interpreting them.
 

@@ -6,9 +6,9 @@ forge-proxy.log
 huggingface
 sample-data/context-bench/context-bench-results*.toml
 *.pyc
-kv-perplexity.log
-kv-kld-report.md
-kv-kld-report.html
-kv-kld-report.*.svg
+perplexity.log
+perplexity-report.md
+perplexity-report.html
+perplexity-report.*.svg
 gguf_tensors.csv
 .pi-subagents

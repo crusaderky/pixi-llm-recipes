@@ -1,0 +1,126 @@
+From df513e783f3f596a24ef1c80f06d57cacb719c97 Mon Sep 17 00:00:00 2001
+From: crusaderky <gimperiale@openteams.com>
+Date: Wed, 29 Jul 2026 01:55:42 +0100
+Subject: [PATCH] perplexity : add collision probability to KL divergence stats
+
+"Same top p" only compares the argmax of the two distributions, so it
+describes greedy decoding only. Add the collision probability
+sum_i p_base(i)*p(i) -- the chance that independent temperature-1 samples
+from the two models pick the same token -- reported per chunk and in the
+summary as "Same sampled p".
+
+It is accumulated in the loop that already reconstructs both distributions
+for the KL divergence sum, so the only added cost is one expf per vocab
+entry above the existing -16 nat cutoff.
+
+Note that the metric is not measured against 100%: comparing a model with
+itself yields its self-collision sum_i p(i)^2, which is the natural
+reference point.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ tools/perplexity/README.md      |  1 +
+ tools/perplexity/perplexity.cpp | 31 +++++++++++++++++++++++++++----
+ 2 files changed, 28 insertions(+), 4 deletions(-)
+
+diff --git a/tools/perplexity/README.md b/tools/perplexity/README.md
+index f82d34c8a..5d1662b24 100644
+--- a/tools/perplexity/README.md
++++ b/tools/perplexity/README.md
+@@ -31,6 +31,7 @@ In addition to the KL divergence the following statistics are calculated with `-
+ * Percentiles of change in "correct" token probability. Positive values mean the model gets better at prediction, negative values mean it gets worse. Can be used to judge noise vs. quality loss from quantization. If the percentiles are symmetric then the quantization is essentially just adding noise. If the negative values are significantly larger than the positive values then this indicates that the model is actually becoming worse from the quantization.
+ * The root mean square of the change in token probabilities. If you were to assume that the quantization simply causes Gaussian noise on the token probabilities then this would be the standard deviation of said noise. The uncertainty on the value is calculated that the change in token probabilities follows a Gaussian distribution. Related discussion: https://github.com/ggml-org/llama.cpp/discussions/2875 .
+ * Same top p: Percentage of how often the token was assigned the highest probabilities by both models. The uncertainty is calculated from the Gaussian approximation of the binomial distribution.
++* Same sampled p: Percentage of how often independent samples drawn from the two models at temperature 1 pick the same token, i.e. the collision probability $\sum_i p_{base}(i) p(i)$. "Same top p" only compares the most likely token and therefore only describes greedy decoding; this metric covers the whole distribution. It is not measured against 100%: comparing a model with itself yields its self-collision $\sum_i p(i)^2$, which reaches 100% only for a model that predicts a single token with certainty. That self-collision is the natural reference point and is obtained by using the same model both for `--kl-divergence-base` and for `--model`. A quantization that sharpens the output distribution can score above the reference; the only hard bound is $\sum_i p_{base}(i) p(i) \le \sqrt{\sum_i p_{base}(i)^2 \sum_i p(i)^2}$. The uncertainty is the standard error of the per-token mean.
+ 
+ ## LLaMA 3 8b Scoreboard
+ 
+diff --git a/tools/perplexity/perplexity.cpp b/tools/perplexity/perplexity.cpp
+index 747e85058..67a1a5216 100644
+--- a/tools/perplexity/perplexity.cpp
++++ b/tools/perplexity/perplexity.cpp
+@@ -206,6 +206,8 @@ struct kl_divergence_result {
+     double sum_p_diff       = 0.0;
+     double sum_p_diff2      = 0.0;
+     double sum_p_diff4      = 0.0;
++    double sum_coll         = 0.0;
++    double sum_coll2        = 0.0;
+     float  max_p_diff       = 0.0f;
+     size_t n_same_top       = 0.0;
+     size_t count            = 0.0;
+@@ -242,6 +244,15 @@ static std::pair<double, float> log_softmax(int n_vocab, const float * logits, c
+ 
+     max_logit += log_sum_exp;
+     double sum = 0;
++    // Collision probability sum_i p_base(i)*p(i): the chance that independent
++    // temperature-1 samples from the base and the candidate distribution pick the
++    // same token.  Complements "same top p", which only compares the argmax and so
++    // only describes greedy (temperature 0) decoding.  This is not measured against
++    // 100%: the reference point is the base model's self-collision
++    // sum_i p_base(i)^2, obtained by using the same model for the logits file and
++    // for --model.  A candidate that sharpens the distribution can score above that
++    // reference; the only hard bound is sqrt(sum_i p_base(i)^2 * sum_i p(i)^2).
++    double sum_coll = 0;
+     int imax_base = -1;
+     float p_log_base_max = 0;
+     for (int i = 0; i < n_vocab; ++i) {
+@@ -252,11 +263,15 @@ static std::pair<double, float> log_softmax(int n_vocab, const float * logits, c
+         }
+         if (p_log_base > -16.f) {
+             const float p_base = expf(p_log_base);
+-            sum += p_base * (p_log_base - logits[i] + max_logit);
++            sum      += p_base * (p_log_base - logits[i] + max_logit);
++            // tokens skipped by the cutoff above contribute < e^-16 each
++            sum_coll += p_base * expf(logits[i] - max_logit);
+         }
+     }
+-    kld.sum_kld  += sum;
+-    kld.sum_kld2 += sum*sum;
++    kld.sum_kld   += sum;
++    kld.sum_kld2  += sum*sum;
++    kld.sum_coll  += sum_coll;
++    kld.sum_coll2 += sum_coll*sum_coll;
+     ++kld.count;
+     if (imax == imax_base) {
+         ++kld.n_same_top;
+@@ -296,6 +311,8 @@ static void process_logits(int n_vocab, const float * logits, const int * tokens
+                 kld.sum_p_diff       += local_kld.sum_p_diff;
+                 kld.sum_p_diff2      += local_kld.sum_p_diff2;
+                 kld.sum_p_diff4      += local_kld.sum_p_diff4;
++                kld.sum_coll         += local_kld.sum_coll;
++                kld.sum_coll2        += local_kld.sum_coll2;
+                 kld.n_same_top       += local_kld.n_same_top;
+                 kld.max_p_diff        = std::max(kld.max_p_diff, local_kld.max_p_diff);
+                 kld.count            += local_kld.count;
+@@ -1906,7 +1923,7 @@ static bool kl_divergence(llama_context * ctx, const common_params & params) {
+             }
+             LOG("%.2f minutes\n", total_seconds / 60.0);
+             LOG("\n");
+-            LOG("chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p\n");
++            LOG("chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p\n");
+         }
+ 
+         LOG("%4d", i + 1);
+@@ -1934,6 +1951,9 @@ static bool kl_divergence(llama_context * ctx, const common_params & params) {
+         double p_top_unc = sqrt(p_top_val*(1 - p_top_val)/(kld.count - 1));
+         LOG("    %6.3lf ± %6.3lf %%", 100.0*p_top_val, 100.0*p_top_unc);
+ 
++        auto coll = mean_and_uncertainty(kld.sum_coll, kld.sum_coll2, kld.count);
++        LOG("    %6.3lf ± %6.3lf %%", 100.0*coll.first, 100.0*coll.second);
++
+         LOG("\n");
+     }
+ 
+@@ -2036,6 +2056,9 @@ static bool kl_divergence(llama_context * ctx, const common_params & params) {
+ 
+     const double same_top_p = 1.0*kld.n_same_top/kld.count;
+     LOG("Same top p: %6.3lf ± %5.3lf %%\n", 100.0*same_top_p, 100.0*sqrt(same_top_p*(1.0 - same_top_p)/(kld.count - 1)));
++
++    auto coll = mean_and_uncertainty(kld.sum_coll, kld.sum_coll2, kld.count);
++    LOG("Same sampled p: %6.3lf ± %5.3lf %%\n", 100.0*coll.first, 100.0*coll.second);
+     return true;
+ }
+ 
+-- 
+2.55.0
+

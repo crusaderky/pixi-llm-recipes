@@ -90,7 +90,7 @@ HSA_OVERRIDE_GFX_VERSION = "11.5.1"
 GGML_CUDA_ENABLE_UNIFIED_MEMORY = "1"
 
 [feature.llamacpp.dependencies]
-# kv-perplexity dependencies
+# perplexity dependencies
 python = "=3.14"
 pydantic = "*"
 pyyaml = "*"
@@ -105,8 +105,8 @@ start-server = "bash scripts/start-server.sh"
 
 # Quantitative benchmark on the degradation introduced by model and/or cache quantization.
 # Note: the measure is only significant between two variants/settings of the same model.
-# You should modify scripts/kv-perplexity-config.yaml before you start.
-kv-perplexity = "scripts/kv-perplexity.py"
+# You should modify perplexity.yaml before you start.
+perplexity = "scripts/perplexity.py"
 
 [feature.sandbox.target.win-64.dependencies]
 
@@ -205,7 +205,7 @@ llama-benchy = "python -m llama_benchy --base-url http://localhost:8080/v1 --no-
 hf = "hf"
 context-bench = "python sample-data/context-bench/run_benchmark.py"
 aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_results.py"
-kv-kld-report = "python scripts/kv-kld-report.py"
+perplexity-report = "python scripts/perplexity-report.py"
 llama-cpp-changelog = "python scripts/llama-cpp-changelog.py"
 gguf-meta-extract = "python scripts/gguf-meta-extract.py"
 

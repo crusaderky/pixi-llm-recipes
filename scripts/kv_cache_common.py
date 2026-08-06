@@ -1,6 +1,6 @@
 """Shared KV-cache sizing primitives.
 
-Used by ``kv-kld-report.py`` (KLD sweep report), ``kv-perplexity.py`` (quant
+Used by ``perplexity-report.py`` (KLD sweep report), ``perplexity.py`` (quant
 precision ordering) and ``gguf-meta-extract.py`` (VRAM estimate from a GGUF
 header). Keeping the bits-per-weight table and the cache-geometry model in one
 place stops the three from drifting apart.

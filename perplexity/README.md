@@ -1,8 +1,9 @@
 # KV cache quantization quality
 
 KL-divergence sweeps over every K-quant × V-quant combination, measured against an
-f16/f16 baseline with `kv-perplexity` and rendered with `kv-kld-report` (see the
-[benchmarking section](../README.md#kv-cache-quantization-quality) of the main README).
+f16/f16 baseline with `perplexity` and rendered with `perplexity-report` (see the
+[benchmarking section](../README.md#model-and-kv-cache-quantization-quality) of the main
+README).
 Lower KLD = closer to full-precision output. "Size" is bytes/parameter of the KV cache
 (K + V); the `f16/f16` baseline is 4.0.
 
@@ -80,4 +81,4 @@ Qwen and Gemma measures were acquired with the project as of 2026-06-22:
 - `byteshape/Qwen3.6-35B-A3B-MTP-GGUF:Qwen3.6-35B-A3B-IQ4_XS-3.97bpw`
 - `unsloth/gemma-4-E2B-it-qat-GGUF:UD-Q4_K_XL`
 
-You can run your own with `pixi r kv-perplexity` and `pixi r kv-kld-report`.
+You can run your own with `pixi r perplexity` and `pixi r perplexity-report`.

@@ -10,7 +10,7 @@
 4. **Runs the pi coding agent** in a bubblewrap sandboxed environment with local LLM inference.
 5. **Benchmarks LLM inference** via `llama-benchy`.
 6. **Benchmarks long-context recall** (and how it degrades under quantized KV cache) via the `context-bench` harness in `sample-data/context-bench/`.
-7. **Analyzes KV cache quantization quality** via `kv-perplexity` (KL-divergence sweep over K/V quant combos) and `kv-kld-report` (HTML/Markdown report with plots) in `scripts/`.
+7. **Analyzes model and KV cache quantization quality** via `perplexity` (KL-divergence sweep over a cross-product of arbitrary llama-perplexity options) and `perplexity-report` (HTML/Markdown report with plots) in `scripts/`.
 8. **Inspects GGUF model metadata** — estimates on-disk weight size and KV-cache VRAM without downloading the weights — via `gguf-meta-extract` in `scripts/`.
 
 ## Key Technologies
@@ -37,7 +37,7 @@ pixi-llm-recipes/
 ├── README.md                         # Project readme
 ├── chat-templates/                   # Jinja chat templates for llama-server
 │   └── qwen3.6-froggeric-v20.jinja   # Custom Qwen 3.6 chat template
-├── kv-perplexity.yaml                # Config for kv-perplexity.py
+├── perplexity.yaml                   # Config for perplexity.py
 ├── models.ini                        # llama-server preset config (multi-model)
 ├── scripts/
 │   ├── bwrap-claude.sh               # Bubblewrap sandbox wrapper for Claude Code
@@ -48,8 +48,9 @@ pixi-llm-recipes/
 │   ├── install-apparmor.sh           # Install AppArmor profile for bwrap (sudo/CI)
 │   ├── install-memlock.sh            # Raise locked-memory ulimit for llama-server mlock (sudo/CI)
 │   ├── kv_cache_common.py            # Shared bpw table + KV-cache geometry model (importable)
-│   ├── kv-kld-report.py                 # Parse perplexity log → HTML/Markdown KLD report
-│   ├── kv-perplexity.py              # KLD sweep over cartesian product of K/V quant combos
+│   ├── perplexity.py                 # KLD sweep over a cross-product of llama-perplexity options
+│   ├── perplexity-report.py          # Parse perplexity log → HTML/Markdown KLD report
+│   ├── perplexity_common.py          # Shared flag canonicalization + log parser (importable)
 │   ├── llama-cpp-changelog.py        # Deterministic llama.cpp changelog dumper (tags + PRs + commits)
 │   ├── start-forge-server.sh         # Background forge-proxy (guardrails) in front of llama-server
 │   ├── start-server.sh               # Background llama-server with logging
@@ -233,22 +234,22 @@ The binary recipe uses `file: build` (extension-less) so rattler-build resolves 
 
 ### Root `pixi.toml` — Features & Environments
 
-| Feature                  | Dependencies                                                                                                                                                                   | Key Tasks                                                                                                                     |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                                                              | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `start-forge-server`, `kv-perplexity`     |
-| `llamacpp-source-cpu`    | `llama-cpp` (cpu compiled from sources)                                                                                                                                        | —                                                                                                                             |
-| `llamacpp-source-cuda`   | `llama-cpp` (cuda compiled from sources)                                                                                                                                       | —                                                                                                                             |
-| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                                                     | —                                                                                                                             |
-| `llamacpp-source-rocm`   | `llama-cpp` (rocm/HIP compiled from sources against system ROCm)                                                                                                               | —                                                                                                                             |
-| `llamacpp-binary-cpu`    | `llama-cpp` (cpu pre-built binary)                                                                                                                                             | —                                                                                                                             |
-| `llamacpp-binary-cuda`   | `llama-cpp` (cuda pre-built binary; conda-forge CUDA runtime only)                                                                                                             | —                                                                                                                             |
-| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary; linux-64 + win-64 only — beellama ships no arm64 vulkan asset)                                                                           | —                                                                                                                             |
-| `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                                                            | —                                                                                                                             |
-| `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-home` (from `pixi-recipes/pi-home`), `bubblewrap` (Linux only)                                     | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                                                   |
-| `claude`                 | `claude` (from `pixi-recipes/claude`), `claude-extensions` (from `pixi-recipes/claude-extensions`), `claude-home` (from `pixi-recipes/claude-home`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe`                                                                                        |
-| `herdr`                  | `herdr` (from `pixi-recipes/herdr`), `herdr-file-viewer` (from `pixi-recipes/herdr-file-viewer`, linux-64 + win-64 only)                                                       | `herdr`                                                                                                                       |
-| `git`                    | `git` and `gh` (GitHub CLI from conda-forge)                                                                                                                                   | `git`, `gh`                                                                                                                   |
-| `pytools`                | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc.                                                                             | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `kv-kld-report`, `llama-cpp-changelog`, `gguf-meta-extract` |
+| Feature                  | Dependencies                                                                                                                                                                   | Key Tasks                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `llamacpp`               | `llama-cpp` (from `pixi-recipes`)                                                                                                                                              | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `start-forge-server`, `perplexity`            |
+| `llamacpp-source-cpu`    | `llama-cpp` (cpu compiled from sources)                                                                                                                                        | —                                                                                                                                 |
+| `llamacpp-source-cuda`   | `llama-cpp` (cuda compiled from sources)                                                                                                                                       | —                                                                                                                                 |
+| `llamacpp-source-vulkan` | `llama-cpp` (vulkan compiled from sources)                                                                                                                                     | —                                                                                                                                 |
+| `llamacpp-source-rocm`   | `llama-cpp` (rocm/HIP compiled from sources against system ROCm)                                                                                                               | —                                                                                                                                 |
+| `llamacpp-binary-cpu`    | `llama-cpp` (cpu pre-built binary)                                                                                                                                             | —                                                                                                                                 |
+| `llamacpp-binary-cuda`   | `llama-cpp` (cuda pre-built binary; conda-forge CUDA runtime only)                                                                                                             | —                                                                                                                                 |
+| `llamacpp-binary-vulkan` | `llama-cpp` (vulkan pre-built binary; linux-64 + win-64 only — beellama ships no arm64 vulkan asset)                                                                           | —                                                                                                                                 |
+| `llamacpp-binary-rocm`   | `llama-cpp` (rocm pre-built binary)                                                                                                                                            | —                                                                                                                                 |
+| `pi`                     | `pi-coding-agent`, `pi-extensions` (from `pixi-recipes/pi-extensions`), `pi-home` (from `pixi-recipes/pi-home`), `bubblewrap` (Linux only)                                     | `pi` (Linux only), `pi-unsafe`, `pi-export`                                                                                       |
+| `claude`                 | `claude` (from `pixi-recipes/claude`), `claude-extensions` (from `pixi-recipes/claude-extensions`), `claude-home` (from `pixi-recipes/claude-home`), `bubblewrap` (Linux only) | `claude` (Linux only), `claude-unsafe`                                                                                            |
+| `herdr`                  | `herdr` (from `pixi-recipes/herdr`), `herdr-file-viewer` (from `pixi-recipes/herdr-file-viewer`, linux-64 + win-64 only)                                                       | `herdr`                                                                                                                           |
+| `git`                    | `git` and `gh` (GitHub CLI from conda-forge)                                                                                                                                   | `git`, `gh`                                                                                                                       |
+| `pytools`                | `python =3.14`, `llama-benchy` (PyPI), `huggingface_hub`, `transformers`, `openai`, `tomli-w` etc.                                                                             | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `perplexity-report`, `llama-cpp-changelog`, `gguf-meta-extract` |
 
 | Environment              | Feature(s)                            |
 | ------------------------ | ------------------------------------- |
@@ -286,7 +287,7 @@ Reads a Pydantic-validated TOML config (one `[model tag]` table each: `url` defa
 
 ### `scripts/kv_cache_common.py` — Shared KV-Cache Sizing Primitives
 
-Imported by `kv-perplexity.py`, `kv-kld-report.py` and `gguf-meta-extract.py` (whose own file names are hyphenated and therefore not importable; they are run as `python scripts/<name>.py`, so `sys.path[0]` is `scripts/`). It holds:
+Imported by `perplexity.py`, `perplexity-report.py` and `gguf-meta-extract.py` (whose own file names are hyphenated and therefore not importable; they are run as `python scripts/<name>.py`, so `sys.path[0]` is `scripts/`). It holds:
 
 - **`BPW`** — bits-per-weight per quant name, including block/tile overhead (`q8_0` = 8.5, `kvarn4` = 4.375, …), and **`resolve_bpw(name)`**, which warns and falls back to 32.0 on an unknown name.
 - **`ModelKV`** — a model's KV-cache geometry (full-attention and sliding-window layer groups, per-group KV-head counts, window size, key/value head dims, loop count, plus any `compressed` side caches) and the sizing model for beellama v0.4.1's persistent allocation (quant body + per-sequence f16 exact-tail overlay; bodyless exact ring when the tail covers the SWA window). `get_total_kv_cache_size()` returns bytes at a given context / tail / n_parallel; `cache_breakdown()` returns the per-group derivation as `CacheGroupSize` rows (each carrying its own layers / KV heads / key+value dims / note / bytes, so no caller has to reach back into the spec); `elems_per_token` is the quant-independent per-token width; `compressed_rows()` / `compressed_note()` are the equivalents for a side cache; `full_attn_layers_all` / `sliding_window_layers_all` are the loop-expanded layer counts. Only `layers * kv_heads` enters the arithmetic, so a group with per-layer-varying head counts is described by its (possibly fractional) average; `value_dim = 0` expresses an MLA / fused-latent / K-only cache; `n_loops > 1` is a looped / recursive transformer, whose `block_count` blocks each get one cache layer **per pass**.
@@ -303,18 +304,48 @@ Imported by `kv-perplexity.py`, `kv-kld-report.py` and `gguf-meta-extract.py` (w
 
 This is not hypothetical: `num_loops` was originally applied by expanding the layer count inside `gguf-meta-extract.py`, which left `MODEL_KV` (and therefore the KLD report's "Context (MiB)" column) sizing looped models at half their real cache. The multiplication now lives in `ModelKV.full_attn_layers_all`, so both paths and all three scripts get it for free.
 
-### `scripts/kv-perplexity.py` — KV Cache KL-Divergence Sweep
+### `scripts/perplexity_common.py` — Shared Command-Line / Log Primitives
 
-Runs `llama-perplexity` over the cartesian product of K-quant × V-quant × `kv-tail-tokens` combinations, measuring KL divergence against an f16/f16 baseline. Reads a YAML config (common flags, `k_quants`, `v_quants`, `kv-tail-tokens`, `baseline`, optional `include`/`exclude` lists). Each combo is a `{cache-type-k, cache-type-v, kv-tail-tokens}` object (`kv-tail-tokens` defaults to 0 and is never emitted on the command line, keeping it mainline-llama.cpp compatible; unknown keys are rejected). Asymmetric KVarN combos are dropped automatically (KVarN is symmetric-only). The baseline run creates a logits dump (`--kl-divergence-base`); all other combos load that dump and append `--kl-divergence`. Completed combos are skipped on re-run (idempotent). Output is appended to a log file (default `perplexity.log`).
+Imported by both `perplexity.py` (which runs in the `llamacpp-*` environments) and `perplexity-report.py` (which runs in `pytools`), so it is **stdlib only** — the two share no third-party dependency. It holds:
+
+- **`canon`** / **`ALIASES`** — the canonical (long, dash-free) name of every llama.cpp flag spelling this project passes. Not derivable: llama.cpp matches flags by exact string, `--hf` does not exist, and the dash count does not follow from the name (`-cmoe` and `-hffv` are single-dash; `--ppl` and `--ui` are double), so the table is written out. Canonicalising is what lets one sweep resume against a log full of short spellings, and the report label a log that mixes both.
+- **`iter_cmd_options`** / **`parse_cmd_args`** — a command line as `(key, value, raw tokens)` / `{key: value}`. A flag with no value is `True`; a repeated flag keeps its last value, matching llama.cpp's own last-wins parsing (which is what lets a combo's `--hf-repo` override an `-hf` in `common:`). A token is a flag iff it is a dash followed by a letter, so `-1` reads as a value and no per-flag arity table is needed.
+- **`cmd_signature`** — a run's identity: its canonical `(key, value)` pairs, minus `KLD_KEYS` (so the logits-dump run and its `--kl-divergence` rerun match) and minus `NEUTRAL_KEYS`.
+- **`MODEL_KEYS`/`KV_KEYS`/`KLD_KEYS`/`NEUTRAL_KEYS`** — the flag groups the label and identity logic treats specially. `NEUTRAL_KEYS` (`--offline`) measure nothing: the sweeper used to inject `--offline` on every run but the logits dump, so counting it would make a resumed sweep re-run its baseline and put a meaningless `offline=on/off` on every label of a pre-cross-product log.
+- **`iter_runs`** / **`LogRun`** — every run in a log, with its command line, its output lines, its aborted flag, its `# LABEL:` override and its `# model:` weight sizes. A bare `llama-perplexity --version` block (how old logs recorded the binary version) is not a run and is skipped.
+
+### `scripts/perplexity.py` — Model / KV-Cache KL-Divergence Sweep
+
+Runs `llama-perplexity` over a **cross-product of arbitrary command-line options**, measuring KL divergence against a single baseline. Reads a YAML config: `common` (command prefix), `baseline` (creates the logits dump), `cross-product` (a list of lists of option dicts, expanded into every union of one dict per list), optional `include`/`exclude`, `max_eta_factor`.
+
+Option keys are llama.cpp flag names without the dashes, emitted as `--<key> <value>` — so the config uses long spellings (`hf-repo`, not `hf`), though short ones are rewritten via `perplexity_common.canon`. A value of `false` omits the flag entirely (e.g. `{kv-tail-tokens: false}` for mainline llama.cpp, which does not know that flag). Because nothing is KV-specific, one sweep can vary the cache quants, the **model** quantization (`hf-repo`), or both.
+
+- **`label:`** is the one key not passed to llama-perplexity: it is written above the command as a `# LABEL: ...` comment and overrides the report's own label. Labels from several lists of one product join with `|` in list order.
+- **Key collisions** across the lists of one product are a config error (`label:` excepted) — an option may only be varied by one list.
+- **`exclude`** drops every combo matching _all_ the keys of an entry, whatever its other options: `{cache-type-k: q4_0}` removes every q4_0 key cache at any V quant, tail or model.
+- **Auto-dropped** from the cross-product (not from `include`, where an explicit request is taken as intentional): asymmetric KVarN (symmetric-only), a non-zero tail on an exact f16/f16 cache, and a value cache finer than the key cache. Evaluated on `common:` overlaid with the combo, so a cache type pinned in `common:` is still seen.
+- **`--file`/`--ctx-size`/`--chunks`/`--kl-divergence-base` may not appear in a combo** — every run is compared against one logits dump, whose contents those four fix — and `common:` must set `--kl-divergence-base`. Both are hard config errors.
+
+The baseline runs twice: once to create the dump, then again with `--kl-divergence` against its own logits (noise floor + reference speed without dump I/O). Completed runs are skipped on re-run, by `cmd_signature`, so a sweep is idempotent and resumable — including against logs written by earlier versions of the script. Output is appended to a log file (default `perplexity.log`).
 
 ```bash
-# (Duplicate and) edit kv-perplexity.yaml first, then:
-pixi run -e llamacpp-source-cuda kv-perplexity -c kv-perplexity.yaml
+# (Duplicate and) edit perplexity.yaml first, then:
+pixi run -e llamacpp-source-cuda perplexity -c perplexity.yaml
 ```
 
-### `scripts/kv-kld-report.py` — KLD Report Generator
+### `scripts/perplexity-report.py` — KLD Report Generator
 
-Parses a `perplexity.log` produced by `kv-perplexity.py`, extracts per-chunk KL divergence for each `-ctk`/`-ctv` combo, and generates an HTML report (interactive Chart.js plot) and a Markdown report (static SVG via matplotlib). Embeds Chart.js inline (fetched from CDN; falls back to CDN `<script>` tag on failure). The "Context (MiB)" column comes from `kv_cache_common.MODEL_KV`/`ModelKV`, evaluated at `--ctx-size` (default: the run's own context from the log) and `--n-parallel` (default 4).
+Parses a `perplexity.log` produced by `perplexity.py`, extracts per-chunk KL divergence for every run, and generates an HTML report (interactive Chart.js plot) and a Markdown report (static SVG via matplotlib). Embeds Chart.js inline (fetched from CDN; falls back to CDN `<script>` tag on failure).
+
+**The HTML report is interactive.** A sticky left pane (scrolling independently of the charts) carries a `Hide all labels` toggle, four buttons — select all / none / frontier, and _deselect non-stock quants_, which drops every run using a KV type outside `STOCK_KV_QUANTS`, i.e. reachable only on beellama — and three tri-state group lists: by author (alphabetical), by model quant and by KV cache quant (both by descending weight). A group tick is black when all of it is selected, grey when some is, and clicking cycles grey → unticked → black → unticked; a table row or a plotted point flips its own run. Deselected runs are dimmed, never hidden: faint on every chart, grey in the table, and unlabelled. Selection lives in one JS `Set` keyed by a per-run id that each point, each row and each sidebar group carries, so any click repaints all three views. The default selection is the frontier. Marker colours are resolved per point at draw time from `_full`/`_faint` on each dataset, so nothing is rebuilt on a click.
+
+**Framing is shared on X, local on Y.** The X axis means the same VRAM on every chart, so every X change — wheel, drag, the `+`/`−` pair under the X label, double-click, the sidebar's _Reset plots framing_ — goes through one `setXRange` and lands on all of them; Y belongs to each plot and is moved only by that plot's wheel, drag or the `+`/`−` pair beside its Y label. Scrolling one chart therefore zooms both of its axes and the X of all the others.
+
+**Labels show what the sweep varied, and only that** (`_build_labels`): a `|`-joined list of the varying dimensions — model, then KV cache, then any other option — since a run is only distinguishable from its siblings by what changed. KV cache only gives `q8_0/q5_1 t1024` (symmetric pairs always collapse to one name, and the `tN` suffix appears only where it informs: `--kv-tail-tokens` explicit somewhere in the log _and_ a non-zero tail on the run, `t0` being the absence of a tail); quants of one repo give `UD-Q4_K_XL` with the shared repo stripped; several repos give `author:quant` (`LiquidAI:Q8_0`) — the model name is dropped even when it differs, since who published a quant and which quant it is are what tell the runs apart, and the full spec is a hover away — falling back to the whole reference whenever a shorter form would give two models the same label (two repos by one author at the same quant); both give `UD-Q4_K_XL|q8_0/q5_1 t1024`; anything else that varies is appended as `key=value` (`on`/`off` for a bare or absent flag). A `# LABEL:` comment overrides the lot. Hovering a run's label in the HTML table shows its full command line.
+
+**One frontier, on every plot**: the runs with the lowest mean KLD at each cost (`_stat_frontier`, `FRONTIER_STAT`). The other charts mark those same runs rather than their own optimum, so a point can sit beyond the frontier line there — the fastest run at a cost need not be the most accurate. The frontier answers "which run should I use?", a question about output quality; each other plot then shows what that choice costs on its own axis.
+
+**The Pareto/x-axis cost is total VRAM**: the model weights, summed from the `# model:` provenance the sweeper records, plus the KV cache at the projected context. All quants of one model share a KV geometry, so weights are the only thing that separates them. Weights are all-or-nothing across a log (a row silently missing them would sit at the wrong x), so a log without provenance falls back to the KV cache alone, then to weights alone, then to bpw. Runs can be narrowed with `--cache-type-k`/`--cache-type-v`/`--author` (OR within a flag, AND between them, case-insensitive) and `--whitelist` (exact labels); the baseline and logits runs always survive, and neither labels nor author colours are recomputed on the survivors, so a filtered report stays comparable with the full one. The KV-cache figure comes from `kv_cache_common.MODEL_KV`/`ModelKV`, resolved **per run** and evaluated at `--ctx-size` (default: the run's own context from the log) and `--n-parallel` (default 4). The x-axis is not anchored at 0: with weights in the cost, a zero-based axis would squeeze the sweep into a sliver at the right edge.
 
 ### `scripts/llama-cpp-changelog.py` — Deterministic llama.cpp Changelog Dumper
 
@@ -325,10 +356,6 @@ Output sections: header (refs, dates, counts), tags in range with release dates 
 ```bash
 pixi r llama-cpp-changelog [from] [to]
 pixi r llama-cpp-changelog --from b9688 --to b9789
-```
-
-```bash
-pixi run kv-kld-report perplexity.log -o kv-kld-report.html
 ```
 
 ### `scripts/gguf-meta-extract.py` — GGUF Header Inspector / VRAM Estimator
@@ -577,11 +604,11 @@ run `herdr server reload-config`. Optional renderers: `glow` / `delta` / `bat`.
 ### Running Benchmarks
 
 ```bash
-# KL-divergence sweep over K/V quant combos (edit kv-perplexity.yaml first)
-pixi run -e llamacpp-source-cuda kv-perplexity -c kv-perplexity.yaml
+# KL-divergence sweep over model / KV quant combos (edit perplexity.yaml first)
+pixi run -e llamacpp-source-cuda perplexity -c perplexity.yaml
 
 # Generate HTML/Markdown KLD report from the sweep log
-pixi run kv-kld-report perplexity.log -o kv-kld-report.html
+pixi run perplexity-report perplexity.log -o perplexity-report
 
 # Throughput benchmark
 pixi run llama-benchy
@@ -627,7 +654,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `chat-templates/qwen3.6-froggeric-v20.jinja`      | Custom Qwen 3.6 chat template (Jinja)                                                                                                              |
 | `pixi.toml`                                       | Root workspace: features, tasks, environments                                                                                                      |
 | `pixi.lock`                                       | Locked dependency versions (binary; never edit)                                                                                                    |
-| `kv-perplexity.yaml`                              | Sample config for `kv-perplexity.py`                                                                                                               |
+| `perplexity.yaml`                                 | Sample config for `perplexity.py`                                                                                                                  |
 | `models.ini`                                      | llama-server multi-model preset config                                                                                                             |
 | `llama-server.log`                                | Server log (gitignored)                                                                                                                            |
 | `forge-proxy.log`                                 | forge-proxy log (gitignored)                                                                                                                       |
@@ -649,8 +676,9 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `scripts/pi`                                      | Naked `pi` wrapper (installed to ~/.local/bin by `pixi r install`); resolves --bind relative paths against cwd                                     |
 | `scripts/pi-unsafe.sh`                            | Unsandboxed pi wrapper (dev/debug only)                                                                                                            |
 | `scripts/kv_cache_common.py`                      | Shared bpw table (`BPW`/`resolve_bpw`) + KV-cache geometry model (`ModelKV`, `MODEL_KV`, `resolve_model`)                                          |
-| `scripts/kv-perplexity.py`                        | KLD sweep over cartesian product of K/V quant combos (`kv-perplexity` task)                                                                        |
-| `scripts/kv-kld-report.py`                        | Parse perplexity log → HTML/Markdown KLD report with plots (`kv-kld-report` task)                                                                  |
+| `scripts/perplexity.py`                           | KLD sweep over a cross-product of arbitrary llama-perplexity options (`perplexity` task)                                                           |
+| `scripts/perplexity-report.py`                    | Parse perplexity log → HTML/Markdown KLD report with plots (`perplexity-report` task)                                                              |
+| `scripts/perplexity_common.py`                    | Shared flag canonicalization, run identity and log parser for the two above                                                                        |
 | `scripts/llama-cpp-changelog.py`                  | Deterministic llama.cpp changelog dumper: tags + PRs (title/desc/URL) + commits (`llama-cpp-changelog` task)                                       |
 | `scripts/gguf-meta-extract.py`                    | Header-only GGUF tensor/VRAM inspector: per-tensor CSV + dense/expert & KV-cache VRAM summary, no weight download (`gguf-meta-extract` task)       |
 | `sample-data/wiki.test.raw`                       | Wikitext-2 test corpus for KLD/perplexity benchmarks                                                                                               |
