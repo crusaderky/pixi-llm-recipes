@@ -7,10 +7,13 @@ Everything is pinned and 100% reproducible.
 
 ## A word of warning
 
-This is tuned for my own machine, which mounts an NVIDIA RTX 3080 with 10 GB of VRAM.
+This is tuned for my own machine, which mounts an NVIDIA RTX 3090 with 24 GB of VRAM.
 Model sizes, context lengths, and quantization choices all reflect that constraint. If
 your GPU is different you'll probably want to adjust `models.ini` and pick different
 models.
+
+If you have an RTX 3080 (10 GB), you can find the old `models.ini` from that era at the
+[RTX3080 tag](https://github.com/crusaderky/pixi-llm-recipes/blob/RTX3080/models.ini).
 
 ## Quickstart
 
@@ -111,29 +114,17 @@ Nothing else changes.
 Models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Model              | Variant            | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>   | Prefill<sup>3</sup>   | Decode<sup>3</sup>   | Notes                                                                                                                   |
-| ------------------ | ------------------ | ------------ | ------------------- | ------------------ | --------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Qwen3.6-35B-A3B    | IQ4_XS MTP         | 18 GB        | 256k kvarn5         | 5.6 GB<sup>4</sup> | 446 tok/s<sup>4</sup> | 48 tok/s<sup>4</sup> |                                                                                                                         |
-| Qwen3.6-27B        | Q3_K_M             | 13 GB        | 256k kvarn5         | 19.3 GB            | -                     | -                    | tested particularly good quant. Doesn't fit                                                                             |
-| Qwen3.5-9B         | Q4_K_M MTP         | 6.4 GB       | 128k kvarn4 t1024   | 8.4 GB             | 1400 tok/s            | 141 tok/s            | limited context in VRAM; very tight                                                                                     |
-| Ornith-1.0-35B     | APEX I-Compact MTP | 17 GB        | 256k kvarn5         | 5.4 GB<sup>4</sup> | 445 tok/s<sup>4</sup> | 43 tok/s<sup>4</sup> |                                                                                                                         |
-| Kat-Coder-V2.5-Dev | APEX I-Compact MTP | 17 GB        | 256k kvarn5         | 5.8 GB<sup>4</sup> | 445 tok/s<sup>4</sup> | 42 tok/s<sup>4</sup> | best quality that performs well; the daily driver                                                                       |
-| Gemma4-E2B         | QAT MTP            | 3.5 GB       | 128k q8/q8          | 3.8 GB             | 5,958 tok/s           | 279 tok/s            |                                                                                                                         |
-| Gemma4-E4B         | QAT                | 5.0 GB       | 128k q8/q8          | 5.8 GB             |                       | 143 tok/s            | [MTP doesn't support quantized V-cache](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF/blob/main/MTP/README.md) |
-|                    | QAT MTP            | 5.0 GB       | 64k f16/f16         | 7.2 GB             | 2,786 tok/s           | 216 tok/s            | full unquantized context doesn't fit                                                                                    |
-| Gemma4-12B         | QAT MTP            | 6.7 GB       | 256k q8/q8          | 8.0 GB             |                       | 19 tok/s             | full context in host RAM                                                                                                |
-|                    | QAT MTP            | 6.7 GB       | 32k q8/q8           | 8.2 GB             |                       | 104 tok/s            | limited context in VRAM                                                                                                 |
-| Gemma4-26B-A4B     | QAT MTP            | 15 GB        | 256k q8/q8          | 8.2 GB<sup>4</sup> | <sup>4</sup>          | 32 tok/s<sup>4</sup> |                                                                                                                         |
-| Gemma4-31B         | QAT MTP            | 18 GB        | 256k q8/q8          | ~31 GB             |                       | 2 tok/s              | doesn't fit                                                                                                             |
-| LFM2.5-230M        | Q4_K_M             | 147 MB       | 32k q8/q8           | 712 MB             | 42,495 tok/s          | 700 tok/s            | for smoke testing purposes                                                                                              |
-| LFM2.5-8B-A1B      | APEX I-Quality     | 5.7 GB       | 128k q8/q8          | 7.3 GB             | 9,444 tok/s           | 256 tok/s            |                                                                                                                         |
-|                    | APEX I-Quality     | 5.7 GB       | 128k q8/q8          | 2.1 GB             | 1,104 tok/s           | 37 tok/s             | cpu-moe; best model that fits on 4GB VRAM desktops                                                                      |
-| LFM2.5-2.6B        | Q8_0               | 2.7 GB       | 128k q8/q8          | 4.5 GB             | 11,127 tok/s          | 155 tok/s            |                                                                                                                         |
-| Ternary-Bonsai-27B | Q2_0               | 7.7 GB       | 64k kvarn3 t2048    | 8.6 GB             | 966 tok/s             | 38 tok/s             | full context in host RAM; even tighter fit                                                                              |
-| Bonsai-27B         | Q1_0               | 4.2 GB       | 128k kvarn4 t1024   | 7.3 GB             | 654 tok/s             | 50 tok/s             | limited context in VRAM                                                                                                 |
-| Laguna-S-2.1       | IQ4_XS             | 54 GB        | 256k kvarn3 t2048   | 8.5 GB             | 120 tok/s             | 10 tok/s             | very tight fit; most layers have SWA 512 bytes so they use fully fp16 context                                           |
-| Nanbeige4.2-3B     | Q4_K_M             | 2.4 GB       | 128k kvarn3 t2048   | 7.9 GB             | 1554 tok/s            | 57 tok/s             | limited context in VRAM                                                                                                 |
-| DeepSeek-V4-Flash  | IQ2_XXS            | 85 GB        | 256k f16/f16        | 10.2 GB            | -                     | -                    | doesn't fit                                                                                                             |
+| Model              | Variant            | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>  | Prefill<sup>3</sup> | Decode<sup>3</sup> | Notes                                 |
+| ------------------ | ------------------ | ------------ | ------------------- | ----------------- | ------------------- | ------------------ | ------------------------------------- |
+| Qwen3.6-27B        | Q3_K_M             | 13 GB        | 256k kvarn5         | 21.1 GB           | 959 tok/s           | 62 tok/s           | tested particularly good quant        |
+| Kat-Coder-V2.5-Dev | APEX I-Compact MTP | 17 GB        | 256k kvarn5         | 19.8 GB           | 2,224 tok/s         | 158 tok/s          |                                       |
+| Gemma4-E2B         | QAT MTP            | 3.5 GB       | 128k q8/q8          | 3.8 GB            | 6,434 tok/s         | 236 tok/s          |                                       |
+| Gemma4-31B         | QAT MTP            | 18 GB        | 64k q8/q8           | 21.7 GB           | 836 tok/s           | 75 tok/s           | limited context                       |
+| LFM2.5-230M        | Q4_K_M             | 147 MB       | 32k q8/q8           | 712 MB            | 58,917 tok/s        | 678 tok/s          | for smoke testing purposes            |
+| LFM2.5-8B-A1B      | APEX I-Quality     | 5.7 GB       | 128k q8/q8          | 7.3 GB            | 10,724 tok/s        | 263 tok/s          |                                       |
+| LFM2.5-2.6B        | Q8_0               | 2.7 GB       | 128k q8/q8          | 4.5 GB            | 11,735 tok/s        | 181 tok/s          |                                       |
+| Laguna-S-2.1       | IQ4_XS             | 54 GB        | 256k kvarn3 t2048   | 20 GB<sup>4</sup> | 140 tok/s           | 13 tok/s           |                                       |
+| DeepSeek-V4-Flash  | IQ2_XXS            | 85 GB        | 256k f16/f16        | 22 GB<sup>4</sup> | 64 tok/s            | 11 tok/s           | KV cache quantization is very harmful |
 
 **Notes:**
 
@@ -144,8 +135,9 @@ served on demand. All models were carefully cherry-picked and tuned.
 - <sup>2</sup>Process total measured by nvidia-smi. When sizing video card VRAM, you
   must add ~2 GiB for your desktop (unless you're running on an integrated video card
   and your discrete card is detached from the X server)
-- <sup>3</sup> Speed measured on the RTX 3080
-- <sup>4</sup> Experts offloaded to host RAM. Speed is capped by PCIe bandwidth for prefill and by host RAM bandwidth for decode.
+- <sup>3</sup> Speed measured on the RTX 3090
+- <sup>4</sup> Experts partially offloaded to host RAM. Speed is capped by PCIe bandwidth
+  for prefill and by host RAM bandwidth for decode.
 
 ### Estimating model size and VRAM
 
