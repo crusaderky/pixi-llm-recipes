@@ -527,6 +527,7 @@ pixi install -e agents                 # pi agent, Claude Code, gh CLI, pytools
 
 ```bash
 pixi run -e llamacpp-source-cuda start-server       # Start llama-server in background (logs to llama-server.log)
+pixi run -e llamacpp-source-cuda start-server --host-ram 16G  # …capped to a simulated 16 GiB host (cgroup v2)
 pixi run -e llamacpp-source-cuda stop-server         # Graceful llama-server shutdown (SIGTERM → SIGKILL)
 pixi run -e llamacpp-source-cuda restart-server      # Stop + start in one command
 pixi run -e llamacpp-source-cuda llama-list-devices  # List available compute devices
@@ -670,7 +671,7 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 | `scripts/install-memlock.sh`                      | Raise the locked-memory ulimit (`/etc/security/limits.d/99-memlock.conf`) so llama-server `--mlock` can lock multi-GiB weights; sudo, idempotent   |
 | `scripts/install.sh`                              | Backs the `install` task; symlinks `scripts/pi`, `scripts/claude`, and `scripts/herdr` into ~/.local/bin                                           |
 | `scripts/stop-server.sh`                          | Graceful llama-server shutdown (SIGTERM → SIGKILL)                                                                                                 |
-| `scripts/start-server.sh`                         | Background llama-server with logging (`--port` to override the default 8080; other args forwarded to llama-server)                                 |
+| `scripts/start-server.sh`                         | Background llama-server with logging (`--port` default 8080; `--host-ram` caps RAM+page cache; other args forwarded to llama-server)               |
 | `scripts/stop-forge-server.sh`                    | Graceful forge-proxy shutdown (SIGTERM → SIGKILL)                                                                                                  |
 | `scripts/start-forge-server.sh`                   | Background forge-proxy on port 8080 forwarding to llama-server on port 8081                                                                        |
 | `scripts/pi`                                      | Naked `pi` wrapper (installed to ~/.local/bin by `pixi r install`); resolves --bind relative paths against cwd                                     |
@@ -749,7 +750,8 @@ See the **update-herdr** skill for the detailed step-by-step procedure.
 - **Symlinks use relative paths** (`../opt/llama/...`) — required for correct conda prefix portability
 - **All workspaces target `linux-64`, `linux-aarch64`, and `win-64`** — cross-platform support requires additional logic
 - **`bwrap-pi.sh` unsets all `PIXI_*`/`CONDA_*`/`INIT_CWD` vars** before calling pi — the agent must not see conda internals
-- **`start-server.sh` starts llama-server in background** with logging to `llama-server.log`; use `stop-server` to gracefully kill it. It accepts `--port` (default 8080) and forwards any other argument verbatim to llama-server
+- **`start-server.sh` starts llama-server in background** with logging to `llama-server.log`; use `stop-server` to gracefully kill it. It accepts `--port` (default 8080) and `--host-ram` (default: off), and forwards any other argument verbatim to llama-server
+- **`start-server.sh --host-ram <size>` simulates a host with less RAM**: llama-server is launched inside a transient systemd user scope with a cgroup v2 `MemoryMax` (and swap disabled), which is the only limit that accounts the page cache holding the mmap'd weights — RLIMIT_RSS is unenforced and RLIMIT_AS caps address space, not residency. Linux + delegated memory controller only; refused with an error elsewhere. Caveats: page cache warmed by an earlier run is charged to that run's cgroup and stays free, and mlock'd/pinned memory that doesn't fit under the cap gets the server OOM-killed rather than paged (use `load-mode = mmap`)
 - **`stop-server.sh` uses SIGTERM first, then SIGKILL after timeout** — graceful shutdown pattern
 - **`start-forge-server` (llamacpp feature) starts llama-server on port 8081 and the forge-proxy on port 8080** — the dependency task `start-server --port 8081` runs first, then `start-forge-server.sh` launches `python -m forge.proxy` logging to `forge-proxy.log`. `stop-forge-server` stops both; `restart-forge-server` chains the two.
 - **Models file per environment**: the sandbox looks for `models.$PIXI_ENVIRONMENT_NAME.json`; if absent it falls back to nothing — create it when running a non-default pi environment

@@ -184,6 +184,21 @@ Verify with:
 ulimit -l  # should print "unlimited"
 ```
 
+### Simulating a smaller host (`--host-ram`)
+
+Caps the RAM **and page cache** llama-server gets, to see how a model behaves on
+a machine with less RAM than this one (Linux + systemd only; off by default):
+
+```bash
+pixi r start-server --host-ram 16G  # cgroup v2 MemoryMax, swap disabled
+systemctl --user status llama-server-8080.scope  # prints "Memory: … (max: …)"
+```
+
+Use it with `load-mode = mmap`: mlock'd weights can't be evicted, so the server
+is OOM-killed instead of paging. Drop the page cache first
+(`sudo sysctl -w vm.drop_caches=3`), or weights left warm by a previous run
+remain free to the capped one.
+
 ## The pi coding agent
 
 [pi](https://pi.dev) is configured so that only configuration lives in `~/.pi`.
