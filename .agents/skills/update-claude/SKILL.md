@@ -7,75 +7,24 @@ allowed-tools: Bash Read Edit
 
 ## Steps
 
-### 1. Read the current pinned version
+1. Read `pixi-recipes/claude/recipe.yaml`: note `context.version` and `source.sha256`.
 
-Read `pixi-recipes/claude/recipe.yaml`. Extract:
+2. Fetch the `latest` dist-tag:
 
-- **current version** — `context.version` (e.g. `"2.1.153"`)
-- **current sha256** — `source.sha256`
+   ```bash
+   curl -fsSL https://registry.npmjs.org/@anthropic-ai/claude-code | grep -oE '"latest":"[^"]+"'
+   ```
 
-### 2. Fetch the latest version from npm
+   Abort without touching the recipe if the request fails. If it equals the pinned
+   version, report "already at the latest version (<version>)" and stop.
 
-Query the npm registry for the `latest` dist-tag:
+3. Compute the tarball digest:
 
-```
-GET https://registry.npmjs.org/@anthropic-ai/claude-code
-```
+   ```bash
+   curl -sL "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-<new>.tgz" | sha256sum
+   ```
 
-Extract `.dist-tags.latest` from the JSON response. This is the version to pin.
+4. Edit `recipe.yaml` in place: replace `context.version` (keep the quotes) and
+   `source.sha256`. Preserve every comment, blank line and indentation.
 
-If the request fails, abort with an error — do **not** modify the recipe.
-
-### 3. Compare versions
-
-- If `stable_version` == `current_version`: print "Claude Code is already at the latest version (<version>). Nothing to do." and stop.
-- Otherwise proceed.
-
-### 4. Compute the sha256 of the new tarball
-
-Download the tarball and compute its sha256:
-
-```bash
-curl -sL "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-<new_version>.tgz" | sha256sum
-```
-
-Extract the hex digest (first field of output).
-
-### 5. Update recipe.yaml
-
-Edit `pixi-recipes/claude/recipe.yaml` in-place:
-
-- Replace the `context.version` value with the new version string (keep the surrounding quotes).
-- Replace the `source.sha256` value with the new hex digest.
-
-Preserve all other content, comments, and formatting exactly.
-
-**Example edit**:
-
-```yaml
-# Old:
-context:
-  name: claude
-  version: "2.1.153"
-...
-source:
-  url: https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-${{ version }}.tgz
-  sha256: 1870f640a84bda437a06808ecb8beadedfe3cf06ab0f541797b778cc90ba18e8
-
-# New:
-context:
-  name: claude
-  version: "2.1.177"
-...
-source:
-  url: https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-${{ version }}.tgz
-  sha256: <new_sha256>
-```
-
-### 6. Report the result
-
-```
-Updated Claude Code recipe:
-  version: 2.1.153 → 2.1.177
-  sha256:  1870f640... → <new_sha256>
-```
+5. Report `version: <old> → <new>` and `sha256: <old prefix>… → <new>`.
