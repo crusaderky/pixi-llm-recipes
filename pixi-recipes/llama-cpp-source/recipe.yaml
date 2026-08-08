@@ -1,7 +1,7 @@
 context:
   # Main branch (upstream llama.cpp)
   # fork: ggml-org/llama.cpp
-  # version: b10276
+  # version: b10330
 
   # https://github.com/ggml-org/llama.cpp/pull/21067
   # Forked from main at b8533 (2026-03-26)
