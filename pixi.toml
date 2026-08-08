@@ -1,7 +1,11 @@
 [workspace]
 channels = ["https://prefix.dev/conda-forge"]
 preview = ["pixi-build"]
-platforms = ["linux-64", "linux-aarch64", "win-64"]
+platforms = [
+    { name = "linux-64-glibc234", platform = "linux-64", glibc = "2.34" },
+    { name = "linux-aarch64-glibc234", platform = "linux-aarch64", glibc = "2.34" },
+    "win-64",
+]
 
 [tasks]
 stop-server = "bash scripts/stop-server.sh"
@@ -9,7 +13,7 @@ stop-forge-server = "bash scripts/stop-forge-server.sh && bash scripts/stop-serv
 restart-server = { depends-on = ["stop-server", "start-server"] }
 restart-forge-server = { depends-on = ["stop-forge-server", "start-forge-server"] }
 
-[target.linux-64.tasks]
+[target.linux-64-glibc234.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
 install-bin = "bash scripts/install-bin.sh"
 install-clipboard = "bash scripts/install-clipboard.sh"
@@ -18,7 +22,7 @@ install-memlock = "bash scripts/install-memlock.sh"
 install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-memlock"] }
 uninstall = "bash scripts/uninstall-bin.sh"
 
-[target.linux-aarch64.tasks]
+[target.linux-aarch64-glibc234.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
 install-bin = "bash scripts/install-bin.sh"
 install-clipboard = "bash scripts/install-clipboard.sh"
@@ -37,23 +41,23 @@ m2-grep = "*"
 m2-sed = "*"
 
 [feature.llamacpp-source-cpu]
-platforms = ["linux-64", "linux-aarch64"]
+platforms = ["linux-64-glibc234", "linux-aarch64-glibc234"]
 
 [feature.llamacpp-source-cpu.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["cpu"] }
 
 [feature.llamacpp-source-cuda]
-platforms = ["linux-64"] # FIXME Linux ARM fails to compile
+platforms = ["linux-64-glibc234"] # FIXME Linux ARM fails to compile
 [feature.llamacpp-source-cuda.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["cuda"] }
 
 [feature.llamacpp-source-vulkan]
-platforms = ["linux-64", "linux-aarch64"]
+platforms = ["linux-64-glibc234", "linux-aarch64-glibc234"]
 [feature.llamacpp-source-vulkan.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["vulkan"] }
 
 [feature.llamacpp-source-rocm]
-platforms = ["linux-64"] # ROCm/HIP is x86-64 only
+platforms = ["linux-64-glibc234"] # ROCm/HIP is x86-64 only
 [feature.llamacpp-source-rocm.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["rocm"] }
 [feature.llamacpp-source-rocm.activation.env]
@@ -69,17 +73,17 @@ llama-cpp = { path = "pixi-recipes/llama-cpp-binary", flags = ["cpu"] }
 
 # beellama ships no ubuntu-vulkan-arm64 asset, so gate to linux-64 + win-64.
 [feature.llamacpp-binary-vulkan]
-platforms = ["linux-64", "win-64"]
+platforms = ["linux-64-glibc234", "win-64"]
 [feature.llamacpp-binary-vulkan.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary", flags = ["vulkan"] }
 
 [feature.llamacpp-binary-cuda]
-platforms = ["linux-64"]
+platforms = ["linux-64-glibc234"]
 [feature.llamacpp-binary-cuda.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary", flags = ["cuda"] }
 
 [feature.llamacpp-binary-rocm]
-platforms = ["linux-64"]
+platforms = ["linux-64-glibc234"]
 [feature.llamacpp-binary-rocm.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary", flags = ["rocm"] }
 [feature.llamacpp-binary-rocm.activation.env]
@@ -110,10 +114,10 @@ perplexity = "scripts/perplexity.py"
 
 [feature.sandbox.target.win-64.dependencies]
 
-[feature.sandbox.target.linux-64.dependencies]
+[feature.sandbox.target.linux-64-glibc234.dependencies]
 bubblewrap = "*"
 
-[feature.sandbox.target.linux-aarch64.dependencies]
+[feature.sandbox.target.linux-aarch64-glibc234.dependencies]
 bubblewrap = "*"
 
 [feature.pi.dependencies]
@@ -126,11 +130,11 @@ pi-unsafe.cmd = "bash scripts/pi-unsafe.sh {{ root_dir }}"
 pi-unsafe.args = [{ arg = "root_dir", default = "-" }]
 pi-export = "pi --export"
 
-[feature.pi.target.linux-64.tasks]
+[feature.pi.target.linux-64-glibc234.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
 
-[feature.pi.target.linux-aarch64.tasks]
+[feature.pi.target.linux-aarch64-glibc234.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
 
@@ -143,11 +147,11 @@ claude-home = { path = "pixi-recipes/claude-home" }
 claude-unsafe.cmd = "bash scripts/claude-unsafe.sh {{ root_dir }}"
 claude-unsafe.args = [{ arg = "root_dir", default = "-" }]
 
-[feature.claude.target.linux-64.tasks]
+[feature.claude.target.linux-64-glibc234.tasks]
 claude.cmd = "bash scripts/bwrap-claude.sh {{ root_dir }}"
 claude.args = [{ arg = "root_dir", default = "-" }]
 
-[feature.claude.target.linux-aarch64.tasks]
+[feature.claude.target.linux-aarch64-glibc234.tasks]
 claude.cmd = "bash scripts/bwrap-claude.sh {{ root_dir }}"
 claude.args = [{ arg = "root_dir", default = "-" }]
 
@@ -156,7 +160,7 @@ herdr = { path = "pixi-recipes/herdr" }
 
 # herdr-file-viewer ships prebuilts only for linux-64 (x86_64-musl) and win-64
 # (x86_64-msvc); no linux-aarch64 prebuilt exists upstream, so gate the dep.
-[feature.herdr.target.linux-64.dependencies]
+[feature.herdr.target.linux-64-glibc234.dependencies]
 herdr-file-viewer = { path = "pixi-recipes/herdr-file-viewer" }
 
 [feature.herdr.target.win-64.dependencies]
