@@ -12,6 +12,10 @@ context:
   # fork: crusaderky/llama.cpp
   # version: b10032-bunch-moe-transfer
 
+  # https://github.com/ggml-org/llama.cpp/pull/26003
+  # fork: pwilkin/llama.cpp
+  # version: lazy-experts-mmap
+
   # beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
   # + Ternary-Bonsai CUDA
   # https://github.com/Anbeeld/beellama.cpp
@@ -64,6 +68,8 @@ source:
   git: https://github.com/${{ fork }}
   tag: ${{ version }}
   # rev: ${{ version }}
+  # branch: ${{ version }}
+
   patches:
     # conda-forge's default build sysroot is glibc 2.28, and pixi pins it there:
     # `stdlib('c')` resolves to an exact `sysroot_linux-64 =2.28` injected by
