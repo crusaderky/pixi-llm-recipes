@@ -706,6 +706,15 @@ MODEL_KV: dict[str, ModelKV] = {
             CompressedKV("lid state", 21, 1, 256, 256, fixed_rows=8, elem_bpw=32.0),
         ),
     ),
+    "Muse-Glimmer-30B": ModelKV(
+        full_attn_layers=13,
+        full_attn_kv_heads=2,
+        sliding_window_layers=39,
+        sliding_window_kv_heads=2,
+        sliding_window_size=2048,
+        key_dim=128,
+        value_dim=128,
+    ),
 }
 MODEL_KV["Ornith-1.0-35B"] = MODEL_KV["Qwen3.6-35B-A3B"]
 MODEL_KV["Kat-Coder-V2.5-Dev"] = MODEL_KV["Qwen3.6-35B-A3B"]

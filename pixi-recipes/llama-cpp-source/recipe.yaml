@@ -23,10 +23,11 @@ context:
   # version: preview-v0.4.3
 
   # Beellama-v0.4.3 preview
-  # + laguna-S-2.1 cosmetic tweaks
   # + llama-perplexity collision probability measure
+  # + laguna-S-2.1 cosmetic tweaks
+  # + muse-glimmer support
   fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.4.3-r2
+  version: beellama-staging-v0.4.3-r3
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
