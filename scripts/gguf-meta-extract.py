@@ -373,6 +373,10 @@ def read_gguf_tensors(
 # --------------------------------------------------------------------------- #
 _BLK = re.compile(r"^blk\.(\d+)\.(.+)$")
 
+# The dense (non-MoE) feed-forward matrices of a block. Their `_exps` / `_shexp`
+# siblings are the routed and shared experts of an MoE block.
+_DENSE_FFN = ("ffn_gate", "ffn_up", "ffn_down")
+
 
 def tensor_nbytes(dims, ttype):
     """On-disk byte size of a tensor -- also the size staged to VRAM, since the
@@ -531,6 +535,115 @@ _ARCH_SWA_PATTERN = {
     "plamo3": (8, False),
     "smallthinker": (4, True),
 }
+
+# Hybrid architectures that mark their linear-attention blocks with a *stride*
+# instead of a per-layer array, mirroring the identical block in
+# `src/models/{qwen3next,qwen35,qwen35moe}.cpp`:
+#
+#     is_recr(il) = il < n_layer() && (il + 1) % full_attention_interval != 0
+#
+# i.e. the attention layer sits at the END of each group of `interval`, and the
+# NextN/MTP blocks past `n_layer()` are dense-attention and never recurrent.
+#
+# This table is what tells the sizing which layers cache at all on this family:
+# every *other* hybrid (nemotron-h, falcon-h1, jamba, granite-hybrid, lfm2,
+# plamo2, kimi-linear) zeroes `head_count_kv` on its recurrent blocks, which the
+# generic path in `_model_kv_from_metadata` already picks up, but a Qwen3.5/3.6
+# GGUF carries a plain scalar `attention.head_count_kv` covering every block.
+# Without this, three quarters of a Qwen3.6 stack is sized as full attention --
+# for Qwen3.6-27B, 65 cache layers instead of 16, a ~4x overstatement.
+_ARCH_FULL_ATTN_INTERVAL = {"qwen35", "qwen35moe", "qwen3next"}
+_DEFAULT_FULL_ATTN_INTERVAL = 4  # the fallback all three loaders hardcode
+
+# Architectures whose NextN/MTP blocks get NO layer in the main attention cache.
+# `llama_kv_cache` loops over `n_layer_all`, not `n_layer()`, so an MTP block is
+# cached by default like any other dense block; only these three pass a filter
+# that drops it (`mtp_on_hybrid_qwen35` and the STEP35/HY_V3 branch in
+# llama-model.cpp), giving it a separate context of its own instead, allocated
+# only when a run enables speculative decoding. Every other MTP-carrying arch
+# (glm4-moe, bailingmoe2/3, deepseek32, exaone-moe, mimo2, cohere2moe, ...) keeps
+# the block in the main cache, so its layer count really is `block_count`.
+_ARCH_MTP_NO_CACHE = {"qwen35", "qwen35moe", "step35", "hy_v3"}
+
+
+def _recurrent_flags(md, arch, n_layer):
+    """Per-layer "this block is recurrent" bool list, or None if not a hybrid.
+
+    A recurrent (conv / linear-attention / SSM) block keeps a fixed-size state
+    instead of a KV cache, so it must be excluded from the token cache and
+    charged the state buffer of `_recurrent_state_group` instead.
+
+    `{arch}.attention.recurrent_layers` is the explicit array form and wins
+    wherever present (it is what `llama-model-saver.cpp` writes back);
+    `_ARCH_FULL_ATTN_INTERVAL` is the stride fallback. Architectures marking
+    recurrence by zeroing `head_count_kv` return None here and are handled by the
+    caller's generic `head_kv[il] == 0` test.
+    """
+    flags = _norm_per_layer(md.get(f"{arch}.attention.recurrent_layers"), n_layer)
+    if flags is not None:
+        return [bool(x) for x in flags]
+    if arch not in _ARCH_FULL_ATTN_INTERVAL:
+        return None
+    interval = md.get(f"{arch}.full_attention_interval") or _DEFAULT_FULL_ATTN_INTERVAL
+    interval = int(interval)
+    if interval <= 0:
+        return None
+    return [((il + 1) % interval) != 0 for il in range(n_layer)]
+
+
+def _recurrent_state_group(md, arch, n_head, n_embd, layers):
+    """The recurrent blocks' state buffer, as a context-independent CompressedKV.
+
+    `llama_memory_recurrent` allocates, per recurrent layer and per sequence, two
+    f32 tensors: a rolling/conv state of `n_embd_r()` and a recurrent state of
+    `n_embd_s()` (llama-hparams.cpp). Neither scales with the context, which is
+    exactly `CompressedKV`'s `ratio == 0` shape -- one fixed row, forced f32,
+    per_seq -- so it rides along in `ModelKV` with the rest of the arithmetic
+    instead of being bolted on as a separate additive line.
+
+    Both widths mirror llama.cpp's branch order: RWKV, then LFM2's short conv,
+    then Kimi's KDA, then the Mamba default. Returns None when the model carries
+    none of those hparams (every ordinary transformer).
+    """
+    if not layers:
+        return None
+
+    def g(key):
+        return md.get(f"{arch}.{key}") or 0
+
+    wkv_head_size = g("wkv.head_size")
+    l_cache = g("shortconv.l_cache")
+    kda_head_dim = g("kda.head_dim")
+    d_conv, d_inner = g("ssm.conv_kernel"), g("ssm.inner_size")
+    d_state, n_group = g("ssm.state_size"), g("ssm.group_count")
+
+    if wkv_head_size:
+        n_embd_r = (g("token_shift_count") or 2) * n_embd
+        n_embd_s = n_embd * wkv_head_size
+    elif l_cache:
+        n_embd_r, n_embd_s = n_embd * (l_cache - 1), 0
+    elif kda_head_dim:
+        kda_inner = (n_head or 0) * kda_head_dim
+        n_embd_r = 3 * ((d_conv - 1) if d_conv else 3) * kda_inner
+        n_embd_s = kda_head_dim * kda_head_dim * (n_head or 0)
+    else:
+        n_embd_r = (d_conv - 1) * (d_inner + 2 * n_group * d_state) if d_conv else 0
+        n_embd_s = d_state * d_inner
+
+    if not (n_embd_r or n_embd_s):
+        return None
+    # key/value split the two tensors, as for DSV4's compressor rings: one row of
+    # `n_embd_r + n_embd_s` f32 per layer per sequence, whatever the KV quant.
+    return CompressedKV(
+        "recurrent state",
+        layers,
+        1,
+        n_embd_r,
+        n_embd_s,
+        fixed_rows=1,
+        elem_bpw=32.0,
+    )
+
 
 # Architectures whose loader forces K-only cache storage without the GGUF saying
 # so. DeepSeek-V4 fakes `is_mla()` on all four of its cache hparam copies
@@ -835,6 +948,17 @@ def _model_kv_from_metadata(md):
     n_layer = g("block_count")
     if not n_layer:
         return None
+    # The last `nextn_predict_layers` blocks are NextN/MTP heads, which sit past
+    # `hparams.n_layer() = n_layer_all - n_layer_nextn` (llama-hparams.cpp).
+    # That boundary does NOT keep them out of the attention cache in general:
+    # `llama_kv_cache` loops over `n_layer_all` and only `_ARCH_MTP_NO_CACHE`
+    # filters them out (llama-model.cpp). It does bound the *recurrent* state,
+    # which `llama_memory_recurrent` allocates over `n_layer()`, and `is_recr` /
+    # `set_swa_pattern` are both false past it. (gemma4-assistant is an MTP-only
+    # draft model with `n_layer_nextn == n_layer_all`; the guard keeps `n_main`
+    # at the block count rather than zero.)
+    n_nextn = int(g("nextn_predict_layers") or 0)
+    n_main = n_layer - n_nextn if 0 < n_nextn < n_layer else n_layer
     n_blocks = n_layer  # physical blocks, before any loop expansion
     n_loops = _n_loops(md)
     n_head = g("attention.head_count")
@@ -873,6 +997,23 @@ def _model_kv_from_metadata(md):
     if head_kv is None:
         return None
 
+    # A hybrid's recurrent blocks cache nothing. Most GGUFs say so by zeroing
+    # `head_count_kv` on them, which needs no help; the Qwen3.5/3.6 family
+    # instead ships a scalar `head_count_kv` plus a stride, so fold that back
+    # into the same per-layer form and let one rule ("kv heads == 0 => no
+    # cache") drive everything downstream. NextN/MTP blocks are dense attention
+    # and never recurrent, matching `is_recr_impl[il] = il < n_layer() && ...`.
+    recr_flags = _recurrent_flags(md, arch, n_layer)
+    if recr_flags:
+        recr_flags = [f and il < n_main for il, f in enumerate(recr_flags)]
+        head_kv = [0 if recr_flags[il] else head_kv[il] for il in range(n_layer)]
+    # Architectures that additionally keep their MTP blocks out of the main
+    # attention cache (`mtp_on_hybrid_qwen35` / the STEP35+HY_V3 branch in
+    # llama-model.cpp); everywhere else the cache loop runs to `n_layer_all` with
+    # no filter, so the MTP block does get a cache layer.
+    if n_nextn and arch in _ARCH_MTP_NO_CACHE:
+        head_kv = [0 if il >= n_main else head_kv[il] for il in range(n_layer)]
+
     swa = g("attention.sliding_window")
     swa_flags = None
     if swa:
@@ -883,6 +1024,10 @@ def _model_kv_from_metadata(md):
         swa_flags = _swa_flags(
             period if pattern is None else pattern, n_layer, dense_first
         )
+        if swa_flags is not None:
+            # `set_swa_pattern` walks `n_layer()` and clears the rest, so an MTP
+            # block is full-attention however the stride would land on it.
+            swa_flags = [f and il < n_main for il, f in enumerate(swa_flags)]
         if swa_flags is None:
             sys.stderr.write(
                 f"WARNING: '{arch}' declares attention.sliding_window={swa} but "
@@ -916,6 +1061,18 @@ def _model_kv_from_metadata(md):
     # but the sparse-attention architectures.
     compressed = _compressed_groups(md, arch, head_kv, key_length, cached, n_layer)
 
+    # A hybrid's recurrent blocks are not free: each holds a per-sequence f32
+    # state buffer, allocated out of the same "context" pool as the KV cache and
+    # reported in llama.cpp's memory breakdown alongside it. `n_layer - cached`
+    # would not do: on an `_ARCH_MTP_NO_CACHE` arch an MTP block is neither.
+    if recr_flags:
+        n_recr = sum(recr_flags)
+    else:  # recurrence marked by zeroing head_count_kv, within `n_layer()`
+        n_recr = sum(1 for il in range(n_main) if not head_kv[il])
+    recr_state = _recurrent_state_group(md, arch, n_head, n_embd, n_recr)
+    if recr_state is not None:
+        compressed = (*compressed, recr_state)
+
     spec = ModelKV(
         full_attn_layers=len(full_layers),
         full_attn_kv_heads=_group_kv_heads(head_kv, full_layers),
@@ -939,10 +1096,10 @@ def _model_kv_from_metadata(md):
     side_caches = [grp.name for grp in compressed if grp.ratio]
     if side_caches:
         attn_kind += " + " + ", ".join(side_caches)
-    if len(cached) < n_layer:
+    if n_recr:
         # Hybrid: the remaining layers are conv / recurrent / linear-attention
         # blocks that keep a fixed-size state instead of a KV cache.
-        attn_kind += f" ({n_layer - len(cached)} recurrent)"
+        attn_kind += f" ({n_recr} recurrent)"
     # Layer counts for display come back out of the spec, so they carry the loop
     # expansion without this script ever multiplying anything.
     info = {
@@ -952,6 +1109,10 @@ def _model_kv_from_metadata(md):
         "n_swa_layers": spec.sliding_window_layers_all,
         "swa_window": swa if swa_layers else None,
         "n_blocks": n_blocks,
+        "n_recr_layers": n_recr,
+        # Only the MTP blocks actually kept out of the main cache are worth
+        # calling out; elsewhere they are already inside `n_attn_layers`.
+        "n_nextn_excluded": n_nextn if arch in _ARCH_MTP_NO_CACHE else 0,
         "n_loops": n_loops,
         "source": "metadata",
         "n_head": n_head,
@@ -1114,6 +1275,32 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
     info["quant_bpw"] = quant_bpw
     info["kv_quants"] = kv_quants
     return kv_by_quant, overhead_bytes, info
+
+
+def _recurrent_state_caveat(spec):
+    """Note for the one runtime flag that multiplies a figure below several-fold.
+
+    `llama_memory_recurrent` allocates `mem_size * (1 + n_rs_seq)` rows, not one:
+    a recurrent state cannot be rewound by replaying tokens, so rolling back a
+    rejected draft needs a snapshot per draftable token. `n_rs_seq` is
+    `--spec-draft-n-max` whenever `--spec-type` includes an MTP / EAGLE3 / DFlash
+    draft (`common_params_speculative::need_n_rs_seq`) and 0 otherwise, so the
+    line below is the no-speculation figure -- with this project's own
+    `models.ini` (`spec-type = draft-mtp`, `spec-draft-n-max = 4`) the real
+    allocation is 5x it.
+    """
+    grp = next((g for g in spec.compressed if g.name == "recurrent state"), None)
+    if grp is None:
+        return []
+    return [
+        (
+            "  note: the recurrent state below assumes no speculative decoding. An "
+            "MTP / EAGLE3 / DFlash\n"
+            "        draft sets n_rs_seq = --spec-draft-n-max and llama.cpp then "
+            "allocates (1 + n_rs_seq)\n"
+            "        snapshots of it, to roll back rejected draft tokens."
+        )
+    ]
 
 
 def _kv_tail_caveats(spec, n_ctx):
@@ -1389,16 +1576,36 @@ def main():
         )
         w.writerows(rows)
 
-    # Bonus: dense-vs-expert byte summary to stderr (does not touch the CSV).
-    dense = exps = 0
+    # Bonus: weight-class byte summary to stderr (does not touch the CSV).
+    # Bucketed on the base tensor name -- r[1] is the name with `blk.N.` already
+    # stripped by build_row, so dropping everything from the first `.` leaves
+    # e.g. `ffn_gate_exps`, and `.weight`/`.bias`/scale variants land together.
+    # The three FFN classes are worth separating because they scale differently:
+    # routed experts are the bulk that `--cpu-moe` can offload, shared experts
+    # and dense FFN fire on every token and belong in VRAM.
+    exps = shexp = ffn = other = 0
     for r in rows:
-        if isinstance(r[6], int):  # r[1] is tensor_name (blk.N. stripped)
-            if "_exps." in r[1]:
-                exps += r[6]
-            else:
-                dense += r[6]
+        if not isinstance(r[6], int):
+            continue
+        parts = r[1].split(".")
+        base = parts[0]
+        # `ffn_gate.<i>.weight` is the pre-merge per-expert spelling (grok and
+        # early Mixtral conversions); it is a routed expert, not a dense FFN.
+        legacy_exp = base in _DENSE_FFN and len(parts) > 1 and parts[1].isdigit()
+        if base.endswith("_exps") or legacy_exp:
+            exps += r[6]
+        elif "_shexp" in base:
+            shexp += r[6]
+        elif base in _DENSE_FFN:
+            ffn += r[6]
+        else:
+            other += r[6]
     gib = 1 << 30  # binary gibibyte (2^30); HF web UI reports decimal GB (10^9)
     gb = 10**9
+
+    def weight_line(label, nbytes, note=""):
+        line = f"  {label:<32}: {nbytes / gib:8.2f} GiB  {nbytes / gb:8.2f} GB"
+        return f"{line}  {note}\n" if note else f"{line}\n"
 
     # Size of the routed experts actually activated per token: top-k of the
     # routed experts fire (expert_used_count of expert_count), so only that
@@ -1424,26 +1631,30 @@ def main():
                 u = used[int(m.group(1))]
             activated_exps += nb // n_expert * u
 
-    summary = (
-        f"\nwrote {len(rows)} rows -> {args.output}\n"
-        f"  routed-expert tensors (*_exps.*): {exps / gib:8.2f} GiB  {exps / gb:8.2f} GB\n"
-    )
+    # Empty buckets are omitted: a dense model has no expert lines to show, and
+    # an MoE without dense-FFN or shared-expert layers has none of those.
+    summary = f"\nwrote {len(rows)} rows -> {args.output}\n"
+    if exps:
+        summary += weight_line("routed-expert tensors (*_exps.*)", exps)
     if activated_exps:
         k_desc = (
             f"top-{used} of {n_experts}"
             if not isinstance(used, list) and n_experts
             else "per-layer top-k"
         )
-        summary += (
-            f"  of which activated per token    : {activated_exps / gib:8.2f} GiB  "
-            f"{activated_exps / gb:8.2f} GB  ({k_desc} routed experts/token; "
-            "excludes dense/shared/attn weights)\n"
+        summary += weight_line(
+            "of which activated per token",
+            activated_exps,
+            f"({k_desc} routed experts/token; excludes dense/shared/attn weights)",
         )
-    summary += (
-        f"  everything else (dense)         : {dense / gib:8.2f} GiB  {dense / gb:8.2f} GB\n"
-        f"  total (model weights)           : {(dense + exps) / gib:8.2f} GiB  "
-        f"{(dense + exps) / gb:8.2f} GB\n"
-    )
+    if shexp:
+        summary += weight_line(
+            "shared-expert tensors (*_shexp*)", shexp, "(activated on every token)"
+        )
+    if ffn:
+        summary += weight_line("dense FFN (ffn_{gate,up,down})", ffn)
+    summary += weight_line("everything else (attn/embd/norm)", other)
+    summary += weight_line("total (model weights)", exps + shexp + ffn + other)
     sys.stderr.write(summary)
 
     # Educated guess of non-weight VRAM (KV cache + fixed scratch/overhead).
@@ -1459,6 +1670,13 @@ def main():
         layer_desc = f"{info['n_attn_layers']} attn layers"
         if info.get("n_loops", 1) > 1:
             layer_desc += f" ({info['n_blocks']} blocks x {info['n_loops']} loops)"
+        if info.get("n_nextn_excluded"):
+            # Excluded from every count above; say so, or the layer arithmetic
+            # will not add up against `block_count`.
+            layer_desc += (
+                f" (+{info['n_nextn_excluded']} NextN/MTP block(s), cached only "
+                "in the separate MTP context)"
+            )
         if info.get("n_swa_layers"):
             layer_desc += (
                 f": {info['n_full_layers']} full @ {n_ctx // 1024}k tok, "
@@ -1514,7 +1732,9 @@ def main():
                 "        fallback it is paired with -- the kvarn rows below are "
                 "sized at that fallback.\n"
             )
-        for line in _kv_tail_caveats(info["spec"], n_ctx):
+        for line in _kv_tail_caveats(info["spec"], n_ctx) + _recurrent_state_caveat(
+            info["spec"]
+        ):
             sys.stderr.write(line + "\n")
         for qname, tail in kv_quants:
             nbytes = kv_by_quant[_kv_label(qname, tail)]

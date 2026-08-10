@@ -466,36 +466,60 @@ class ModelKV(NamedTuple):
 #
 # Geometry values were read from the GGUF headers of the models pinned in
 # models.ini (via scripts/gguf-meta-extract.py). Transcribe each hparam as it
-# appears in the header -- layer counts are `block_count`, and a `num_loops`
-# goes in `n_loops`. Do NOT fold one field into another: every derived quantity
-# is a ModelKV method, so a curated entry and a GGUF-derived one always agree.
+# appears in the header, and a `num_loops` goes in `n_loops`. Do NOT fold one
+# field into another: every derived quantity is a ModelKV method, so a curated
+# entry and a GGUF-derived one always agree.
+#
+# The layer counts are **cache layers, not `block_count`** -- the two coincide
+# only for an ordinary dense transformer. Read them off the extractor's
+# derivation block rather than the header, which is what makes them right for
+# the two ways a block can hold no cache: a NextN/MTP block sits past
+# `n_layer()`, and a hybrid's linear-attention blocks keep a fixed-size
+# recurrent state instead (a `CompressedKV` row here, per `_recurrent_state_group`).
+# Qwen3.5/3.6 is both at once -- of Qwen3.6-27B's 65 blocks, 48 are recurrent and
+# 1 is MTP, leaving 16 that cache.
 MODEL_KV: dict[str, ModelKV] = {
     "Qwen3.6-35B-A3B": ModelKV(
-        full_attn_layers=41,
+        full_attn_layers=10,
         full_attn_kv_heads=2,
         sliding_window_layers=0,
         sliding_window_kv_heads=0,
         sliding_window_size=0,
         key_dim=256,
         value_dim=256,
+        compressed=(
+            CompressedKV(
+                "recurrent state", 30, 1, 24576, 524288, fixed_rows=1, elem_bpw=32.0
+            ),
+        ),
     ),
     "Qwen3.6-27B": ModelKV(
-        full_attn_layers=64,
+        full_attn_layers=16,
         full_attn_kv_heads=4,
         sliding_window_layers=0,
         sliding_window_kv_heads=0,
         sliding_window_size=0,
         key_dim=256,
         value_dim=256,
+        compressed=(
+            CompressedKV(
+                "recurrent state", 48, 1, 30720, 786432, fixed_rows=1, elem_bpw=32.0
+            ),
+        ),
     ),
     "Qwen3.5-9B": ModelKV(
-        full_attn_layers=33,
+        full_attn_layers=8,
         full_attn_kv_heads=4,
         sliding_window_layers=0,
         sliding_window_kv_heads=0,
         sliding_window_size=0,
         key_dim=256,
         value_dim=256,
+        compressed=(
+            CompressedKV(
+                "recurrent state", 24, 1, 24576, 524288, fixed_rows=1, elem_bpw=32.0
+            ),
+        ),
     ),
     "Gemma4-E2B": ModelKV(
         full_attn_layers=7,
@@ -544,7 +568,10 @@ MODEL_KV: dict[str, ModelKV] = {
     ),
     # Layer counts are the non-zero entries of the per-layer `attention.head_count_kv`
     # array, not `block_count`: the remaining blocks are shortconv layers with no KV
-    # cache.
+    # cache, carrying a `n_embd * (shortconv.l_cache - 1)` f32 state instead (and no
+    # `n_embd_s` half -- LFM2 has no SSM state). At a few hundred KiB total these
+    # rows change no reported figure, but leaving them out would make a curated
+    # entry disagree with the same model derived from its header.
     "LFM2.5-230M": ModelKV(
         full_attn_layers=6,
         full_attn_kv_heads=8,
@@ -553,6 +580,9 @@ MODEL_KV: dict[str, ModelKV] = {
         sliding_window_size=0,
         key_dim=64,  # kvarn not supported
         value_dim=64,
+        compressed=(
+            CompressedKV("recurrent state", 8, 1, 2048, 0, fixed_rows=1, elem_bpw=32.0),
+        ),
     ),
     "LFM2.5-8B-A1B": ModelKV(
         full_attn_layers=6,
@@ -562,6 +592,11 @@ MODEL_KV: dict[str, ModelKV] = {
         sliding_window_size=0,
         key_dim=64,  # kvarn not supported
         value_dim=64,
+        compressed=(
+            CompressedKV(
+                "recurrent state", 18, 1, 4096, 0, fixed_rows=1, elem_bpw=32.0
+            ),
+        ),
     ),
     # block_count=30; head_count_kv is 8 on blocks 2, 5, 9, 13, 17, 21, 24, 27.
     "LFM2.5-2.6B": ModelKV(
@@ -572,14 +607,19 @@ MODEL_KV: dict[str, ModelKV] = {
         sliding_window_size=0,
         key_dim=64,  # kvarn not supported
         value_dim=64,
+        compressed=(
+            CompressedKV(
+                "recurrent state", 22, 1, 4096, 0, fixed_rows=1, elem_bpw=32.0
+            ),
+        ),
     ),
     # `bailingmoe3` hybrid: of its 42 blocks, `attention.head_count_kv` is 1 on
     # blocks 5, 11, 17, 23, 29, 35, 41 (MLA) and 0 on the other 35, which are KDA
     # (Kimi delta-net) linear-attention blocks holding a fixed-size recurrent state
-    # instead of a KV cache -- so they contribute nothing here, and ModelKV does not
-    # model them (llama_hparams::n_embd_r/n_embd_s: 3*(ssm.conv_kernel-1)*n_head*
-    # kda.head_dim + kda.head_dim^2*n_head = 561152 f32 elems per layer per
-    # sequence, ~0.07 GiB over the 35 blocks -- context-independent).
+    # instead of a KV cache. That state is the `compressed` row below:
+    # llama_hparams::n_embd_r/n_embd_s = 3*(ssm.conv_kernel-1)*n_head*kda.head_dim
+    # (36864) + kda.head_dim^2*n_head (524288) f32 elems per layer per sequence,
+    # ~0.07 GiB over the 35 blocks and context-independent.
     #
     # `attention.key_length` = 576 is already the cached latent (kv_lora_rank 512 +
     # rope.dimension_count 64), and `key_length_mla`/`value_length_mla` (192/128)
@@ -587,8 +627,12 @@ MODEL_KV: dict[str, ModelKV] = {
     # `attention.value_length` (512) must not be counted. KVarN is doubly out here
     # -- the MLA cache path is rejected outright and 576 is not a KVarN head dim.
     #
-    # `nextn_predict_layers = 1`, but the GGUF ships no `nextn.*` tensors and no
-    # 43rd block, so all 7 MLA blocks are real cached layers.
+    # `nextn_predict_layers = 1`, so block 41 is an MTP head sitting past
+    # `hparams.n_layer()` -- but all 7 MLA blocks are still real cached layers:
+    # `llama_kv_cache` loops over `n_layer_all` and bailingmoe3 passes no filter,
+    # so only the recurrent state (which llama_memory_recurrent allocates over
+    # `n_layer()`) stops at block 40. Qwen3.5/3.6, STEP35 and HY_V3 are the only
+    # architectures that do drop the MTP block from the main cache.
     "Ling-3.0-flash": ModelKV(
         full_attn_layers=7,
         full_attn_kv_heads=1,
@@ -597,6 +641,11 @@ MODEL_KV: dict[str, ModelKV] = {
         sliding_window_size=0,
         key_dim=576,  # kvarn not supported
         value_dim=0,
+        compressed=(
+            CompressedKV(
+                "recurrent state", 35, 1, 36864, 524288, fixed_rows=1, elem_bpw=32.0
+            ),
+        ),
     ),
     # Looped transformer: block_count=22, num_loops=2 -> 44 cache layers.
     # Both values go in as-is; ModelKV does the multiplication.

@@ -146,8 +146,10 @@ fetches only the header (a few MB, never the multi-GB tensor payload), parses th
 table, and writes a per-tensor CSV file (layer, tensor_name, geometry, n_points, quant,
 bytes_per_point, total_bytes). It also prints a summary to stderr:
 
-- model weights split into dense vs. routed-expert (`*_exps.*`) bytes, plus the fraction
-  of expert weight actually activated per token on MoE models;
+- model weights split into routed-expert (`*_exps.*`), shared-expert (`*_shexp*`), dense
+  FFN (`ffn_{gate,up,down}`) and everything-else bytes — empty buckets are omitted, so a
+  dense model shows only the last two — plus the fraction of routed-expert weight actually
+  activated per token on MoE models;
 - a KV-cache size estimate at 256k tokens across several cache quantizations (`f16`,
   `q8_0`, `kvarn4`, `kvarn3`), derived from the model's hyperparameters (handles GQA,
   per-layer head counts, sliding-window attention, and MLA/latent caches);
