@@ -1,7 +1,7 @@
 context:
   # Main branch (upstream llama.cpp)
   # fork: ggml-org/llama.cpp
-  # version: b10330
+  # version: b10342
 
   # https://github.com/ggml-org/llama.cpp/pull/21067
   # Forked from main at b8533 (2026-03-26)
@@ -26,7 +26,7 @@ context:
   # + laguna-S-2.1 cosmetic tweaks
   # + llama-perplexity collision probability measure
   fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.4.3-r1
+  version: beellama-staging-v0.4.3-r2
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
