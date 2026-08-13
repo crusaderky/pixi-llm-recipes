@@ -17,17 +17,16 @@ context:
   # version: lazy-experts-mmap
 
   # beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
-  # + Ternary-Bonsai CUDA
   # https://github.com/Anbeeld/beellama.cpp
   # fork: Anbeeld/beellama.cpp
-  # version: preview-v0.4.3
+  # version: v0.4.3
 
-  # Beellama-v0.4.3 preview
+  # Beellama-v0.4.4 preview
   # + llama-perplexity collision probability measure
-  # + laguna-S-2.1 cosmetic tweaks
-  # + muse-glimmer support
+  # + https://github.com/ggml-org/llama.cpp/pull/26958
+  # + https://github.com/ggml-org/llama.cpp/pull/21067
   fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.4.3-r3
+  version: beellama-staging-v0.4.4-r4
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
