@@ -116,7 +116,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 | Model              | Variant            | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Notes                                 |
 | ------------------ | ------------------ | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------------------------------------- |
-| Qwen3.6-27B        | Q3_K_M MTP         | 13 GB        | 256k kvarn4 t1024   | 20.1 GB             | 914 tok/s           | 62 tok/s           | tested particularly good quant        |
+| Qwen3.8-27B        | IQ4_XS MTP         | 15 GB        | 256k kvarn4         | 20.3 GB             | 1,028 tok/s         | 60 tok/s           |                                       |
 | Kat-Coder-V2.5-Dev | APEX I-Compact MTP | 17 GB        | 256k kvarn5 t1024   | 19.8 GB             | 2,168 tok/s         | 150 tok/s          |                                       |
 | Gemma4-E2B         | QAT MTP            | 3.5 GB       | 128k q8/q8          | 3.8 GB              | 6,434 tok/s         | 236 tok/s          |                                       |
 | Gemma4-31B         | QAT MTP            | 18 GB        | 64k q8/q8           | 21.7 GB             | 836 tok/s           | 75 tok/s           | limited context                       |
