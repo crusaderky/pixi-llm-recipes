@@ -20,7 +20,7 @@ build:
         pi-llama-cpp@0.9.1
         pi-web-access@0.22.0
         pi-token-speed@0.7.1
-        @juicesharp/rpiv-ask-user-question@2.5.1
+        @juicesharp/rpiv-ask-user-question@2.5.2
         @tmustier/pi-usage-extension@0.9.4
 
 requirements:
