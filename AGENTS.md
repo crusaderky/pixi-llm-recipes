@@ -171,7 +171,6 @@ Both: read-only root; `/tmp`, `/home`, `/root` as tmpfs; the target workdir boun
 pi-specific:
 
 - Mounts `$CONDA_PREFIX/home/.pi` as `~/.pi`; bind-mounts `~/.pi/agent/{auth,trust,settings}.json` and `sessions/` from the host.
-- Mounts a fresh **tmpfs** at `~/.pi/agent/intercom`, so the pi-intercom broker and its unix socket stay private per sandbox: a session and its pi-subagents children can talk; independent sandboxes and the host cannot. Without it the extension would write shared state into `$CONDA_PREFIX` through the rw `~/.pi` bind.
 - If the workdir is a **git worktree**, binds the main repo's common `.git` dir read-write so git can read shared objects and update worktree admin files, without exposing the main checkout.
 - Calls `inject-pi-extensions.sh` to merge the packaged `packages` block into `~/.pi/agent/settings.json`.
 - On exit, rsyncs `skills`, `AGENTS.md`, `keybindings.json` back from `$CONDA_PREFIX/home/.pi/agent/` into `pixi-recipes/pi-home/`, so edits made from inside pi can be reviewed and committed. `-c --no-times` keeps mtimes stable when content is unchanged, otherwise pixi-build would rebuild the recipe on every launch.
