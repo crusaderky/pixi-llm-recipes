@@ -17,12 +17,12 @@ build:
         pi-autoresearch@1.6.2
         pi-btw@0.4.1
         pi-caveman@1.0.8
-        pi-intercom@0.10.0
+        pi-intercom@0.10.1
         pi-llama-cpp@0.9.1
-        pi-web-access@0.20.0
-        pi-subagents@0.45.2
+        pi-web-access@0.22.0
+        pi-subagents@0.49.0
         pi-token-speed@0.7.1
-        @juicesharp/rpiv-ask-user-question@2.4.0
+        @juicesharp/rpiv-ask-user-question@2.5.1
         @tmustier/pi-usage-extension@0.9.4
 
 requirements:
