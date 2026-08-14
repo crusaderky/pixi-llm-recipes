@@ -126,7 +126,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | LFM2.5-VL-3B       | Q8_0               | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          |                                       |
 | Laguna-S-2.1       | IQ4_XS             | 54 GB        | 256k kvarn5 t1024   | 20.5 GB<sup>4</sup> | 137 tok/s           | 13 tok/s           |                                       |
 | DeepSeek-V4-Flash  | IQ2_XXS            | 85 GB        | 256k f16/f16        | 22.0 GB<sup>4</sup> | 64 tok/s            | 11 tok/s           | KV cache quantization is very harmful |
-| Muse-Glimmer-30B   | Q4_K_XL DFlash     | 22 GB        | 256k kvarn6 t1024   | 20.5 GB             | 911 tok/s           | 117 tok/s          |                                       |
+| Muse-Glimmer-30B   | Q4_K_XL DFlash     | 19 GB        | 256k kvarn6 t1024   | 18.7 GB             | 938 tok/s           | 124 tok/s          |                                       |
 
 **Notes:**
 
