@@ -202,8 +202,8 @@ should retest on your own hardware.
 
 LiquidAI released a QAD (Quantization-Aware Distillation) Q4_0 quant after the initial
 publication of this report. It looks very degraded compared to Bartowski's quants, on
-the KLD chart and even more so on the Same Sampled Token one. Whether it actually
-performs better on actual benchmarks remains to be seen.
+the KLD chart and even more so on the Same Sampled Token one. LiquidAI's own benchmarks
+suggest it performs closely to their Q4_K_M quant.
 
 ![QAD KLD](11.QAD_KLD.png)
 ![QAD Same Sampled Token](12.QAD_sampled.png)

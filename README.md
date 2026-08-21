@@ -121,8 +121,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | Gemma4-E2B         | QAT MTP            | 3.5 GB       | 128k q8/q8          | 3.8 GB              | 6,434 tok/s         | 236 tok/s          |                                       |
 | Gemma4-31B         | QAT MTP            | 18 GB        | 64k q8/q8           | 21.7 GB             | 836 tok/s           | 75 tok/s           | limited context                       |
 | LFM2.5-230M        | Q4_K_M             | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | for smoke testing purposes            |
-| LFM2.5-8B-A1B      | APEX I-Quality     | 5.7 GB       | 128k q8/q8          | 7.3 GB              | 10,724 tok/s        | 263 tok/s          |                                       |
-| LFM2.5-2.6B        | Q8_0               | 2.7 GB       | 128k q8/q8          | 4.5 GB              | 11,735 tok/s        | 181 tok/s          |                                       |
+| LFM2.5-2.6B        | Q8_0 DSpark        | 2.9 GB       | 128k q8/q8          | 6.5 GB              | 8,065 tok/s         | 230 tok/s          |                                       |
 | LFM2.5-VL-3B       | Q8_0               | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          |                                       |
 | Laguna-S-2.1       | IQ4_XS             | 54 GB        | 256k kvarn5 t1024   | 20.5 GB<sup>4</sup> | 137 tok/s           | 13 tok/s           |                                       |
 | DeepSeek-V4-Flash  | IQ2_XXS            | 85 GB        | 256k f16/f16        | 22.0 GB<sup>4</sup> | 64 tok/s            | 11 tok/s           | KV cache quantization is very harmful |
