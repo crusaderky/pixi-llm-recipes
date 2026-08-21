@@ -2924,46 +2924,6 @@ Same sampled p: 50.523 ± 0.117 %
 ------------------------------
 # llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
 # model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k f16 --cache-type-v f16 --kl-divergence
-0.00.355.939 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.355.943 I Available GGUF files:
-0.00.355.943 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.355.943 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.355.944 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.355.944 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.355.944 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.355.944 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.355.944 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.355.945 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.355.945 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.355.945 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.355.945 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.355.945 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q8_0 --cache-type-v q8_0 --kl-divergence
-0.00.351.495 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.351.499 I Available GGUF files:
-0.00.351.500 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.351.500 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.351.500 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.351.500 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.351.501 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.351.501 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.351.501 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.351.501 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.351.501 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.351.502 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.351.502 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.351.502 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
 llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_M --cache-type-k f16 --cache-type-v f16 --kl-divergence
 0.54.485.911 I 
 0.54.485.974 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
@@ -22430,266 +22390,6 @@ Same sampled p: 50.090 ± 0.117 %
 
 ------------------------------
 # llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q8_0 --cache-type-v q6_0 --kl-divergence
-0.00.354.662 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.354.665 I Available GGUF files:
-0.00.354.666 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.354.666 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.354.666 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.354.666 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.354.666 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.354.667 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.354.667 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.354.667 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.354.667 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.354.667 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.354.667 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.354.668 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q8_0 --cache-type-v q5_1 --kl-divergence
-0.00.356.899 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.356.902 I Available GGUF files:
-0.00.356.903 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.356.903 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.356.903 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.356.903 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.356.904 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.356.904 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.356.904 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.356.904 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.356.904 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.356.904 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.356.905 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.356.905 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q5_0 --cache-type-v q5_0 --kl-divergence
-0.00.371.105 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.371.109 I Available GGUF files:
-0.00.371.109 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.371.110 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.371.110 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.371.110 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.371.110 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.371.110 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.371.110 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.371.111 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.371.111 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.371.111 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.371.111 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.371.111 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q5_0 --cache-type-v q5_0 --kv-tail-tokens 512 --kl-divergence
-0.00.375.649 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.375.653 I Available GGUF files:
-0.00.375.653 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.375.654 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.375.654 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.375.654 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.375.654 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.375.654 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.375.655 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.375.655 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.375.655 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.375.655 I  - LFM2.5-2.6B.Q6_K.gguf
-error: --model is required
-
-0.00.375.655 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.375.656 I  - LFM2.5-2.6B.f16.gguf
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q5_0 --cache-type-v q5_0 --kv-tail-tokens 1024 --kl-divergence
-0.00.378.240 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.378.244 I Available GGUF files:
-0.00.378.244 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.378.245 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.378.245 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.378.245 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.378.245 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.378.245 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.378.246 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.378.246 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.378.246 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.378.246 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.378.246 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.378.247 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q4_0 --cache-type-v q4_0 --kl-divergence
-0.00.387.157 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.387.160 I Available GGUF files:
-0.00.387.161 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.387.161 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.387.161 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.387.161 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.387.162 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.387.162 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.387.162 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.387.162 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.387.162 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.387.162 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.387.163 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.387.163 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q4_0 --cache-type-v q4_0 --kv-tail-tokens 512 --kl-divergence
-0.00.511.174 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.511.177 I Available GGUF files:
-0.00.511.177 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.511.177 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.511.177 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.511.177 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.511.177 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.511.178 I  - LFM2.5-2.6B.Q4_K_M.gguf
-error: --model is required
-
-0.00.511.178 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.511.178 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.511.178 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.511.178 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.511.178 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.511.178 I  - LFM2.5-2.6B.f16.gguf
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q4_0 --cache-type-v q4_0 --kv-tail-tokens 1024 --kl-divergence
-0.00.446.539 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.446.543 I Available GGUF files:
-0.00.446.543 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.446.544 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.446.544 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.446.544 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.446.544 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.446.544 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.446.545 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.446.545 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.446.545 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.446.545 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.446.545 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.446.546 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q4_0 --cache-type-v q4_0 --kv-tail-tokens 2048 --kl-divergence
-0.00.416.884 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.416.889 I Available GGUF files:
-0.00.416.889 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.416.890 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.416.890 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.416.890 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.416.890 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.416.890 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.416.891 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.416.891 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.416.891 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.416.891 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.416.892 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.416.892 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q3_0 --cache-type-v q3_0 --kl-divergence
-0.00.404.980 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.404.983 I Available GGUF files:
-0.00.404.984 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.404.984 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.404.984 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.404.984 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.404.984 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.404.984 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.404.985 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.404.985 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.404.985 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.404.985 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.404.985 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.404.986 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q3_0 --cache-type-v q3_0 --kv-tail-tokens 512 --kl-divergence
-0.00.398.801 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.398.809 I Available GGUF files:
-0.00.398.809 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.398.809 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.398.809 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.398.810 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.398.810 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.398.810 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.398.810 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.398.810 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.398.810 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.398.811 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.398.811 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.398.811 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q3_0 --cache-type-v q3_0 --kv-tail-tokens 1024 --kl-divergence
-0.00.407.855 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.407.859 I Available GGUF files:
-0.00.407.860 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.407.860 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.407.860 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.407.861 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.407.861 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.407.861 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.407.861 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.407.861 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.407.862 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.407.862 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.407.862 error: --model is required
-
-I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.407.862 I  - LFM2.5-2.6B.f16.gguf
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q3_0 --cache-type-v q3_0 --kv-tail-tokens 2048 --kl-divergence
-0.00.498.517 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.498.520 I Available GGUF files:
-0.00.498.521 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.498.521 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.498.521 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.498.521 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.498.521 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.498.521 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.498.522 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.498.522 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.498.522 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.498.522 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.498.522 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.498.523 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
 # model: /home/crusaderky/.cache/huggingface/hub/models--mradermacher--LFM2.5-2.6B-GGUF/snapshots/c727df2e95f55a1dc1ac35df9bb7176499f41af0/LFM2.5-2.6B.Q3_K_M.gguf size=1366845888 mtime=2026-08-06T23:16:01+00:00 sha256/1048576B=70d9366bccbc26ad6de640bd7d3f91e0d5be449367266c108f1d25263d820649
 llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_M --cache-type-k q8_0 --cache-type-v q6_0 --kl-divergence
 0.02.500.551 I 
@@ -34322,86 +34022,6 @@ Same sampled p: 48.669 ± 0.118 %
 
 ------------------------------
 # llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q2_0 --cache-type-v q2_0 --kl-divergence
-0.00.371.238 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.371.241 I Available GGUF files:
-0.00.371.242 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.371.242 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.371.242 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.371.242 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.371.243 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.371.243 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.371.243 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.371.243 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.371.243 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.371.243 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.371.244 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.371.244 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q2_0 --cache-type-v q2_0 --kv-tail-tokens 512 --kl-divergence
-0.00.352.880 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.352.883 I Available GGUF files:
-0.00.352.884 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.352.884 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.352.884 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.352.884 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.352.884 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.352.884 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.352.885 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.352.885 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.352.885 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.352.885 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.352.886 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.352.886 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q2_0 --cache-type-v q2_0 --kv-tail-tokens 1024 --kl-divergence
-0.00.383.968 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.383.971 I Available GGUF files:
-0.00.383.972 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.383.972 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.383.972 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.383.972 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.383.972 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.383.973 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.383.973 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.383.973 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.383.973 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.383.973 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.383.973 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.383.974 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
-# model: <unresolved>
-llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL --cache-type-k q2_0 --cache-type-v q2_0 --kv-tail-tokens 2048 --kl-divergence
-0.00.387.717 E common_download_get_hf_plan: no GGUF files found in repository mradermacher/LFM2.5-2.6B-GGUF
-0.00.387.721 I Available GGUF files:
-0.00.387.721 I  - LFM2.5-2.6B.IQ4_XS.gguf
-0.00.387.722 I  - LFM2.5-2.6B.Q2_K.gguf
-0.00.387.722 I  - LFM2.5-2.6B.Q3_K_L.gguf
-0.00.387.722 I  - LFM2.5-2.6B.Q3_K_M.gguf
-0.00.387.722 I  - LFM2.5-2.6B.Q3_K_S.gguf
-0.00.387.722 I  - LFM2.5-2.6B.Q4_K_M.gguf
-0.00.387.723 I  - LFM2.5-2.6B.Q4_K_S.gguf
-0.00.387.723 I  - LFM2.5-2.6B.Q5_K_M.gguf
-0.00.387.723 I  - LFM2.5-2.6B.Q5_K_S.gguf
-0.00.387.723 I  - LFM2.5-2.6B.Q6_K.gguf
-0.00.387.724 I  - LFM2.5-2.6B.Q8_0.gguf
-0.00.387.724 I  - LFM2.5-2.6B.f16.gguf
-error: --model is required
-
-------------------------------
-# llama-perplexity: version: 11001 (f7e9c8cf9) | built with GNU 15.3.0 for Linux x86_64
 # model: /home/crusaderky/.cache/huggingface/hub/models--mradermacher--LFM2.5-2.6B-GGUF/snapshots/c727df2e95f55a1dc1ac35df9bb7176499f41af0/LFM2.5-2.6B.Q3_K_M.gguf size=1366845888 mtime=2026-08-06T23:16:01+00:00 sha256/1048576B=70d9366bccbc26ad6de640bd7d3f91e0d5be449367266c108f1d25263d820649
 llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo mradermacher/LFM2.5-2.6B-GGUF:Q3_K_M --cache-type-k q2_0 --cache-type-v q2_0 --kl-divergence
 0.02.288.515 I 
@@ -36223,5 +35843,766 @@ Minimum Δp: -99.966%
 RMS Δp    : 13.612 ± 0.095 %
 Same top p: 76.302 ± 0.149 %
 Same sampled p: 48.548 ± 0.119 %
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-BF16.gguf size=5403158528 mtime=2026-08-21T13:00:40+00:00 sha256/1048576B=893bd024dfe9e53b1093c8bdcb4987b39f2f5486f06ff9957832cadf28bd146f
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:BF16 --cache-type-k f16 --cache-type-v f16
+0.02.576.745 I 
+0.02.576.811 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.02.576.888 I perplexity: saving all logits to /tmp/logits.dat
+0.02.576.891 I perplexity: tokenizing the input ..
+0.02.693.826 I perplexity: tokenization took 116.927 ms
+0.02.693.926 I perplexity: calculating perplexity over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.12.451.914 I perplexity: 9.70 seconds per pass - ETA 0.80 minutes
+[1]46.2100,[2]44.4489,[3]49.8009,[4]46.5982,[5]45.1981,
+0.50.528.597 I Final estimate: PPL = 45.1981 +/- 0.66243
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: <unresolved>
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:Q8_0 --cache-type-k q5_0 --cache-type-v q4_1 --kl-divergence
+4.28.079.392 I 
+4.28.079.454 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+4.28.151.353 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+4.33.153.750 I kl_divergence: 5.00 seconds per pass - ETA 0.42 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      45.9220 ±    1.4660       0.00680 ±    0.00245       0.01070 ±    0.00032     2.422 ±  0.065 %    95.227 ±  0.167 %    52.995 ±  0.253 %
+   2      44.0387 ±    1.0096       0.00547 ±    0.00194       0.01298 ±    0.00043     2.635 ±  0.095 %    95.013 ±  0.120 %    53.683 ±  0.181 %
+   3      49.8288 ±    0.9448       0.01689 ±    0.00161       0.01409 ±    0.00034     2.722 ±  0.074 %    94.852 ±  0.100 %    52.547 ±  0.147 %
+   4      46.9960 ±    0.7731       0.02660 ±    0.00148       0.01567 ±    0.00042     2.838 ±  0.059 %    94.813 ±  0.087 %    53.536 ±  0.128 %
+   5      45.4644 ±    0.6662       0.02420 ±    0.00133       0.01512 ±    0.00035     2.804 ±  0.050 %    94.911 ±  0.077 %    53.527 ±  0.114 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  45.464386 ±   0.666216
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.59%
+Mean ln(PPL(Q)/PPL(base))     :   0.024204 ±   0.001334
+Mean PPL(Q)/PPL(base)         :   1.024499 ±   0.001366
+Mean PPL(Q)-PPL(base)         :   1.087201 ±   0.064416
+
+====== KL divergence statistics ======
+Mean    KLD:   0.015121 ±   0.000354
+Maximum KLD:  13.906234
+99.9%   KLD:   0.785280
+99.0%   KLD:   0.148208
+95.0%   KLD:   0.047846
+90.0%   KLD:   0.028699
+Median  KLD:   0.004676
+10.0%   KLD:   0.000033
+ 5.0%   KLD:   0.000005
+ 1.0%   KLD:  -0.000000
+ 0.1%   KLD:  -0.000002
+Minimum KLD:  -0.000098
+
+====== Token probability statistics ======
+Mean    Δp: -0.078 ± 0.010 %
+Maximum Δp: 97.681%
+99.9%   Δp: 20.077%
+99.0%   Δp:  7.943%
+95.0%   Δp:  3.008%
+90.0%   Δp:  1.365%
+75.0%   Δp:  0.086%
+Median  Δp: -0.000%
+25.0%   Δp: -0.137%
+10.0%   Δp: -1.612%
+ 5.0%   Δp: -3.413%
+ 1.0%   Δp: -9.057%
+ 0.1%   Δp: -22.158%
+Minimum Δp: -73.631%
+RMS Δp    :  2.804 ± 0.050 %
+Same top p: 94.911 ± 0.077 %
+Same sampled p: 53.527 ± 0.114 %
+
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-Q8_0.gguf size=2874779648 mtime=2026-08-21T13:16:41+00:00 sha256/1048576B=893bd024dfe9e53b1093c8bdcb4987b39f2f5486f06ff9957832cadf28bd146f
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-Q8_0.gguf size=2874779648 mtime=2026-08-21T13:16:41+00:00 sha256/1048576B=893bd024dfe9e53b1093c8bdcb4987b39f2f5486f06ff9957832cadf28bd146f
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:Q8_0 --cache-type-k q5_0 --cache-type-v q4_1 --kv-tail-tokens 512 --kl-divergence
+0.02.527.791 I 
+0.02.527.868 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.02.601.323 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.07.889.566 I kl_divergence: 5.29 seconds per pass - ETA 0.43 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      45.8729 ±    1.4632       0.00573 ±    0.00201       0.00414 ±    0.00012     1.588 ±  0.050 %    97.058 ±  0.132 %    53.046 ±  0.252 %
+   2      44.0735 ±    1.0104       0.00626 ±    0.00158       0.00519 ±    0.00024     1.775 ±  0.077 %    96.921 ±  0.095 %    53.785 ±  0.181 %
+   3      49.2378 ±    0.9317       0.00496 ±    0.00131       0.00542 ±    0.00017     1.761 ±  0.057 %    96.816 ±  0.079 %    52.645 ±  0.147 %
+   4      46.2188 ±    0.7584       0.00993 ±    0.00121       0.00577 ±    0.00019     1.793 ±  0.045 %    96.856 ±  0.068 %    53.662 ±  0.128 %
+   5      44.8765 ±    0.6563       0.01119 ±    0.00110       0.00582 ±    0.00019     1.806 ±  0.046 %    96.871 ±  0.061 %    53.653 ±  0.114 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  44.876495 ±   0.656284
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.72%
+Mean ln(PPL(Q)/PPL(base))     :   0.011189 ±   0.001098
+Mean PPL(Q)/PPL(base)         :   1.011251 ±   0.001110
+Mean PPL(Q)-PPL(base)         :   0.499309 ±   0.050744
+
+====== KL divergence statistics ======
+Mean    KLD:   0.005815 ±   0.000189
+Maximum KLD:   6.753935
+99.9%   KLD:   0.297477
+99.0%   KLD:   0.053826
+95.0%   KLD:   0.017375
+90.0%   KLD:   0.010464
+Median  KLD:   0.001764
+10.0%   KLD:   0.000015
+ 5.0%   KLD:   0.000002
+ 1.0%   KLD:  -0.000000
+ 0.1%   KLD:  -0.000004
+Minimum KLD:  -0.000048
+
+====== Token probability statistics ======
+Mean    Δp: -0.005 ± 0.006 %
+Maximum Δp: 86.117%
+99.9%   Δp: 13.945%
+99.0%   Δp:  5.243%
+95.0%   Δp:  1.921%
+90.0%   Δp:  0.883%
+75.0%   Δp:  0.070%
+Median  Δp:  0.000%
+25.0%   Δp: -0.069%
+10.0%   Δp: -0.910%
+ 5.0%   Δp: -1.981%
+ 1.0%   Δp: -5.357%
+ 0.1%   Δp: -13.002%
+Minimum Δp: -47.418%
+RMS Δp    :  1.806 ± 0.046 %
+Same top p: 96.871 ± 0.061 %
+Same sampled p: 53.653 ± 0.114 %
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: <unresolved>
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q5_K_S --cache-type-k q5_0 --cache-type-v q4_1 --kl-divergence
+1.58.114.608 I 
+1.58.114.675 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+1.58.184.747 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+2.03.422.462 I kl_divergence: 5.24 seconds per pass - ETA 0.43 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      44.5526 ±    1.4160      -0.02347 ±    0.00399       0.04222 ±    0.00118     4.814 ±  0.131 %    90.649 ±  0.227 %    52.349 ±  0.254 %
+   2      43.6878 ±    1.0018      -0.00253 ±    0.00298       0.04919 ±    0.00105     5.136 ±  0.100 %    90.396 ±  0.163 %    53.095 ±  0.182 %
+   3      49.0596 ±    0.9290       0.00133 ±    0.00250       0.05339 ±    0.00095     5.220 ±  0.083 %    90.053 ±  0.135 %    51.893 ±  0.148 %
+   4      46.1919 ±    0.7582       0.00934 ±    0.00227       0.05697 ±    0.00093     5.388 ±  0.071 %    89.930 ±  0.118 %    52.817 ±  0.129 %
+   5      44.6085 ±    0.6519       0.00520 ±    0.00203       0.05630 ±    0.00082     5.390 ±  0.064 %    89.998 ±  0.105 %    52.819 ±  0.115 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  44.608520 ±   0.651875
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.03%
+Mean ln(PPL(Q)/PPL(base))     :   0.005199 ±   0.002028
+Mean PPL(Q)/PPL(base)         :   1.005213 ±   0.002039
+Mean PPL(Q)-PPL(base)         :   0.231334 ±   0.090587
+
+====== KL divergence statistics ======
+Mean    KLD:   0.056298 ±   0.000822
+Maximum KLD:  13.487087
+99.9%   KLD:   2.942389
+99.0%   KLD:   0.529845
+95.0%   KLD:   0.183872
+90.0%   KLD:   0.113004
+Median  KLD:   0.020141
+10.0%   KLD:   0.000164
+ 5.0%   KLD:   0.000025
+ 1.0%   KLD:   0.000002
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000014
+
+====== Token probability statistics ======
+Mean    Δp: -0.088 ± 0.019 %
+Maximum Δp: 98.914%
+99.9%   Δp: 39.593%
+99.0%   Δp: 16.684%
+95.0%   Δp:  6.311%
+90.0%   Δp:  2.886%
+75.0%   Δp:  0.212%
+Median  Δp: -0.000%
+25.0%   Δp: -0.271%
+10.0%   Δp: -3.213%
+ 5.0%   Δp: -6.955%
+ 1.0%   Δp: -17.712%
+ 0.1%   Δp: -40.762%
+Minimum Δp: -99.372%
+RMS Δp    :  5.390 ± 0.064 %
+Same top p: 89.998 ± 0.105 %
+Same sampled p: 52.819 ± 0.115 %
+
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--bartowski--LiquidAI_LFM2.5-2.6B-GGUF/snapshots/0446ca3a34aea723479864cde5fdb9ef0a8fb3e8/LiquidAI_LFM2.5-2.6B-Q5_K_S.gguf size=1900472608 mtime=2026-08-21T13:19:33+00:00 sha256/1048576B=5bc328587c4db412566ce1df1c0154b9bf03a652044af60807ddaa4e52e527bd
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--bartowski--LiquidAI_LFM2.5-2.6B-GGUF/snapshots/0446ca3a34aea723479864cde5fdb9ef0a8fb3e8/LiquidAI_LFM2.5-2.6B-Q5_K_S.gguf size=1900472608 mtime=2026-08-21T13:19:33+00:00 sha256/1048576B=5bc328587c4db412566ce1df1c0154b9bf03a652044af60807ddaa4e52e527bd
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q5_K_S --cache-type-k q5_0 --cache-type-v q4_1 --kv-tail-tokens 512 --kl-divergence
+0.02.273.113 I 
+0.02.273.178 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.02.344.760 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.07.727.474 I kl_divergence: 5.38 seconds per pass - ETA 0.43 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      43.9521 ±    1.3943      -0.03704 ±    0.00383       0.03656 ±    0.00119     4.508 ±  0.126 %    91.528 ±  0.218 %    52.411 ±  0.253 %
+   2      43.6549 ±    1.0014      -0.00329 ±    0.00285       0.04255 ±    0.00092     4.843 ±  0.092 %    91.122 ±  0.157 %    53.197 ±  0.182 %
+   3      48.9288 ±    0.9267      -0.00134 ±    0.00237       0.04676 ±    0.00089     4.905 ±  0.079 %    90.753 ±  0.131 %    51.988 ±  0.148 %
+   4      45.9025 ±    0.7533       0.00306 ±    0.00212       0.04860 ±    0.00078     5.035 ±  0.067 %    90.722 ±  0.113 %    52.954 ±  0.128 %
+   5      44.4952 ±    0.6505       0.00265 ±    0.00191       0.04846 ±    0.00071     5.023 ±  0.058 %    90.781 ±  0.101 %    52.943 ±  0.115 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  44.495157 ±   0.650528
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.14%
+Mean ln(PPL(Q)/PPL(base))     :   0.002655 ±   0.001909
+Mean PPL(Q)/PPL(base)         :   1.002658 ±   0.001914
+Mean PPL(Q)-PPL(base)         :   0.117971 ±   0.085023
+
+====== KL divergence statistics ======
+Mean    KLD:   0.048456 ±   0.000705
+Maximum KLD:  14.207511
+99.9%   KLD:   2.591129
+99.0%   KLD:   0.461659
+95.0%   KLD:   0.157731
+90.0%   KLD:   0.096504
+Median  KLD:   0.017538
+10.0%   KLD:   0.000146
+ 5.0%   KLD:   0.000023
+ 1.0%   KLD:   0.000002
+ 0.1%   KLD:  -0.000001
+Minimum KLD:  -0.000010
+
+====== Token probability statistics ======
+Mean    Δp: -0.028 ± 0.018 %
+Maximum Δp: 99.543%
+99.9%   Δp: 37.816%
+99.0%   Δp: 15.748%
+95.0%   Δp:  6.059%
+90.0%   Δp:  2.869%
+75.0%   Δp:  0.205%
+Median  Δp: -0.000%
+25.0%   Δp: -0.240%
+10.0%   Δp: -2.927%
+ 5.0%   Δp: -6.376%
+ 1.0%   Δp: -15.815%
+ 0.1%   Δp: -39.318%
+Minimum Δp: -98.102%
+RMS Δp    :  5.023 ± 0.058 %
+Same top p: 90.781 ± 0.101 %
+Same sampled p: 52.943 ± 0.115 %
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: <unresolved>
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:QAD-Q4_0 --cache-type-k f16 --cache-type-v f16 --kl-divergence
+0.21.192.944 I 
+0.21.193.011 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.21.264.029 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.26.099.803 I kl_divergence: 4.84 seconds per pass - ETA 0.40 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      37.4590 ±    1.1265      -0.19690 ±    0.00665       0.11972 ±    0.00191     8.304 ±  0.145 %    84.698 ±  0.281 %    49.662 ±  0.257 %
+   2      35.6328 ±    0.7696      -0.20634 ±    0.00508       0.13907 ±    0.00195     8.743 ±  0.108 %    83.907 ±  0.203 %    50.401 ±  0.185 %
+   3      39.5181 ±    0.7030      -0.21495 ±    0.00417       0.14493 ±    0.00176     8.625 ±  0.088 %    83.503 ±  0.167 %    49.174 ±  0.150 %
+   4      36.5040 ±    0.5598      -0.22604 ±    0.00368       0.14885 ±    0.00157     8.853 ±  0.078 %    83.564 ±  0.145 %    50.049 ±  0.130 %
+   5      35.7448 ±    0.4886      -0.21632 ±    0.00329       0.14800 ±    0.00146     8.812 ±  0.070 %    83.684 ±  0.129 %    50.080 ±  0.116 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  35.744827 ±   0.488567
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  97.41%
+Mean ln(PPL(Q)/PPL(base))     :  -0.216320 ±   0.003287
+Mean PPL(Q)/PPL(base)         :   0.805478 ±   0.002648
+Mean PPL(Q)-PPL(base)         :  -8.632359 ±   0.198272
+
+====== KL divergence statistics ======
+Mean    KLD:   0.148003 ±   0.001459
+Maximum KLD:  21.823565
+99.9%   KLD:   5.753280
+99.0%   KLD:   1.264612
+95.0%   KLD:   0.491439
+90.0%   KLD:   0.317151
+Median  KLD:   0.066040
+10.0%   KLD:   0.000981
+ 5.0%   KLD:   0.000197
+ 1.0%   KLD:   0.000022
+ 0.1%   KLD:   0.000003
+Minimum KLD:  -0.000003
+
+====== Token probability statistics ======
+Mean    Δp: -0.383 ± 0.031 %
+Maximum Δp: 99.856%
+99.9%   Δp: 62.199%
+99.0%   Δp: 28.995%
+95.0%   Δp: 10.953%
+90.0%   Δp:  4.847%
+75.0%   Δp:  0.358%
+Median  Δp: -0.000%
+25.0%   Δp: -0.844%
+10.0%   Δp: -6.904%
+ 5.0%   Δp: -13.250%
+ 1.0%   Δp: -29.943%
+ 0.1%   Δp: -58.225%
+Minimum Δp: -95.846%
+RMS Δp    :  8.812 ± 0.070 %
+Same top p: 83.684 ± 0.129 %
+Same sampled p: 50.080 ± 0.116 %
+
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-QAD-Q4_0.gguf size=1593894944 mtime=2026-08-21T13:20:50+00:00 sha256/1048576B=e7b948893562dea1ce8a3625e87af96c3d3994a4298aaf666193a2db92e28a04
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-QAD-Q4_0.gguf size=1593894944 mtime=2026-08-21T13:20:50+00:00 sha256/1048576B=e7b948893562dea1ce8a3625e87af96c3d3994a4298aaf666193a2db92e28a04
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:QAD-Q4_0 --cache-type-k q8_0 --cache-type-v q8_0 --kl-divergence
+0.01.647.779 I 
+0.01.647.850 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.01.720.628 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.06.605.686 I kl_divergence: 4.89 seconds per pass - ETA 0.40 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      37.3101 ±    1.1210      -0.20088 ±    0.00669       0.12007 ±    0.00192     8.344 ±  0.145 %    84.612 ±  0.282 %    49.638 ±  0.256 %
+   2      35.5241 ±    0.7667      -0.20939 ±    0.00510       0.13959 ±    0.00198     8.764 ±  0.107 %    83.855 ±  0.203 %    50.389 ±  0.185 %
+   3      39.2960 ±    0.6983      -0.22058 ±    0.00419       0.14545 ±    0.00178     8.657 ±  0.088 %    83.442 ±  0.168 %    49.155 ±  0.150 %
+   4      36.2743 ±    0.5556      -0.23235 ±    0.00369       0.14941 ±    0.00158     8.876 ±  0.078 %    83.475 ±  0.145 %    50.033 ±  0.130 %
+   5      35.4954 ±    0.4845      -0.22332 ±    0.00330       0.14843 ±    0.00147     8.831 ±  0.070 %    83.596 ±  0.129 %    50.064 ±  0.116 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  35.495393 ±   0.484514
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  97.39%
+Mean ln(PPL(Q)/PPL(base))     :  -0.223323 ±   0.003299
+Mean PPL(Q)/PPL(base)         :   0.799857 ±   0.002639
+Mean PPL(Q)-PPL(base)         :  -8.881793 ±   0.201315
+
+====== KL divergence statistics ======
+Mean    KLD:   0.148433 ±   0.001466
+Maximum KLD:  22.051641
+99.9%   KLD:   5.890397
+99.0%   KLD:   1.260946
+95.0%   KLD:   0.493152
+90.0%   KLD:   0.318823
+Median  KLD:   0.066143
+10.0%   KLD:   0.000983
+ 5.0%   KLD:   0.000196
+ 1.0%   KLD:   0.000023
+ 0.1%   KLD:   0.000003
+Minimum KLD:  -0.000001
+
+====== Token probability statistics ======
+Mean    Δp: -0.349 ± 0.031 %
+Maximum Δp: 99.858%
+99.9%   Δp: 63.056%
+99.0%   Δp: 29.306%
+95.0%   Δp: 11.008%
+90.0%   Δp:  4.920%
+75.0%   Δp:  0.377%
+Median  Δp: -0.000%
+25.0%   Δp: -0.838%
+10.0%   Δp: -6.854%
+ 5.0%   Δp: -13.203%
+ 1.0%   Δp: -29.768%
+ 0.1%   Δp: -57.292%
+Minimum Δp: -95.843%
+RMS Δp    :  8.831 ± 0.070 %
+Same top p: 83.596 ± 0.129 %
+Same sampled p: 50.064 ± 0.116 %
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-QAD-Q4_0.gguf size=1593894944 mtime=2026-08-21T13:20:50+00:00 sha256/1048576B=e7b948893562dea1ce8a3625e87af96c3d3994a4298aaf666193a2db92e28a04
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:QAD-Q4_0 --cache-type-k q8_0 --cache-type-v q5_1 --kl-divergence
+0.01.644.522 I 
+0.01.644.591 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.01.722.297 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.06.758.837 I kl_divergence: 5.04 seconds per pass - ETA 0.42 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      37.4511 ±    1.1257      -0.19711 ±    0.00665       0.11974 ±    0.00186     8.302 ±  0.145 %    84.704 ±  0.281 %    49.644 ±  0.256 %
+   2      35.4004 ±    0.7637      -0.21288 ±    0.00512       0.14039 ±    0.00196     8.789 ±  0.108 %    83.837 ±  0.203 %    50.370 ±  0.185 %
+   3      39.3152 ±    0.6988      -0.22009 ±    0.00420       0.14626 ±    0.00177     8.673 ±  0.089 %    83.532 ±  0.167 %    49.145 ±  0.150 %
+   4      36.3691 ±    0.5573      -0.22974 ±    0.00369       0.14998 ±    0.00158     8.877 ±  0.078 %    83.541 ±  0.145 %    50.031 ±  0.130 %
+   5      35.6003 ±    0.4863      -0.22037 ±    0.00330       0.14919 ±    0.00147     8.835 ±  0.070 %    83.665 ±  0.129 %    50.062 ±  0.116 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  35.600289 ±   0.486269
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  97.39%
+Mean ln(PPL(Q)/PPL(base))     :  -0.220372 ±   0.003298
+Mean PPL(Q)/PPL(base)         :   0.802221 ±   0.002646
+Mean PPL(Q)-PPL(base)         :  -8.776897 ±   0.200102
+
+====== KL divergence statistics ======
+Mean    KLD:   0.149186 ±   0.001472
+Maximum KLD:  21.829685
+99.9%   KLD:   5.707189
+99.0%   KLD:   1.274886
+95.0%   KLD:   0.494395
+90.0%   KLD:   0.320226
+Median  KLD:   0.066237
+10.0%   KLD:   0.000984
+ 5.0%   KLD:   0.000198
+ 1.0%   KLD:   0.000023
+ 0.1%   KLD:   0.000003
+Minimum KLD:  -0.000001
+
+====== Token probability statistics ======
+Mean    Δp: -0.362 ± 0.031 %
+Maximum Δp: 99.857%
+99.9%   Δp: 63.518%
+99.0%   Δp: 28.954%
+95.0%   Δp: 11.029%
+90.0%   Δp:  4.919%
+75.0%   Δp:  0.371%
+Median  Δp: -0.000%
+25.0%   Δp: -0.851%
+10.0%   Δp: -6.882%
+ 5.0%   Δp: -13.271%
+ 1.0%   Δp: -29.765%
+ 0.1%   Δp: -56.771%
+Minimum Δp: -95.848%
+RMS Δp    :  8.835 ± 0.070 %
+Same top p: 83.665 ± 0.129 %
+Same sampled p: 50.062 ± 0.116 %
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-QAD-Q4_0.gguf size=1593894944 mtime=2026-08-21T13:20:50+00:00 sha256/1048576B=e7b948893562dea1ce8a3625e87af96c3d3994a4298aaf666193a2db92e28a04
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:QAD-Q4_0 --cache-type-k q5_0 --cache-type-v q5_0 --kl-divergence
+0.01.653.767 I 
+0.01.653.837 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.01.731.424 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.06.706.498 I kl_divergence: 4.98 seconds per pass - ETA 0.40 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      36.9565 ±    1.1085      -0.21040 ±    0.00678       0.12381 ±    0.00193     8.466 ±  0.145 %    84.508 ±  0.283 %    49.590 ±  0.257 %
+   2      35.3595 ±    0.7628      -0.21404 ±    0.00519       0.14476 ±    0.00199     8.937 ±  0.108 %    83.553 ±  0.205 %    50.321 ±  0.185 %
+   3      39.1069 ±    0.6944      -0.22541 ±    0.00427       0.15111 ±    0.00182     8.840 ±  0.089 %    83.212 ±  0.169 %    49.075 ±  0.150 %
+   4      36.1331 ±    0.5531      -0.23625 ±    0.00376       0.15546 ±    0.00162     9.091 ±  0.079 %    83.259 ±  0.146 %    49.955 ±  0.130 %
+   5      35.4003 ±    0.4832      -0.22601 ±    0.00336       0.15457 ±    0.00152     9.041 ±  0.071 %    83.391 ±  0.130 %    49.997 ±  0.117 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  35.400257 ±   0.483167
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  97.30%
+Mean ln(PPL(Q)/PPL(base))     :  -0.226006 ±   0.003358
+Mean PPL(Q)/PPL(base)         :   0.797713 ±   0.002678
+Mean PPL(Q)-PPL(base)         :  -8.976928 ±   0.203747
+
+====== KL divergence statistics ======
+Mean    KLD:   0.154574 ±   0.001517
+Maximum KLD:  22.318047
+99.9%   KLD:   5.872629
+99.0%   KLD:   1.329585
+95.0%   KLD:   0.512161
+90.0%   KLD:   0.333221
+Median  KLD:   0.068350
+10.0%   KLD:   0.001003
+ 5.0%   KLD:   0.000200
+ 1.0%   KLD:   0.000022
+ 0.1%   KLD:   0.000003
+Minimum KLD:  -0.000002
+
+====== Token probability statistics ======
+Mean    Δp: -0.317 ± 0.032 %
+Maximum Δp: 99.860%
+99.9%   Δp: 65.212%
+99.0%   Δp: 30.079%
+95.0%   Δp: 11.486%
+90.0%   Δp:  5.088%
+75.0%   Δp:  0.390%
+Median  Δp: -0.000%
+25.0%   Δp: -0.845%
+10.0%   Δp: -7.008%
+ 5.0%   Δp: -13.395%
+ 1.0%   Δp: -30.147%
+ 0.1%   Δp: -59.336%
+Minimum Δp: -95.763%
+RMS Δp    :  9.041 ± 0.071 %
+Same top p: 83.391 ± 0.130 %
+Same sampled p: 49.997 ± 0.117 %
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-QAD-Q4_0.gguf size=1593894944 mtime=2026-08-21T13:20:50+00:00 sha256/1048576B=e7b948893562dea1ce8a3625e87af96c3d3994a4298aaf666193a2db92e28a04
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:QAD-Q4_0 --cache-type-k q5_0 --cache-type-v q5_0 --kv-tail-tokens 512 --kl-divergence
+0.02.171.516 I 
+0.02.171.584 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.02.243.325 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.07.517.806 I kl_divergence: 5.27 seconds per pass - ETA 0.43 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      37.0063 ±    1.1107      -0.20905 ±    0.00674       0.12086 ±    0.00191     8.383 ±  0.144 %    84.673 ±  0.281 %    49.627 ±  0.256 %
+   2      35.0874 ±    0.7563      -0.22176 ±    0.00517       0.14136 ±    0.00194     8.870 ±  0.108 %    83.736 ±  0.204 %    50.365 ±  0.185 %
+   3      38.9789 ±    0.6923      -0.22869 ±    0.00424       0.14736 ±    0.00178     8.750 ±  0.088 %    83.371 ±  0.168 %    49.138 ±  0.150 %
+   4      36.0461 ±    0.5518      -0.23866 ±    0.00373       0.15104 ±    0.00159     8.961 ±  0.078 %    83.425 ±  0.145 %    50.014 ±  0.130 %
+   5      35.2351 ±    0.4807      -0.23068 ±    0.00333       0.15016 ±    0.00149     8.914 ±  0.070 %    83.541 ±  0.130 %    50.052 ±  0.116 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  35.235122 ±   0.480693
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  97.34%
+Mean ln(PPL(Q)/PPL(base))     :  -0.230682 ±   0.003332
+Mean PPL(Q)/PPL(base)         :   0.793992 ±   0.002646
+Mean PPL(Q)-PPL(base)         :  -9.142064 ±   0.204793
+
+====== KL divergence statistics ======
+Mean    KLD:   0.150163 ±   0.001488
+Maximum KLD:  22.598709
+99.9%   KLD:   5.717459
+99.0%   KLD:   1.271012
+95.0%   KLD:   0.497363
+90.0%   KLD:   0.322932
+Median  KLD:   0.066683
+10.0%   KLD:   0.000989
+ 5.0%   KLD:   0.000194
+ 1.0%   KLD:   0.000022
+ 0.1%   KLD:   0.000003
+Minimum KLD:  -0.000003
+
+====== Token probability statistics ======
+Mean    Δp: -0.282 ± 0.031 %
+Maximum Δp: 99.863%
+99.9%   Δp: 63.940%
+99.0%   Δp: 30.114%
+95.0%   Δp: 11.365%
+90.0%   Δp:  5.114%
+75.0%   Δp:  0.393%
+Median  Δp: -0.000%
+25.0%   Δp: -0.820%
+10.0%   Δp: -6.796%
+ 5.0%   Δp: -13.207%
+ 1.0%   Δp: -29.740%
+ 0.1%   Δp: -57.066%
+Minimum Δp: -95.848%
+RMS Δp    :  8.914 ± 0.070 %
+Same top p: 83.541 ± 0.130 %
+Same sampled p: 50.052 ± 0.116 %
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-QAD-Q4_0.gguf size=1593894944 mtime=2026-08-21T13:20:50+00:00 sha256/1048576B=e7b948893562dea1ce8a3625e87af96c3d3994a4298aaf666193a2db92e28a04
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:QAD-Q4_0 --cache-type-k q5_0 --cache-type-v q4_1 --kl-divergence
+0.01.609.419 I 
+0.01.609.487 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.01.679.965 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.06.785.729 I kl_divergence: 5.11 seconds per pass - ETA 0.42 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      36.5910 ±    1.0964      -0.22034 ±    0.00692       0.12710 ±    0.00199     8.631 ±  0.145 %    84.423 ±  0.283 %    49.510 ±  0.257 %
+   2      35.0508 ±    0.7551      -0.22280 ±    0.00525       0.14770 ±    0.00207     9.026 ±  0.107 %    83.544 ±  0.205 %    50.246 ±  0.185 %
+   3      38.9206 ±    0.6907      -0.23018 ±    0.00430       0.15341 ±    0.00185     8.884 ±  0.088 %    83.165 ±  0.169 %    49.010 ±  0.150 %
+   4      35.8267 ±    0.5477      -0.24477 ±    0.00379       0.15815 ±    0.00165     9.151 ±  0.079 %    83.129 ±  0.146 %    49.882 ±  0.130 %
+   5      35.1968 ±    0.4799      -0.23177 ±    0.00338       0.15676 ±    0.00152     9.101 ±  0.071 %    83.285 ±  0.130 %    49.931 ±  0.117 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  35.196776 ±   0.479858
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  97.25%
+Mean ln(PPL(Q)/PPL(base))     :  -0.231771 ±   0.003383
+Mean PPL(Q)/PPL(base)         :   0.793128 ±   0.002683
+Mean PPL(Q)-PPL(base)         :  -9.180410 ±   0.206643
+
+====== KL divergence statistics ======
+Mean    KLD:   0.156756 ±   0.001524
+Maximum KLD:  21.680725
+99.9%   KLD:   5.992139
+99.0%   KLD:   1.345304
+95.0%   KLD:   0.520900
+90.0%   KLD:   0.338212
+Median  KLD:   0.069770
+10.0%   KLD:   0.001017
+ 5.0%   KLD:   0.000204
+ 1.0%   KLD:   0.000023
+ 0.1%   KLD:   0.000003
+Minimum KLD:  -0.000001
+
+====== Token probability statistics ======
+Mean    Δp: -0.306 ± 0.032 %
+Maximum Δp: 99.843%
+99.9%   Δp: 63.840%
+99.0%   Δp: 30.569%
+95.0%   Δp: 11.687%
+90.0%   Δp:  5.149%
+75.0%   Δp:  0.399%
+Median  Δp: -0.000%
+25.0%   Δp: -0.849%
+10.0%   Δp: -6.997%
+ 5.0%   Δp: -13.518%
+ 1.0%   Δp: -30.574%
+ 0.1%   Δp: -58.941%
+Minimum Δp: -95.847%
+RMS Δp    :  9.101 ± 0.071 %
+Same top p: 83.285 ± 0.130 %
+Same sampled p: 49.931 ± 0.117 %
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-QAD-Q4_0.gguf size=1593894944 mtime=2026-08-21T13:20:50+00:00 sha256/1048576B=e7b948893562dea1ce8a3625e87af96c3d3994a4298aaf666193a2db92e28a04
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:QAD-Q4_0 --cache-type-k q5_0 --cache-type-v q4_1 --kv-tail-tokens 512 --kl-divergence
+0.02.228.183 I 
+0.02.228.253 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.02.301.794 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.07.478.834 I kl_divergence: 5.18 seconds per pass - ETA 0.42 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      36.8402 ±    1.1048      -0.21355 ±    0.00673       0.12089 ±    0.00194     8.332 ±  0.145 %    84.643 ±  0.282 %    49.621 ±  0.256 %
+   2      34.8840 ±    0.7506      -0.22757 ±    0.00516       0.14102 ±    0.00196     8.833 ±  0.108 %    83.788 ±  0.204 %    50.338 ±  0.185 %
+   3      38.8357 ±    0.6888      -0.23236 ±    0.00422       0.14676 ±    0.00179     8.697 ±  0.088 %    83.463 ±  0.168 %    49.113 ±  0.150 %
+   4      36.0159 ±    0.5508      -0.23950 ±    0.00371       0.15054 ±    0.00160     8.916 ±  0.078 %    83.492 ±  0.145 %    49.998 ±  0.130 %
+   5      35.3010 ±    0.4813      -0.22881 ±    0.00332       0.14980 ±    0.00149     8.875 ±  0.070 %    83.610 ±  0.129 %    50.035 ±  0.116 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  35.301043 ±   0.481336
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  97.36%
+Mean ln(PPL(Q)/PPL(base))     :  -0.228813 ±   0.003320
+Mean PPL(Q)/PPL(base)         :   0.795477 ±   0.002641
+Mean PPL(Q)-PPL(base)         :  -9.076142 ±   0.204016
+
+====== KL divergence statistics ======
+Mean    KLD:   0.149797 ±   0.001489
+Maximum KLD:  22.464706
+99.9%   KLD:   5.799749
+99.0%   KLD:   1.267395
+95.0%   KLD:   0.495962
+90.0%   KLD:   0.323304
+Median  KLD:   0.066603
+10.0%   KLD:   0.000996
+ 5.0%   KLD:   0.000201
+ 1.0%   KLD:   0.000023
+ 0.1%   KLD:   0.000003
+Minimum KLD:  -0.000001
+
+====== Token probability statistics ======
+Mean    Δp: -0.333 ± 0.031 %
+Maximum Δp: 99.863%
+99.9%   Δp: 63.173%
+99.0%   Δp: 29.610%
+95.0%   Δp: 11.220%
+90.0%   Δp:  4.987%
+75.0%   Δp:  0.386%
+Median  Δp: -0.000%
+25.0%   Δp: -0.838%
+10.0%   Δp: -6.888%
+ 5.0%   Δp: -13.246%
+ 1.0%   Δp: -29.648%
+ 0.1%   Δp: -56.931%
+Minimum Δp: -95.848%
+RMS Δp    :  8.875 ± 0.070 %
+Same top p: 83.610 ± 0.129 %
+Same sampled p: 50.035 ± 0.116 %
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-QAD-Q4_0.gguf size=1593894944 mtime=2026-08-21T13:20:50+00:00 sha256/1048576B=e7b948893562dea1ce8a3625e87af96c3d3994a4298aaf666193a2db92e28a04
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:QAD-Q4_0 --cache-type-k q4_0 --cache-type-v q4_0 --kl-divergence
+0.01.615.239 I 
+0.01.615.312 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.01.687.574 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.06.709.585 I kl_divergence: 5.02 seconds per pass - ETA 0.42 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      36.7398 ±    1.0992      -0.21628 ±    0.00705       0.13810 ±    0.00228     8.849 ±  0.147 %    83.727 ±  0.288 %    49.346 ±  0.257 %
+   2      35.7756 ±    0.7720      -0.20234 ±    0.00535       0.15861 ±    0.00211     9.339 ±  0.111 %    82.860 ±  0.208 %    50.093 ±  0.185 %
+   3      39.3087 ±    0.6978      -0.22026 ±    0.00442       0.16505 ±    0.00186     9.243 ±  0.092 %    82.520 ±  0.171 %    48.852 ±  0.150 %
+   4      35.9092 ±    0.5487      -0.24247 ±    0.00391       0.17059 ±    0.00168     9.526 ±  0.081 %    82.467 ±  0.149 %    49.719 ±  0.131 %
+   5      35.1801 ±    0.4790      -0.23225 ±    0.00349       0.16916 ±    0.00154     9.491 ±  0.073 %    82.571 ±  0.133 %    49.738 ±  0.117 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  35.180067 ±   0.479048
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  97.07%
+Mean ln(PPL(Q)/PPL(base))     :  -0.232246 ±   0.003493
+Mean PPL(Q)/PPL(base)         :   0.792751 ±   0.002769
+Mean PPL(Q)-PPL(base)         :  -9.197119 ±   0.209987
+
+====== KL divergence statistics ======
+Mean    KLD:   0.169164 ±   0.001544
+Maximum KLD:  20.691299
+99.9%   KLD:   6.114954
+99.0%   KLD:   1.447910
+95.0%   KLD:   0.572070
+90.0%   KLD:   0.368540
+Median  KLD:   0.076038
+10.0%   KLD:   0.001089
+ 5.0%   KLD:   0.000216
+ 1.0%   KLD:   0.000024
+ 0.1%   KLD:   0.000003
+Minimum KLD:  -0.000002
+
+====== Token probability statistics ======
+Mean    Δp: -0.349 ± 0.033 %
+Maximum Δp: 99.827%
+99.9%   Δp: 68.010%
+99.0%   Δp: 31.788%
+95.0%   Δp: 12.120%
+90.0%   Δp:  5.412%
+75.0%   Δp:  0.413%
+Median  Δp: -0.000%
+25.0%   Δp: -0.881%
+10.0%   Δp: -7.351%
+ 5.0%   Δp: -14.189%
+ 1.0%   Δp: -31.846%
+ 0.1%   Δp: -61.202%
+Minimum Δp: -98.196%
+RMS Δp    :  9.491 ± 0.073 %
+Same top p: 82.571 ± 0.133 %
+Same sampled p: 49.738 ± 0.117 %
+
+------------------------------
+# llama-perplexity: version: 0.4.4-dev (build 11274, commit 99455b9a6-dirty) | built with GNU 15.3.0 for Linux x86_64
+# model: /home/crusaderky/.cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B-GGUF/snapshots/f4a289c8a200a5ca71005ba7abc2dad33058a450/LFM2.5-2.6B-QAD-Q4_0.gguf size=1593894944 mtime=2026-08-21T13:20:50+00:00 sha256/1048576B=e7b948893562dea1ce8a3625e87af96c3d3994a4298aaf666193a2db92e28a04
+llama-perplexity --kl-divergence-base /tmp/logits.dat --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw -fa on -ngl 99 --hf-repo LiquidAI/LFM2.5-2.6B-GGUF:QAD-Q4_0 --cache-type-k q4_0 --cache-type-v q4_0 --kv-tail-tokens 512 --kl-divergence
+0.02.222.714 I 
+0.02.222.785 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 750,800,860,890,900,1000,1030,1200,1210 | USE_GRAPHS = 1 | FA_ALL_QUANTS = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.02.296.853 I kl_divergence: computing over 5 chunks, n_ctx=32768, batch_size=512, n_seq=1
+0.07.466.464 I kl_divergence: 5.17 seconds per pass - ETA 0.42 minutes
+
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p        Same sampled p
+   1      36.8375 ±    1.1034      -0.21363 ±    0.00678       0.12290 ±    0.00200     8.399 ±  0.144 %    84.569 ±  0.282 %    49.530 ±  0.256 %
+   2      35.0627 ±    0.7548      -0.22247 ±    0.00519       0.14333 ±    0.00200     8.936 ±  0.109 %    83.715 ±  0.204 %    50.286 ±  0.185 %
+   3      38.5575 ±    0.6827      -0.23956 ±    0.00428       0.14987 ±    0.00180     8.842 ±  0.089 %    83.332 ±  0.168 %    49.036 ±  0.150 %
+   4      35.4452 ±    0.5408      -0.25547 ±    0.00380       0.15582 ±    0.00165     9.146 ±  0.080 %    83.242 ±  0.146 %    49.922 ±  0.130 %
+   5      34.8688 ±    0.4743      -0.24113 ±    0.00338       0.15456 ±    0.00151     9.084 ±  0.071 %    83.410 ±  0.130 %    49.940 ±  0.117 %
+
+====== Perplexity statistics ======
+Mean PPL(Q)                   :  34.868779 ±   0.474309
+Mean PPL(base)                :  44.377186 ±   0.640559
+Cor(ln(PPL(Q)), ln(PPL(base))):  97.26%
+Mean ln(PPL(Q)/PPL(base))     :  -0.241134 ±   0.003384
+Mean PPL(Q)/PPL(base)         :   0.785737 ±   0.002659
+Mean PPL(Q)-PPL(base)         :  -9.508406 ±   0.210443
+
+====== KL divergence statistics ======
+Mean    KLD:   0.154560 ±   0.001509
+Maximum KLD:  21.668339
+99.9%   KLD:   5.851675
+99.0%   KLD:   1.316122
+95.0%   KLD:   0.513163
+90.0%   KLD:   0.331527
+Median  KLD:   0.068801
+10.0%   KLD:   0.001025
+ 5.0%   KLD:   0.000207
+ 1.0%   KLD:   0.000024
+ 0.1%   KLD:   0.000003
+Minimum KLD:  -0.000001
+
+====== Token probability statistics ======
+Mean    Δp: -0.277 ± 0.032 %
+Maximum Δp: 99.862%
+99.9%   Δp: 65.456%
+99.0%   Δp: 30.704%
+95.0%   Δp: 11.668%
+90.0%   Δp:  5.144%
+75.0%   Δp:  0.404%
+Median  Δp: -0.000%
+25.0%   Δp: -0.844%
+10.0%   Δp: -6.951%
+ 5.0%   Δp: -13.436%
+ 1.0%   Δp: -30.009%
+ 0.1%   Δp: -58.219%
+Minimum Δp: -95.847%
+RMS Δp    :  9.084 ± 0.071 %
+Same top p: 83.410 ± 0.130 %
+Same sampled p: 49.940 ± 0.117 %
 
 ------------------------------

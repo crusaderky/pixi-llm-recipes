@@ -198,3 +198,12 @@ should retest on your own hardware.
 
 ![Speed](10.speed.png)
 
+## _Update_: QAD-Q4_0 quant
+
+LiquidAI released a QAD (Quantization-Aware Distillation) Q4_0 quant after the initial
+publication of this report. It looks very degraded compared to Bartowski's quants, on
+the KLD chart and even more so on the Same Sampled Token one. Whether it actually
+performs better on actual benchmarks remains to be seen.
+
+![QAD KLD](11.QAD_KLD.png)
+![QAD Same Sampled Token](12.QAD_sampled.png)

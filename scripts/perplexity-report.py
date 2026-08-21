@@ -159,6 +159,28 @@ TOP_P_RE = re.compile(r"^Same top p:\s*([\d.]+)\s*±\s*([\d.]+)", re.MULTILINE)
 # llama-perplexity builds, so every consumer below treats it as optional: on a log
 # without it the column and the plot are silently omitted.
 COLL_P_RE = re.compile(r"^Same sampled p:\s*([\d.]+)\s*±\s*([\d.]+)", re.MULTILINE)
+# llama.cpp's log prefix: `0.00.355.939 E ` / `0.00.355.943 I `. Stripped from a
+# quoted failure line, where it says nothing.
+LOG_PREFIX_RE = re.compile(r"^\d+(?:\.\d+)+\s+(?:[EIWD]\s+)?")
+# A line that looks like the reason a run died, rather than ordinary progress.
+ERROR_LINE_RE = re.compile(r"\b(error|failed|abort|terminate|what\(\))", re.IGNORECASE)
+
+
+def _failure_reason(lines: list[str], cmd: str) -> str:
+    """Why a run has no KL divergence summary, in llama-perplexity's own words.
+
+    Its stdout and stderr are interleaved in the log, so the fatal line is not
+    reliably the last one (a `error: --model is required` can land in the middle
+    of the "Available GGUF files" listing it aborted on) -- hence the search for
+    an error-shaped line, with the last line of output as the fallback.
+    """
+    body = [
+        s for ln in lines if (s := ln.strip()) and s != cmd and not s.startswith("#")
+    ]
+    if not body:
+        return "no output"
+    errs = [ln for ln in body if ERROR_LINE_RE.search(ln)]
+    return LOG_PREFIX_RE.sub("", (errs or body)[-1])
 
 
 def _common_params(runs: list[dict]) -> str:
@@ -645,8 +667,15 @@ def parse_log(
             if lr.aborted:
                 runs.append(run | {"aborted": True})
                 continue
+            # Not aborted mid-run either: the run died before it could measure
+            # anything -- most often a launch failure (a --hf-repo quant that
+            # does not exist, an unsupported cache type). The cache types alone
+            # cannot identify which run that was, let alone why it failed, so
+            # quote the whole command line and llama-perplexity's own last word.
             print(
-                f"WARNING: --kl-divergence flag found but no summary stats for {ctk}/{ctv}",
+                f"WARNING: no KL divergence summary; dropping run\n"
+                f"  {lr.cmd}\n"
+                f"  llama-perplexity: {_failure_reason(lines, lr.cmd)}",
                 file=sys.stderr,
             )
             continue
