@@ -110,6 +110,10 @@ while IFS= read -r var; do
 done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
 unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 
+# Note: --ro-bind $_CONDA_PREFIX must be after --bind $1.
+# When setting pixi-llm-recipes as the project root for the bind,
+# re-bind $CONDA_PREFIX as read-only after it's bound as read-write
+
 exec bwrap \
   --ro-bind / / \
   --dev /dev \
@@ -126,7 +130,6 @@ exec bwrap \
   --bind    "$HOME/.cache/rattler"           "$HOME/.cache/rattler" \
   --bind    "$HOME/.cache/uv"                "$HOME/.cache/uv" \
   --bind    "$HOME/.config/rtk"              "$HOME/.config/rtk" \
-  --ro-bind "$_CONDA_PREFIX"                 "$_CONDA_PREFIX" \
   --bind    "$HOME/.claude"                  "$HOME/.claude" \
   --bind    "$HOME/.claude.json"             "$HOME/.claude.json" \
   --ro-bind "$_PIXI_ROOT"                    "$_PIXI_ROOT" \
@@ -134,6 +137,7 @@ exec bwrap \
   $WORKTREE_BINDS \
   $GIT_BINDS \
   $ARGS \
+  --ro-bind "$_CONDA_PREFIX"                 "$_CONDA_PREFIX" \
   --die-with-parent \
   --unshare-all --share-net \
   -- claude --dangerously-skip-permissions "${CLAUDE_ARGS[@]}"

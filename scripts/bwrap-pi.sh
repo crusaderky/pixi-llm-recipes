@@ -117,6 +117,10 @@ while IFS= read -r var; do
 done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
 unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 
+# Note: --ro-bind $_CONDA_PREFIX must be after --bind $1.
+# When setting pixi-llm-recipes as the project root for the bind,
+# re-bind $CONDA_PREFIX as read-only after it's bound as read-write
+
 bwrap \
   --ro-bind / / \
   --dev /dev \
@@ -124,7 +128,6 @@ bwrap \
   --tmpfs /tmp \
   --tmpfs /home \
   --tmpfs /root \
-  --ro-bind "$_CONDA_PREFIX"              "$_CONDA_PREFIX" \
   --bind "$HOME/.cache/ccache"            "$HOME/.cache/ccache" \
   --bind "$HOME/.cache/llama-cpp-changelog"    "$HOME/.cache/llama-cpp-changelog" \
   --bind "$HOME/.cache/pip"               "$HOME/.cache/pip" \
@@ -142,6 +145,7 @@ bwrap \
   $WORKTREE_BINDS \
   $GIT_BINDS \
   $ARGS \
+  --ro-bind "$_CONDA_PREFIX"              "$_CONDA_PREFIX" \
   --die-with-parent \
   --unshare-all --share-net \
   -- pi "${PI_ARGS[@]}"
