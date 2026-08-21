@@ -14,7 +14,6 @@ build:
       # Single source of truth for the plugin pins, consumed by both
       # build.sh and build.bat (space-separated <package>@<version> list).
       PLUGINS: >-
-        pi-autoresearch@1.6.2
         pi-btw@0.4.1
         pi-caveman@1.0.8
         pi-llama-cpp@0.9.2

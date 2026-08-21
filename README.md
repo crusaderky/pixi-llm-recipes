@@ -214,7 +214,6 @@ agent setup is versioned and reproducible:
 
 | Extension                                                                            | Purpose                                              |
 | ------------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| [pi-autoresearch](https://pi.dev/packages/pi-autoresearch)                           | autonomous experiment loops for optimization         |
 | [pi-btw](https://pi.dev/packages/pi-btw)                                             | build-time workspace tooling                         |
 | [pi-llama-cpp](https://pi.dev/packages/pi-llama-cpp)                                 | zero-config llama.cpp integration                    |
 | [pi-ollama-cloud](https://pi.dev/packages/pi-ollama-cloud)                           | Ollama cloud model provider + web search / web fetch |
