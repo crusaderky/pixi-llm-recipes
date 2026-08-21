@@ -7,18 +7,46 @@ allowed-tools: Bash, Read, Edit, WebFetch
 
 Trigger phrases: "update yourself", "update everything", "do a full update", "update all recipes".
 
-## Never reinstall the `agents` env from inside the sandbox
+## pixi from inside the bwrap sandbox — what is and is not safe
 
-The sandbox bind-mounts the host's `~/.pi/agent/settings.json` over the package-owned
-copy in `$CONDA_PREFIX/home/.pi/agent/`, so re-extracting `pi-extensions` fails with
-`failed to unlink … home/.pi/agent/settings.json` (EBUSY on a mountpoint) and leaves the
-environment half-extracted — missing binaries, incomplete `conda-meta`.
+Verified mechanics (mount layout in `scripts/bwrap-pi.sh`): `$CONDA_PREFIX/home/.pi`
+is exposed rw as `~/.pi`, and the host's `~/.pi/agent/{auth,trust,settings}.json`
 
-Phase 6 below only runs `pixi update`, which touches the lockfile and never re-extracts.
-But **any** `pixi run <task>` in the `agents` env triggers an implicit
-`pixi install -e agents` once a local recipe has changed, which hits the same wall —
-including the `llama-cpp-changelog` task used in phase 1. Run those from the host, and
-repair a half-extracted env with `pixi install -e agents` from the host.
+- `sessions/` are mounted over the package-owned copies in the env prefix. The
+  `--ro-bind $CONDA_PREFIX` line is **shadowed**: bwrap applies the later
+  `--bind $DIR $DIR` workdir bind (in `$ARGS`) over an ancestor of the env prefix,
+  which detaches the earlier read-only submount — the env prefix is therefore
+  **effectively read-write** in the sandbox, and so is the rest of the repo's
+  `.pixi/` (bld, scratch, artifacts).
+
+* **`pixi lock` / `pixi update` are lockfile-only.** They write `pixi.lock` (repo
+  root is rw in the sandbox) and never sync an environment or rebuild local
+  recipes — even when the lock changes, the env is left as-is. Safe from the
+  sandbox, and that is all phase 6 needs. Beware the two sub-commands differ:
+  `pixi lock` only checks lock validity and keeps the locked versions (it reports
+  "already up-to-date" even when newer packages exist); `pixi update` bumps to the
+  latest. Refreshing the lockfile means `pixi update`.
+* **`pixi install -e agents` (explicit or implicit via `pixi run <task>`) must
+  never run in the sandbox — it leaves a half-extracted env.** The rebuild of the
+  changed local recipe succeeds in `.pixi/bld`, then the env sync begins deleting
+  the old extracted files (bin/, lib/, the npm plugin tree, conda-meta) and only
+  then hits the host-mounted `home/.pi/agent/settings.json`, whose unlink fails
+  with **EBUSY** — the kernel treats the package file as busy because of the
+  `~/.pi` bind chain, so nothing inside the namespace can remove it. The sync
+  aborts mid-flight: the env loses old files (binaries, libraries, plugin
+  package.jsons) while the new ones were never fully written. A working
+  reproduction leaves e.g. `bin/git` unable to load (`libiconv.so.2: cannot open
+  shared object file`) and every plugin's `package.json` gone.
+* **Consequences.** Phase 6 (`pixi update`) runs fine from the sandbox. Any
+  `pixi run <task>` in the `agents` env (including the `llama-cpp-changelog` task
+  in phase 4) triggers the implicit install and destroys the env in the sandbox
+  once a local recipe has changed — run it from the host, or run the underlying
+  script directly (`python3 scripts/llama-cpp-changelog.py …`, stdlib-only).
+* **Picking up the recipe changes, and repairing a half-extracted env, happen
+  only via `pixi install -e agents` from the host** (no bind mounts there, so the
+  EBUSY file deletes fine and the env syncs fully; the sandbox rebuild in
+  `.pixi/bld` is reused). If a sandbox install ran anyway, tell the user to run
+  it from the host before launching `pi`/`claude`/`herdr` again.
 
 ## Phases
 
