@@ -34,6 +34,7 @@ from typing import NamedTuple
 
 from kv_cache_common import ModelKV, resolve_bpw, resolve_model
 from perplexity_common import (
+    IGNORED_KEYS,
     KLD_KEYS,
     KV_KEYS,
     MODEL_KEYS,
@@ -41,7 +42,7 @@ from perplexity_common import (
     ModelFile,
     iter_cmd_options,
     iter_runs,
-    quant_matches,
+    select_model_files,
 )
 
 # ---------------------------------------------------------------------------
@@ -108,17 +109,19 @@ def _context_calc(
     """Total KV-cache size (MiB) at ``n_ctx`` tokens for the (ctk, ctv, tail)
     combo and ``n_parallel`` parallel sequences, plus a human-readable
     derivation string for the table tooltip. The quant bpw already includes
-    KVarN's per-tile scale overhead."""
+    KVarN's per-tile scale overhead, but not its f16 staging ring, which is a
+    separate allocation and needs the quant *name* -- hence ``kvarn``."""
     bpw_k, bpw_v = resolve_bpw(ctk), resolve_bpw(ctv)
+    kvarn = ctk.lower().startswith("kvarn") or ctv.lower().startswith("kvarn")
     mib = (
-        spec.get_total_kv_cache_size(n_ctx, bpw_k, bpw_v, tail, n_parallel)
+        spec.get_total_kv_cache_size(n_ctx, bpw_k, bpw_v, tail, n_parallel, kvarn)
         / BYTES_PER_MIB
     )
     lines = [
         f"{model_key}: {n_ctx} tok, tail {tail}, n_parallel {n_parallel}",
         f"K {ctk} {bpw_k:g} bpw, V {ctv} {bpw_v:g} bpw",
     ]
-    for grp in spec.cache_breakdown(n_ctx, bpw_k, bpw_v, tail, n_parallel):
+    for grp in spec.cache_breakdown(n_ctx, bpw_k, bpw_v, tail, n_parallel, kvarn):
         lines.append(
             f"{grp.name}: {grp.layers} layers x{grp.kv_heads} kv-heads x"
             f"{grp.key_dim}/{grp.value_dim} dim; {grp.note} "
@@ -189,7 +192,10 @@ def _common_params(runs: list[dict]) -> str:
     An option whose *value* differs anywhere is dropped along with its flag, so
     the block shows only what the rows genuinely have in common -- everything
     else is in their labels.  The KLD plumbing is excluded: the logits-dump run
-    lacks ``--kl-divergence`` by construction.
+    lacks ``--kl-divergence`` by construction.  So is anything in
+    :data:`NEUTRAL_KEYS`, which measures nothing -- but *not*
+    :data:`PLACEMENT_KEYS`: those are absent from the labels, and a shared
+    ``-ngl 99`` is what makes the speed chart interpretable.
     """
     if not runs:
         return ""
@@ -304,9 +310,29 @@ def _is_stock(r: dict) -> bool:
     return r["ctk"] in STOCK_KV_QUANTS and r["ctv"] in STOCK_KV_QUANTS
 
 
-def _model_quant(ref: str) -> str:
-    """The quant tag of a model reference, else its name."""
-    return ref.partition(":")[2] or _model_name(ref)
+def _model_quants(runs: list[dict]) -> dict[str, str]:
+    """Display quant per model reference, taken from the file each run loaded.
+
+    The `-hf` tag is not it: several tags of one repo can name the same file,
+    and a repo may leave its own marker out of the tag while every file carries
+    it. The provenance says which file was loaded, so that is what names it --
+    minus the model name shared across the log, which distinguishes nothing.
+    Runs whose log predates the provenance fall back to their tag.
+    """
+    primary, by_repo = {}, {}
+    for r in runs:
+        if names := sorted(r["weight_files"]):
+            primary[r["model_ref"]] = names[0]
+            by_repo.setdefault(r["model_ref"].partition(":")[0], set()).add(names[0])
+    quants = _file_quants(by_repo)
+    return {
+        r["model_ref"]: (
+            quants[primary[r["model_ref"]]]
+            if r["model_ref"] in primary
+            else r["model_ref"].partition(":")[2] or _model_name(r["model_ref"])
+        )
+        for r in runs
+    }
 
 
 def _sidebar_groups(runs: list[dict]) -> list[dict]:
@@ -318,6 +344,7 @@ def _sidebar_groups(runs: list[dict]) -> list[dict]:
     loaded, since nothing in a GGUF name reliably orders Q4_K_S below Q4_K_M.
     A run appears once in each section, so any run can be reached three ways.
     """
+    quants = _model_quants(runs)
 
     def section(title, key, rank, note=None):
         groups: dict[str, list[int]] = {}
@@ -348,7 +375,7 @@ def _sidebar_groups(runs: list[dict]) -> list[dict]:
         ),
         section(
             "By model quant",
-            lambda r: _model_quant(r["model_ref"]),
+            lambda r: quants[r["model_ref"]],
             lambda r: r["weight_bytes"],
         ),
         section(
@@ -453,23 +480,85 @@ def _author_quant(ref: str) -> str:
     return f"{author}:{quant}" if colon and slash and quant else ""
 
 
-def _model_labels(refs: set[str]) -> dict[str, str]:
+#: Split-GGUF suffix on a file name, e.g. `-00001-of-00002`.
+_SPLIT_SUFFIX_RE = re.compile(r"-\d{5}-of-\d{5}$")
+
+
+def _common_segments(stems: list[list[str]]) -> int:
+    """Leading dash-separated segments every stem shares, never all of them."""
+    if not stems:
+        return 0
+    for i in range(min(len(s) for s in stems) - 1):
+        if any(s[i].lower() != stems[0][i].lower() for s in stems):
+            return i
+    return min(len(s) for s in stems) - 1
+
+
+def _file_quants(by_repo: dict[str, set[str]]) -> dict[str, str]:
+    """Each GGUF file name as a quant: model name off the front, split off the end.
+
+    The model name is what **every** file in the log leads with, in whole
+    dash-separated segments -- `Qwen3.8-27B-`.  Taking the longest prefix any
+    *pair* shares instead would eat `AD-` as well, since all of one publisher's
+    files carry it, and that is the half of the name worth keeping: `AD-Q4_K_M`
+    and `UD-Q4_K_XL` are different mixes of the same model by different hands.
+
+    When the log holds no single shared name -- two publishers naming one model
+    differently, `LFM2.5-2.6B-Q6_K.gguf` beside `LiquidAI_LFM2.5-2.6B-Q6_K_L.gguf`
+    -- each repo's files are stripped against their own siblings instead, which
+    is the only prefix left that means "the model" there.
+    """
+    stems = {
+        n: _SPLIT_SUFFIX_RE.sub("", n.removesuffix(".gguf")).split("-")
+        for names in by_repo.values()
+        for n in names
+    }
+    groups = (
+        [set(stems)]
+        if _common_segments(list(stems.values()))
+        else [names for names in by_repo.values() if names]
+    )
+    out: dict[str, str] = {}
+    for group in groups:
+        shared = _common_segments([stems[n] for n in group])
+        out |= {n: "-".join(stems[n][shared:]) for n in group}
+    return out
+
+
+def _model_labels(
+    refs: set[str], quants: dict[str, str], with_author: bool = True
+) -> dict[str, str]:
     """Display name per distinct model reference, dropping what they share.
 
-    * quants of one repo -> the quant tag alone (``UD-Q4_K_XL``)
+    * quants of one repo -> the quant alone (``UD-Q4_K_XL``)
     * several repos -> ``author:quant`` (``LiquidAI:Q8_0``)
     * anything else -> the whole reference (``--model`` paths shortened to a
       file name), which is also the fallback whenever the shorter forms would
       give two different models the same label -- two repos by one author at the
       same quant, say. A label that cannot tell two runs apart is worse than a
       long one.
+
+    *quants* names each ref the way the **file it loaded** is named, not the way
+    the command line asked for it (see :func:`_model_quants`): a repo's tag may
+    leave out the marker its file names carry -- AtomicChat's ``:Q4_K_M`` loads
+    ``...-AD-Q4_K_M.gguf`` -- and dropping it would put that model's label next
+    to unsloth's ``UD-Q4_K_XL`` as if only one of them were a custom mix.
     """
     full = {ref: _model_name(ref) for ref in refs}
-    if not all(ref.partition(":")[2] for ref in refs):
-        return full  # an untagged ref or a plain path: nothing to strip
+    if not all(quants.get(ref) for ref in refs):
+        return full  # an untagged ref with no provenance: nothing to strip
+    bare = {ref: quants[ref] for ref in refs}
     if len({ref.partition(":")[0] for ref in refs}) == 1:
-        return {ref: ref.partition(":")[2] for ref in refs}
-    short = {ref: _author_quant(ref) or full[ref] for ref in refs}
+        return bare
+    # `with_author=False` is for the plots, where the author is already the
+    # point's colour -- but only while the quants alone still tell every model
+    # apart, since two authors can publish the same one.
+    if not with_author and len(set(bare.values())) == len(bare):
+        return bare
+    short = {
+        ref: (f"{ref.partition('/')[0]}:{quants[ref]}" if "/" in ref else full[ref])
+        for ref in refs
+    }
     return short if len(set(short.values())) == len(short) else full
 
 
@@ -501,26 +590,37 @@ def _build_labels(runs: list[dict], show_tail: bool) -> None:
     an empty label would leave the plots unreadable.
     """
     models = {r["model_ref"] for r in runs}
-    model_label = _model_labels(models)
+    quants = _model_quants(runs)
+    model_label = _model_labels(models, quants)
+    # The plots carry the author in the point colour and the legend, so spelling
+    # it out again on every annotation only crowds them; the table has no colour
+    # to lean on and keeps it.
+    plot_model_label = _model_labels(models, quants, with_author=False)
     kv = {(r["ctk"], r["ctv"], r["tail_label"]) for r in runs}
-    # Every option that is neither the model nor the KV cache nor KLD plumbing,
-    # and whose value is not the same on every run. `None` (flag absent here,
-    # present elsewhere) counts as a value of its own.
-    fixed = {*MODEL_KEYS, *KV_KEYS, *KLD_KEYS, *NEUTRAL_KEYS}
+    # Every option that is neither the model nor the KV cache nor one of the
+    # options a run's identity ignores anyway (KLD plumbing, and everything that
+    # steers where the work runs rather than what it measures), and whose value
+    # is not the same on every run. `None` (flag absent here, present elsewhere)
+    # counts as a value of its own -- which is exactly how a log resumed across
+    # an offload change would otherwise sprout `n-gpu-layers=off` labels.
+    fixed = {*MODEL_KEYS, *KV_KEYS, *IGNORED_KEYS}
     other = sorted({k for r in runs for k in r["args"]} - fixed)
     varying = [k for k in other if len({r["args"].get(k) for r in runs}) > 1]
 
     for r in runs:
         r["kv_label"] = _kv_label(r["ctk"], r["ctv"], r["tail_label"], show_tail)
-        parts = []
-        if len(models) > 1:
-            parts.append(model_label[r["model_ref"]])
-        if len(kv) > 1:
-            parts.append(r["kv_label"])
-        parts += [f"{k}={_option_value(r['args'].get(k))}" for k in varying]
-        if not parts:
-            parts = [r["kv_label"]]
-        r["label"] = r["log_label"] or "|".join(parts)
+
+        def compose(names: dict[str, str], r: dict = r) -> str:
+            parts = []
+            if len(models) > 1:
+                parts.append(names[r["model_ref"]])
+            if len(kv) > 1:
+                parts.append(r["kv_label"])
+            parts += [f"{k}={_option_value(r['args'].get(k))}" for k in varying]
+            return "|".join(parts or [r["kv_label"]])
+
+        r["label"] = r["log_label"] or compose(model_label)
+        r["plot_label"] = r["log_label"] or compose(plot_model_label)
 
 
 def parse_log(
@@ -608,6 +708,7 @@ def parse_log(
             "tail": tail,
             "tail_label": tail_label,
             "label": "",  # filled in by _build_labels once the log is whole
+            "plot_label": "",
             "size": resolve_bpw(ctk) + resolve_bpw(ctv),
             "n_chunks": 0,
             "mean": None,
@@ -783,23 +884,34 @@ def _cache_type(value: str | bool | None) -> str:
 def _run_shards(files: dict[str, ModelFile], model_ref: str) -> dict[str, ModelFile]:
     """The shards of *model_ref* among those the log recorded for one run.
 
-    Logs written before the sweeper matched quant tags on token boundaries name
-    a sibling quant next to the right one -- `:Q6_K` also resolved `Q6_K_L` --
-    and summing both reports one model as two. Re-applying the rule here fixes
-    those logs without re-running them.
+    Logs written before the sweeper resolved quant tags llama.cpp's way name a
+    sibling quant next to the right one -- `:Q4_K_M` also resolved the
+    `…-Q5_K_M-Q4_K_M.gguf` of a mixed-quant repo, and `:BF16` the mmproj beside
+    it -- and summing both reports one model as two. Re-applying the rule here
+    fixes those logs without re-running them.
 
-    Everything is kept when the tag matches nothing, which is the honest answer
-    for an untagged `-hf`, a `--model` path, or a repo whose file names do not
-    carry the tag: there the recorded set is all the log knows.
+    Everything is kept when the tag resolves to nothing, which is the honest
+    answer for a repo whose file names do not carry the tag: there the recorded
+    set is all the log knows.
     """
-    tag = model_ref.partition(":")[2]
-    if not tag:
-        return files
-    return {name: f for name, f in files.items() if quant_matches(f.path, tag)} or files
+    # Only an `--hf-repo` spec carries a `:tag`; a `--model` path is its own
+    # answer and resolves through the untagged branch.
+    tag = model_ref.partition(":")[2] if "/" in model_ref.partition(":")[0] else ""
+    keep = set(select_model_files(sorted(f.path for f in files.values()), tag))
+    return {name: f for name, f in files.items() if f.path in keep} or files
 
 
 def _model_ref(args: dict[str, str | bool]) -> str:
-    """The model a run loaded: its ``--hf-repo`` spec, else its ``--model`` path."""
+    """The model a run loaded: its ``--hf-repo`` spec, else its ``--model`` path.
+
+    A ``--hf-file`` pin replaces the repo's ``:quant`` tag with the file's stem,
+    because it is what the run loaded and the tag is not -- and because pinning
+    is the only way to reach a quant whose tag llama.cpp resolves elsewhere, so
+    without this every pinned run of a repo would share one label.
+    """
+    repo = args.get("hf-repo")
+    if isinstance(repo, str) and isinstance(hf_file := args.get("hf-file"), str):
+        return f"{repo.partition(':')[0]}:{hf_file.removesuffix('.gguf')}"
     for key in MODEL_KEYS:
         if isinstance(ref := args.get(key), str):
             return ref
@@ -1228,7 +1340,7 @@ def generate_html(
             # id appears in every chart and on the table row, and one click
             # anywhere repaints all of them.
             "_id": r["uid"],
-            "_label": r["label"],
+            "_label": r["plot_label"],
             "_speed": r["speed"],
             "_speed_pct": r["speed_pct"],
             "_tol": r.get(tol_key) if tol_key else None,
@@ -1399,7 +1511,7 @@ def generate_html(
     y_max = max_y * 1.15  # 15% headroom above max
     x_min, x_max = _x_range(sorted_runs, cost_key)
 
-    baseline_label = next((r["label"] for r in runs if r.get("baseline")), None)
+    baseline_label = next((r["plot_label"] for r in runs if r.get("baseline")), None)
     baseline_label_json = json.dumps(baseline_label) if baseline_label else "null"
 
     # ---- assemble the five charts ----
@@ -2221,7 +2333,7 @@ def generate_plot_svg(
             for x, y, r in pt_list:
                 if id(r) in suboptimal_ids and alpha < 1:
                     ax.annotate(
-                        r["label"],
+                        r["plot_label"],
                         (x, y),
                         textcoords="offset points",
                         xytext=(0, -12),
@@ -2233,7 +2345,7 @@ def generate_plot_svg(
                     )
                 else:
                     ax.annotate(
-                        r["label"],
+                        r["plot_label"],
                         (x, y),
                         textcoords="offset points",
                         xytext=(0, -12),
@@ -2276,7 +2388,9 @@ def generate_plot_svg(
             )
 
     # Baseline annotation
-    baseline_label = next((r["label"] for r in sorted_runs if r.get("baseline")), None)
+    baseline_label = next(
+        (r["plot_label"] for r in sorted_runs if r.get("baseline")), None
+    )
     if baseline_label:
         ax.annotate(
             f"{baseline_label} (baseline) \u2193",
@@ -2423,7 +2537,7 @@ def generate_stat_svg(
     for pt_list, alpha in [(best_pts, 1.0), (sub_pts, 0.4)]:
         for x, y, r in pt_list:
             ax.annotate(
-                r["label"],
+                r["plot_label"],
                 (x, y),
                 textcoords="offset points",
                 xytext=(0, -12),

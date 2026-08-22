@@ -1227,10 +1227,16 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
     spec, info = result
     kv_quants = _kv_quants(spec)
     quant_bpw = {q: resolve_bpw(_effective_quant(q, arch)) for q, _ in kv_quants}
+    # A KVarN cache also allocates an f16 staging ring, which bpw cannot express;
+    # `_effective_quant` is what decides, since an `_ARCH_NO_KVARN` run stores the
+    # plain fallback type and allocates no ring.
+    quant_kvarn = {
+        q: _effective_quant(q, arch).startswith("kvarn") for q, _ in kv_quants
+    }
     kv_by_quant = {
         _kv_label(q, tail): int(
             spec.get_total_kv_cache_size(
-                n_ctx, quant_bpw[q], quant_bpw[q], tail, KV_N_PARALLEL
+                n_ctx, quant_bpw[q], quant_bpw[q], tail, KV_N_PARALLEL, quant_kvarn[q]
             )
         )
         for q, tail in kv_quants
@@ -1449,7 +1455,9 @@ def _kv_cache_breakdown(info, kv_by_quant):
             f"{subst}): {nbytes:>14,d} B = {nbytes / gib:7.2f} GiB  "
             f"{nbytes / gb:7.2f} GB"
         )
-        groups = spec.cache_breakdown(n_ctx, bpw, bpw, tail, KV_N_PARALLEL)
+        groups = spec.cache_breakdown(
+            n_ctx, bpw, bpw, tail, KV_N_PARALLEL, effective.startswith("kvarn")
+        )
         if len(groups) < 2 and not tail:  # nothing the headline doesn't say
             continue
         for grp in groups:

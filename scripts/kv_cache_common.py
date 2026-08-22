@@ -96,6 +96,23 @@ KVARN_FALLBACK = {
 # or 4 slices wide. See ModelKV.support_kvarn.
 KVARN_HEAD_DIMS = (128, 256, 512)
 
+# A KVarN cache is not one tensor per layer: alongside the quantized *records*
+# it keeps a **persistent** f16 staging ring, because KVarN quantizes a whole
+# 128-token tile at once and the tile still being filled has to live somewhere
+# exact (llama-kv-cache-kvarn.cpp, `k_stage`/`v_stage`, allocated in the same
+# buffer as the records and unconditional -- "records and stages are always the
+# persistent KVarN body"). Its depth is
+# `n_stage_tokens = KVAR_N_GROUP * stage_groups * n_stream`:
+#   * non-SWA: `tail_groups = llama_kvarn_non_swa_tail_groups() * n_seq_max` and
+#     `stage_groups = tail_groups + 1` -- the +1 is the live tile, the 2 per
+#     sequence are the rollback reserve;
+#   * SWA: `stage_groups = tail_groups = KVAR_N_SWA_TAIL_GROUPS`, and a single
+#     stream is mandatory (`GGML_ASSERT(n_stream == 1)`).
+# See ModelKV._kvarn_stage_rows.
+KVARN_GROUP = 128  # KVAR_N_GROUP: tokens per KVarN tile
+KVARN_NON_SWA_TAIL_GROUPS = 2  # llama_kvarn_non_swa_tail_groups(): a constant 2
+KVARN_SWA_TAIL_GROUPS = 2  # KVAR_N_SWA_TAIL_GROUPS
+
 
 # ---------------------------------------------------------------------------
 #  Per-model KV-cache geometry.
@@ -110,7 +127,9 @@ KVARN_HEAD_DIMS = (128, 256, 512)
 #      the window plus a per-sequence (tail + R) f16 overlay;
 #    * a `compressed` group (DeepSeek-V4's CSA / HCA / lightning-indexer caches)
 #      keeps one row per `ratio` tokens per sequence, tail-less, padded to 256
-#      cells -- see CompressedKV.
+#      cells -- see CompressedKV;
+#    * a KVarN run adds a persistent f16 staging ring on top of either token
+#      group -- see KVARN_GROUP and ModelKV._kvarn_stage_rows.
 #  N is the resolved tail, R the rollback horizon (=1 whenever a tail exists;
 #  llama-kv-cache-tail.cpp: persistent rows = (N + R) * n_seq_max, sink = 0).
 #  The pre-v0.4.1 per-stream sink / batch / ubatch / tile padding are now
@@ -280,17 +299,49 @@ class ModelKV(NamedTuple):
         graph-local, so they add no persistent rows."""
         return (exact_tokens + KV_TAIL_ROLLBACK) * n_parallel
 
+    def _kvarn_stage_rows(self, n_parallel: int, swa: bool) -> int:
+        """Persistent f16 staging rows a KVarN cache holds for this group.
+
+        `KVAR_N_GROUP * stage_groups * n_stream` in
+        llama-kv-cache-kvarn.cpp; modelled unified (`n_stream = 1`), as the rest
+        of this module is. These rows are *additional* to the quantized records,
+        which already span the whole context: the ring is where a tile lives
+        until it is complete and can be quantized, so it does not shrink the
+        body. Independent of the tail -- an exact tail is a third allocation.
+
+        Two SWA-only approximations remain. `kvarn_record_groups_per_stream`
+        gives the sliding-window records `ceil(window / 128) + 1` tiles plus the
+        in-flight ubatch, i.e. a few hundred tokens more than the window itself,
+        which is not modelled. And on an interleaved-SWA model with
+        `n_seq_max > 1`, `llama_kvarn_iswa_policy_for` returns
+        STANDARD_SWA_FALLBACK and the sliding-window half is a *plain* cache at
+        `KVARN_FALLBACK` instead -- records, stage and bpw are all wrong there,
+        and sizing it needs the quant *names*, which this API does not take.
+        """
+        groups = (
+            KVARN_SWA_TAIL_GROUPS if swa else KVARN_NON_SWA_TAIL_GROUPS * n_parallel + 1
+        )
+        return KVARN_GROUP * groups
+
     def _full_group_bytes(
-        self, ctx_size: int, bpw_k: float, bpw_v: float, tail: int, n_parallel: int
+        self,
+        ctx_size: int,
+        bpw_k: float,
+        bpw_v: float,
+        tail: int,
+        n_parallel: int,
+        kvarn: bool = False,
     ) -> float:
         """Unified full-attention group: a shared quant body over the whole
         context, plus a per-sequence f16 exact-tail overlay of (tail + R) rows
-        (absent for an exact f16 body or a zero tail)."""
+        (absent for an exact f16 body or a zero tail), plus a KVarN run's
+        persistent f16 staging ring."""
         layers, heads = self.full_attn_layers_all, self.full_attn_kv_heads
+        stage = self._kvarn_stage_rows(n_parallel, swa=False) if kvarn else 0
 
         def side(head_dim: int, bpw: float) -> float:
             elems = layers * heads * head_dim
-            body = elems * ctx_size * bpw / 8
+            body = elems * ctx_size * bpw / 8 + elems * stage * F16_BPW / 8
             if bpw >= F16_BPW or tail <= 0:  # exact body -> no overlay
                 return body
             return body + elems * self._exact_rows(tail, n_parallel) * F16_BPW / 8
@@ -298,20 +349,31 @@ class ModelKV(NamedTuple):
         return side(self.key_dim, bpw_k) + side(self.value_dim, bpw_v)
 
     def _swa_group_bytes(
-        self, ctx_size: int, bpw_k: float, bpw_v: float, tail: int, n_parallel: int
+        self,
+        ctx_size: int,
+        bpw_k: float,
+        bpw_v: float,
+        tail: int,
+        n_parallel: int,
+        kvarn: bool = False,
     ) -> float:
         """Sliding-window group. When the tail covers the window (or the body is
         exact f16) it is a bodyless exact f16 ring of (window + R) rows per
         sequence; otherwise a quant body over the window plus a per-sequence
-        (tail + R) f16 overlay."""
+        (tail + R) f16 overlay, plus a KVarN run's persistent f16 staging ring.
+        """
         layers, heads = self.sliding_window_layers_all, self.sliding_window_kv_heads
         window = min(ctx_size, self.sliding_window_size)
+        stage = self._kvarn_stage_rows(n_parallel, swa=True) if kvarn else 0
 
         def side(head_dim: int, bpw: float) -> float:
             elems = layers * heads * head_dim
-            if tail >= window or bpw >= F16_BPW:  # bodyless native-exact ring
+            # A KVarN cache never collapses to a bodyless ring: its records span
+            # the window whatever the tail asks for.
+            if not kvarn and (tail >= window or bpw >= F16_BPW):
                 return elems * self._exact_rows(window, n_parallel) * F16_BPW / 8
             body = elems * window * bpw / 8  # quant body over the window
+            body += elems * stage * F16_BPW / 8
             if tail <= 0:  # no exact tail -> body only
                 return body
             return body + elems * self._exact_rows(tail, n_parallel) * F16_BPW / 8
@@ -368,18 +430,25 @@ class ModelKV(NamedTuple):
         bpw_v: float,
         kv_tail_tokens: int,
         n_parallel: int,
+        kvarn: bool = False,
     ) -> float:
         """Total K+V cache bytes at ``ctx_size`` tokens for ``n_parallel``
         parallel sequences, modelling llama-server's actual allocation. K/V quant
-        widths are ``bpw_k`` / ``bpw_v`` (bits per element)."""
+        widths are ``bpw_k`` / ``bpw_v`` (bits per element). ``kvarn`` says the
+        run asked for a ``kvarn*`` cache type, which is a different cache class
+        and not derivable from bpw -- pass it, or the f16 staging ring goes
+        missing (see ``_kvarn_stage_rows``). Callers that substitute
+        ``KVARN_FALLBACK`` for an architecture whose bespoke cache never sees the
+        KVarN params must pass ``False``: such a run stores the plain type and
+        allocates no ring."""
         total = 0.0
         if self.full_attn_layers:
             total += self._full_group_bytes(
-                ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
+                ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel, kvarn
             )
         if self.sliding_window_layers:
             total += self._swa_group_bytes(
-                ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
+                ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel, kvarn
             )
         for group in self.compressed:
             total += self._comp_group_bytes(group, ctx_size, bpw_k, bpw_v, n_parallel)
@@ -392,12 +461,18 @@ class ModelKV(NamedTuple):
         bpw_v: float,
         kv_tail_tokens: int,
         n_parallel: int,
+        kvarn: bool = False,
     ) -> list[CacheGroupSize]:
         """Per-group derivation for the tooltip. Groups with no layers are
         omitted, so a model whose every layer is sliding-window (DeepSeek-V4)
         yields no full-attention row."""
         lossy = max(bpw_k, bpw_v) < F16_BPW
         rows: list[CacheGroupSize] = []
+
+        def stage_note(swa: bool) -> str:
+            if not kvarn:
+                return ""
+            return f" + f16 kvarn stage {self._kvarn_stage_rows(n_parallel, swa)} rows"
 
         if self.full_attn_layers:
             full_note = (
@@ -413,15 +488,15 @@ class ModelKV(NamedTuple):
                     self.full_attn_kv_heads,
                     self.key_dim,
                     self.value_dim,
-                    full_note,
+                    full_note + stage_note(swa=False),
                     self._full_group_bytes(
-                        ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
+                        ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel, kvarn
                     ),
                 )
             )
         if self.sliding_window_layers:
             window = min(ctx_size, self.sliding_window_size)
-            if kv_tail_tokens >= window or not lossy:
+            if not kvarn and (kv_tail_tokens >= window or not lossy):
                 rows_n = self._exact_rows(window, n_parallel)
                 swa_note = f"bodyless exact f16 ({window}+{KV_TAIL_ROLLBACK})x{n_parallel} = {rows_n} rows"
             elif kv_tail_tokens > 0:
@@ -438,9 +513,9 @@ class ModelKV(NamedTuple):
                     self.sliding_window_kv_heads,
                     self.key_dim,
                     self.value_dim,
-                    swa_note,
+                    swa_note + stage_note(swa=True),
                     self._swa_group_bytes(
-                        ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel
+                        ctx_size, bpw_k, bpw_v, kv_tail_tokens, n_parallel, kvarn
                     ),
                 )
             )
@@ -613,12 +688,12 @@ MODEL_KV: dict[str, ModelKV] = {
             ),
         ),
     ),
-    # `bailingmoe3` hybrid: of its 42 blocks, `attention.head_count_kv` is 1 on
-    # blocks 5, 11, 17, 23, 29, 35, 41 (MLA) and 0 on the other 35, which are KDA
-    # (Kimi delta-net) linear-attention blocks holding a fixed-size recurrent state
-    # instead of a KV cache. That state is the `compressed` row below:
-    # llama_hparams::n_embd_r/n_embd_s = 3*(ssm.conv_kernel-1)*n_head*kda.head_dim
-    # (36864) + kda.head_dim^2*n_head (524288) f32 elems per layer per sequence,
+    # `bailingmoe3` hybrid: `attention.head_count_kv` is 1 on the 7 MLA blocks
+    # and 0 on the other 35, which are KDA (Kimi delta-net) linear-attention
+    # blocks holding a fixed-size recurrent state instead of a KV cache. That
+    # state is the `compressed` row below: llama_hparams::n_embd_r/n_embd_s =
+    # 3*(ssm.conv_kernel-1)*n_head*kda.head_dim (36864) +
+    # kda.head_dim^2*n_head (524288) f32 elems per layer per sequence,
     # ~0.07 GiB over the 35 blocks and context-independent.
     #
     # `attention.key_length` = 576 is already the cached latent (kv_lora_rank 512 +
@@ -627,14 +702,16 @@ MODEL_KV: dict[str, ModelKV] = {
     # `attention.value_length` (512) must not be counted. KVarN is doubly out here
     # -- the MLA cache path is rejected outright and 576 is not a KVarN head dim.
     #
-    # `nextn_predict_layers = 1`, so block 41 is an MTP head sitting past
-    # `hparams.n_layer()` -- but all 7 MLA blocks are still real cached layers:
-    # `llama_kv_cache` loops over `n_layer_all` and bailingmoe3 passes no filter,
-    # so only the recurrent state (which llama_memory_recurrent allocates over
-    # `n_layer()`) stops at block 40. Qwen3.5/3.6, STEP35 and HY_V3 are the only
-    # architectures that do drop the MTP block from the main cache.
+    # block_count = 43 with nextn_predict_layers = 1, so n_layer() = 42 and block
+    # 42 is an MTP head. `is_recr_impl` is written only below n_layer() (and
+    # zero-initialised), so the MTP block is not recurrent and the hybrid's
+    # default attention filter (`!is_recr`, llama-memory-hybrid.cpp) lets it
+    # through: `llama_kv_cache` loops over `n_layer_all`, so block 42 gets a real
+    # 8th MLA cache layer. Only the recurrent state stops at `n_layer()` (35
+    # layers, llama-memory-recurrent.cpp). Qwen3.5/3.6, STEP35 and HY_V3 are the
+    # only architectures that do drop the MTP block from the main cache.
     "Ling-3.0-flash": ModelKV(
-        full_attn_layers=7,
+        full_attn_layers=8,
         full_attn_kv_heads=1,
         sliding_window_layers=0,
         sliding_window_kv_heads=0,
@@ -644,6 +721,28 @@ MODEL_KV: dict[str, ModelKV] = {
         compressed=(
             CompressedKV(
                 "recurrent state", 35, 1, 36864, 524288, fixed_rows=1, elem_bpw=32.0
+            ),
+        ),
+    ),
+    # Same `bailingmoe3` hybrid one size down: block_count = 24, with
+    # `attention.head_count_kv` 1 on blocks 3, 7, 11, 15, 19, 23 (MLA) and 0 on
+    # the other 18 KDA blocks. No `nextn_predict_layers` in the GGUF, so every
+    # block is a main layer and there is no MTP cache layer to count.
+    # n_head = 16 halves the flash geometry: recurrent state per layer =
+    # 3*(ssm.conv_kernel-1)*n_head*kda.head_dim (18432) +
+    # kda.head_dim^2*n_head (262144) f32 elems. Same MLA latent (576, no V
+    # cache), same KVarN exclusion.
+    "Ling-3.0-tiny": ModelKV(
+        full_attn_layers=6,
+        full_attn_kv_heads=1,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=576,  # kvarn not supported
+        value_dim=0,
+        compressed=(
+            CompressedKV(
+                "recurrent state", 18, 1, 18432, 262144, fixed_rows=1, elem_bpw=32.0
             ),
         ),
     ),
@@ -720,6 +819,7 @@ MODEL_KV["Ornith-1.0-35B"] = MODEL_KV["Qwen3.6-35B-A3B"]
 MODEL_KV["Kat-Coder-V2.5-Dev"] = MODEL_KV["Qwen3.6-35B-A3B"]
 MODEL_KV["Ternary-Bonsai-27B"] = MODEL_KV["Qwen3.6-27B"]
 MODEL_KV["Bonsai-27B"] = MODEL_KV["Qwen3.6-27B"]
+MODEL_KV["Qwen3.8-27B"] = MODEL_KV["Qwen3.6-27B"]
 
 
 def resolve_model(model_ref: str):

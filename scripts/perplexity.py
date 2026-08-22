@@ -72,31 +72,47 @@ automatically: asymmetric KVarN (symmetric-only), a non-zero tail on an exact
 f16/f16 cache, and a value cache more precise than the key cache.  `include`
 entries are exempt from those three -- an explicit request is intentional -- but
 not from `exclude`.
+
+A run already in the log is skipped, and "already in the log" ignores every
+option that steers *where* the work runs rather than what it measures --
+`-ngl`, `--fit`/`--fit-target`, `--device`, `--threads`, `--load-mode`, the rest
+of `perplexity_common.PLACEMENT_KEYS`.  A sweep spanning days outlives the
+offload policy it started under, and re-running a week of measurements because
+`-ngl 99` moved into `--fit-target 4096` measures nothing new.  Delete a run's
+block from the log to force it to run again.
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime
+import functools
 import hashlib
 import itertools
+import json
 import os
 import pathlib
 import re
 import shlex
 import subprocess
 import sys
+import urllib.request
 from typing import Any
 
 import yaml
 from kv_cache_common import BPW
 from perplexity_common import (
+    IGNORED_KEYS,
     KLD_KEYS,
+    MODEL_KEYS,
+    SEPARATOR,
     canon,
     cmd_signature,
     iter_runs,
     parse_cmd_args,
-    quant_matches,
+    seal_log,
+    select_model_files,
+    split_shards,
 )
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
@@ -181,7 +197,9 @@ class Combo:
     Keys are canonical (dash-free, long-spelling) llama.cpp flag names; values
     are strings, or True for a flag that takes none.  ``label`` is held apart:
     it is logged as a comment rather than passed to llama-perplexity, and two
-    combos differing only by label are the same run.
+    combos differing only by label are the same run.  So are two combos
+    differing only by an option in :data:`~perplexity_common.IGNORED_KEYS` --
+    ``--fit-target`` and friends steer the offload, not the measurement.
     """
 
     __slots__ = ("args", "label")
@@ -220,8 +238,14 @@ class Combo:
 
     @property
     def key(self) -> frozenset[tuple[str, Value]]:
-        """Run identity: the options, order-insensitive, label excluded."""
-        return frozenset(self.args.items())
+        """Run identity: the options, order-insensitive, minus the label and the
+        ones that measure nothing (:data:`~perplexity_common.IGNORED_KEYS`).
+
+        The same notion of identity as :func:`~perplexity_common.cmd_signature`,
+        which is what decides whether the log already holds this run -- so a
+        combo the sweeper considers distinct is a combo it can also find again.
+        """
+        return frozenset((k, v) for k, v in self.args.items() if k not in IGNORED_KEYS)
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Combo) and self.key == other.key
@@ -230,9 +254,24 @@ class Combo:
         return hash(self.key)
 
     def __str__(self) -> str:
-        return self.label or " ".join(
-            k if v is True else f"{k}={v}" for k, v in self.args.items()
+        """How the run is named in progress, [SKIP] and [ABORT] messages.
+
+        Only the options that identify it: an ``-ngl`` or a ``--fit-target``
+        neither distinguishes this run from another nor changes what it measures
+        (:data:`~perplexity_common.IGNORED_KEYS`), so printing it just makes the
+        lines harder to compare.  The full command line is logged verbatim, and
+        ``--dry-run`` prints it, so nothing is hidden.
+        """
+        if self.label:
+            return self.label
+        shown = " ".join(
+            k if v is True else f"{k}={v}"
+            for k, v in self.args.items()
+            if k not in IGNORED_KEYS
         )
+        # A combo of nothing but placement options is `common:` and nothing else;
+        # an empty name in `[RUN] ` would say less than "default" does.
+        return shown or "default"
 
     def cli(self) -> str:
         """The ``--key value`` fragment this combo appends to ``common:``."""
@@ -529,13 +568,73 @@ def shard_siblings(path: pathlib.Path) -> list[pathlib.Path]:
     return sorted(path.parent.glob(f"{path.name[: m.start()]}-*-of-*.gguf"))
 
 
+def hf_endpoint() -> str:
+    """Hugging Face endpoint llama.cpp talks to (``common_get_model_endpoint``)."""
+    base = os.environ.get("HF_ENDPOINT") or os.environ.get("MODEL_ENDPOINT")
+    return (base or "https://huggingface.co").rstrip("/") + "/"
+
+
+@functools.cache
+def hf_repo_files(repo: str, token: str = "") -> tuple[str, ...]:
+    """Every file of *repo* on the Hub, in the order llama.cpp sees them.
+
+    The **repository listing is what a `:quant` tag resolves against** -- not the
+    local cache.  ``hf_cache::get_repo_files`` fetches
+    ``api/models/<repo>/tree/<commit>?recursive=true`` and
+    ``find_best_model`` takes the first entry the tag matches, so a file this
+    machine has not downloaded yet still outranks one it has.  Resolving against
+    the cache alone gets that backwards exactly when it matters -- the first run
+    on a new quant, when the cache holds only the *previous* quants -- and then
+    names a sibling the run never loads.
+
+    Returns () on any failure, and the caller falls back to the cache.  That
+    fallback is wrong only while the real file is missing: once it is downloaded
+    it sorts at or before every other cached match (it precedes them in the
+    repo listing, which the cache is a subset of), so the post-run provenance is
+    right either way.  Memoised for the process: one request per repo, not one
+    per run.
+    """
+    url = f"{hf_endpoint()}api/models/{repo}/tree/main?recursive=true"
+    request = urllib.request.Request(url)
+    if token:
+        request.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            entries = json.load(response)
+        return tuple(
+            e["path"]
+            for e in entries
+            if isinstance(e, dict) and e.get("type") == "file"
+        )
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        # Provenance must never abort a multi-day sweep, nor stall it: a failure
+        # is memoised too, so a dead network costs one timeout, not 273.
+        print(f"  WARNING: could not list {repo} on the Hub ({e})", file=sys.stderr)
+        return ()
+
+
+def hf_token(args: dict[str, Value]) -> str:
+    """The token llama.cpp would authenticate the listing with, if any."""
+    if isinstance(token := args.get("hf-token"), str):
+        return token
+    return os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN") or ""
+
+
 def resolve_model_files(cmd: str) -> list[pathlib.Path]:
     """Model files that *cmd* will load.
 
-    ``--model`` is taken verbatim (plus its sibling shards); for ``--hf-repo``
-    the Hugging Face hub cache is globbed for the repo's shards.  Every match is
-    returned rather than just the newest: two snapshots of one repo in the cache
-    means the weights moved under the sweep, which is what provenance is for.
+    ``--model`` is taken verbatim (plus its sibling shards).  For ``--hf-repo``
+    the ``:quant`` tag is resolved the way llama.cpp resolves it
+    (:func:`~perplexity_common.select_model_files`) against the **repository
+    listing** (:func:`hf_repo_files`), and the winner is then looked up in the
+    local cache: one model per snapshot, not every file the tag appears in.  Two
+    snapshots of one repo in the cache still yield two answers, the weights
+    having moved under the sweep, which is what provenance is for.
+
+    ``--offline`` drops the request, because llama.cpp is then resolving against
+    the cache too (``common_download_get_hf_plan`` falls back to
+    ``get_cached_files``), which makes the cache the right answer rather than an
+    approximation of one.
     """
     args = parse_cmd_args(cmd)
 
@@ -549,20 +648,158 @@ def resolve_model_files(cmd: str) -> list[pathlib.Path]:
     # HF hub layout: models--<org>--<repo>/snapshots/<commit>/[<quant>/]*.gguf,
     # symlinked into blobs/.  The commit in the path is itself provenance.
     repo_dir = llama_cache_dir() / f"models--{repo.replace('/', '--')}"
+    # Sorted, because listing order is what decides between two files a tag
+    # matches, and the Hub lists a repo in name order.
     files = sorted(repo_dir.glob("snapshots/*/**/*.gguf"))
-    # A filter that matches nothing means the requested weights are not in the
-    # cache yet -- this run is about to download them -- so the honest answer is
-    # nothing, and the post-run provenance will describe what arrived.  Falling
-    # back to the unfiltered set here instead would attribute every *other*
-    # quant of the repo to this run, which the report then sums into its weight
-    # figure.
+    # Resolving to nothing means the requested weights are not in the cache yet
+    # -- this run is about to download them -- so the honest answer is nothing,
+    # and the post-run provenance will describe what arrived.  Falling back to
+    # the unfiltered set here instead would attribute every *other* quant of the
+    # repo to this run, which the report then sums into its weight figure.
     if isinstance(hf_file := args.get("hf-file"), str):
-        return [f for f in files if f.name == hf_file]
-    if quant:
-        # The quant tag is a subdirectory for split models, part of the file
-        # name for single-file ones.
-        return [f for f in files if quant_matches(str(f), quant)]
-    return files
+        # `--hf-file` names one shard; llama.cpp still loads the whole split.
+        named = next((f for f in files if f.name == hf_file), None)
+        return shard_siblings(named) if named else []
+
+    listing = () if args.get("offline") else hf_repo_files(repo, hf_token(args))
+    if not listing:
+        return [pathlib.Path(p) for p in select_model_files(map(str, files), quant)]
+    # Selected on the Hub's listing, reported from the cache: a name the tag wins
+    # but this machine has not downloaded is simply absent, which is the whole
+    # point -- provenance describes bytes on disk, and there are none yet.
+    wanted = set(select_model_files(listing, quant))
+    return [f for f in files if _repo_relative(f) in wanted]
+
+
+def _repo_relative(path: pathlib.Path) -> str:
+    """A cached file's path relative to its snapshot, i.e. its name in the repo."""
+    parts = path.parts
+    for i in range(len(parts) - 2, 0, -1):
+        if parts[i - 1] == "snapshots":
+            return "/".join(parts[i + 1 :])
+    return path.name
+
+
+def model_identity(args: dict[str, Value]) -> tuple[Any, ...]:
+    """*Which weights* a run loads, as a comparable key.
+
+    Two runs sharing this and differing in nothing else are the same
+    measurement, however differently their command lines name the model.  That
+    is not a hypothetical: llama.cpp resolves a `:quant` tag by substring, so
+    one file answers to several tags, and a repo publishing mixed quants makes
+    that the rule rather than the exception.
+
+    Falls back to the tag when the repo cannot be listed, which keeps a sweep
+    running offline -- it just cannot detect a collision it can no longer see.
+    """
+    if isinstance(path := args.get("model"), str):
+        return ("model", path)
+    if not isinstance(spec := args.get("hf-repo"), str):
+        return ()
+    repo, _, tag = spec.partition(":")
+    listing = hf_repo_files(repo, hf_token(args))
+    if isinstance(hf_file := args.get("hf-file"), str):
+        # Expanded to the whole split, so pinning shard 1 and letting a tag
+        # resolve to it come out equal rather than as two spellings of one run.
+        return (
+            "hf",
+            repo,
+            tuple(split_shards(listing, hf_file) if listing else [hf_file]),
+        )
+    if not listing:
+        return ("hf", repo, tag)
+    return ("hf", repo, tuple(select_model_files(listing, tag)))
+
+
+def tag_candidates(repo: str, tag: str, token: str = "") -> list[str]:
+    """Every model file in *repo* that ``:tag`` matches, best first.
+
+    Length is the tie-break for the "did you mean" hint: of the files whose own
+    quant name ends in the tag, the shortest is the one actually named after it
+    (`…-IQ3_XXS.gguf` rather than `…-IQ3_S-IQ3_XXS.gguf`).
+    """
+    pattern = re.compile(re.escape(tag) + "[.-]", re.IGNORECASE)
+    return [p for p in hf_repo_files(repo, token) if pattern.search(p)]
+
+
+def _model_spelling(combo: Combo, base: dict[str, Value]) -> str:
+    """How a combo names its model, for a message: ``:tag`` or ``hf-file: name``."""
+    args = {**base, **combo.args}
+    if isinstance(hf_file := args.get("hf-file"), str):
+        return f"hf-file: {hf_file}"
+    return ":" + str(args.get("hf-repo", "")).partition(":")[2]
+
+
+def drop_model_collisions(combos: list[Combo], base: dict[str, Value]) -> list[Combo]:
+    """Drop combos that differ from a kept one only by a tag naming the same file.
+
+    Running both measures one model twice and reports it as two, which is worse
+    than losing the run: the report draws two series with identical numbers, and
+    the sweep spends hours proving a model equals itself.
+
+    The survivor is the combo whose tag is **unambiguous** -- the one matching a
+    single file of the repo -- because that is the tag that says what it loads.
+    The others are reported with the ``hf-file:`` that would have measured the
+    quant their tag names, since that, not a different tag, is the way to ask
+    for it.
+    """
+
+    def spec_of(combo: Combo) -> str:
+        return str({**base, **combo.args}.get("hf-repo", ""))
+
+    def ambiguity(combo: Combo) -> int:
+        """How many files of the repo the combo's tag matches; 1 when pinned."""
+        args = {**base, **combo.args}
+        if isinstance(args.get("hf-file"), str) or not isinstance(
+            spec := args.get("hf-repo"), str
+        ):
+            return 1
+        repo, _, tag = spec.partition(":")
+        return len(tag_candidates(repo, tag, hf_token(args))) or 1
+
+    groups: dict[tuple[Any, ...], list[Combo]] = {}
+    for combo in combos:
+        rest = frozenset((k, v) for k, v in combo.key if k not in MODEL_KEYS)
+        groups.setdefault((model_identity({**base, **combo.args}), rest), []).append(
+            combo
+        )
+
+    dropped: set[int] = set()
+    # Reported per (repo, tag), not per combo: one tag collides across every KV
+    # setting of the sweep, and nine identical complaints bury the one that
+    # matters.  Value is (how the keeper spells it, the files both load).
+    collisions: dict[tuple[str, str], tuple[str, tuple[str, ...], str]] = {}
+    for (identity, _), members in groups.items():
+        if len(members) < 2:
+            continue
+        keeper, *others = sorted(members, key=ambiguity)
+        kept_as = _model_spelling(keeper, base)
+        files = identity[2] if identity[:1] == ("hf",) else ()
+        for combo in others:
+            dropped.add(id(combo))
+            repo, _, tag = spec_of(combo).partition(":")
+            if (spelling := _model_spelling(combo, base)) != kept_as:  # else a dup
+                collisions[repo, tag] = (kept_as, files, spelling)
+
+    for (repo, tag), (kept_as, files, spelling) in collisions.items():
+        loads = ", ".join(files) if isinstance(files, tuple) else str(files)
+        named = repo + (spelling if spelling.startswith(":") else f" {{{spelling}}}")
+        print(f"[DROP] {named} loads {loads or '?'}, the same as {kept_as}")
+        # The file actually named after the tag, if the repo ships one: of the
+        # candidates ending in `-<tag>.gguf` the shortest is the one whose own
+        # quant is the tag, rather than one that merely ends with it.
+        named = [
+            p
+            for p in tag_candidates(repo, tag)
+            if p.lower().endswith(f"-{tag}.gguf".lower())
+        ]
+        intended = min(named, key=len, default="")
+        if intended and intended not in files:
+            print(
+                f"       to measure {intended}, pin it: "
+                f"{{hf-repo: {repo}, hf-file: {intended}}}"
+            )
+    return [c for c in combos if id(c) not in dropped]
 
 
 def file_provenance(path: pathlib.Path) -> str:
@@ -640,6 +877,10 @@ def run_llama_perplexity(
     eta_minutes: float | None = None
     aborted = False
 
+    # A previous sweep killed mid-run left its block unclosed; close it, or
+    # this run's provenance lands in that run's section.
+    seal_log(logfile)
+
     with open(logfile, "a") as f:
         provenance = provenance_lines(cmd)
         f.writelines(line + "\n" for line in provenance)
@@ -658,9 +899,11 @@ def run_llama_perplexity(
         )
         assert process.stdout is not None
 
+        last_line = ""
         for line in iter(process.stdout.readline, ""):
             f.write(line)
             f.flush()
+            last_line = line
 
             eta = parse_eta_minutes(line)
             if eta is not None:
@@ -693,6 +936,11 @@ def run_llama_perplexity(
         if not aborted:
             process.wait()
 
+        if last_line and not last_line.endswith("\n"):
+            # A child killed mid-write leaves a partial line; without the break
+            # the provenance below would be glued onto the end of it.
+            f.write("\n")
+
         # The run that downloads the model cannot be described before it starts,
         # so re-log provenance if it resolved differently afterwards. Silent
         # when nothing moved, which is every run of a healthy sweep.
@@ -705,7 +953,7 @@ def run_llama_perplexity(
                 f"{max_eta_factor}x baseline {baseline_eta:.2f}m) ---\n"
             )
         else:
-            f.write("------------------------------\n")
+            f.write(SEPARATOR + "\n")
 
     return eta_minutes if not aborted else None
 
@@ -762,6 +1010,10 @@ def main() -> None:
         combos = cfg.combos()
     except (ValidationError, ValueError) as e:
         sys.exit(f"ERROR in {args.config}: {e}")
+
+    # After `combos()`, not inside it: the collision is only visible against the
+    # Hub, and the config layer stays offline and testable without one.
+    combos = drop_model_collisions(combos, cfg.common_args)
 
     print(f"Baseline: {baseline}")
     print(f"Logits dump: {logits}")
@@ -822,11 +1074,11 @@ def main() -> None:
         cmd = f"{cfg.common} {combo.cli()} --kl-divergence".strip()
 
         if cmd_signature(cmd) in present:
-            print(f"[SKIP] {combo} (already in {logfile})")
+            print(f"[SKIP] {combo}")
             continue
 
         if args.dry_run:
-            print(f"[DRY RUN] {combo}\n  {cmd}")
+            print(f"[DRY RUN] {combo}")
             continue
 
         if combo == baseline:
