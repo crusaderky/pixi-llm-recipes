@@ -18,7 +18,7 @@ defaults:
     shell: bash -l {0}
 
 jobs:
-  windows-diag: # TEMP: capture verbose --locked failure reason on a real Windows host
+  windows-diag: # TEMP: verbose replica of the failing Windows setup-pixi flow
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -27,14 +27,15 @@ jobs:
       - uses: prefix-dev/setup-pixi@v0
         with:
           pixi-version: v0.77.0
-          run-install: false
+          environments: llamacpp-binary-cpu agents
+          cache: true
+          locked: true
+          log-level: v
 
-      - name: verbose locked check (llamacpp-binary-cpu)
-        run: pixi install -e llamacpp-binary-cpu --locked -v 2>&1 | tail -120
-        continue-on-error: true
-
-      - name: verbose locked check (agents)
-        run: pixi install -e agents --locked -v 2>&1 | tail -120
+      - name: Re-run install from cmd (node-spawn-like, verbose)
+        if: always()
+        shell: cmd
+        run: pixi install -e llamacpp-binary-cpu --locked -v
         continue-on-error: true
 
   test:
