@@ -45,11 +45,7 @@ context:
   # (.pixi/bld/<pkg>/<hash>/work), so a default `$HOME/.cache/ccache` would be
   # discarded together with the build tree and every build would start cold.
   # Defaults to the standard per-user location, which scripts/bwrap-*.sh already
-  # bind read-write into the agent sandboxes. The source recipe never builds on
-  # Windows, but this context is evaluated on every host during lock-file
-  # verification, so the fallback chain must not raise: `env.get` without a
-  # default throws when the variable is absent (HOME does not exist on
-  # Windows), which would fail the check as "source metadata changed".
+  # bind read-write into the agent sandboxes.
   ccache_dir: ${{ env.get("CCACHE_DIR", default=(env.get("HOME", default=env.get("USERPROFILE", default=".")) ~ "/.cache/ccache")) }}
   # ccache's own 5G default is too small here: one cuda build with
   # GGML_CUDA_FA_ALL_QUANTS=ON is several GiB of objects on its own, so a couple
