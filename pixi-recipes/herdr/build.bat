@@ -23,7 +23,9 @@ if /i not "%ACTUAL%"=="%SHA256_PREVIEW_WIN_64%" (
 )
 
 echo Extracting herdr.exe from herdr.zip...
-tar -xf herdr.zip herdr.exe || exit /b 1
+:: The release asset is a real zip. The bare `tar` on the build PATH is the
+:: Git-for-Windows GNU tar (no zip support); the System32 bsdtar handles zip.
+"%SystemRoot%\System32\tar.exe" -xf herdr.zip herdr.exe || exit /b 1
 
 if not exist "%PREFIX%\bin" mkdir "%PREFIX%\bin"
 move /y herdr.exe "%PREFIX%\bin\herdr.exe" || exit /b 1

@@ -26,7 +26,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - ubuntu-24.04-arm
         backend:
           - source-cpu
           - source-cuda
@@ -35,10 +34,6 @@ jobs:
           - binary-cuda  # beellama only
           - binary-vulkan
           - binary-rocm
-        exclude:
-
-          - os: ubuntu-24.04-arm
-            backend: binary-vulkan # beellama ships no ubuntu-vulkan-arm64 asset
         include:
           - os: ubuntu-24.04-arm
             backend: source-cpu
@@ -49,15 +44,17 @@ jobs:
             backend: source-vulkan
           - os: ubuntu-24.04-arm
             backend: binary-cpu
-          # no precompiled asset available for DGX Spark
+          # No precompiled asset available for DGX Spark
           # - os: ubuntu-24.04-arm
           #   backend: binary-cuda           
-          # beellama ships no ubuntu-vulkan-arm64 asset            
+          # Beellama ships no ubuntu-vulkan-arm64 asset            
           # - os: ubuntu-24.04-arm
           #   backend: binary-vulkan
 
-          - os: ubuntu-26.04  # Need Ubuntu 26.04 for ROCm dependencies
+          # Need Ubuntu 26.04 for ROCm dependencies
+          - os: ubuntu-26.04
             backend: source-rocm
+
           - os: windows-latest
             backend: binary-cpu
           - os: windows-latest
@@ -82,7 +79,7 @@ jobs:
 
       - uses: prefix-dev/setup-pixi@v0
         with:
-          pixi-version: v0.76.1
+          pixi-version: v0.77.0
           environments: llamacpp-${{ matrix.backend }} agents
           cache: true
           locked: true

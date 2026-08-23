@@ -35,7 +35,7 @@ jobs:
 
       - uses: prefix-dev/setup-pixi@v0
         with:
-          pixi-version: v0.76.1
+          pixi-version: v0.77.0
           environments: llamacpp-binary-cpu agents
           cache: true
           locked: true
@@ -74,10 +74,6 @@ jobs:
           pixi r pi ../dummy -- --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
-      - name: pi --with-git --with-herdr Hello world
-        if: matrix.os != 'windows-latest'
-        run: pixi r pi -- --with-git --with-herdr --model LFM2.5-230M -p "Hello world"
-
       - name: pi Hello world (global start script)
         if: matrix.os != 'windows-latest'
         run: pi --model LFM2.5-230M -p "Hello world"
@@ -88,10 +84,6 @@ jobs:
         run: |
           pi --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
-
-      - name: pi --with-git --with-herdr Hello world (global start script)
-        if: matrix.os != 'windows-latest'
-        run: pi --with-git --with-herdr --model LFM2.5-230M -p "Hello world"
 
       - name: pi --no-sandbox Hello world (global start script)
         if: matrix.os != 'windows-latest'

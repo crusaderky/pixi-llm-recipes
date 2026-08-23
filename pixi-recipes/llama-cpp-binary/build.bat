@@ -27,7 +27,9 @@ set "ARCHIVE_URL=https://github.com/%FORK%/releases/download/%VERSION%/%ASSET_PR
 echo Downloading %ARCHIVE_URL%...
 :: Release-asset downloads are intermittently 404 on GitHub; retry.
 curl -sL --retry 5 --retry-delay 5 --retry-all-errors "%ARCHIVE_URL%" -o archive.zip || exit /b 1
-tar -xf archive.zip || exit /b 1
+:: The release asset is a real zip. The bare `tar` on the build PATH is the
+:: Git-for-Windows GNU tar (no zip support); the System32 bsdtar handles zip.
+"%SystemRoot%\System32\tar.exe" -xf archive.zip || exit /b 1
 del archive.zip
 
 :: The Windows release archives don't ship a LICENSE file; fetch it for the
