@@ -17,68 +17,30 @@
 common: >
     llama-perplexity --kl-divergence-base /tmp/logits.dat
     --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw
-    -fa on -ngl 99
+    -fa on
 
-# Lists of llama-perplexity option dicts, expanded into every union of one dict
-# per list -- so the sweep below is 3 K-quants x 3 V-quants x 3 tails.  Keys are
-# flag names without the leading dashes, emitted as `--<key> <value>`; use the
-# long spelling (`hf-repo`, not `hf`), though short ones are rewritten for you.
-# An option may only be varied by one list: a key appearing in two lists of the
-# same product is a config error.
+# Baseline combo that creates the logits dump (no --kl-divergence).
+# Exempt from `exclude` and from the auto-skips: without it there is no sweep.
+baseline: {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:BF16, cache-type-k: f16, cache-type-v: f16}
+
+# Cartesian product of lists of llama-perplexity option dicts, expanded into every union
+# of one dict per list.  Keys are flag names without the leading dashes, emitted as
+# `--<key> <value>`; use the long spelling (`hf-repo`, not `hf`). An option may only be
+# varied by one list: a key appearing in two lists of the same product is a config
+# error.
 #
-# Auto-skipped: every combo whose V quant is finer than its K quant, every
-# asymmetric KVarN pair, and a non-zero tail on an exact f16/f16 cache.
-#
-# Nothing here is specific to the KV cache.  Uncomment the first list to sweep
-# model quantizations instead (drop the -hf above when you do), or keep both to
-# cross model quant against cache quant.  A `label:` is not passed to
-# llama-perplexity: it is logged as a `# LABEL:` comment and overrides the
-# report's own label for that run.  Labels from several lists join with `|`, so
-# label either every list of the product or none -- otherwise the runs of an
-# unlabelled list share a label with their siblings.
+# Auto-skipped: every combo whose V quant is finer than its K quant, every asymmetric
+# KVarN pair, and a non-zero tail on an exact f16/f16 cache.
 cross-product:
-  - - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:BF16}
-    - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q8_0}
+  - - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q8_0}
     - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q6_K}
     - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q5_K_M}
     - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q8_0}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q6_K_L}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q6_K}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q5_K_L}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q5_K_M}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q5_K_S}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q4_K_L}
     - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q4_K_M}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q4_K_S}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:IQ4_XS}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q3_K_XL}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q3_K_L}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q3_K_M}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q3_K_S}
-    - {hf-repo: mradermacher/LFM2.5-2.6B-GGUF:Q8_0}
-    - {hf-repo: mradermacher/LFM2.5-2.6B-GGUF:Q6_K}
-    - {hf-repo: mradermacher/LFM2.5-2.6B-GGUF:Q5_K_M}
-    - {hf-repo: mradermacher/LFM2.5-2.6B-GGUF:Q5_K_S}
-    - {hf-repo: mradermacher/LFM2.5-2.6B-GGUF:Q4_K_M}
-    - {hf-repo: mradermacher/LFM2.5-2.6B-GGUF:Q4_K_S}
-    - {hf-repo: mradermacher/LFM2.5-2.6B-GGUF:Q3_K_XL}
-    - {hf-repo: mradermacher/LFM2.5-2.6B-GGUF:Q3_K_M}
-    - {hf-repo: mradermacher/LFM2.5-2.6B-GGUF:Q3_K_S}
-    - {hf-repo: noctrex/LFM2.5-2.6B-heretic-uncensored-GGUF:BF16}
-    - {hf-repo: noctrex/LFM2.5-2.6B-heretic-uncensored-GGUF:Q8_0}
-    - {hf-repo: noctrex/LFM2.5-2.6B-heretic-uncensored-GGUF:Q6_K}
-    - {hf-repo: noctrex/LFM2.5-2.6B-heretic-uncensored-GGUF:Q5_K_M}
-    - {hf-repo: noctrex/LFM2.5-2.6B-heretic-uncensored-GGUF:Q4_K_M}
-    - {hf-repo: noctrex/LFM2.5-2.6B-heretic-uncensored-GGUF:IQ4_XS}
 
   - - {cache-type-k: f16, cache-type-v: f16}
     - {cache-type-k: q8_0, cache-type-v: q8_0}
-    - {cache-type-k: q8_0, cache-type-v: q6_0}
-    - {cache-type-k: q8_0, cache-type-v: q5_1}
     - {cache-type-k: q5_0, cache-type-v: q5_0}
-    - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 512}
-    - {cache-type-k: q5_0, cache-type-v: q5_0, kv-tail-tokens: 1024}
     - {cache-type-k: q4_0, cache-type-v: q4_0}
     - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 512}
     - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 1024}
@@ -87,14 +49,6 @@ cross-product:
     - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 512}
     - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 1024}
     - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 2048}
-    - {cache-type-k: q2_0, cache-type-v: q2_0}
-    - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 512}
-    - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 1024}
-    - {cache-type-k: q2_0, cache-type-v: q2_0, kv-tail-tokens: 2048}
-
-# Baseline combo that creates the logits dump (no --kl-divergence).
-# Exempt from `exclude` and from the auto-skips: without it there is no sweep.
-baseline: {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:BF16, cache-type-k: f16, cache-type-v: f16}
 
 # Extra combos beyond the cross-product, in the same syntax.
 # Unlike the cross-product these are never auto-skipped -- an explicit request
