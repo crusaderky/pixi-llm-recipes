@@ -1,0 +1,92 @@
+# YAML config for scripts/perplexity.py
+#
+# Usage:
+# pixi r perplexity
+# pixi r perplexity-report
+
+# Common flags prepended to every llama-perplexity invocation.
+# The baseline run omits --kl-divergence to create the baseline logits, then is
+# rerun with --kl-divergence against its own logits to measure the noise floor
+# (KLD / top-1) and the reference speed without logits-dump I/O.
+# All other runs append their own flags plus --kl-divergence.
+#
+# --kl-divergence-base is mandatory here, and so is everything that fixes the
+# dump's contents (-f, --ctx-size, --chunks): every run is compared against that
+# one dump, so those may not vary between runs.
+
+common: >
+    llama-perplexity --kl-divergence-base /tmp/logits.dat
+    --ctx-size 32768 -f sample-data/wiki.test.head-2.4k.raw
+    -fa on
+
+# Baseline combo that creates the logits dump (no --kl-divergence).
+# Exempt from `exclude` and from the auto-skips: without it there is no sweep.
+baseline: {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:BF16, cache-type-k: f16, cache-type-v: f16}
+
+# Lists of llama-perplexity option dicts, expanded into every union of one dict
+# per list -- so the sweep below is 3 K-quants x 3 V-quants x 3 tails.  Keys are
+# flag names without the leading dashes, emitted as `--<key> <value>`; use the
+# long spelling (`hf-repo`, not `hf`), though short ones are rewritten for you.
+# An option may only be varied by one list: a key appearing in two lists of the
+# same product is a config error.
+#
+# Auto-skipped: every combo whose V quant is finer than its K quant, every
+# asymmetric KVarN pair, and a non-zero tail on an exact f16/f16 cache.
+cross-product:
+  -
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:UD-Q8_K_XL}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:Q8_0}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:UD-Q6_K_XL}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:Q6_K}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:Q5_K_M}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:Q5_K_S}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:Q4_K_M}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:Q4_K_S}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:MXFP4_MOE}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:IQ4_XS}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:Q3_K_M}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:Q3_K_S}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:IQ3_S}
+    - {hf-repo: bloomer010/Ling-3.0-tiny-GGUF:IQ3_XXS}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q8_0}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q6_K_L}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q6_K}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q5_K_L}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q5_K_M}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q5_K_S}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q4_K_L}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q4_K_M}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q4_K_S}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:IQ4_XS}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q3_K_XL}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q3_K_M}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:Q3_K_S}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:IQ3_XS}
+    - {hf-repo: bartowski/Ling-3.0-tiny-GGUF:IQ3_XXS}
+    - {hf-repo: noctrex/Ling-3.0-tiny-MXFP4_MOE-GGUF:MXFP4_MOE_BF16}
+    - {hf-repo: noctrex/Ling-3.0-tiny-MXFP4_MOE-GGUF:MXFP4_MOE}
+
+  - - {cache-type-k: f16, cache-type-v: f16}
+    - {cache-type-k: q8_0, cache-type-v: q8_0}
+    - {cache-type-k: q6_0, cache-type-v: q6_0}
+    - {cache-type-k: q5_1, cache-type-v: q5_1}
+    - {cache-type-k: q5_0, cache-type-v: q5_0}
+    - {cache-type-k: q4_1, cache-type-v: q4_1}
+    - {cache-type-k: q4_0, cache-type-v: q4_0}
+    - {cache-type-k: q3_1, cache-type-v: q3_1}
+    - {cache-type-k: q3_0, cache-type-v: q3_0}
+
+
+# Extra combos beyond the cross-product, in the same syntax.
+# Unlike the cross-product these are never auto-skipped -- an explicit request
+# is taken as intentional -- but `exclude` still applies to them.
+include: []
+
+# Drop every combo that matches *all* the keys of an entry, whatever its other
+# options: `{cache-type-k: q4_0}` removes every q4_0 key cache, at any V quant,
+# tail or model.
+exclude: []
+
+# Abort non-baseline runs whose ETA exceeds baseline_eta * max_eta_factor.
+# Set to 0 to disable the abort check entirely.
+max_eta_factor: 4.0
