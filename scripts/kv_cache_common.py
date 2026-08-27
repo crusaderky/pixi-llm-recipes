@@ -596,6 +596,54 @@ MODEL_KV: dict[str, ModelKV] = {
             ),
         ),
     ),
+    # Qwen4 preview (`qwen4exp`): the deepest layer stack here, and the one with
+    # the most ways to get it wrong. block_count = 48 at
+    # `full_attention_interval` 4 leaves **12** cache layers; the other 36 are
+    # gated-delta linear-attention blocks holding a recurrent state instead. On
+    # top of the ordinary K/V those 12 layers drive a second, full-context cache
+    # for the QSA block-sparse indexer, and the model's n-gram PLE layer adds a
+    # third recurrent tensor of its own. All three are `compressed` rows:
+    #
+    # * `idx (indexer)` -- `llama_memory_hybrid_idx` fools a plain
+    #   `llama_kv_cache` with a copy of the hparams whose `n_head_kv_arr` is all
+    #   1s and whose `n_embd_head_k_full` is `attention.indexer.key_length`
+    #   (128), one row per token, at the run's K/V quant and with no exact tail.
+    #   It doctors the K side only, so `has_v = !is_mla()` still holds -- and
+    #   qwen4exp declares no MLA head dims, so unlike DeepSeek's identically
+    #   built LID cache this one really does allocate a V of
+    #   `attention.value_length` x 1 = 256 next to its 128-wide K, twice the K's
+    #   width and untouched by the graph. Transcribed as allocated, not as
+    #   intended: 2.25 of the 8.36 GiB f16 total at 256k.
+    # * `recurrent state` -- llama_hparams::n_embd_r/n_embd_s over the 36 linear
+    #   blocks: (ssm.conv_kernel-1) * (ssm.inner_size + 2*ssm.group_count*
+    #   ssm.state_size) = 30720 conv elems + ssm.state_size*ssm.inner_size =
+    #   786432 state elems, f32, per layer per sequence.
+    # * `ple conv state` -- the n-gram PLE layer's own conv history,
+    #   `llama_memory_recurrent`'s third tensor `cache_ple_r_l`:
+    #   (ple.conv_kernel-1) * ple.ngram_size * hyper_connection.count * n_embd =
+    #   92160 f32 elems. One layer: `ple.layers` is [1], which is a recurrent
+    #   block, and the tensor is allocated behind `filter_recr`.
+    #
+    # The n-gram table itself (`per_layer_token_embd.weight`, 160 x 320,001,536 =
+    # 26.8 GiB at UD-Q4_K_XL) is *weights*, not cache, and llama.cpp reads its
+    # rows straight from the mmap -- see gguf_common.ARCH_LAZY_TENSORS and the
+    # `lazy=` field of the report's model provenance.
+    "Qwen3.8-Flash-Next": ModelKV(
+        full_attn_layers=12,
+        full_attn_kv_heads=2,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=256,
+        value_dim=256,
+        compressed=(
+            CompressedKV("idx (indexer)", 12, 1, 128, 256, ratio=1, per_seq=False),
+            CompressedKV(
+                "recurrent state", 36, 1, 30720, 786432, fixed_rows=1, elem_bpw=32.0
+            ),
+            CompressedKV("ple conv state", 1, 1, 92160, 0, fixed_rows=1, elem_bpw=32.0),
+        ),
+    ),
     "Gemma4-E2B": ModelKV(
         full_attn_layers=7,
         full_attn_kv_heads=1,

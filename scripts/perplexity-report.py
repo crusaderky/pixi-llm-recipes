@@ -8,7 +8,10 @@ model (`--hf-repo`), the KV cache (`-ctk`/`-ctv`/`--kv-tail-tokens`), or any
 other option -- and a `# LABEL:` comment in the log overrides it (see
 `_build_labels`).  The Pareto/x-axis cost is total VRAM: the model weights, read
 off the `# model:` provenance the sweeper records, plus the KV cache at the
-projected context.
+projected context.  Weights there means *resident* weights -- the provenance's
+`lazy=` bytes, a tensor llama.cpp gathers a row at a time out of the mmap
+(Qwen3.8-Flash-Next's 26.8 GiB n-gram table, a quarter of its file), get their own
+"On disk" column and stay out of the cost.
 
 HTML report: interactive Chart.js plot.
 Markdown report: static SVG plot (via matplotlib) + cross-ref link to HTML.
@@ -702,7 +705,12 @@ def parse_log(
             "weight_files": shards,
             # Summed from the same filtered set the hover lists, never from the
             # raw provenance: one source of truth or the two drift apart.
-            "weight_bytes": sum(f.size for f in shards.values()),
+            # `weight_bytes` is the *resident* half, because that is what the cost
+            # axis is about: a `lazy=` tensor is on disk and gathered a row at a
+            # time from the mmap, so it never occupies VRAM (see
+            # perplexity.py's lazy_bytes_by_shard).
+            "weight_bytes": sum(f.resident for f in shards.values()),
+            "lazy_bytes": sum(f.lazy for f in shards.values()),
             "ctk": ctk,
             "ctv": ctv,
             "tail": tail,
@@ -927,9 +935,30 @@ def _assign_vram(runs: list[dict]) -> None:
     provenance, so a log written before the sweeper recorded it -- or one whose
     model never resolved to a known geometry -- simply falls back to the coarser
     cost metric (see ``_cost_axis``).
+
+    ``weights_mib`` is the **resident** half: ``ModelFile.resident`` drops the
+    ``lazy=`` bytes of a tensor llama.cpp reads from the mmap on demand, which are
+    reported separately as ``lazy_mib`` and belong in no cost. A log written
+    before ``lazy=`` existed records none, which is what those bytes used to be
+    counted as anyway -- so such a log reads exactly as it did before.
     """
+    # A shard claiming more lazily-read bytes than it has is a broken provenance
+    # line, not a small model: `ModelFile.resident` floors at 0 rather than
+    # sum a negative, which would leave the weights plausible-looking but short.
+    bad = [f.path for r in runs for f in r["weight_files"].values() if f.lazy_overflow]
+    if bad:
+        print(
+            f"WARNING: {len(bad)} model provenance line(s) record lazy= above "
+            f"their own size= (first: {bad[0]}) -- weights left out of the cost "
+            "axis",
+            file=sys.stderr,
+        )
     for r in runs:
-        r["weights_mib"] = r["weight_bytes"] / BYTES_PER_MIB or None
+        r["weights_mib"] = None if bad else r["weight_bytes"] / BYTES_PER_MIB or None
+        # Not all-or-nothing and not part of any cost: a model with no lazily-read
+        # tensor honestly has none, and a run whose log predates the `lazy=` field
+        # reports 0, which is what it used to be counted as anyway.
+        r["lazy_mib"] = r.get("lazy_bytes", 0) / BYTES_PER_MIB or None
     known = [r for r in runs if r["weights_mib"] is not None]
     if known and len(known) != len(runs):
         print(
@@ -952,10 +981,11 @@ def _cost_axis(runs: list[dict], ctx_label: str = "256k") -> tuple[str, str, str
     """Pick the frontier / plot-x cost metric: the most informative one every
     run can supply. Returns (cost_key, x_axis_label, frontier_marker).
 
-    * ``vram_mib`` -- model weights (from the log's ``# model:`` provenance) plus
-      the KV cache at ``ctx_label``. The only honest cost when the sweep varies
-      the model quantization, since all quants of one model share a KV geometry
-      and would otherwise pile up at the same x.
+    * ``vram_mib`` -- the resident model weights (from the log's ``# model:``
+      provenance, less its ``lazy=`` bytes) plus the KV cache at ``ctx_label``.
+      The only honest cost when the sweep varies the model quantization, since all
+      quants of one model share a KV geometry and would otherwise pile up at the
+      same x.
     * ``ctx_mib`` -- KV cache alone, when the weights are unrecorded. Tail
       variants that share a bpw still separate out.
     * ``weights_mib`` -- weights alone, when the model has no curated geometry.
@@ -1166,19 +1196,39 @@ def _fmt_mib(v) -> str:
 
 
 def _weights_cell(r: dict) -> str:
-    """Weights (MiB) cell, hovering the shards it was summed from."""
+    """Resident weights (MiB) cell, hovering the shards it was summed from."""
     note = "\n".join(
         f"{f.path} {f.size / BYTES_PER_MIB:,.0f} MiB"
+        + (
+            f" (of which {f.lazy / BYTES_PER_MIB:,.0f} MiB read lazily)"
+            if f.lazy
+            else ""
+        )
         for f in r["weight_files"].values()
     )
     return f'<td class="hint" title="{_esc(note)}">{_fmt_mib(r["weights_mib"])}</td>'
 
 
+def _lazy_cell(r: dict) -> str:
+    """On-disk (MiB) cell: the part of the shards llama.cpp never makes resident."""
+    note = (
+        "tensors read row-by-row from the mmap (n-gram / per-layer embedding "
+        "table); on disk, not in VRAM, so excluded from the VRAM column and the "
+        "cost axis"
+    )
+    return f'<td class="hint" title="{_esc(note)}">{_fmt_mib(r["lazy_mib"])}</td>'
+
+
 def _vram_cell(r: dict) -> str:
-    """VRAM (MiB) cell: weights + KV cache, the cost axis itself."""
+    """VRAM (MiB) cell: resident weights + KV cache, the cost axis itself."""
     note = (
         f"weights {_fmt_mib(r['weights_mib'])} MiB + "
         f"KV cache {_fmt_mib(r['ctx_mib'])} MiB"
+        + (
+            f" (excludes {_fmt_mib(r['lazy_mib'])} MiB read from disk)"
+            if r.get("lazy_mib")
+            else ""
+        )
     )
     return f'<td class="hint" title="{_esc(note)}">{_fmt_mib(r["vram_mib"])}</td>'
 
@@ -1200,6 +1250,9 @@ def generate_html(
     # weight columns, which need the `# model:` provenance.
     has_coll = any(r.get("coll") is not None for r in runs)
     has_weights = all(r.get("weights_mib") is not None for r in runs)
+    # Any, not all: only the archs with a lazily-read tensor have one, so a sweep
+    # comparing such a model against an ordinary one still wants the column.
+    has_lazy = has_weights and any(r.get("lazy_mib") for r in runs)
     author_style = _present_authors(runs)
 
     # The baseline (KLD rerun against its own logits) is plotted like any
@@ -1307,6 +1360,7 @@ def generate_html(
             f'<td class="hint" title="{_esc(r["cmd"])}">{_esc(label)}</td>'
             f"<td>{_fmt_size(r['size'])}</td>"
             + (_weights_cell(r) if has_weights else "")
+            + (_lazy_cell(r) if has_lazy else "")
             + f"{ctx_cell}"
             + (_vram_cell(r) if has_weights else "")
             + f"<td>{_fmt(r['mean'])}</td>"
@@ -1660,6 +1714,7 @@ def generate_html(
         .replace("{ctx_label}", _esc(ctx_label))
         .replace("{coll_th}", "  <th>Same sampled (%)</th>\n" if has_coll else "")
         .replace("{weights_th}", "  <th>Weights (MiB)</th>\n" if has_weights else "")
+        .replace("{lazy_th}", "  <th>On disk (MiB)</th>\n" if has_lazy else "")
         .replace(
             "{vram_th}",
             f"  <th>VRAM (MiB) @{_esc(ctx_label)}</th>\n" if has_weights else "",
@@ -1696,9 +1751,19 @@ def generate_html(
         )
     if has_weights:
         html += (
-            '<p class="note">Weights (MiB) is the on-disk size of the shards the '
-            "run loaded, from the log's own provenance; VRAM (MiB) adds the KV "
-            "cache to it and is the x axis of every plot.</p>\n"
+            '<p class="note">Weights (MiB) is the size of the shards the run '
+            "loaded, from the log's own provenance; VRAM (MiB) adds the KV cache "
+            "to it and is the x axis of every plot.</p>\n"
+        )
+    if has_lazy:
+        html += (
+            '<p class="note">On disk (MiB) is the part of those shards llama.cpp '
+            "never makes resident: an n-gram / per-layer embedding table it "
+            "registers as a range in the mmap and reads a row at a time as tokens "
+            "need it. It is <em>not</em> in Weights, VRAM or the x axis — but it "
+            "only stays on disk under <code>--load-mode "
+            "auto/mmap/mmap+mlock</code>, and "
+            "<code>--tensor-read-lazy off</code> makes it resident.</p>\n"
         )
     html += HTML_TAIL
     return html
@@ -1775,7 +1840,7 @@ HTML_HEAD = """\
 <tr>
   <th>Run</th>
   <th>KV (bpw)</th>
-{weights_th}  <th>KV cache (MiB) @{ctx_label}</th>
+{weights_th}{lazy_th}  <th>KV cache (MiB) @{ctx_label}</th>
 {vram_th}  <th>Mean KLD</th>
   <th>99.9% KLD</th>
   <th>Top-1 (%)</th>
@@ -2635,10 +2700,12 @@ def generate_markdown(
     # column entirely rather than showing one full of blanks.
     has_coll = any(r.get("coll") is not None for r in runs)
     has_weights = all(r.get("weights_mib") is not None for r in runs)
+    has_lazy = has_weights and any(r.get("lazy_mib") for r in runs)
     headers = [
         "Run",
         "KV (bpw)",
         *(["Weights (MiB)"] if has_weights else []),
+        *(["On disk (MiB)"] if has_lazy else []),
         f"KV cache (MiB) @{ctx_label}",
         *([f"VRAM (MiB) @{ctx_label}"] if has_weights else []),
         "Mean KLD",
@@ -2671,6 +2738,7 @@ def generate_markdown(
         pct_fmt = f"{r['speed_pct']:.1f}" if r["speed_pct"] is not None else "N/A"
         cost_cells = [
             *([_fmt_mib(r["weights_mib"])] if has_weights else []),
+            *([_fmt_mib(r["lazy_mib"])] if has_lazy else []),
             _fmt_mib(r.get("ctx_mib")),
             *([_fmt_mib(r["vram_mib"])] if has_weights else []),
         ]
@@ -2735,9 +2803,20 @@ def generate_markdown(
 
     if has_weights:
         lines.append(
-            "> Weights (MiB) is the on-disk size of the shards the run loaded, "
-            "from the log's own provenance; VRAM (MiB) adds the KV cache to it "
-            "and is the x axis of every plot."
+            "> Weights (MiB) is the size of the shards the run loaded, from the "
+            "log's own provenance; VRAM (MiB) adds the KV cache to it and is the "
+            "x axis of every plot."
+        )
+        lines.append("")
+
+    if has_lazy:
+        lines.append(
+            "> On disk (MiB) is the part of those shards llama.cpp never makes "
+            "resident: an n-gram / per-layer embedding table it registers as a "
+            "range in the mmap and reads a row at a time as tokens need it. It is "
+            "*not* in Weights, VRAM or the x axis -- but it only stays on disk "
+            "under `--load-mode auto/mmap/mmap+mlock`, and `--tensor-read-lazy "
+            "off` makes it resident."
         )
         lines.append("")
 

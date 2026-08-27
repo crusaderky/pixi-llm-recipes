@@ -381,10 +381,16 @@ _LABEL_RE = re.compile(r"^#\s*LABEL:\s*(.*)$")
 # The `#` comments a run's block opens with, and which therefore mark where the
 # next block starts when two of them share a section (see `_run_spans`).
 _BLOCK_HEAD_RE = re.compile(r"^#\s*(?:llama-perplexity|model|LABEL)\b")
-# `# model: <path> size=<n> mtime=... sha256/<n>B=...`, as written by
+# `# model: <path> size=<n> [lazy=<n>] mtime=... sha256/<n>B=...`, as written by
 # perplexity.py's file_provenance().  Unresolved / unreadable models have no
-# `size=` and are skipped.
-_MODEL_PROV_RE = re.compile(r"^#\s*model:\s*(?P<path>.+?)\s+size=(?P<size>\d+)\b")
+# `size=` and are skipped.  `lazy=` is written only for a shard that holds one of
+# the tensors llama.cpp reads from disk on demand, so it is absent from every log
+# of an ordinary model -- and from every log written before it existed, which is
+# why it defaults to 0 rather than to "unknown".
+_MODEL_PROV_RE = re.compile(
+    r"^#\s*model:\s*(?P<path>.+?)\s+size=(?P<size>\d+)\b"
+    r"(?:\s+lazy=(?P<lazy>\d+)\b)?"
+)
 
 
 @dataclass(frozen=True)
@@ -393,6 +399,28 @@ class ModelFile:
 
     path: str
     size: int
+    lazy: int = 0
+    """Bytes of ``size`` that llama.cpp reads from disk on demand rather than
+    keeping resident -- the n-gram / per-layer embedding table of an arch that
+    marks it ``TENSOR_READ_LAZY`` (``gguf_common.ARCH_LAZY_TENSORS``). 0 when the
+    shard holds no such tensor, and in logs written before it was recorded."""
+
+    @property
+    def resident(self) -> int:
+        """Bytes of this shard that end up in the resident weights.
+
+        Clamped at 0 so a corrupt provenance line cannot make a *negative*
+        contribution to a sum. It is not a repair -- a ``lazy=`` above its own
+        ``size=`` means the line is wrong and the sum is meaningless either way --
+        so a caller that sums these must check :attr:`lazy_overflow` and say so;
+        ``perplexity-report``'s ``_assign_vram`` does.
+        """
+        return max(0, self.size - self.lazy)
+
+    @property
+    def lazy_overflow(self) -> bool:
+        """Whether ``lazy=`` exceeds ``size=``, i.e. the line cannot be trusted."""
+        return self.lazy > self.size
 
 
 @dataclass
@@ -498,7 +526,9 @@ def _block_weights(lines: list[str]) -> dict[str, ModelFile]:
                 block = weights = {}
             path = m.group("path")
             name = _BASENAME_RE.search(path).group()
-            block[name] = ModelFile(path, int(m.group("size")))
+            block[name] = ModelFile(
+                path, int(m.group("size")), int(m.group("lazy") or 0)
+            )
         else:
             block = None  # any other line ends the provenance block
     return weights

@@ -3,29 +3,17 @@ context:
   # fork: ggml-org/llama.cpp
   # version: b10648
 
-  # https://github.com/ggml-org/llama.cpp/pull/21067
-  # Forked from main at b8533 (2026-03-26)
-  # fork: am17an/llama.cpp
-  # version: 4d78c9d1826b9ee4f058a441c8d4ff9c079fd822
-
-  # PR#21067 + merge from master
-  # fork: crusaderky/llama.cpp
-  # version: b10032-bunch-moe-transfer
-
-  # https://github.com/ggml-org/llama.cpp/pull/26003
-  # fork: pwilkin/llama.cpp
-  # version: lazy-experts-mmap
-
   # beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
   # https://github.com/Anbeeld/beellama.cpp
   # fork: Anbeeld/beellama.cpp
-  # version: v0.4.3
+  # version: v0.4.4
 
   # Beellama-v0.4.4 preview
   # + llama-perplexity collision probability measure
-  # + https://github.com/ggml-org/llama.cpp/pull/26958
+  # + Qwen3.8-Flash-Next
+  # + https://github.com/ggml-org/llama.cpp/pull/21067
   fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.4.4-r6
+  version: beellama-staging-v0.4.4-r9
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).

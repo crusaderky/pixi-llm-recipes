@@ -25,7 +25,9 @@ rebuild between runs, or `--hf-repo` re-resolving a re-uploaded quant).  Such a
 change shows up as an unexplained KLD offset against the stale
 --kl-divergence-base dump -- including on the baseline rerun, whose KLD should
 be ~0 -- so it must be visible in the log.  The recorded shard sizes are also
-what the report sums into the weight half of its VRAM cost axis.
+what the report sums into the weight half of its VRAM cost axis, minus the
+`lazy=` bytes of any tensor llama.cpp reads from disk on demand rather than
+keeping resident (the n-gram embedding table of `gemma4` / `qwen4exp`).
 
 Usage:
     pixi r perplexity -c perplexity.yaml [-o perplexity.log] [--dry-run]
@@ -100,6 +102,7 @@ import urllib.request
 from typing import Any
 
 import yaml
+from gguf_common import lazy_tensor_bytes, read_header
 from kv_cache_common import BPW
 from perplexity_common import (
     IGNORED_KEYS,
@@ -802,8 +805,13 @@ def drop_model_collisions(combos: list[Combo], base: dict[str, Value]) -> list[C
     return [c for c in combos if id(c) not in dropped]
 
 
-def file_provenance(path: pathlib.Path) -> str:
-    """Size, mtime and header hash of one model file."""
+def file_provenance(path: pathlib.Path, lazy: int = 0) -> str:
+    """Size, mtime and header hash of one model file.
+
+    *lazy* is how much of ``size`` llama.cpp reads from disk on demand instead of
+    keeping resident (see :func:`lazy_bytes_by_shard`); recorded only when
+    non-zero, so a log of ordinary models is unchanged.
+    """
     try:
         st = path.stat()
         with path.open("rb") as f:
@@ -814,9 +822,47 @@ def file_provenance(path: pathlib.Path) -> str:
     # The byte count is in the label so the hash can be reproduced by hand:
     # head -c <n> <path> | sha256sum
     return (
-        f"{path} size={st.st_size} mtime={mtime.isoformat(timespec='seconds')} "
+        f"{path} size={st.st_size}{f' lazy={lazy}' if lazy else ''} "
+        f"mtime={mtime.isoformat(timespec='seconds')} "
         f"sha256/{HASH_BYTES}B={digest}"
     )
+
+
+def lazy_bytes_by_shard(files: list[pathlib.Path]) -> dict[pathlib.Path, int]:
+    """Bytes of each shard that llama.cpp reads from disk on demand.
+
+    A `TENSOR_READ_LAZY` tensor -- today the n-gram / per-layer embedding table of
+    `gemma4` and `qwen4exp` -- is registered as a byte range in the mmap and its
+    rows are gathered per token; it never joins the resident weights and never
+    reaches VRAM. On Qwen3.8-Flash-Next that is a quarter of the file, so the
+    report has to be able to take it out of the cost axis, and only a header read
+    can say how much it is: the table's quant is the publisher's choice (IQ4_NL in
+    most of unsloth's variants, Q8_0 in two) and follows from neither the file name
+    nor the hparams.
+
+    The architecture lives in the **first** shard's metadata and nowhere else -- a
+    later split carries only its `split.*` keys -- while the tensor itself may sit
+    in any shard, so the merged metadata is matched against each shard's own
+    tensor table. Returns {} for every model with no such tensor, and on any
+    failure: provenance must never abort a multi-day sweep, and a missing `lazy=`
+    only costs the report its split.
+    """
+    headers = []
+    metadata: dict[str, object] = {}
+    for path in files:
+        try:
+            md, tensors = read_header(path)
+        except (OSError, ValueError):
+            return {}
+        # First file wins, as in gguf-meta-extract: split 0 has the full hparams.
+        for k, v in md.items():
+            metadata.setdefault(k, v)
+        headers.append((path, tensors))
+    out = {}
+    for path, tensors in headers:
+        if nbytes := lazy_tensor_bytes(metadata, tensors):
+            out[path] = nbytes
+    return out
 
 
 def binary_version() -> str:
@@ -850,7 +896,8 @@ def provenance_lines(cmd: str) -> list[str]:
         return lines + [f"# model: <unresolved: {e}>"]
     if not files:
         return lines + ["# model: <unresolved>"]
-    return lines + [f"# model: {file_provenance(f)}" for f in files]
+    lazy = lazy_bytes_by_shard(files)
+    return lines + [f"# model: {file_provenance(f, lazy.get(f, 0))}" for f in files]
 
 
 def run_llama_perplexity(

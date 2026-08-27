@@ -31,279 +31,37 @@ Usage
     # private/gated repos:
     HF_TOKEN=hf_xxx python gguf_tensor_csv.py <url> -o out.csv
 
-Why we parse the header ourselves instead of gguf.GGUFReader
-------------------------------------------------------------
-gguf.GGUFReader eagerly materialises a numpy view of every tensor's *data* at
-construction time, so it raises (e.g. "cannot reshape array of size N") on a
-header-only / truncated file -- it has no header-only mode. The GGUF header,
-however, is fully self-describing (name + shape + dtype for every tensor live
-before the data section), so a tiny direct parser reads everything we need from
-the first few MB. Validated to produce byte-identical name/shape/dtype output to
-GGUFReader on complete files.
+The header parser, the ggml type table and the lazy-read rules live in
+gguf_common.py, which perplexity.py shares so that a run's `# model:` provenance
+records the same lazily-read byte count this script reports.
 """
 
 import argparse
 import csv
 import fnmatch
-import math
 import re
-import struct
 import sys
 import textwrap
 from urllib.parse import unquote, urlparse
 
 import requests
+from gguf_common import (
+    HEADER_CAP,
+    HEADER_START,
+    LAZY_AUTO_MIN_BYTES,
+    LAZY_LOAD_MODES,
+    Truncated,
+    lazy_tensors,
+    parse_header,
+    quant_info,
+    tensor_nbytes,
+)
 from kv_cache_common import KVARN_FALLBACK, CompressedKV, ModelKV, resolve_bpw
 
 try:
     from huggingface_hub import HfApi, hf_hub_url
 except ImportError:
     sys.exit("Need huggingface_hub:  pip install huggingface_hub")
-
-# Optional: only used to give a human-readable name to an UNKNOWN ggml type id.
-try:
-    from gguf import GGMLQuantizationType as _GGUFType
-except ImportError:
-    _GGUFType = None
-
-
-# --------------------------------------------------------------------------- #
-# Hardcoded ggml type table: ggml_type_id ->
-#   (name, block_size, bytes_per_block)  -- mainline ggml
-#   (name, block_size, bytes_per_block, row_meta_size)  -- ik-llama.cpp / DFlash
-# block_size = number of weights per block; bytes_per_block = on-disk size of
-# one block. bytes_per_point = bytes_per_block / block_size.
-# row_meta_size = extra per-row bytes (ik-llama's "+ f16/f32 per row" scale);
-# total_bytes adds row_meta_size * nrows (nrows = product of dims[1:]).
-# Mainline values verified against gguf.constants.GGML_QUANT_SIZES (gguf 0.19.0).
-# ik-llama/DFlash values (ids >= 133) verified against ik_llama.cpp ggml.h
-# enum + ggml.c type_traits[] + ggml-common.h block struct sizeofs
-# (ikawrakow/ik_llama.cpp, Jul 2026).
-# --------------------------------------------------------------------------- #
-GGML_SIZES = {
-    0: ("F32", 1, 4),
-    1: ("F16", 1, 2),
-    2: ("Q4_0", 32, 18),
-    3: ("Q4_1", 32, 20),
-    6: ("Q5_0", 32, 22),
-    7: ("Q5_1", 32, 24),
-    8: ("Q8_0", 32, 34),
-    9: ("Q8_1", 32, 40),
-    10: ("Q2_K", 256, 84),
-    11: ("Q3_K", 256, 110),
-    12: ("Q4_K", 256, 144),
-    13: ("Q5_K", 256, 176),
-    14: ("Q6_K", 256, 210),
-    15: ("Q8_K", 256, 292),
-    16: ("IQ2_XXS", 256, 66),
-    17: ("IQ2_XS", 256, 74),
-    18: ("IQ3_XXS", 256, 98),
-    19: ("IQ1_S", 256, 50),
-    20: ("IQ4_NL", 32, 18),
-    21: ("IQ3_S", 256, 110),
-    22: ("IQ2_S", 256, 82),
-    23: ("IQ4_XS", 256, 136),
-    24: ("I8", 1, 1),
-    25: ("I16", 1, 2),
-    26: ("I32", 1, 4),
-    27: ("I64", 1, 8),
-    28: ("F64", 1, 8),
-    29: ("IQ1_M", 256, 56),
-    30: ("BF16", 1, 2),
-    34: ("TQ1_0", 256, 54),
-    35: ("TQ2_0", 256, 66),
-    39: ("MXFP4", 32, 17),
-    40: ("NVFP4", 64, 36),
-    41: ("Q1_0", 128, 18),
-    # --- ik-llama.cpp / DFlash quant types (ids >= 133) ---
-    # Internal q8 vec-dot types (97-99, 136, 147-151) are included for
-    # completeness; they normally never appear as a stored tensor ttype.
-    97: ("Q8_0_X4", 32, 34, 0),
-    98: ("Q8_1_X4", 32, 36, 0),
-    99: ("Q8_2_X4", 32, 36, 0),
-    133: ("Q6_0", 32, 26, 0),
-    134: ("IQ1_BN", 64, 13, 2),
-    135: ("IQ2_BN", 64, 16, 4),
-    136: ("Q8_K64", 64, 68, 0),
-    137: ("IQ2_K", 256, 76, 0),
-    138: ("IQ3_K", 256, 110, 0),
-    139: ("IQ4_K", 256, 144, 0),
-    140: ("IQ5_K", 256, 176, 0),
-    141: ("IQ6_K", 256, 212, 0),
-    144: ("IQ4_KS", 256, 136, 4),
-    145: ("IQ2_KS", 256, 70, 2),
-    146: ("IQ4_KSS", 256, 128, 4),
-    147: ("Q8_K16", 64, 64, 20),
-    148: ("Q8_K32", 256, 296, 0),
-    149: ("Q8_KR8", 256, 296, 0),
-    150: ("Q8_K128", 128, 140, 0),
-    151: ("Q8_KV", 32, 32, 8),
-    152: ("IQ5_KS", 256, 168, 4),
-    153: ("IQ2_KT", 256, 68, 4),
-    154: ("IQ3_KT", 256, 100, 4),
-    155: ("IQ4_KT", 256, 128, 4),
-    156: ("IQ3_KS", 256, 102, 2),
-    157: ("IQ2_KL", 256, 86, 2),
-    158: ("IQ1_KT", 256, 56, 4),
-    # --- ik-llama row-interleaved (rN) repacks; same bytes-per-point as base ---
-    202: ("Q4_0_R8", 32, 18, 0),
-    206: ("Q5_0_R4", 32, 22, 0),
-    208: ("Q8_0_R8", 32, 34, 0),
-    210: ("Q2_K_R4", 256, 84, 0),
-    211: ("Q3_K_R4", 256, 110, 0),
-    212: ("Q4_K_R4", 256, 144, 0),
-    213: ("Q5_K_R4", 256, 176, 0),
-    214: ("Q6_K_R4", 256, 210, 0),
-    216: ("IQ2_XXS_R4", 256, 66, 0),
-    217: ("IQ2_XS_R4", 256, 74, 0),
-    218: ("IQ3_XXS_R4", 256, 98, 0),
-    219: ("IQ1_S_R4", 32, 6, 2),
-    220: ("IQ4_NL_R4", 32, 18, 0),
-    221: ("IQ3_S_R4", 256, 110, 0),
-    222: ("IQ2_S_R4", 256, 82, 0),
-    223: ("IQ4_XS_R8", 256, 136, 0),
-    229: ("IQ1_M_R4", 32, 7, 2),
-    230: ("BF16_R16", 1, 2, 0),
-    233: ("Q6_0_R4", 32, 26, 0),
-    335: ("IQ2_BN_R4", 64, 16, 4),
-    337: ("IQ2_K_R4", 256, 76, 0),
-    338: ("IQ3_K_R4", 256, 110, 0),
-    339: ("IQ4_K_R4", 256, 144, 0),
-    340: ("IQ5_K_R4", 256, 176, 0),
-    344: ("IQ4_KS_R4", 256, 136, 4),
-    352: ("IQ5_KS_R4", 256, 168, 4),
-    397: ("Q8_K_R16", 256, 258, 0),
-    398: ("Q8_KV_R8", 32, 32, 4),
-    399: ("Q8_K_R8", 256, 258, 0),
-}
-
-_warned_unknown = set()
-
-
-def quant_info(ttype):
-    """Return (name, block_size, bytes_per_block, row_meta_size) for a ggml
-    type id. Warns once per unknown type and returns (name, None, None, 0).
-    row_meta_size is ik-llama's per-row scale overhead (0 for mainline types)."""
-    if ttype in GGML_SIZES:
-        entry = GGML_SIZES[ttype]
-        if len(entry) == 3:  # legacy mainline 3-tuple
-            return entry + (0,)
-        return entry
-    if ttype not in _warned_unknown:
-        _warned_unknown.add(ttype)
-        nm = "?"
-        if _GGUFType:
-            try:
-                nm = _GGUFType(ttype).name
-            except ValueError:
-                pass
-        sys.stderr.write(
-            f"WARNING: unknown ggml type id {ttype} ({nm}); "
-            f"sizes left blank for these tensors\n"
-        )
-    name = "?"
-    if _GGUFType:
-        try:
-            name = _GGUFType(ttype).name
-        except ValueError:
-            pass
-    return (f"UNKNOWN_{ttype}_{name}", None, None, 0)
-
-
-# --------------------------------------------------------------------------- #
-# Minimal GGUF header parser (header-only safe). Raises _Truncated if the buffer
-# ends before the tensor-info table is fully read, signalling "fetch more".
-# --------------------------------------------------------------------------- #
-class _Truncated(Exception):
-    pass
-
-
-class _Cur:
-    def __init__(self, b):
-        self.b = b
-        self.i = 0
-
-    def take(self, n):
-        if self.i + n > len(self.b):
-            raise _Truncated()
-        d = self.b[self.i : self.i + n]
-        self.i += n
-        return d
-
-    def u32(self):
-        return struct.unpack_from("<I", self.take(4))[0]
-
-    def u64(self):
-        return struct.unpack_from("<Q", self.take(8))[0]
-
-    def gstr(self):
-        return self.take(self.u64())
-
-
-# GGUF metadata scalar value-type id -> (struct format, byte width)
-_SCALAR = {
-    0: ("<B", 1),  # UINT8
-    1: ("<b", 1),  # INT8
-    2: ("<H", 2),  # UINT16
-    3: ("<h", 2),  # INT16
-    4: ("<I", 4),  # UINT32
-    5: ("<i", 4),  # INT32
-    6: ("<f", 4),  # FLOAT32
-    7: ("<?", 1),  # BOOL
-    10: ("<Q", 8),  # UINT64
-    11: ("<q", 8),  # INT64
-    12: ("<d", 8),  # FLOAT64
-}
-
-
-def _read_value(c, vtype):
-    """Decode one GGUF metadata value, advancing the cursor past it.
-
-    Large arrays (the tokenizer vocab/merges) and string arrays are consumed to
-    keep the cursor aligned but returned as None -- we only ever need small
-    numeric arrays such as per-layer ``attention.head_count_kv``.
-    """
-    if vtype in _SCALAR:
-        fmt, width = _SCALAR[vtype]
-        return struct.unpack_from(fmt, c.take(width))[0]
-    if vtype == 8:  # STRING
-        return c.gstr().decode("utf-8", "replace")
-    if vtype == 9:  # ARRAY
-        atype = c.u32()
-        n = c.u64()
-        keep = atype != 8 and n <= 100000
-        vals = [] if keep else None
-        for _ in range(n):
-            v = _read_value(c, atype)
-            if keep:
-                vals.append(v)
-        return vals
-    raise ValueError(f"unknown gguf metadata value type {vtype}")
-
-
-def parse_header(buf):
-    """Parse a GGUF header from bytes. Returns (metadata_dict, tensor_list)
-    where tensor_list is a list of (name, dims, ttype).
-    Raises _Truncated if more bytes are needed."""
-    c = _Cur(buf)
-    if c.take(4) != b"GGUF":
-        raise ValueError("not a GGUF file (bad magic)")
-    _version = c.u32()
-    n_tensors = c.u64()
-    n_kv = c.u64()
-    metadata = {}
-    for _ in range(n_kv):  # walk metadata to reach tensor table
-        key = c.gstr().decode("utf-8", "replace")
-        metadata[key] = _read_value(c, c.u32())
-    out = []
-    for _ in range(n_tensors):
-        name = c.gstr().decode("utf-8", "replace")
-        ndim = c.u32()
-        dims = [c.u64() for _ in range(ndim)]
-        ttype = c.u32()
-        c.u64()  # data offset -- unused for our needs
-        out.append((name, dims, ttype))
-    return metadata, out
 
 
 # --------------------------------------------------------------------------- #
@@ -341,7 +99,7 @@ def fetch_prefix(url, n, headers, timeout=120):
 
 
 def read_gguf_tensors(
-    url, headers, start=8 << 20, growth=4, cap=512 << 20, quiet=False
+    url, headers, start=HEADER_START, growth=4, cap=HEADER_CAP, quiet=False
 ):
     """Fetch increasing prefixes until the header parses.
     Returns (metadata_dict, tensor_list)."""
@@ -356,7 +114,7 @@ def read_gguf_tensors(
                     f"({len(tensors)} tensors)\n"
                 )
             return metadata, tensors
-        except _Truncated:
+        except Truncated:
             if len(buf) < n:  # got the whole file, still short
                 raise ValueError("file ended before header finished parsing")
             if n >= cap:
@@ -376,28 +134,6 @@ _BLK = re.compile(r"^blk\.(\d+)\.(.+)$")
 # The dense (non-MoE) feed-forward matrices of a block. Their `_exps` / `_shexp`
 # siblings are the routed and shared experts of an MoE block.
 _DENSE_FFN = ("ffn_gate", "ffn_up", "ffn_down")
-
-
-def tensor_nbytes(dims, ttype):
-    """On-disk byte size of a tensor -- also the size staged to VRAM, since the
-    weight is copied at its native quant. Returns None if the quant is unknown.
-    Adds ik-llama per-row scale overhead (row_meta_size * nrows) when present."""
-    n_points = 1
-    for d in dims:
-        n_points *= d
-    _, block, tsize, row_meta = quant_info(ttype)
-    if block is None:
-        return None
-    nbytes = (
-        math.ceil(n_points / block) * tsize
-    )  # block payload (exact for real tensors)
-    if row_meta:
-        # nrows = all dims except the innermost (dim 0); 1 for a 1-D tensor.
-        nrows = 1
-        for d in dims[1:]:
-            nrows *= d
-        nbytes += row_meta * nrows
-    return nbytes
 
 
 def build_row(name, dims, ttype):
@@ -538,7 +274,7 @@ _ARCH_SWA_PATTERN = {
 
 # Hybrid architectures that mark their linear-attention blocks with a *stride*
 # instead of a per-layer array, mirroring the identical block in
-# `src/models/{qwen3next,qwen35,qwen35moe}.cpp`:
+# `src/models/{qwen3next,qwen35,qwen35moe,qwen4exp}.cpp`:
 #
 #     is_recr(il) = il < n_layer() && (il + 1) % full_attention_interval != 0
 #
@@ -551,9 +287,10 @@ _ARCH_SWA_PATTERN = {
 # generic path in `_model_kv_from_metadata` already picks up, but a Qwen3.5/3.6
 # GGUF carries a plain scalar `attention.head_count_kv` covering every block.
 # Without this, three quarters of a Qwen3.6 stack is sized as full attention --
-# for Qwen3.6-27B, 65 cache layers instead of 16, a ~4x overstatement.
-_ARCH_FULL_ATTN_INTERVAL = {"qwen35", "qwen35moe", "qwen3next"}
-_DEFAULT_FULL_ATTN_INTERVAL = 4  # the fallback all three loaders hardcode
+# for Qwen3.6-27B, 65 cache layers instead of 16, a ~4x overstatement. Qwen4's
+# `qwen4exp` is the same shape: 48 blocks at interval 4 leave 12 that cache.
+_ARCH_FULL_ATTN_INTERVAL = {"qwen35", "qwen35moe", "qwen3next", "qwen4exp"}
+_DEFAULT_FULL_ATTN_INTERVAL = 4  # the fallback all four loaders hardcode
 
 # Architectures whose NextN/MTP blocks get NO layer in the main attention cache.
 # `llama_kv_cache` loops over `n_layer_all`, not `n_layer()`, so an MTP block is
@@ -645,6 +382,53 @@ def _recurrent_state_group(md, arch, n_head, n_embd, layers):
     )
 
 
+def _ple_conv_state_group(md, arch, n_embd, recr_layers):
+    """The n-gram PLE module's own conv-history row, as a CompressedKV.
+
+    An n-gram PLE layer (`{arch}.ple.layers`, qwen4exp) runs a depthwise
+    convolution over the hyper-connection streams and needs its history kept
+    across tokens. It cannot share the delta-net conv state next door -- Meta
+    mirrors `cache_r_l` per head, which leaves a history packed behind the first
+    one unaddressable -- so `llama_memory_recurrent` gives it a third tensor,
+    `cache_ple_r_l`, of
+
+        ple_conv_state() = (ple.conv_kernel - 1) * ple.ngram_size
+                           * hyper_connection.count * n_embd
+
+    f32 elements (llama-hparams.cpp), on the same `mem_size * (1 + n_rs_seq)` rows
+    as `r`/`s`. Context-independent, hence `ratio = 0` / one fixed row per
+    sequence, exactly like `_recurrent_state_group`.
+
+    Only PLE layers that are also *recurrent* get one: the tensor is allocated
+    inside `llama_memory_recurrent`'s loop, after `filter_recr` has already
+    rejected the dense-attention layers. Returns None when the model has no PLE
+    layer, or when its PLE layer is not recurrent.
+    """
+
+    def g(key):
+        return md.get(f"{arch}.{key}") or 0
+
+    conv_kernel, ngram = g("ple.conv_kernel"), g("ple.ngram_size")
+    hc_mult = g("hyper_connection.count")
+    if not (conv_kernel and ngram and hc_mult and n_embd):
+        return None
+    ple_layers = md.get(f"{arch}.ple.layers")
+    if not isinstance(ple_layers, list):
+        return None
+    layers = len(set(ple_layers) & set(recr_layers))
+    if not layers:
+        return None
+    return CompressedKV(
+        "ple conv state",
+        layers,
+        1,
+        (conv_kernel - 1) * ngram * hc_mult * n_embd,
+        0,  # a single tensor, unlike the recurrent state's r/s pair
+        fixed_rows=1,
+        elem_bpw=32.0,
+    )
+
+
 # Architectures whose loader forces K-only cache storage without the GGUF saying
 # so. DeepSeek-V4 fakes `is_mla()` on all four of its cache hparam copies
 # (`dsv4_make_k_only` in llama-kv-cache-dsv4.cpp) purely to get `has_v = false`
@@ -655,12 +439,30 @@ _ARCH_K_ONLY_CACHE = {"deepseek4"}
 # Architectures that keep their lightning-indexer keys in the *main* KV cache, as
 # an extra f32 stream of `n_embd_k_idx(il)` next to K/V (`hparams.indexer_kv =
 # true`, allocated in llama-kv-cache.cpp). MiniMax-M3's MSA is the only one.
-# The other three architectures that ship `.indexer.` tensors -- deepseek32,
-# glm-dsa and deepseek4 -- put those keys in a side cache of their own instead, at
-# the run's K quant and (for deepseek4) at one row per 4 tokens; `_compressed_groups`
-# models those, so charging them a full-context f32 stream as well would both
-# double-count and overstate the rate.
+# The other architectures that ship `.indexer.` tensors -- deepseek32, glm-dsa,
+# qwen4exp and deepseek4 -- put those keys in a side cache of their own instead,
+# at the run's K quant and (for deepseek4) at one row per 4 tokens;
+# `_compressed_groups` models those, so charging them a full-context f32 stream as
+# well would both double-count and overstate the rate.
 _ARCH_INDEXER_KV = {"minimax-m3"}
+
+# Architectures that put their indexer keys in a **full-context side cache** of
+# one row per token, built by fooling a plain `llama_kv_cache` with a doctored
+# copy of the hparams: `n_head_kv_arr` filled with 1 and `n_embd_head_k_full`
+# replaced by `attention.indexer.key_length` (`llama_kv_cache_dsa`'s
+# `hparams_lid` for deepseek32 / glm-dsa, `llama_memory_hybrid_idx`'s
+# `hparams_idx` for qwen4exp). It takes the run's K/V quant and, being a separate
+# cache, is passed no `--kv-tail-tokens` at all.
+#
+# Only the *K* width is doctored, so the V side follows `has_v = !is_mla()` on
+# that same copy -- which is why the width is not the same on all three:
+# deepseek32 and glm-dsa are MLA and get no V cache, while qwen4exp declares no
+# MLA head dims and therefore really does allocate a V of `attention.value_length
+# x 1` next to its 128-wide indexer K, at 2x the K's width and unused by the
+# graph. Mirrored rather than corrected: it is allocation, not arithmetic.
+# DeepSeek-V4 is absent -- its indexer cache is *compressed* (one row per 4
+# tokens), which `_dsv4_compressed_groups` models instead.
+_ARCH_INDEXER_SIDE_CACHE = {"deepseek32", "glm-dsa", "qwen4exp"}
 
 # Architectures whose bespoke cache never receives the KVarN params, so
 # `-ctk kvarnN` silently stores the plain fallback type instead
@@ -768,24 +570,26 @@ def _group_kv_heads(head_kv, layers):
     return sum(head_kv[il] for il in layers) / len(layers)
 
 
-def _compressed_groups(md, arch, head_kv, key_length, cached, n_layer):
+def _compressed_groups(md, arch, head_kv, key_length, value_length, cached, n_layer):
     """Cache groups an architecture allocates *besides* its token KV cache.
 
     Empty for all but the sparse-attention architectures, which cache their
     lightning-indexer keys in a side cache of their own instead of in the main one
     (`_ARCH_INDEXER_KV`):
 
-      * `deepseek32` / `glm-dsa` -- `llama_kv_cache_dsa` builds one extra
-        full-context K-only cache with `head_count_kv` forced to 1 and the head
-        dim replaced by `attention.indexer.key_length`, at the run's K quant and
-        with no exact tail;
+      * `_ARCH_INDEXER_SIDE_CACHE` (`deepseek32`, `glm-dsa`, `qwen4exp`) -- one
+        extra full-context cache of one row per token, `head_count_kv` forced to 1
+        and the key head dim replaced by `attention.indexer.key_length`, at the
+        run's K/V quant and with no exact tail. K-only on the two MLA
+        architectures; on `qwen4exp` a V of `value_length` rides along, see
+        `_ARCH_INDEXER_SIDE_CACHE`.
       * `deepseek4` -- three *compressed* caches plus compressor state, see
         `_dsv4_compressed_groups`, and the raw token cache holds only a
         128-token window.
     """
     if arch == "deepseek4":
         return _dsv4_compressed_groups(md, arch, head_kv, key_length, n_layer)
-    if arch not in ("deepseek32", "glm-dsa"):
+    if arch not in _ARCH_INDEXER_SIDE_CACHE:
         return ()
 
     indexer_dim = md.get(f"{arch}.attention.indexer.key_length")
@@ -797,11 +601,18 @@ def _compressed_groups(md, arch, head_kv, key_length, cached, n_layer):
         return ()
     return (
         CompressedKV(
-            "lid (indexer)",
+            # Named after llama.cpp's own tensor tag for the cache, so a reader
+            # can grep the right file: `cache_idx_k_l*` out of
+            # llama_memory_hybrid_idx, `cache_k_l*` of kv_lid out of
+            # llama_kv_cache_dsa (whose upstream name for it is the "lightning
+            # indexer", LID).
+            "idx (indexer)" if arch == "qwen4exp" else "lid (indexer)",
             len(cached),
-            1,  # hparams_lid.n_head_kv_arr is filled with 1
+            1,  # the doctored hparams fill n_head_kv_arr with 1
             indexer_dim,
-            0,  # K-only (these archs are MLA, so `has_v` is already false)
+            # `has_v = !is_mla()` on the doctored hparams: zero for the MLA
+            # architectures, `attention.value_length x 1` for qwen4exp.
+            value_length,
             ratio=1,
             per_seq=False,  # follows the main cache's kv_unified
         ),
@@ -1059,19 +870,25 @@ def _model_kv_from_metadata(md):
 
     # Side caches allocated *in addition* to the token cache above; () for all
     # but the sparse-attention architectures.
-    compressed = _compressed_groups(md, arch, head_kv, key_length, cached, n_layer)
+    compressed = _compressed_groups(
+        md, arch, head_kv, key_length, value_length, cached, n_layer
+    )
 
     # A hybrid's recurrent blocks are not free: each holds a per-sequence f32
     # state buffer, allocated out of the same "context" pool as the KV cache and
     # reported in llama.cpp's memory breakdown alongside it. `n_layer - cached`
     # would not do: on an `_ARCH_MTP_NO_CACHE` arch an MTP block is neither.
     if recr_flags:
-        n_recr = sum(recr_flags)
+        recr_layers = [il for il in range(n_layer) if recr_flags[il]]
     else:  # recurrence marked by zeroing head_count_kv, within `n_layer()`
-        n_recr = sum(1 for il in range(n_main) if not head_kv[il])
+        recr_layers = [il for il in range(n_main) if not head_kv[il]]
+    n_recr = len(recr_layers)
     recr_state = _recurrent_state_group(md, arch, n_head, n_embd, n_recr)
     if recr_state is not None:
         compressed = (*compressed, recr_state)
+    ple_state = _ple_conv_state_group(md, arch, n_embd, recr_layers)
+    if ple_state is not None:
+        compressed = (*compressed, ple_state)
 
     spec = ModelKV(
         full_attn_layers=len(full_layers),
@@ -1497,13 +1314,13 @@ def main():
     ap.add_argument(
         "--start-bytes",
         type=int,
-        default=8 << 20,
+        default=HEADER_START,
         help="initial prefix size (default 8 MiB)",
     )
     ap.add_argument(
         "--max-bytes",
         type=int,
-        default=512 << 20,
+        default=HEADER_CAP,
         help="per-file download cap (default 512 MiB)",
     )
     ap.add_argument("-q", "--quiet", action="store_true")
@@ -1591,12 +1408,27 @@ def main():
     # The three FFN classes are worth separating because they scale differently:
     # routed experts are the bulk that `--cpu-moe` can offload, shared experts
     # and dense FFN fire on every token and belong in VRAM.
+    #
+    # Lazily-read tensors get a fourth class of their own, ahead of the rest.
+    # They are weights on disk that are never *resident* weights: llama.cpp
+    # registers their byte range and gathers the handful of rows a token needs
+    # straight out of the mmap (`gguf_common.ARCH_LAZY_TENSORS`). Leaving one in
+    # "everything else" would put a quarter of Qwen3.8-Flash-Next's file -- its
+    # 26.8 GiB n-gram PLE table at UD-Q4_K_XL -- into a figure the reader takes
+    # for the memory the model needs to run.
+    lazy = dict(lazy_tensors(metadata, all_tensors))
     exps = shexp = ffn = other = 0
+    lazy_bytes = 0
     for r in rows:
         if not isinstance(r[6], int):
             continue
         parts = r[1].split(".")
         base = parts[0]
+        # `blk.N.` is stripped from r[1], so put it back before matching: a lazy
+        # name is a whole tensor name, not a base name.
+        if (f"blk.{r[0]}.{r[1]}" if r[0] != "" else r[1]) in lazy:
+            lazy_bytes += r[6]
+            continue
         # `ffn_gate.<i>.weight` is the pre-merge per-expert spelling (grok and
         # early Mixtral conversions); it is a routed expert, not a dense FFN.
         legacy_exp = base in _DENSE_FFN and len(parts) > 1 and parts[1].isdigit()
@@ -1662,7 +1494,33 @@ def main():
     if ffn:
         summary += weight_line("dense FFN (ffn_{gate,up,down})", ffn)
     summary += weight_line("everything else (attn/embd/norm)", other)
-    summary += weight_line("total (model weights)", exps + shexp + ffn + other)
+    resident = exps + shexp + ffn + other
+    if lazy_bytes:
+        summary += weight_line("total (resident weights)", resident)
+        summary += weight_line(
+            "lazy tensors (read from disk)",
+            lazy_bytes,
+            f"({', '.join(sorted(lazy))})",
+        )
+        summary += weight_line("total (all weights, on disk)", resident + lazy_bytes)
+        summary += (
+            textwrap.fill(
+                "note: the lazy line is NOT part of the resident total above it. "
+                "llama.cpp registers the tensor's byte range and reads the rows a "
+                "token needs straight from the mmap, so it costs page cache rather "
+                f"than VRAM -- but only under --load-mode {'/'.join(LAZY_LOAD_MODES)}: "
+                "mlock (this project's own models.ini) and dio map nothing and load "
+                "it in full. --tensor-read-lazy off keeps it resident too, and `on` "
+                f"drops the {LAZY_AUTO_MIN_BYTES >> 30} GiB size threshold that the "
+                "default `auto` -- and this line -- applies.",
+                width=88,
+                initial_indent="  ",
+                subsequent_indent=" " * 8,
+            )
+            + "\n"
+        )
+    else:
+        summary += weight_line("total (model weights)", resident)
     sys.stderr.write(summary)
 
     # Educated guess of non-weight VRAM (KV cache + fixed scratch/overhead).
