@@ -103,6 +103,20 @@ if [ "$WITH_GIT" = true ]; then
   fi
 fi
 
+# Claude Code puts its cross-session-messaging sockets in $XDG_RUNTIME_DIR/cc-socks.
+# The read-only root bind leaves it unable to create that directory, so it prints
+# "Cross-session messaging is off: its socket directory could not be set up".
+# Mount a private tmpfs there instead: the sandbox gets a writable sockets
+# directory of its own, without a channel into unsandboxed sessions on the host.
+# bwrap cannot mkdir a mountpoint under the read-only root, so the directory has
+# to exist on the host first.
+CC_SOCKS_TMPFS=""
+if [ -d "${XDG_RUNTIME_DIR:-}" ]; then
+  mkdir -p "$XDG_RUNTIME_DIR/cc-socks"
+  chmod 700 "$XDG_RUNTIME_DIR/cc-socks"
+  CC_SOCKS_TMPFS="--tmpfs $XDG_RUNTIME_DIR/cc-socks"
+fi
+
 # Unset all PIXI_*/CONDA_* and the pixi-activation env vars so they don't leak
 # into the sandboxed Claude Code process.
 while IFS= read -r var; do
@@ -121,6 +135,7 @@ exec bwrap \
   --tmpfs /tmp \
   --tmpfs /home \
   --tmpfs /root \
+  $CC_SOCKS_TMPFS \
   --bind    "$HOME/.cache/ccache"                 "$HOME/.cache/ccache" \
   --bind    "$HOME/.cache/claude"                 "$HOME/.cache/claude" \
   --bind    "$HOME/.cache/llama-cpp-changelog"    "$HOME/.cache/llama-cpp-changelog" \

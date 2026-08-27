@@ -1,6 +1,6 @@
 context:
   name: claude
-  version: "2.1.246"
+  version: "2.1.247"
 
 package:
   name: ${{ name }}
@@ -8,7 +8,7 @@ package:
 
 source:
   url: https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-${{ version }}.tgz
-  sha256: 8243db25322e7295953455aee463324bfa229f37184fcf2adf90446818803dce
+  sha256: c63ff7ee01fbc82f77b6e6c6c7270b5522e19a6164834499e3930034df596710
 
 build:
   number: 0
