@@ -114,26 +114,25 @@ Nothing else changes.
 Models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Model              | Variant            | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Notes                                 |
-| ------------------ | ------------------ | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------------------------------------- |
-| Qwen3.8-27B        | IQ4_XS MTP         | 15 GB        | 256k kvarn4         | 20.3 GB             | 1,028 tok/s         | 60 tok/s           |                                       |
-| Kat-Coder-V2.5-Dev | APEX I-Compact MTP | 17 GB        | 256k kvarn5 t1024   | 19.8 GB             | 2,168 tok/s         | 150 tok/s          |                                       |
-| Ling-3.0-tiny      | Q6_K               | 6.4 GB       | 256k q6/q6          | 8.0 GB              | 6,570 tok/s         | 216 tok/s          |                                       |
-| Gemma4-E2B         | QAT MTP            | 3.5 GB       | 128k q8/q8          | 3.8 GB              | 6,434 tok/s         | 236 tok/s          |                                       |
-| Gemma4-31B         | QAT MTP            | 18 GB        | 64k q8/q8           | 21.7 GB             | 836 tok/s           | 75 tok/s           | limited context                       |
-| LFM2.5-230M        | Q4_K_M             | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | for smoke testing purposes            |
-| LFM2.5-2.6B        | Q8_0 DSpark        | 2.9 GB       | 128k q8/q8          | 6.5 GB              | 8,065 tok/s         | 230 tok/s          |                                       |
-| LFM2.5-VL-3B       | Q8_0               | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          |                                       |
-| Laguna-S-2.1       | IQ4_XS             | 54 GB        | 256k kvarn5 t1024   | 20.5 GB<sup>4</sup> | 137 tok/s           | 13 tok/s           |                                       |
-| DeepSeek-V4-Flash  | IQ2_XXS            | 85 GB        | 256k f16/f16        | 22.0 GB<sup>4</sup> | 64 tok/s            | 11 tok/s           | KV cache quantization is very harmful |
-| Muse-Glimmer-30B   | Q4_K_XL DFlash     | 19 GB        | 256k kvarn6 t1024   | 18.7 GB             | 938 tok/s           | 124 tok/s          |                                       |
+| Model              | Variant            | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision   | Notes                            |
+| ------------------ | ------------------ | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | -------- | -------------------------------- |
+| Qwen3.8-27B        | IQ4_XS MTP         | 15 GB        | 256k kvarn4         | 20.3 GB             | 1,028 tok/s         | 60 tok/s           | ✅ (CPU) |                                  |
+| Qwen3.6-35B-A3B    | APEX I-Compact MTP | 17 GB        | 256k kvarn5 t1024   | 19.8 GB             | 2,120 tok/s         | 150 tok/s          | 🔴       |                                  |
+| Ornith-1.5-35B     | APEX I-Compact MTP | 18 GB        | 256k kvarn5 t1024   | 20.8 GB             | 2,120 tok/s         | 110 tok/s          | ✅       |                                  |
+| Ling-3.0-tiny      | Q6_K               | 6.4 GB       | 256k q6/q6          | 8.0 GB              | 6,570 tok/s         | 216 tok/s          | 🔴       |                                  |
+| Gemma4-E2B         | QAT MTP            | 3.5 GB       | 128k q8/q8          | 3.8 GB              | 6,434 tok/s         | 236 tok/s          | ✅       |                                  |
+| LFM2.5-230M        | Q4_K_M             | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴       | for smoke testing purposes       |
+| LFM2.5-2.6B        | Q8_0 DSpark        | 2.9 GB       | 128k q8/q8          | 6.5 GB              | 8,065 tok/s         | 230 tok/s          | 🔴       |                                  |
+| LFM2.5-VL-3B       | Q8_0               | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅       |                                  |
+| DeepSeek-V4-Flash  | IQ2_XXS            | 85 GB        | 256k f16/f16        | 22.0 GB<sup>4</sup> | 64 tok/s            | 11 tok/s           | 🔴       | KV cache quantization is harmful |
+| Muse-Glimmer-30B   | Q4_K_XL DFlash     | 19 GB        | 256k kvarn6 t1024   | 18.7 GB             | 938 tok/s           | 124 tok/s          | ✅       |                                  |
 
 **Notes:**
 
 - <sup>1</sup>KV cache compression is set per-model via `cache-type-k`/`cache-type-v` in
   `models.ini`. The default fork
   ([beellama.cpp](https://github.com/Anbeeld/beellama.cpp)) adds KVarN low-bit cache
-  quants (`kvarn4`, `kvarn3`) on top of upstream's `q8_0`/`q4_0`.
+  quants on top of upstream's standard quants.
 - <sup>2</sup>Process total measured by nvidia-smi. When sizing video card VRAM, you
   must add ~2 GiB for your desktop (unless you're running on an integrated video card
   and your discrete card is detached from the X server)
