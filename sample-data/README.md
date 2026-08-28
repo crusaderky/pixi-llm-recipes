@@ -26,4 +26,5 @@ Same as above, first 2400 lines
 
 ## describe-me.jpg
 
-An arbitrary image to test multi-modal capabilities
+An arbitrary image to test multi-modal capabilities. It includes testing for the agent's
+real-world awareness about a relatively niche suject (local AI) and meme culture.
