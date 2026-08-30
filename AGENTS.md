@@ -107,7 +107,7 @@ Each recipe's `context:` block lists several `fork:` / `version:` pairs with exa
 `build.sh` reads `BACKEND` and:
 
 1. Installs into `${PREFIX}/opt/llama` (`CMAKE_INSTALL_LIBDIR`/`BINDIR`) — executables and shared libs **must** coexist there so `dlopen` finds the optional ggml backend libraries.
-2. Sets `RPATH=$ORIGIN` so executables find sibling backend DLLs without `LD_LIBRARY_PATH`.
+2. Sets `RPATH=$ORIGIN` so executables find sibling backend DLLs without `LD_LIBRARY_PATH` (the rocm backend appends `${ROCM_PATH}/lib` to it — see below).
 3. Enables `GGML_BACKEND_DL`, `GGML_CPU_ALL_VARIANTS`, `GGML_RPC`; disables tests/examples.
 4. Symlinks `llama-*` and `rpc-server` into `${PREFIX}/bin` with **relative** paths (`../opt/llama/...`), required for prefix portability.
 5. Compiles through **ccache** via `CMAKE_{C,CXX,CUDA,HIP}_COMPILER_LAUNCHER` (a conda build dep, never a system install).
@@ -118,10 +118,11 @@ Each recipe's `context:` block lists several `fork:` / `version:` pairs with exa
 
 **ROCm is the one backend conda does not fully serve.** conda-forge ships no hipBLAS/rocBLAS, which llama.cpp's HIP backend hard-requires via `find_package`, so this backend links against the **system** ROCm:
 
-- Ubuntu 26.04's standard archive has a complete ROCm 7.1; `build.sh` discovers `HIP_PATH`/`HIPCXX` via `hipconfig`.
-- Device targets come from the `gpu_targets` context var (default `gfx1150;gfx1151`, this project owner's Strix Point iGPU); override with `LLAMA_GPU_TARGETS=gfx1100 pixi install -e llamacpp-source-rocm`.
-- System ROCm libs resolve via the system linker path, so they are exempted from rattler-build's overlinking check via `build.dynamic_linking`. Consequence: the package needs a matching system ROCm **at runtime** — unlike the self-contained CUDA/Vulkan builds.
-- `apt install rocm` on Ubuntu 26.04 omits the gfx1150 rocBLAS kernels, hence `HSA_OVERRIDE_GFX_VERSION=11.5.1` in the feature's activation env (and a matching hack in `build.sh`).
+- Targets **ROCm 10** from AMD's `stable.repo.amd.com` apt repo (`amdrocm-core-sdk10.0-gfx1150`), installed under `/opt/rocm/core-10.0`. The prefix is the `rocm_path` context var, overridable with `LLAMA_ROCM_PATH` (e.g. `/usr` for Ubuntu's archive ROCm 7.1). `build.sh` derives `HIP_PATH`/`HIPCXX` from it and validates it exists; it deliberately does **not** call `hipconfig -R`, because `/usr/bin/hipconfig` is a Debian alternatives symlink that ROCm 10 takes over from Ubuntu's `hipcc` package — its answer tracks alternatives priority, not this recipe. `ggml-hip/CMakeLists.txt` reads `$ENV{ROCM_PATH}` into `CMAKE_PREFIX_PATH`, which is how `find_package(hip|hipblas|rocblas)` resolves.
+- Device targets come from the `gpu_targets` context var (default `gfx1150`, this project owner's Strix Point iGPU); override with `LLAMA_GPU_TARGETS=gfx1100 pixi install -e llamacpp-source-rocm`. AMD's repo splits device code per architecture, so another target also needs its `amdrocm-core10.0-<gfx>` package installed.
+- **RPATH matters here.** ROCm 10 ships no `ld.so.conf.d` drop-in, and its `libamdhip64` shares soname `.so.7` with Ubuntu's ROCm 7.1 under `/usr`, which _is_ on the default linker path — so a soname-only bind silently lands on 7.1 rather than failing. `build.sh` appends `${ROCM_PATH}/lib` to `CMAKE_INSTALL_RPATH` and `build.dynamic_linking.rpath_allowlist` stops rattler-build's relocation pass from stripping it as prefix-external. Verify after a build with `ldd .pixi/envs/llamacpp-source-rocm/opt/llama/libggml-hip.so` — every ROCm DSO must resolve under `/opt/rocm/core-10.0/lib`.
+- The overlinking / missing-DSO exemptions in `build.dynamic_linking` remain: ROCm is never a conda run dependency, so the package needs a matching system ROCm **at runtime** — unlike the self-contained CUDA/Vulkan builds.
+- **No `HSA_OVERRIDE_GFX_VERSION`** in the source feature's activation env: ROCm 10 has native gfx1150 device libraries and rocBLAS kernels, and since only the `-gfx1150` packages are installed, the old `11.5.1` (gfx1151) override would now break it rather than help. `llamacpp-binary-rocm` keeps the override — its prebuilt binaries bind by soname and so load Ubuntu's ROCm 7.1, which does lack gfx1150 rocBLAS kernels.
 
 ### Binary build
 

@@ -51,7 +51,7 @@ jobs:
           # - os: ubuntu-24.04-arm
           #   backend: binary-vulkan
 
-          # Need Ubuntu 26.04 for ROCm dependencies
+          # AMD publishes ROCm 10 for noble and ubuntu2604 only
           - os: ubuntu-26.04
             backend: source-rocm
 
@@ -64,17 +64,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # hipBLAS/rocBLAS and the HIP runtime are not on conda-forge, so the
-      # source-rocm variant compiles against the distro's system ROCm. Ubuntu
-      # 26.04 ships it in the archive (ROCm 7.1, clang-21) — no third-party AMD
-      # apt repo needed. Restrict device codegen to one widely-supported arch to
-      # keep the GPU-less CI build fast (inference falls back to CPU anyway).
-      - name: Install system ROCm (source-rocm only)
+      - name: Install ROCm 10
         if: matrix.backend == 'source-rocm'
         run: |
+          sudo mkdir -p --mode=0755 /etc/apt/keyrings
+          curl -fsSL https://stable.repo.amd.com/rocm/gpg/packages.gpg \
+            | gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
+          printf '%s\n' \
+            'Types: deb' \
+            'URIs: https://stable.repo.amd.com/rocm/core/packages/ubuntu2604/' \
+            'Suites: stable' \
+            'Components: main' \
+            'Architectures: amd64' \
+            'Signed-By: /etc/apt/keyrings/amdrocm.gpg' \
+            | sudo tee /etc/apt/sources.list.d/amdrocm.sources > /dev/null
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            hipcc clang-21 libamdhip64-dev librocblas-dev libhipblas-dev rocm-device-libs-21
+            amdrocm-runtime-dev10.0 amdrocm-blas-dev10.0 \
+            amdrocm-hipblas-common-dev10.0 amdrocm-blas10.0-gfx1030
           echo "LLAMA_GPU_TARGETS=gfx1030" >> "$GITHUB_ENV"
 
       - uses: prefix-dev/setup-pixi@v0
