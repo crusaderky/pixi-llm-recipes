@@ -22,7 +22,10 @@ build:
 
 requirements:
   build:
-    - pnpm
+    # conda-forge's pnpm 12+ ships a native launcher binary, and the
+    # linux-aarch64 build contains an x86-64 ELF (Exec format error). Up to 11.x
+    # the package is a plain `#!/usr/bin/env node` script, which runs anywhere.
+    - pnpm <12
     - pnpm-licenses
     - nodejs
   run:
