@@ -29,7 +29,7 @@ case "$TARGET_PLATFORM-$BACKEND" in
         ;;
     linux-64-cuda)
         # beellama only
-        ARCHIVE_POSTFIX=ubuntu-cuda-13.1-x64.tar.gz
+        ARCHIVE_POSTFIX=ubuntu-cuda-13.3-x64.tar.gz
         ;;
     linux-64-vulkan)
         ARCHIVE_POSTFIX=ubuntu-vulkan-x64.tar.gz

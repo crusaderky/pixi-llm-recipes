@@ -61,10 +61,10 @@ requirements:
   run:
     - libgomp
     # CUDA runtime from conda-forge only — never OS-wide CUDA packages.
-    # Pinned to CUDA 13.1 to match the upstream `ubuntu-cuda-13.1-x64` asset.
+    # Pinned to CUDA 13.3 to match the upstream `ubuntu-cuda-13.3-x64` asset.
     - if: backend == "cuda"
       then:
-        - cuda-version =13.1
+        - cuda-version =13.3
         - cuda-cudart
         - libcublas
         - libcurand
