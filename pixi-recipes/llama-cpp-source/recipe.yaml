@@ -1,19 +1,18 @@
 context:
   # Main branch (upstream llama.cpp)
   # fork: ggml-org/llama.cpp
-  # version: b10648
+  # version: b10719
 
   # beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
   # https://github.com/Anbeeld/beellama.cpp
   # fork: Anbeeld/beellama.cpp
   # version: v0.4.4
 
-  # Beellama-v0.4.4 preview
+  # Beellama-v0.4.5 preview
   # + llama-perplexity collision probability measure
-  # + Qwen3.8-Flash-Next
   # + https://github.com/ggml-org/llama.cpp/pull/21067
   fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.4.4-r9
+  version: beellama-staging-v0.4.5-r1
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
