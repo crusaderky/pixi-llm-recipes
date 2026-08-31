@@ -1,7 +1,7 @@
 context:
   # Main branch (upstream llama.cpp)
   # fork: ggml-org/llama.cpp
-  # version: b10648
+  # version: b10705
 
   # beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
   # https://github.com/Anbeeld/beellama.cpp
