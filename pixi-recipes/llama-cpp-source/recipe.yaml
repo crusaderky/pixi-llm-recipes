@@ -21,12 +21,15 @@ context:
   # Root of the system ROCm install to build against. ROCm 10 lives in a
   # versioned, self-contained prefix and registers Debian alternatives for
   # /opt/rocm/{bin,lib,...} and /usr/bin/hip*, so a bare `hipconfig` already
-  # resolves here — but that is an alternatives *priority*, not a pin, and it
-  # flips if a second ROCm is installed. Name the prefix explicitly so the build
-  # is reproducible. Override with e.g. `LLAMA_ROCM_PATH=/usr pixi install -e
-  # llamacpp-source-rocm` to build against Ubuntu's archive ROCm 7.1 instead.
+  # resolves here — but that is an alternatives *priority*, not a pin; it flips
+  # if a second ROCm is installed, and it is registered by the per-arch
+  # `amdrocm-core10.0-<gfx>` metapackage alone, so a minimal install (such as
+  # CI's) has the versioned prefix and no /opt/rocm/{bin,lib} at all. Name the
+  # prefix explicitly so the build is reproducible. Override with e.g.
+  # `LLAMA_ROCM_PATH=/usr pixi install -e llamacpp-source-rocm` to build
+  # against Ubuntu's archive ROCm 7.1 instead.
   # Only consumed by the rocm backend; harmless for the others.
-  rocm_path: ${{ env.get("LLAMA_ROCM_PATH", default="/opt/rocm") }}
+  rocm_path: ${{ env.get("LLAMA_ROCM_PATH", default="/opt/rocm/core-10.0") }}
 
   # Semicolon-separated AMDGPU gfx targets to compile device code for. Defaults
   # to Strix Point gfx1150 iGPU. Override for other GPUs (or a broadly-supported
