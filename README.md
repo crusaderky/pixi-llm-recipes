@@ -68,14 +68,12 @@ Unlike the CUDA and Vulkan source builds, `llamacpp-source-rocm` compiles
 against the **system** ROCm rather than conda packages, because conda-forge does
 not ship hipBLAS/rocBLAS. It expects **ROCm 10** from AMD's apt repo at
 `https://stable.repo.amd.com/rocm/core/packages/ubuntu2604/`, installed under
-`/opt/rocm/core-10.0`. It coexists with Ubuntu's archive ROCm 7.1 (`/usr`),
-which the `llamacpp-binary-rocm` environment still uses.
+`/opt/rocm`.
 
-It targets `gfx1150` by default (this project owner's Strix Point iGPU).
-Override with `LLAMA_GPU_TARGETS=<gfx…> pixi install -e llamacpp-source-rocm`
-for other GPUs. `LLAMA_ROCM_PATH=<prefix>` selects a different ROCm install; it
-requires a matching system ROCm at runtime, unlike the self-contained
-CUDA/Vulkan builds.
+It targets `gfx1150` by default (Strix Point iGPU). Override with
+`LLAMA_GPU_TARGETS=<gfx…> pixi install -e llamacpp-source-rocm` for other GPUs.
+`LLAMA_ROCM_PATH=<prefix>` selects a different ROCm install; it requires a
+matching system ROCm at runtime, unlike the self-contained CUDA/Vulkan builds.
 
 To start llama-cpp interactively (you will be asked on which environment you want to run):
 

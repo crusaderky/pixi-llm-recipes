@@ -26,19 +26,15 @@ context:
   # is reproducible. Override with e.g. `LLAMA_ROCM_PATH=/usr pixi install -e
   # llamacpp-source-rocm` to build against Ubuntu's archive ROCm 7.1 instead.
   # Only consumed by the rocm backend; harmless for the others.
-  rocm_path: ${{ env.get("LLAMA_ROCM_PATH", default="/opt/rocm/core-10.0") }}
+  rocm_path: ${{ env.get("LLAMA_ROCM_PATH", default="/opt/rocm") }}
 
   # Semicolon-separated AMDGPU gfx targets to compile device code for. Defaults
-  # to this project owner's hardware (Strix Point gfx1150 iGPU). ROCm 10 ships
-  # native gfx1150 device libraries and rocBLAS kernels, so the old
-  # `gfx1150;gfx1151` pair — which existed only to feed the
-  # HSA_OVERRIDE_GFX_VERSION=11.5.1 workaround for Ubuntu ROCm 7.1's missing
-  # gfx1150 rocBLAS kernels — is gone. Override for other GPUs (or a
-  # broadly-supported arch on CI) with e.g.
-  # `LLAMA_GPU_TARGETS=gfx1100 pixi install -e llamacpp-source-rocm`; note that
-  # AMD's repo splits device code per architecture, so another target also needs
-  # the matching `amdrocm-core10.0-<gfx>` apt package installed.
-  # Only consumed by the rocm backend; harmless for the others.
+  # to Strix Point gfx1150 iGPU. Override for other GPUs (or a broadly-supported
+  # arch on CI) with e.g. `LLAMA_GPU_TARGETS=gfx1100 pixi install -e
+  # llamacpp-source-rocm`; note that AMD's repo splits device code per
+  # architecture, so another target also needs the matching
+  # `amdrocm-core10.0-<gfx>` apt package installed. Only consumed by the rocm
+  # backend; harmless for the others.
   gpu_targets: ${{ env.get("LLAMA_GPU_TARGETS", default="gfx1150") }}
 
   # ccache comes from conda-forge (see requirements.build) — the build never
