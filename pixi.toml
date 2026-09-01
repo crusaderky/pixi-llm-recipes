@@ -61,10 +61,6 @@ platforms = ["linux-64-glibc234"] # ROCm/HIP is x86-64 only
 [feature.llamacpp-source-rocm.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["rocm"] }
 [feature.llamacpp-source-rocm.activation.env]
-# Ubuntu 26.04: `apt install rocm` does not install
-# /usr/lib/x86_64-linux-gnu/rocblas/*/library/*gfx1150*
-# See matching hack in pixi-recipes/llama-cpp-source/build.sh
-HSA_OVERRIDE_GFX_VERSION = "11.5.1"
 # iGPU only
 GGML_CUDA_ENABLE_UNIFIED_MEMORY = "1"
 
@@ -87,9 +83,6 @@ platforms = ["linux-64-glibc234"]
 [feature.llamacpp-binary-rocm.dependencies]
 llama-cpp = { path = "pixi-recipes/llama-cpp-binary", flags = ["rocm"] }
 [feature.llamacpp-binary-rocm.activation.env]
-# Ubuntu 26.04: `apt install rocm` does not install
-# /usr/lib/x86_64-linux-gnu/rocblas/*/library/*gfx1150*
-HSA_OVERRIDE_GFX_VERSION = "11.5.1"
 # iGPU only
 GGML_CUDA_ENABLE_UNIFIED_MEMORY = "1"
 

@@ -50,27 +50,30 @@ active/commented `fork:` blocks to go back to upstream.
 There are eight pixi environments to choose from: four that compile llama.cpp from
 source, and four that just unpack the pre-built binaries from upstream releases:
 
-| Environment              | Build            | Backend      | Linux x64 | Linux ARM | Windows x64 |
-| ------------------------ | ---------------- | ------------ | --------- | --------- | ----------- |
-| `llamacpp-source-cpu`    | from sources     | CPU only     | ✅        | ✅        | 🔴          |
-| `llamacpp-source-cuda`   | from sources     | CPU + CUDA   | ✅        | 🔴        | 🔴          |
-| `llamacpp-source-vulkan` | from sources     | CPU + Vulkan | ✅        | ✅        | 🔴          |
-| `llamacpp-source-rocm`   | from sources     | CPU + ROCm   | ✅        | 🔴        | 🔴          |
-| `llamacpp-binary-cpu`    | pre-built binary | CPU only     | ✅        | ✅        | ✅          |
-| `llamacpp-binary-cuda`   | pre-built binary | CPU + CUDA   | ✅        | 🔴        | 🔴          |
-| `llamacpp-binary-vulkan` | pre-built binary | CPU + Vulkan | ✅        | 🔴        | ✅          |
-| `llamacpp-binary-rocm`   | pre-built binary | CPU + ROCm   | ✅        | 🔴        | 🔴          |
+| Environment              | Build            | Backend  | Linux x64 | Linux ARM | Windows x64 |
+| ------------------------ | ---------------- | -------- | --------- | --------- | ----------- |
+| `llamacpp-source-cpu`    | from sources     | CPU only | ✅        | ✅        | 🔴          |
+| `llamacpp-source-cuda`   | from sources     | CUDA 13  | ✅        | 🔴        | 🔴          |
+| `llamacpp-source-vulkan` | from sources     | Vulkan   | ✅        | ✅        | 🔴          |
+| `llamacpp-source-rocm`   | from sources     | ROCm 10  | ✅        | 🔴        | 🔴          |
+| `llamacpp-binary-cpu`    | pre-built binary | CPU only | ✅        | ✅        | ✅          |
+| `llamacpp-binary-cuda`   | pre-built binary | CUDA 13  | ✅        | 🔴        | 🔴          |
+| `llamacpp-binary-vulkan` | pre-built binary | Vulkan   | ✅        | 🔴        | ✅          |
+| `llamacpp-binary-rocm`   | pre-built binary | ROCm 7.2 | ✅        | 🔴        | 🔴          |
 
 The binary environments are much faster to set up since they skip compilation
 entirely. The source environments can be easily adapted to compile PRs and forks.
 
-Unlike the CUDA and Vulkan source builds, `llamacpp-source-rocm` compiles against the
-**system** ROCm rather than conda packages, because conda-forge does not ship
-hipBLAS/rocBLAS. Ubuntu 26.04 provides a complete ROCm 7.1 in the standard archive
-(`hipcc clang-21 libamdhip64-dev librocblas-dev libhipblas-dev rocm-device-libs-21`);
-no third-party AMD apt repo is needed. It targets `gfx1150;gfx1151` by default —
-override with `LLAMA_GPU_TARGETS=<gfx…> pixi install -e llamacpp-source-rocm` for other
-GPUs — and requires a matching system ROCm at runtime.
+Unlike the CUDA and Vulkan source builds, `llamacpp-source-rocm` compiles
+against the **system** ROCm rather than conda packages, because conda-forge does
+not ship hipBLAS/rocBLAS. It expects **ROCm 10** from AMD's apt repo at
+`https://stable.repo.amd.com/rocm/core/packages/ubuntu2604/`, installed under
+`/opt/rocm/core-10.0`.
+
+It targets `gfx1150` by default (Strix Point iGPU). Override with
+`LLAMA_GPU_TARGETS=<gfx…> pixi install -e llamacpp-source-rocm` for other GPUs.
+`LLAMA_ROCM_PATH=<prefix>` selects a different ROCm install; it requires a
+matching system ROCm at runtime, unlike the self-contained CUDA/Vulkan builds.
 
 To start llama-cpp interactively (you will be asked on which environment you want to run):
 

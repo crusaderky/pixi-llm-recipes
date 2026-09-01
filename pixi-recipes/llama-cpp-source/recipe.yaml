@@ -11,20 +11,35 @@ context:
   # Beellama-v0.4.5 preview
   # + llama-perplexity collision probability measure
   # + https://github.com/ggml-org/llama.cpp/pull/21067
+  # + https://github.com/ggml-org/llama.cpp/pull/28058 (iGPU KV contamination)
   fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.4.5-r1
+  version: beellama-staging-v0.4.5-r2
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
   backend: ${{ backend }}
 
-  # Semicolon-separated AMDGPU gfx targets to compile device code for. Defaults
-  # to this project owner's hardware (Strix Point gfx1150 iGPU; gfx1151 matches
-  # the HSA_OVERRIDE_GFX_VERSION=11.5.1 runtime workaround for missing gfx1150
-  # rocBLAS kernels). Override for other GPUs (or a broadly-supported arch on CI)
-  # with e.g. `LLAMA_GPU_TARGETS=gfx1100 pixi install -e llamacpp-source-rocm`.
+  # Root of the system ROCm install to build against. ROCm 10 lives in a
+  # versioned, self-contained prefix and registers Debian alternatives for
+  # /opt/rocm/{bin,lib,...} and /usr/bin/hip*, so a bare `hipconfig` already
+  # resolves here — but that is an alternatives *priority*, not a pin; it flips
+  # if a second ROCm is installed, and it is registered by the per-arch
+  # `amdrocm-core10.0-<gfx>` metapackage alone, so a minimal install (such as
+  # CI's) has the versioned prefix and no /opt/rocm/{bin,lib} at all. Name the
+  # prefix explicitly so the build is reproducible. Override with e.g.
+  # `LLAMA_ROCM_PATH=/usr pixi install -e llamacpp-source-rocm` to build
+  # against Ubuntu's archive ROCm 7.1 instead.
   # Only consumed by the rocm backend; harmless for the others.
-  gpu_targets: ${{ env.get("LLAMA_GPU_TARGETS", default="gfx1150;gfx1151") }}
+  rocm_path: ${{ env.get("LLAMA_ROCM_PATH", default="/opt/rocm/core-10.0") }}
+
+  # Semicolon-separated AMDGPU gfx targets to compile device code for. Defaults
+  # to Strix Point gfx1150 iGPU. Override for other GPUs (or a broadly-supported
+  # arch on CI) with e.g. `LLAMA_GPU_TARGETS=gfx1100 pixi install -e
+  # llamacpp-source-rocm`; note that AMD's repo splits device code per
+  # architecture, so another target also needs the matching
+  # `amdrocm-core10.0-<gfx>` apt package installed. Only consumed by the rocm
+  # backend; harmless for the others.
+  gpu_targets: ${{ env.get("LLAMA_GPU_TARGETS", default="gfx1150") }}
 
   # ccache comes from conda-forge (see requirements.build) — the build never
   # depends on a system-wide ccache install. Its cache directory has to be
@@ -72,6 +87,7 @@ build:
     env:
       BACKEND: ${{ backend }}
       GPU_TARGETS: ${{ gpu_targets }}
+      ROCM_PATH: ${{ rocm_path }}
       CCACHE_DIR: ${{ ccache_dir }}
       CCACHE_MAXSIZE: ${{ ccache_maxsize }}
   # Expose each backend as a selectable build flag, e.g. `flags = ["cuda"]`.
@@ -81,12 +97,21 @@ build:
   variant:
     down_prioritize_variant: ${{ 0 if backend == "cpu" else 1 }}
   # hipBLAS/rocBLAS and the HIP runtime are not available on conda-forge, so
-  # the HIP backend links against the build host's system ROCm install. Those
-  # libraries are resolved at runtime via the system linker path (Ubuntu puts
-  # them on the default search path) rather than as conda run dependencies, so
-  # exempt them from the overlinking / missing-DSO checks. The allowlist only
-  # matches ROCm DSOs, so this is a no-op for the other backends; the
-  # `overlinking_behavior: ignore` is likewise lenient but harmless for them.
+  # the HIP backend links against the build host's system ROCm install rather
+  # than declaring conda run dependencies — hence the overlinking / missing-DSO
+  # exemptions below. The allowlist only matches ROCm DSOs, so this is a no-op
+  # for the other backends; the `overlinking_behavior: ignore` is likewise
+  # lenient but harmless for them.
+  #
+  # `rpath_allowlist` is what makes the ROCm 10 layout work. Unlike Ubuntu's
+  # archive ROCm 7.1 (which installs under /usr and is on the default linker
+  # path), ROCm 10 installs under a private prefix and ships no ld.so.conf.d
+  # drop-in, so nothing of it is findable by soname alone. Worse, its
+  # libamdhip64 carries the *same* soname as 7.1's — libamdhip64.so.7 — so with
+  # both installed a ROCm-10-compiled binary would silently bind to the 7.1
+  # runtime instead of failing loudly. build.sh therefore appends
+  # ${ROCM_PATH}/lib to CMAKE_INSTALL_RPATH; allowlist it so rattler-build's
+  # relocation pass keeps it rather than stripping it as prefix-external.
   dynamic_linking:
     overlinking_behavior: ignore
     missing_dso_allowlist:
@@ -95,6 +120,8 @@ build:
       - "**/libhipblas.so*"
       - "**/libamd_comgr.so*"
       - "**/libhsa-runtime64.so*"
+    rpath_allowlist:
+      - "${{ rocm_path }}/**"
   # Skip backends that cannot be built on the current platform.
   skip:
     - "win"

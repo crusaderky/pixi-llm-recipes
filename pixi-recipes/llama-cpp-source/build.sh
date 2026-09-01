@@ -37,6 +37,7 @@ EXTRA_CMAKE_ARGS=(
     -DCMAKE_C_COMPILER_LAUNCHER=ccache
     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 )
+INSTALL_RPATH='$ORIGIN'
 
 # Configure backend-specific CMake flags.
 case "${BACKEND}" in
@@ -54,13 +55,31 @@ case "${BACKEND}" in
         ;;
     rocm)
         # System ROCm (hipBLAS/rocBLAS) is not available on conda-forge, so this
-        # backend links against the ROCm install on the build host (Ubuntu ships
-        # it under /usr; AMD's installer uses /opt/rocm). HIP_PATH/HIPCXX are
-        # discovered via hipconfig unless already set in the environment.
-        export HIP_PATH="${HIP_PATH:-$(hipconfig -R)}"
-        if [ -z "${HIPCXX:-}" ]; then
-            export HIPCXX="$(hipconfig -l)/clang++"
+        # backend links against the ROCm install on the build host. ROCM_PATH is
+        # passed in from recipe.yaml (default /opt/rocm/core-10.0, overridable
+        # with LLAMA_ROCM_PATH); ggml/src/ggml-hip/CMakeLists.txt reads
+        # $ENV{ROCM_PATH} and prepends it to CMAKE_PREFIX_PATH, which is how
+        # find_package(hip|hipblas|rocblas) resolves. Deliberately *not*
+        # `hipconfig -R`: /usr/bin/hipconfig is a Debian alternatives symlink that
+        # ROCm 10 hijacks from Ubuntu's hipcc package, so its answer depends on
+        # alternatives priority rather than on anything this recipe controls.
+        if [ ! -d "${ROCM_PATH:-}" ]; then
+            echo "ROCM_PATH=${ROCM_PATH} does not exist." >&2
+            echo "Install ROCm there, or point LLAMA_ROCM_PATH at your ROCm prefix." >&2
+            exit 1
         fi
+        export ROCM_PATH
+        export HIP_PATH="${HIP_PATH:-${ROCM_PATH}}"
+        # Ask that prefix's own hipconfig, not whichever one is on PATH.
+        if [ -z "${HIPCXX:-}" ]; then
+            export HIPCXX="$("${ROCM_PATH}/bin/hipconfig" -l)/clang++"
+        fi
+        # ROCm 10 installs no ld.so.conf.d drop-in, and its libamdhip64 shares a
+        # soname -- libamdhip64.so.7 -- with Ubuntu's archive ROCm 7.1, which *is*
+        # on the default linker path. Without an absolute RPATH the loader would
+        # silently bind this build to 7.1 instead of failing loudly. See the
+        # matching rpath_allowlist in recipe.yaml.
+        INSTALL_RPATH="${INSTALL_RPATH}:${ROCM_PATH}/lib"
         # GPU_TARGETS (semicolon-separated gfx list) comes from recipe.yaml; keep
         # GPU detection out of the build so it also compiles on GPU-less CI hosts.
         EXTRA_CMAKE_ARGS+=(-DGGML_HIP=ON)
@@ -80,7 +99,7 @@ cmake -S . -B build -G Ninja \
     -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
     -DCMAKE_INSTALL_LIBDIR=opt/llama \
     -DCMAKE_INSTALL_BINDIR=opt/llama \
-    -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+    -DCMAKE_INSTALL_RPATH="${INSTALL_RPATH}" \
     -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
     -DGGML_BACKEND_DL=ON \
     -DGGML_NATIVE=OFF \
