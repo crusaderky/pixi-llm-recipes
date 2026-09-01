@@ -11,8 +11,9 @@ context:
   # Beellama-v0.4.5 preview
   # + llama-perplexity collision probability measure
   # + https://github.com/ggml-org/llama.cpp/pull/21067
+  # + https://github.com/ggml-org/llama.cpp/pull/28058 (iGPU KV contamination)
   fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.4.5-r1
+  version: beellama-staging-v0.4.5-r2
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).
