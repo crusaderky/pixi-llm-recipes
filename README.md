@@ -119,17 +119,17 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 | Model              | Variant            | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
 | ------------------ | ------------------ | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
-| Qwen3.8-Flash-Next | IQ4_XS             | 89 GB        | 256k kvarn5 t1024   | 20.3 GB<sup>4</sup> | 160 tok/s           | 16 tok/s           | ✅     |
-| Qwen3.8-27B        | IQ4_XS MTP         | 15 GB        | 256k kvarn4         | 20.3 GB             | 1,028 tok/s         | 60 tok/s           | ✅ CPU |
-| Qwen3.6-35B-A3B    | APEX I-Compact MTP | 17 GB        | 256k kvarn5 t1024   | 19.8 GB             | 2,120 tok/s         | 150 tok/s          | 🔴     |
-| Ornith-1.5-35B     | APEX I-Compact MTP | 18 GB        | 256k kvarn5 t1024   | 20.8 GB             | 2,120 tok/s         | 110 tok/s          | ✅     |
+| Qwen3.8-Flash-Next | IQ4_XS             | 89 GB        | 256k kvarn5         | 21.4 GB<sup>4</sup> | 160 tok/s           | 16 tok/s           | ✅     |
+| Qwen3.8-27B        | IQ4_XS MTP         | 15 GB        | 256k kvarn5         | 21.3 GB             | 1,028 tok/s         | 60 tok/s           | ✅ CPU |
+| Qwen3.6-35B-A3B    | IQ4_XS MTP         | 17 GB        | 256k kvarn5         | 21.3 GB             | 2,215 tok/s         | 150 tok/s          | ✅     |
+| Ornith-1.5-35B-A3B | APEX I-Compact MTP | 18 GB        | 256k kvarn5         | 20.8 GB             | 2,120 tok/s         | 95 tok/s           | ✅     |
 | Ling-3.0-tiny      | Q6_K               | 6.4 GB       | 256k q6/q6          | 8.0 GB              | 6,570 tok/s         | 216 tok/s          | 🔴     |
 | Gemma4-E2B         | QAT MTP            | 3.5 GB       | 128k q8/q8          | 3.8 GB              | 6,434 tok/s         | 236 tok/s          | ✅     |
 | LFM2.5-230M        | Q4_K_M             | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴     |
 | LFM2.5-2.6B        | Q8_0 DSpark        | 2.9 GB       | 128k q8/q8          | 6.5 GB              | 8,065 tok/s         | 230 tok/s          | 🔴     |
 | LFM2.5-VL-3B       | Q8_0               | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅     |
 | DeepSeek-V4-Flash  | IQ2_XXS            | 85 GB        | 256k f16/f16        | 22.0 GB<sup>4</sup> | 64 tok/s            | 11 tok/s           | 🔴     |
-| Muse-Glimmer-30B   | Q4_K_XL DFlash     | 19 GB        | 256k kvarn6 t1024   | 18.7 GB             | 938 tok/s           | 124 tok/s          | ✅     |
+| Muse-Glimmer-30B   | Q4_K_XL DFlash     | 19 GB        | 256k kvarn5         | 21.0 GB             | 938 tok/s           | 124 tok/s          | ✅     |
 
 **Notes:**
 
