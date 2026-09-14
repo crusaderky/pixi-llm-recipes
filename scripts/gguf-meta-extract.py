@@ -135,6 +135,29 @@ _BLK = re.compile(r"^blk\.(\d+)\.(.+)$")
 # siblings are the routed and shared experts of an MoE block.
 _DENSE_FFN = ("ffn_gate", "ffn_up", "ffn_down")
 
+# MoVA ("mixture of value attention", `k2-horizon`): the V projection is itself a
+# router over `attention.value_expert_count` experts, `attn_v_exps` replacing the
+# block's plain `attn_v`. It is a routed expert tensor by name, but neither of the
+# two things the `*_exps.*` bucket exists to say is true of it:
+#
+#   * its top-k is `attention.value_expert_used_count`, NOT the FFN router's
+#     `expert_used_count` (4 of 64 vs 8 of 100 on K2-Horizon-MoVA-36B-A4B) -- so
+#     the activated-bytes figure must not use the FFN's k;
+#   * `--cpu-moe` cannot offload it. llama.cpp's override regex is
+#     `\.ffn_(up|down|gate|gate_up)_(ch|)exps` (LLM_FFN_EXPS_REGEX in
+#     common/common.h), which `attn_v_exps` does not match, so these weights stay
+#     in VRAM however aggressively the FFN experts are pushed to host RAM.
+#
+# It changes nothing about the KV cache: build_routed_value() sums the selected
+# experts' outputs into one `n_embd_v_gqa`-wide V row before build_attn(), so the
+# cache is an ordinary GQA cache of the same width a plain `attn_v` would give.
+_VALUE_EXPERTS = "attn_v_exps"
+
+# `LLM_FFN_EXPS_REGEX` in llama.cpp's common/common.h: the tensors `--cpu-moe` /
+# `--n-cpu-moe` move to the host buffer type, and therefore the only ones that
+# need prefill staging scratch in VRAM.
+_CPU_MOE_RE = re.compile(r"\.ffn_(up|down|gate|gate_up)_(ch|)exps")
+
 
 def build_row(name, dims, ttype):
     m = _BLK.match(name)
@@ -1417,7 +1440,7 @@ def main():
     # 26.8 GiB n-gram PLE table at UD-Q4_K_XL -- into a figure the reader takes
     # for the memory the model needs to run.
     lazy = dict(lazy_tensors(metadata, all_tensors))
-    exps = shexp = ffn = other = 0
+    exps = vexps = shexp = ffn = other = 0
     lazy_bytes = 0
     for r in rows:
         if not isinstance(r[6], int):
@@ -1432,7 +1455,9 @@ def main():
         # `ffn_gate.<i>.weight` is the pre-merge per-expert spelling (grok and
         # early Mixtral conversions); it is a routed expert, not a dense FFN.
         legacy_exp = base in _DENSE_FFN and len(parts) > 1 and parts[1].isdigit()
-        if base.endswith("_exps") or legacy_exp:
+        if base == _VALUE_EXPERTS:
+            vexps += r[6]
+        elif base.endswith("_exps") or legacy_exp:
             exps += r[6]
         elif "_shexp" in base:
             shexp += r[6]
@@ -1454,21 +1479,32 @@ def main():
     arch = metadata.get("general.architecture")
     used = metadata.get(f"{arch}.expert_used_count") if arch else None
     n_experts = metadata.get(f"{arch}.expert_count") if arch else None
-    activated_exps = 0
-    if used is not None:
-        for name, dims, ttype in all_tensors:
-            if "_exps." not in name or not dims:
+    # MoVA routes the V projection over its own expert pool with its own top-k;
+    # see _VALUE_EXPERTS. Charging it the FFN router's k overstates it (8/64
+    # instead of 4/64 on K2-Horizon-MoVA-36B-A4B: 1.69 GiB instead of 1.44).
+    v_used = metadata.get(f"{arch}.attention.value_expert_used_count") if arch else None
+    v_experts = metadata.get(f"{arch}.attention.value_expert_count") if arch else None
+    activated_exps = activated_vexps = 0
+    for name, dims, ttype in all_tensors:
+        if "_exps." not in name or not dims:
+            continue
+        is_value = name.split(".")[-2] == _VALUE_EXPERTS
+        used_k = v_used if is_value else used
+        if used_k is None:
+            continue
+        nb = tensor_nbytes(dims, ttype)
+        n_expert = dims[-1]  # routed experts are the last (slowest) axis
+        if not nb or not n_expert:
+            continue
+        u = used_k
+        if isinstance(used_k, list):  # per-layer top-k
+            m = _BLK.match(name)
+            if not m or int(m.group(1)) >= len(used_k):
                 continue
-            nb = tensor_nbytes(dims, ttype)
-            n_expert = dims[-1]  # routed experts are the last (slowest) axis
-            if not nb or not n_expert:
-                continue
-            u = used
-            if isinstance(used, list):  # per-layer top-k
-                m = _BLK.match(name)
-                if not m or int(m.group(1)) >= len(used):
-                    continue
-                u = used[int(m.group(1))]
+            u = used_k[int(m.group(1))]
+        if is_value:
+            activated_vexps += nb // n_expert * u
+        else:
             activated_exps += nb // n_expert * u
 
     # Empty buckets are omitted: a dense model has no expert lines to show, and
@@ -1487,6 +1523,22 @@ def main():
             activated_exps,
             f"({k_desc} routed experts/token; excludes dense/shared/attn weights)",
         )
+    if vexps:
+        k_desc = (
+            f"top-{v_used} of {v_experts}"
+            if not isinstance(v_used, list) and v_experts
+            else "per-layer top-k"
+        )
+        summary += weight_line(
+            "value-expert tensors (MoVA)",
+            vexps,
+            "(replaces attn_v; NOT offloadable by --cpu-moe)",
+        )
+        summary += weight_line(
+            "of which activated per token",
+            activated_vexps,
+            f"({k_desc} value experts/token)",
+        )
     if shexp:
         summary += weight_line(
             "shared-expert tensors (*_shexp*)", shexp, "(activated on every token)"
@@ -1494,7 +1546,7 @@ def main():
     if ffn:
         summary += weight_line("dense FFN (ffn_{gate,up,down})", ffn)
     summary += weight_line("everything else (attn/embd/norm)", other)
-    resident = exps + shexp + ffn + other
+    resident = exps + vexps + shexp + ffn + other
     if lazy_bytes:
         summary += weight_line("total (resident weights)", resident)
         summary += weight_line(
@@ -1637,8 +1689,12 @@ def main():
     # matmuls and across layers -- so the peak is the single largest routed-
     # expert tensor. Offload only kicks in at batch >= 32 tokens, so this is a
     # prefill-only term (decode keeps experts on the CPU and adds nothing here).
+    #
+    # Only the tensors the override actually matches count: llama.cpp offloads
+    # `\.ffn_(up|down|gate|gate_up)_(ch|)exps` (LLM_FFN_EXPS_REGEX), so a MoVA
+    # `attn_v_exps` is never staged -- it stays resident in VRAM instead.
     expert_scratch = max(
-        (tensor_nbytes(d, t) or 0 for n, d, t in all_tensors if "_exps." in n),
+        (tensor_nbytes(d, t) or 0 for n, d, t in all_tensors if _CPU_MOE_RE.search(n)),
         default=0,
     )
     if expert_scratch:

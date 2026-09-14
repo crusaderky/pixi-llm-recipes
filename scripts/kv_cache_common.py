@@ -853,6 +853,62 @@ MODEL_KV: dict[str, ModelKV] = {
             CompressedKV("lid state", 21, 1, 256, 256, fixed_rows=8, elem_bpw=32.0),
         ),
     ),
+    # `k2-horizon`. Three plain GQA stacks -- no SWA, no MLA, no MTP, no
+    # recurrent blocks -- so `block_count` really is the cache layer count here
+    # and the geometry is as boring as it looks. What is novel is MoVA
+    # ("mixture of value attention"), and its whole significance for this table
+    # is that it changes **nothing**:
+    #
+    # On the 36B's 45 MoE blocks the V projection is a router: `attn_v_gate`
+    # (2560 x 64) picks `attention.value_expert_used_count` = 4 of
+    # `attention.value_expert_count` = 64 experts out of `attn_v_exps`
+    # (2560 x 1024 x 64). The tempting reading -- 4 value streams per token,
+    # hence 4x the V cache -- is wrong on both counts. The router reads the
+    # token's own normed hidden state, so the choice is token-local and
+    # cacheable; and `build_routed_value()` SiLUs the selected experts, weights
+    # them by the (optionally normalised, x`expert_weights_scale`) router probs
+    # and **sums them into a single row** of `n_embd_v_gqa` = 8 x 128 before
+    # `build_attn()` ever sees it. The cache is handed exactly the 1024-wide V a
+    # plain `attn_v` would have produced. The 3 leading dense blocks
+    # (`leading_dense_block_count`) use that plain `attn_v` anyway.
+    #
+    # `attn_gate` is likewise cache-neutral: a softplus output gate applied to
+    # the attention result, not to K or V. `attention.group_norm_groups` only
+    # regroups the RMS norms.
+    #
+    # So MoVA is a *weights* story, not a cache one -- 3.96 GiB of the 36B's
+    # 20.82 GiB at Q4_K_M, and unlike the FFN experts beside it `--cpu-moe`
+    # cannot offload it (see `_VALUE_EXPERTS` in gguf-meta-extract.py).
+    "K2-Horizon-MoVA-36B-A4B": ModelKV(
+        full_attn_layers=48,
+        full_attn_kv_heads=8,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=128,
+        value_dim=128,
+    ),
+    # Dense `k2-horizon`, 36 blocks: no MoE, no MoVA, no `attn_gate`. Identical
+    # cache geometry at both sizes -- they differ only in `embedding_length`
+    # (4096 vs 2560) and `feed_forward_length`, neither of which the cache sees.
+    "K2-Horizon-7B": ModelKV(
+        full_attn_layers=36,
+        full_attn_kv_heads=8,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=128,
+        value_dim=128,
+    ),
+    "K2-Horizon-3.7B": ModelKV(
+        full_attn_layers=36,
+        full_attn_kv_heads=8,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=128,
+        value_dim=128,
+    ),
     "Muse-Glimmer-30B": ModelKV(
         full_attn_layers=13,
         full_attn_kv_heads=2,
