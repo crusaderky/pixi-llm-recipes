@@ -124,7 +124,8 @@ KVARN_SWA_TAIL_GROUPS = 2  # KVAR_N_SWA_TAIL_GROUPS
 #      (kv_unified) plus a per-sequence f16 exact-tail overlay of (N + R) rows;
 #    * a sliding-window group whose tail covers its window is a bodyless exact
 #      f16 ring of (window + R) rows per sequence; otherwise a quant body over
-#      the window plus a per-sequence (tail + R) f16 overlay;
+#      the window plus a per-sequence (tail + R) f16 overlay -- with the tail
+#      first clamped to the window, see ModelKV._swa_tail;
 #    * a `compressed` group (DeepSeek-V4's CSA / HCA / lightning-indexer caches)
 #      keeps one row per `ratio` tokens per sequence, tail-less, padded to 256
 #      cells -- see CompressedKV;
@@ -299,6 +300,17 @@ class ModelKV(NamedTuple):
         graph-local, so they add no persistent rows."""
         return (exact_tokens + KV_TAIL_ROLLBACK) * n_parallel
 
+    def _swa_tail(self, ctx_size: int, tail: int) -> int:
+        """The exact tail a sliding-window group actually gets. llama-context.cpp
+        clamps it to the window (`kv_tail_tokens_swa = min(N, n_ctx, n_swa)`) and
+        `llama_kv_cache_iswa` hands that clamped value to the SWA cache, whichever
+        cache class it builds -- so a `--kv-tail-tokens` above the window buys
+        nothing on these layers. The non-KVarN path collapses to a bodyless exact
+        ring at `tail >= window` and so was already right; a KVarN SWA ring keeps
+        its records and a separate overlay, and without the clamp would be charged
+        for an overlay several times the window it protects."""
+        return min(tail, min(ctx_size, self.sliding_window_size))
+
     def _kvarn_stage_rows(self, n_parallel: int, swa: bool) -> int:
         """Persistent f16 staging rows a KVarN cache holds for this group.
 
@@ -357,13 +369,15 @@ class ModelKV(NamedTuple):
         n_parallel: int,
         kvarn: bool = False,
     ) -> float:
-        """Sliding-window group. When the tail covers the window (or the body is
-        exact f16) it is a bodyless exact f16 ring of (window + R) rows per
+        """Sliding-window group. The tail is first clamped to the window
+        (``_swa_tail``). When it then covers the window (or the body is exact
+        f16) the group is a bodyless exact f16 ring of (window + R) rows per
         sequence; otherwise a quant body over the window plus a per-sequence
         (tail + R) f16 overlay, plus a KVarN run's persistent f16 staging ring.
         """
         layers, heads = self.sliding_window_layers_all, self.sliding_window_kv_heads
         window = min(ctx_size, self.sliding_window_size)
+        tail = self._swa_tail(ctx_size, tail)
         stage = self._kvarn_stage_rows(n_parallel, swa=True) if kvarn else 0
 
         def side(head_dim: int, bpw: float) -> float:
@@ -475,12 +489,15 @@ class ModelKV(NamedTuple):
             return f" + f16 kvarn stage {self._kvarn_stage_rows(n_parallel, swa)} rows"
 
         if self.full_attn_layers:
-            full_note = (
-                f"body {ctx_size} tok + f16 exact tail "
-                f"{self._exact_rows(kv_tail_tokens, n_parallel)} rows"
-                if lossy and kv_tail_tokens > 0
-                else f"exact f16 body {ctx_size} tok"
-            )
+            if not lossy:
+                full_note = f"exact f16 body {ctx_size} tok"
+            elif kv_tail_tokens > 0:
+                full_note = (
+                    f"body {ctx_size} tok + f16 exact tail "
+                    f"{self._exact_rows(kv_tail_tokens, n_parallel)} rows"
+                )
+            else:  # lossy body, no overlay -- same shape as the SWA branch below
+                full_note = f"quant body {ctx_size} tok"
             rows.append(
                 CacheGroupSize(
                     "full-attn",
@@ -496,13 +513,14 @@ class ModelKV(NamedTuple):
             )
         if self.sliding_window_layers:
             window = min(ctx_size, self.sliding_window_size)
-            if not kvarn and (kv_tail_tokens >= window or not lossy):
+            swa_tail = self._swa_tail(ctx_size, kv_tail_tokens)
+            if not kvarn and (swa_tail >= window or not lossy):
                 rows_n = self._exact_rows(window, n_parallel)
                 swa_note = f"bodyless exact f16 ({window}+{KV_TAIL_ROLLBACK})x{n_parallel} = {rows_n} rows"
-            elif kv_tail_tokens > 0:
+            elif swa_tail > 0:
                 swa_note = (
                     f"body {window} tok + f16 exact tail "
-                    f"{self._exact_rows(kv_tail_tokens, n_parallel)} rows"
+                    f"{self._exact_rows(swa_tail, n_parallel)} rows"
                 )
             else:
                 swa_note = f"quant body {window} tok"
@@ -918,9 +936,28 @@ MODEL_KV: dict[str, ModelKV] = {
         key_dim=128,
         value_dim=128,
     ),
+    "MiniCPM5-2B": ModelKV(
+        full_attn_layers=42,
+        full_attn_kv_heads=2,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=128,
+        value_dim=128,
+    ),
+    "Maple-Preview": ModelKV(
+        full_attn_layers=6,
+        full_attn_kv_heads=4,
+        sliding_window_layers=18,
+        sliding_window_kv_heads=4,
+        sliding_window_size=512,
+        key_dim=128,
+        value_dim=128,
+    ),
 }
-MODEL_KV["Ornith-1.0-35B"] = MODEL_KV["Qwen3.6-35B-A3B"]
+MODEL_KV["Ornith-1.5-35B"] = MODEL_KV["Qwen3.6-35B-A3B"]
 MODEL_KV["Kat-Coder-V2.5-Dev"] = MODEL_KV["Qwen3.6-35B-A3B"]
+MODEL_KV["Nex-N2.5-mini"] = MODEL_KV["Qwen3.6-35B-A3B"]
 MODEL_KV["Ternary-Bonsai-27B"] = MODEL_KV["Qwen3.6-27B"]
 MODEL_KV["Bonsai-27B"] = MODEL_KV["Qwen3.6-27B"]
 MODEL_KV["Qwen3.8-27B"] = MODEL_KV["Qwen3.6-27B"]

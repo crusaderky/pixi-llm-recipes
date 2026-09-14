@@ -313,6 +313,20 @@ def _is_stock(r: dict) -> bool:
     return r["ctk"] in STOCK_KV_QUANTS and r["ctv"] in STOCK_KV_QUANTS
 
 
+def _has_tail(r: dict) -> bool:
+    """Whether the run keeps an f16 exact tail in front of its quantized body.
+
+    What the sidebar's "deselect exact tail" button drops. A KVarN cache always
+    counts: it stores 128 tokens exactly no matter what ``--kv-tail-tokens``
+    says, so there is no tail-less KVarN run to keep. Otherwise any tail spec
+    but ``0`` counts, including the non-numeric beellama ones (``auto``, a
+    per-group list) that ``tail`` cannot size -- unsizeable is not absent.
+    """
+    if r["ctk"].startswith("kvarn") or r["ctv"].startswith("kvarn"):
+        return True
+    return r["tail_label"] != "0"
+
+
 def _model_quants(runs: list[dict]) -> dict[str, str]:
     """Display quant per model reference, taken from the file each run loaded.
 
@@ -486,9 +500,23 @@ def _author_quant(ref: str) -> str:
 #: Split-GGUF suffix on a file name, e.g. `-00001-of-00002`.
 _SPLIT_SUFFIX_RE = re.compile(r"-\d{5}-of-\d{5}$")
 
+#: Separator between the parts of a GGUF file name.  A dash always, and a dot
+#: **except between two digits**: publishers join the quant to the model name
+#: either way -- `MiniCPM5-2B-Q6_K.gguf` next to mradermacher's
+#: `MiniCPM5-2B.i1-Q6_K.gguf` and `LFM2.5-2.6B.Q6_K.gguf` -- while a dot
+#: *inside* a number is part of the name itself (`LFM2.5`, `2.6B`, `Qwen3.8`).
+#: Splitting on dashes alone welds `2B.i1` / `2.6B.Q6_K` into one segment, which
+#: no sibling can then match, so the model name survives into the label.
+_SEGMENT_RE = re.compile(r"-|(?<![0-9])\.|\.(?![0-9])")
+
+
+def _stem_segments(name: str) -> list[str]:
+    """A GGUF file name as its parts: split suffix off the end, then segments."""
+    return _SEGMENT_RE.split(_SPLIT_SUFFIX_RE.sub("", name.removesuffix(".gguf")))
+
 
 def _common_segments(stems: list[list[str]]) -> int:
-    """Leading dash-separated segments every stem shares, never all of them."""
+    """Leading segments every stem shares, never all of them."""
     if not stems:
         return 0
     for i in range(min(len(s) for s in stems) - 1):
@@ -500,30 +528,35 @@ def _common_segments(stems: list[list[str]]) -> int:
 def _file_quants(by_repo: dict[str, set[str]]) -> dict[str, str]:
     """Each GGUF file name as a quant: model name off the front, split off the end.
 
-    The model name is what **every** file in the log leads with, in whole
-    dash-separated segments -- `Qwen3.8-27B-`.  Taking the longest prefix any
-    *pair* shares instead would eat `AD-` as well, since all of one publisher's
-    files carry it, and that is the half of the name worth keeping: `AD-Q4_K_M`
-    and `UD-Q4_K_XL` are different mixes of the same model by different hands.
+    The model name is what a repo's **own** files all lead with, in whole
+    segments: `MiniCPM5-2B-` for bartowski, `MiniCPM5-2B-heretic-abliterated-`
+    for Abiray, `MiniCPM5-2B.i1-` for mradermacher.  All three are the same
+    sweep and all three must come out as `Q6_K` -- which publisher abliterated
+    or imatrix'd it is what the *author* half of the label says, and repeating
+    it on every one of that author's points says nothing.
 
-    When the log holds no single shared name -- two publishers naming one model
-    differently, `LFM2.5-2.6B-Q6_K.gguf` beside `LiquidAI_LFM2.5-2.6B-Q6_K_L.gguf`
-    -- each repo's files are stripped against their own siblings instead, which
-    is the only prefix left that means "the model" there.
+    Stripping against the whole log instead cannot do that: the shared prefix
+    stops at the first segment any publisher spells differently, so one repo
+    naming the model `MiniCPM5-2B.i1` drags `2B-` back into everyone's label
+    and Abiray keeps `2B-heretic-abliterated-` on top of it.
+
+    What a repo's siblings do *not* share is kept, which is the marker that
+    distinguishes one of its own mixes from the rest: `QAD-Q4_0` beside
+    LiquidAI's plain `Q4_K_M`, `UD-Q4_K_XL` beside unsloth's plain `Q4_K_M`.
+    A repo contributing a **single** file to the log has no siblings to compare
+    against -- and comparing it with itself would strip everything but its last
+    segment, eating exactly that marker -- so it falls back to the prefix the
+    whole log shares.
     """
-    stems = {
-        n: _SPLIT_SUFFIX_RE.sub("", n.removesuffix(".gguf")).split("-")
-        for names in by_repo.values()
-        for n in names
-    }
-    groups = (
-        [set(stems)]
-        if _common_segments(list(stems.values()))
-        else [names for names in by_repo.values() if names]
-    )
+    stems = {n: _stem_segments(n) for names in by_repo.values() for n in names}
+    overall = _common_segments(list(stems.values()))
     out: dict[str, str] = {}
-    for group in groups:
-        shared = _common_segments([stems[n] for n in group])
+    for group in by_repo.values():
+        if not group:
+            continue
+        shared = (
+            _common_segments([stems[n] for n in group]) if len(group) > 1 else overall
+        )
         out |= {n: "-".join(stems[n][shared:]) for n in group}
     return out
 
@@ -1285,6 +1318,20 @@ def generate_html(
     ]
 
     frontier = _stat_frontier(eligible_runs, cost_key)
+    # A second frontier over the tail-less runs alone, for the sidebar. It is
+    # not a subset of the first: dropping the runs that spend bytes on an f16
+    # exact tail lets a cheaper quant win a cost that a tailed run used to own,
+    # so this marks runs the combined frontier never did.
+    frontier_notail = _stat_frontier(
+        [r for r in eligible_runs if not _has_tail(r)], cost_key
+    )
+    # Same again over what a mainline build can actually run: a stock quant and
+    # no exact tail, since --kv-tail-tokens is a beellama flag too. So this is
+    # stricter than the "deselect non-stock quants" button, which tests the
+    # quants alone.
+    frontier_stock = _stat_frontier(
+        [r for r in eligible_runs if _is_stock(r) and not _has_tail(r)], cost_key
+    )
     # Runs that fail the speed cutoff (used by the per-stat plots, whose
     # frontier semantics are per-stat rather than the combined KLD one).
     slow_ids = {
@@ -1317,9 +1364,12 @@ def generate_html(
         r["uid"] = n
     sidebar_sections = _sidebar_groups(selectable)
     run_meta = {
-        r["uid"]: {"label": r["label"], "stock": _is_stock(r)} for r in selectable
+        r["uid"]: {"label": r["label"], "stock": _is_stock(r), "tail": _has_tail(r)}
+        for r in selectable
     }
     frontier_uids = [r["uid"] for r in selectable if id(r) in frontier]
+    frontier_notail_uids = [r["uid"] for r in selectable if id(r) in frontier_notail]
+    frontier_stock_uids = [r["uid"] for r in selectable if id(r) in frontier_stock]
 
     # ---- common params block ----
     common_html = ""
@@ -1729,6 +1779,8 @@ def generate_html(
         HTML_SCRIPT.replace("{chart_defs_json}", json.dumps(chart_defs))
         .replace("{run_meta_json}", json.dumps(run_meta))
         .replace("{frontier_json}", json.dumps(frontier_uids))
+        .replace("{frontier_notail_json}", json.dumps(frontier_notail_uids))
+        .replace("{frontier_stock_json}", json.dumps(frontier_stock_uids))
         .replace("{x_min_json}", json.dumps(x_min))
         .replace("{x_max_json}", json.dumps(x_max))
         .replace("{x_axis_label_json}", json.dumps(x_axis_label))
@@ -1830,7 +1882,10 @@ HTML_HEAD = """\
 <button data-act="all">Select all</button>
 <button data-act="none">Select none</button>
 <button data-act="frontier">Select frontier</button>
+<button data-act="frontier-notail">Select frontier (no exact tail)</button>
+<button data-act="frontier-stock">Select frontier (stock llama.cpp only)</button>
 <button data-act="stock">Deselect non-stock quants</button>
+<button data-act="tail">Deselect exact tail</button>
 {sidebar}</aside>
 <main class="main">
 <h1>KLD Effect of Quantization</h1>
@@ -1865,6 +1920,8 @@ Click a point, a table row or a sidebar group to select or deselect those runs: 
 var CHART_DEFS = {chart_defs_json};
 var RUN_META = {run_meta_json};
 var FRONTIER = {frontier_json};
+var FRONTIER_NOTAIL = {frontier_notail_json};
+var FRONTIER_STOCK = {frontier_stock_json};
 var X_MIN = {x_min_json};
 var X_MAX = {x_max_json};
 var X_AXIS_LABEL = {x_axis_label_json};
@@ -2237,8 +2294,12 @@ document.querySelectorAll('.side button').forEach(function(b) {
     else if (act === 'all') setSelection(ALL_IDS, true);
     else if (act === 'none') setSelection(ALL_IDS, false);
     else if (act === 'frontier') setSelection(FRONTIER, true);
+    else if (act === 'frontier-notail') setSelection(FRONTIER_NOTAIL, true);
+    else if (act === 'frontier-stock') setSelection(FRONTIER_STOCK, true);
     else if (act === 'stock') setSelection(
       ALL_IDS.filter(function(i) { return !RUN_META[i].stock; }), false);
+    else if (act === 'tail') setSelection(
+      ALL_IDS.filter(function(i) { return RUN_META[i].tail; }), false);
   });
 });
 

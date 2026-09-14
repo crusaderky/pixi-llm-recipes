@@ -1163,7 +1163,9 @@ def _kv_tail_caveats(spec, n_ctx):
       (`kv_tail_tokens_swa = min(N, n_swa)`). A model with full-attention layers
       still gets the unclamped tail on those, but one whose *every* layer is
       sliding-window (again DeepSeek-V4) gets the same allocation for every tail
-      at or above its window.
+      at or above its window. Either way the clamp is already in the byte
+      figures (`ModelKV._swa_tail`); what it costs is the meaning of the `tN`
+      label, which is why it is said out loud here.
     """
     tails = sorted({t for _, t in _kv_quants(spec) if t})
     if not tails:
@@ -1177,13 +1179,32 @@ def _kv_tail_caveats(spec, n_ctx):
             "        so the tN column below protects only the token cache."
         )
     window = min(n_ctx, spec.sliding_window_size) if spec.sliding_window_layers else 0
-    if window and not spec.full_attn_layers and min(tails) >= window:
-        tail_list = "/".join(f"t{t}" for t in tails)
-        lines.append(
-            f"  note: every layer is sliding-window, and the tail is clamped to the "
-            f"window ({window} tok),\n"
-            f"        so {tail_list} are all the same allocation here."
-        )
+    if not window:
+        return lines
+    if not spec.full_attn_layers:
+        # The allocation saturates *at* the window, so a tail equal to it is
+        # already the largest one this model can have.
+        at_or_over = [t for t in tails if t >= window]
+        if at_or_over:
+            tail_list = "/".join(f"t{t}" for t in at_or_over)
+            lines.append(
+                f"  note: every layer is sliding-window, and the tail is clamped to "
+                f"the window ({window} tok),\n"
+                f"        so {tail_list} are all the same allocation here."
+            )
+    else:
+        # A tail equal to the window still buys the whole window on the sliding
+        # layers; only one *above* it is spent on the full-attention layers alone.
+        over = [t for t in tails if t > window]
+        if over:
+            tail_list = "/".join(f"t{t}" for t in over)
+            verb = "buys" if len(over) == 1 else "buy"
+            lines.append(
+                f"  note: the tail is clamped to the window ({window} tok) on the "
+                f"{spec.sliding_window_layers_all} sliding-window layers,\n"
+                f"        so {tail_list} {verb} exact rows on the "
+                f"{spec.full_attn_layers_all} full-attention layers only."
+            )
     return lines
 
 
