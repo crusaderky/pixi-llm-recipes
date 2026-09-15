@@ -120,7 +120,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | Model              | Variant        | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
 | ------------------ | -------------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
 | Qwen3.8-Flash-Next | IQ4_XS         | 89 GB        | 256k kvarn5         | 21.4 GB<sup>4</sup> | 160 tok/s           | 16 tok/s           | ✅     |
-| Qwen3.8-27B        | IQ4_XS MTP     | 15 GB        | 256k kvarn5         | 21.3 GB             | 1,028 tok/s         | 60 tok/s           | ✅ CPU |
+| Qwen3.8-27B        | IQ4_XS MTP     | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
 | Qwen3.6-35B-A3B    | IQ4_XS MTP     | 17 GB        | 256k kvarn5         | 21.3 GB             | 2,215 tok/s         | 150 tok/s          | ✅     |
 | Occamy-1.0         | IQ4_XS         | 19 GB        | 256k kvarn5         | 21.3 GB             | 2,467 tok/s         | 106 tok/s          | ✅     |
 | MiniCPM5-2B        | Q6_K DSpark    | 2.6 GB       | 128k q8/q8          | 7.1 GB              | 7,370 tok/s         | 180 tok/s          | 🔴     |
