@@ -157,6 +157,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 | BeeLLaMA.cpp | Qwen3.8-Flash-Coder | IQ3_XXS REAP50 | 56 GB        | 256k kvarn4         | 21.3 GB<sup>4</sup> | 222 tok/s           | 26 tok/s           | ✅ CPU |
 | BeeLLaMA.cpp | Qwen3.8-27B         | IQ4_XS MTP     | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
 | BeeLLaMA.cpp | Ternary-Bonsai-2    | PQ2            | 7.3 GB       | 256k kvarn4         | 12.9 GB             | 949 tok/s           | 55 tok/s           | ✅     |
+| BeeLLaMA.cpp | K2-Horizon-7B       | Q5_K_M         | 6.1 GB       | 128k q8/q8          | 16.2 GB             | 3,430 tok/s         | 104 tok/s          | 🔴     |
 | BeeLLaMA.cpp | Occamy-1.0          | IQ4_XS MTP     | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
 | BeeLLaMA.cpp | MiniCPM5-2B         | Q6_K DSpark    | 2.6 GB       | 128k q6/q6          | 6.4 GB              | 7,460 tok/s         | 200 tok/s          | 🔴     |
 | llama.cpp    | LFM2.5-230M         | Q4_K_M         | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴     |
