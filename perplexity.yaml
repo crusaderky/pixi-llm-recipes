@@ -21,7 +21,7 @@ common: >
 
 # Baseline combo that creates the logits dump (no --kl-divergence).
 # Exempt from `exclude` and from the auto-skips: without it there is no sweep.
-baseline: {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:BF16, cache-type-k: f16, cache-type-v: f16}
+baseline: {hf-repo: NANI-Nithin/K2-Horizon-7B-GGUF:BF16, cache-type-k: f16, cache-type-v: f16}
 
 # Cartesian product of lists of llama-perplexity option dicts, expanded into every union
 # of one dict per list.  Keys are flag names without the leading dashes, emitted as
@@ -32,33 +32,58 @@ baseline: {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:BF16, cache-type-k: f16, cache-typ
 # Auto-skipped: every combo whose V quant is finer than its K quant, every asymmetric
 # KVarN pair, and a non-zero tail on an exact f16/f16 cache.
 cross-product:
-  - - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q8_0}
-    - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q6_K}
-    - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q5_K_M}
-    - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q4_K_M}
+  - - {hf-repo: NANI-Nithin/K2-Horizon-7B-GGUF:Q8_0}
+    # - {hf-repo: NANI-Nithin/K2-Horizon-7B-GGUF:Q6_K}
+    # - {hf-repo: NANI-Nithin/K2-Horizon-7B-GGUF:Q5_K_M}
+    # - {hf-repo: NANI-Nithin/K2-Horizon-7B-GGUF:Q5_K_S}
+    # - {hf-repo: NANI-Nithin/K2-Horizon-7B-GGUF:Q4_K_M}
+    # - {hf-repo: NANI-Nithin/K2-Horizon-7B-GGUF:Q4_K_S}
+    # - {hf-repo: NANI-Nithin/K2-Horizon-7B-GGUF:IQ4_XS}
+    # - {hf-repo: NANI-Nithin/K2-Horizon-7B-GGUF:Q3_K_L}
 
-  - - {cache-type-k: f16, cache-type-v: f16}
-    - {cache-type-k: q8_0, cache-type-v: q8_0}
-    - {cache-type-k: q5_0, cache-type-v: q5_0}
-    - {cache-type-k: q4_0, cache-type-v: q4_0}
-    - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 512}
-    - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 1024}
-    - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 2048}
-    - {cache-type-k: q3_0, cache-type-v: q3_0}
-    - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 512}
-    - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 1024}
-    - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 2048}
+  - - {cache-type-k: q8_0}
+    - {cache-type-k: q6_0}
+    - {cache-type-k: q5_1}
+    - {cache-type-k: q5_0}
+    - {cache-type-k: q4_1}
+    - {cache-type-k: q4_0}
+    - {cache-type-k: q3_1}
+    - {cache-type-k: q3_0}
+    - {cache-type-k: kvarn6}
+    - {cache-type-k: kvarn5}
+    - {cache-type-k: kvarn4}
+    - {cache-type-k: kvarn3}
+
+  - - {cache-type-v: q8_0}
+    - {cache-type-v: q6_0}
+    - {cache-type-v: q5_1}
+    - {cache-type-v: q5_0}
+    - {cache-type-v: q4_1}
+    - {cache-type-v: q4_0}
+    - {cache-type-v: q3_1}
+    - {cache-type-v: q3_0}
+    - {cache-type-v: kvarn6}
+    - {cache-type-v: kvarn5}
+    - {cache-type-v: kvarn4}
+    - {cache-type-v: kvarn3}
+
+  - - {}
+    - {kv-tail-tokens: 128}
 
 # Extra combos beyond the cross-product, in the same syntax.
 # Unlike the cross-product these are never auto-skipped -- an explicit request
 # is taken as intentional -- but `exclude` still applies to them.
-include: []
+include:
+  - {hf-repo: NANI-Nithin/K2-Horizon-7B-GGUF:Q8_0, cache-type-k: f16, cache-type-v: f16}
 
 # Drop every combo that matches *all* the keys of an entry, whatever its other
 # options: `{cache-type-k: q4_0}` removes every q4_0 key cache, at any V quant,
 # tail or model.
-exclude: []
+exclude:
+  - {cache-type-k: kvarn6, kv-tail-tokens: 128}
+  - {cache-type-k: kvarn5, kv-tail-tokens: 128}
+  - {cache-type-k: kvarn4, kv-tail-tokens: 128}
+  - {cache-type-k: kvarn3, kv-tail-tokens: 128}
 
 # Abort non-baseline runs whose ETA exceeds baseline_eta * max_eta_factor.
 # Set to 0 to disable the abort check entirely.
