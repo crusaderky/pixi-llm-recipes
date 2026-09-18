@@ -167,6 +167,8 @@ Version bumps for `claude`, `herdr`, `herdr-file-viewer`, `pi-extensions` and `l
 
 Both: read-only root; `/tmp`, `/home`, `/root` as tmpfs; the target workdir bound read-write (or a temp dir if `-` is passed); `$CONDA_PREFIX` and `$PIXI_ROOT` bound read-only; caches under `~/.cache` bound through; `--unshare-all --share-net --die-with-parent`. Both need the AppArmor profile at `/etc/apparmor.d/bwrap` (`pixi run install-apparmor`).
 
+**CUDA passthrough**: when the host has the NVIDIA driver loaded, every `/dev/nvidia*` node is `--dev-bind`-ed through the fresh `--dev /dev` (plus `/proc/driver/nvidia` read-only), so CUDA builds and llama.cpp GPU runs work from inside the sandbox. `nvidia-modprobe -u -c=0` is invoked first (best-effort) to create `/dev/nvidia-uvm`, which the driver creates on demand and without which CUDA init fails. No-op on hosts without an NVIDIA driver — the section is skipped entirely.
+
 `--with-git` (both): binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` read-only and `~/.config/gh` read-write. `SSH_AUTH_SOCK` is reachable automatically under `/run/` (the systemd/gnome-keyring default) and is bound explicitly if it lives under `/tmp`. The conda-forge `gh` shadows any snap-installed one.
 
 pi-specific:

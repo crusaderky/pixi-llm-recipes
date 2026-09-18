@@ -3,6 +3,10 @@
 # Needs an AppArmor profile at /etc/apparmor.d/bwrap; install it with
 # `pixi run install-apparmor` (see scripts/install-apparmor.sh).
 #
+# NVIDIA GPUs are passed through when the host has the driver loaded
+# (/dev/nvidia* are dev-bound through the fresh --dev /dev), so CUDA builds
+# and llama.cpp GPU runs work from inside the sandbox.
+#
 # Usage: bwrap-pi.sh <dir|-> [--with-git] [--bind <dir>] ... [-- pi-args...]
 #   Forwarded args are read from _FWD_ARGS env var (base64-encoded, null-separated,
 #   set by the scripts/pi wrapper) or, as a fallback, from positional args $2 onward
@@ -69,6 +73,22 @@ if [ "$WITH_GIT" = true ]; then
   if [ -n "${SSH_AUTH_SOCK:-}" ] && [[ "$SSH_AUTH_SOCK" == /tmp/* ]]; then
     GIT_BINDS="$GIT_BINDS --ro-bind $SSH_AUTH_SOCK $SSH_AUTH_SOCK"
   fi
+fi
+
+# Expose NVIDIA CUDA devices when the host driver is loaded. --dev /dev
+# starts a fresh /dev, so every /dev/nvidia* node must be dev-bound through.
+# /dev/nvidia-uvm is created on demand by the setuid nvidia-modprobe helper;
+# without it CUDA initialisation fails even with the other nodes present.
+# No-op on hosts without an NVIDIA driver.
+CUDA_BINDS=""
+if [ -e /dev/nvidiactl ]; then
+  command -v nvidia-modprobe > /dev/null 2>&1 && nvidia-modprobe -u -c=0 || true
+  for d in /dev/nvidia*; do
+    [ -c "$d" ] || [ -b "$d" ] || continue
+    CUDA_BINDS="$CUDA_BINDS --dev-bind $d $d"
+  done
+  # Driver metadata, used by nvidia-smi for its version line; harmless if absent.
+  [ -d /proc/driver/nvidia ] && CUDA_BINDS="$CUDA_BINDS --ro-bind /proc/driver/nvidia /proc/driver/nvidia"
 fi
 
 _PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
@@ -145,6 +165,7 @@ bwrap \
   $EXTRA_BINDS \
   $WORKTREE_BINDS \
   $GIT_BINDS \
+  $CUDA_BINDS \
   $ARGS \
   --ro-bind "$_CONDA_PREFIX"              "$_CONDA_PREFIX" \
   --die-with-parent \
