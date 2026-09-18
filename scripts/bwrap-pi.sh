@@ -98,7 +98,7 @@ mkdir -p ~/.cache/uv
 mkdir -p ~/.pi/agent/sessions
 mkdir -p ~/.config/rtk
 
-for f in auth trust settings; do
+for f in auth trust settings models; do
   if [ ! -f ~/.pi/agent/$f.json ]; then
     echo "{}" > ~/.pi/agent/$f.json
   fi
@@ -139,6 +139,7 @@ bwrap \
   --bind "$HOME/.pi/agent/auth.json"      "$HOME/.pi/agent/auth.json" \
   --bind "$HOME/.pi/agent/trust.json"     "$HOME/.pi/agent/trust.json" \
   --bind "$HOME/.pi/agent/settings.json"  "$HOME/.pi/agent/settings.json" \
+  --bind "$HOME/.pi/agent/models.json"    "$HOME/.pi/agent/models.json" \
   --bind "$HOME/.pi/agent/sessions"       "$HOME/.pi/agent/sessions" \
   --ro-bind "$_PIXI_ROOT"                 "$_PIXI_ROOT" \
   $EXTRA_BINDS \
