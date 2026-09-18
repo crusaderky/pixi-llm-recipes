@@ -205,6 +205,11 @@ aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_
 perplexity-report = "python scripts/perplexity-report.py"
 llama-cpp-changelog = "python scripts/llama-cpp-changelog.py"
 gguf-meta-extract = "python scripts/gguf-meta-extract.py"
+[feature.pytools.tasks.openrouter-models]
+args = [
+  { arg = "models", default = "z-ai/glm-5.3 z-ai/glm-5.3-flash deepseek/deepseek-v4.1-flash moonshotai/kimi-k3" },
+]
+cmd = "python scripts/openrouter_model_report.py {{ models }}"
 
 [feature.pytools.tasks.start-forge-server]
 depends-on = [{ task = "start-server", args = ["--port", "8081"] }]
