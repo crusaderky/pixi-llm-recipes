@@ -140,6 +140,12 @@ GGML_SIZES = {
     397: ("Q8_K_R16", 256, 258, 0),
     398: ("Q8_KV_R8", 32, 32, 4),
     399: ("Q8_K_R8", 256, 258, 0),
+    # --- PrismML ternary (PrismML-Eng/llama.cpp, branch `prism`) ---
+    # Ternary {−1,0,+1} weights, one fp16 scale per 128 weights.
+    # PQ2_0: 2-bit trit slots (2.125 bpw); PTQ1_0: dense base-3 trit packing
+    # (1.75 bpw). ggml-common.h block_pq2_0 / block_ptq1_0, both group 128.
+    142: ("PQ2_0", 128, 34),
+    143: ("PTQ1_0", 128, 28),
 }
 
 _warned_unknown = set()
