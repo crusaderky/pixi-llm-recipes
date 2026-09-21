@@ -5,8 +5,8 @@
 A [pixi](https://pixi.sh/) workspace that:
 
 1. **Builds and packages llama.cpp** as a conda package via **pixi-build / rattler-build**, either compiled from source or repackaged from upstream pre-built release binaries, for four backends: cpu, cuda, vulkan, rocm.
-2. **Packages the tooling around it**: the pi coding agent's plugins and home dir, Claude Code, [herdr](https://herdr.dev) and its file-viewer plugin.
-3. **Runs pi and Claude Code in a bubblewrap sandbox** against a local llama-server.
+2. **Packages the tooling around it**: the pi coding agent's plugins and home dir, [herdr](https://herdr.dev) and its file-viewer plugin.
+3. **Runs pi in a bubblewrap sandbox** against a local llama-server.
 4. **Benchmarks** inference throughput (`llama-benchy`), long-context recall (`sample-data/context-bench/`), and model/KV-cache quantization quality (`scripts/perplexity*.py`).
 5. **Inspects GGUF headers** to size weights and KV cache without downloading the weights (`scripts/gguf-meta-extract.py`).
 
@@ -21,8 +21,8 @@ perplexity.yaml              # sample config for scripts/perplexity.py
 chat-templates/              # Jinja chat templates referenced from models.ini
 neon-arena/                  # ad-hoc Reddit-style model comparison prompt
 perplexity/                  # archived KLD sweep outputs (logs + html/md/svg reports)
-.agents/skills/              # agent skills; .claude/skills symlinks here
-.github/workflows/           # claude.yml, lint.yml, llamacpp.yml, pi.yml
+.agents/skills/              # agent skills
+.github/workflows/           # lint.yml, llamacpp.yml, pi.yml
 sample-data/
   wiki.test.raw, wiki.test.head-2.4k.raw, wiki.train.head-10k.raw  # perplexity/KLD corpora
   describe-me.jpg            # multimodal smoke test
@@ -30,14 +30,14 @@ sample-data/
 scripts/
   start-server.sh stop-server.sh                # llama-server lifecycle
   start-forge-server.sh stop-forge-server.sh    # forge guardrails proxy lifecycle
-  bwrap-pi.sh bwrap-claude.sh                   # bubblewrap sandboxes
-  pi-unsafe.sh claude-unsafe.sh                 # unsandboxed equivalents (dev/debug only)
+  bwrap-pi.sh                                   # bubblewrap sandbox
+  pi-unsafe.sh                                  # unsandboxed equivalent (dev/debug only)
   run-herdr.sh                                  # herdr launcher (PATH fixup + plugin inject)
-  inject-pi-extensions.sh inject-claude-extensions.sh inject-herdr-file-viewer.sh
+  inject-pi-extensions.sh inject-herdr-file-viewer.sh
   install-bin.sh uninstall-bin.sh               # ~/.local/bin wrappers + herdr desktop entry
   install-apparmor.sh install-memlock.sh install-clipboard.sh
   install-file-viewer-renderers.sh
-  install/{pi,claude,herdr,gh}                  # the wrappers themselves
+  install/{pi,herdr,gh}                         # the wrappers themselves
   install/herdr.desktop install/herdr.png
   gguf_common.py kv_cache_common.py perplexity_common.py   # importable shared modules
   perplexity.py perplexity-report.py            # KLD sweep + report
@@ -45,7 +45,6 @@ scripts/
 pixi-recipes/
   llama-cpp-source/    recipe.yaml variants.yaml build.sh patches/
   llama-cpp-binary/    recipe.yaml variants.yaml build.sh build.bat
-  claude/ claude-extensions/ claude-home/
   pi-extensions/ pi-home/
   herdr/ herdr-file-viewer/
 ```
@@ -57,7 +56,6 @@ pixi-recipes/
 | `llamacpp`                                        | python + pydantic + pyyaml (for the sweeper); pairs with one backend feature                                | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `perplexity`                                                                            |
 | `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` | pins `llama-cpp` to one recipe + backend flag                                                               | —                                                                                                                                                                           |
 | `pi`                                              | `pi-coding-agent`, `pi-extensions`, `pi-home`                                                               | `pi` (Linux), `pi-unsafe`, `pi-export`                                                                                                                                      |
-| `claude`                                          | `claude`, `claude-extensions`, `claude-home`                                                                | `claude` (Linux), `claude-unsafe`                                                                                                                                           |
 | `sandbox`                                         | `bubblewrap` (Linux only)                                                                                   | —                                                                                                                                                                           |
 | `herdr`                                           | `herdr`, `herdr-file-viewer` (linux-64 + win-64 only)                                                       | `herdr`                                                                                                                                                                     |
 | `git`                                             | `git`, `gh`                                                                                                 | `git`, `gh`                                                                                                                                                                 |
@@ -67,7 +65,7 @@ pixi-recipes/
 Environments:
 
 - Eight `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` = `llamacpp` + the matching backend feature.
-- `agents` = `pi` + `claude` + `sandbox` + `git` + `herdr` + `pytools`. There is no standalone `herdr` env.
+- `agents` = `pi` + `sandbox` + `git` + `herdr` + `pytools`. There is no standalone `herdr` env.
 - `lint` = `lint` alone (`no-default-feature`).
 
 Platform gating: source-cuda and source-rocm are linux-64 only; binary-cuda and binary-rocm are linux-64 only; binary-vulkan is linux-64 + win-64 (beellama ships no arm64 vulkan asset).
@@ -75,7 +73,7 @@ Platform gating: source-cuda and source-rocm are linux-64 only; binary-cuda and 
 Root `[tasks]` (present in every env): `stop-server`, `stop-forge-server`, `restart-server`, `restart-forge-server`.
 Linux `[target.*.tasks]`: `install-apparmor`, `install-bin`, `install-clipboard`, `install-file-viewer-renderers`, `install-memlock`, `install` (= all five), `uninstall`.
 
-**`-e <env>` is only required when a task exists in more than one environment** — in practice only the `llamacpp` feature's tasks, which exist in all eight `llamacpp-*` envs. Everything else (`pi`, `claude`, `herdr`, `gh`, `llama-benchy`, `perplexity-report`, …) resolves on its own.
+**`-e <env>` is only required when a task exists in more than one environment** — in practice only the `llamacpp` feature's tasks, which exist in all eight `llamacpp-*` envs. Everything else (`pi`, `herdr`, `gh`, `llama-benchy`, `perplexity-report`, …) resolves on its own.
 
 > ⚠ **`start-forge-server` / `restart-forge-server` are currently broken.** `start-forge-server` lives in `pytools` (only in `agents`) but declares `depends-on start-server`, which lives in `llamacpp` (only in the `llamacpp-*` envs). No environment has both, so the task fails to resolve everywhere. Start llama-server on 8081 from a `llamacpp-*` env, then run the proxy manually, until the features are realigned.
 
@@ -147,9 +145,6 @@ On Windows there is no `opt/llama` split and no symlinks: executables and DLLs a
 
 | Recipe              | What it packages                                                                                                                                                                                                                                                                                |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `claude`            | Claude Code from npm. Bump `context.version` + `source.sha256`; use the npm `latest` dist-tag.                                                                                                                                                                                                  |
-| `claude-extensions` | Runs `rtk init -g --auto-patch` at build time with `HOME`/`CLAUDE_CONFIG_DIR` pointed into the prefix, producing `CLAUDE.md`, `RTK.md` and a patched `settings.json` under `${PREFIX}/home/.claude/`.                                                                                           |
-| `claude-home`       | Copies `skills/` into `${PREFIX}/home/.claude/skills/`. Currently empty (`.keep` only).                                                                                                                                                                                                         |
 | `pi-extensions`     | Runs `pi install` for each pin in the `PLUGINS` env var of `recipe.yaml`, into `${PREFIX}/home/.pi/agent`. Bump the pins **and** the recipe version when changing plugins.                                                                                                                      |
 | `pi-home`           | Copies `skills/`, `AGENTS.md`, `keybindings.json` into `${PREFIX}/home/.pi/agent/`, `web-search.json` into `${PREFIX}/home/.pi/` (one level up — not a typo), and seeds an empty `agent/bin/`.                                                                                                  |
 | `herdr`             | Downloads pre-built release binaries. Linux = stable (`https://herdr.dev/latest.json`, tag `v{version_stable}`); Windows = preview-only (`preview.json`, tag `{version_preview}`). Context pins `version_stable`, `sha256_stable_{x86_64,aarch64}`, `version_preview`, `sha256_preview_win_64`. |
@@ -159,19 +154,17 @@ Both `herdr` recipes set `dynamic_linking.binary_relocation: false` — the upst
 
 `herdr-file-viewer` also writes a portable `entry.json` (version, `min_herdr_version`, description — no absolute paths) next to the manifest. `scripts/inject-herdr-file-viewer.sh` reads it and merges the plugin into `~/.config/herdr/plugins.json`, filling `manifest_path`/`plugin_root` from `$CONDA_PREFIX`. It runs from `run-herdr.sh` before the PIXI/CONDA env is stripped, so nothing but the registry entry and the user's `config.toml` lands in `~/`.
 
-Version bumps for `claude`, `herdr`, `herdr-file-viewer`, `pi-extensions` and `llama-cpp` all have dedicated skills in `.agents/skills/`; `update-all` chains them and refreshes the lockfile.
+Version bumps for `herdr`, `herdr-file-viewer`, `pi-extensions` and `llama-cpp` all have dedicated skills in `.agents/skills/`; `update-all` chains them and refreshes the lockfile.
 
 ## Sandboxes and wrappers
 
-### `bwrap-pi.sh` / `bwrap-claude.sh`
+### `bwrap-pi.sh`
 
-Both: read-only root; `/tmp`, `/home`, `/root` as tmpfs; the target workdir bound read-write (or a temp dir if `-` is passed); `$CONDA_PREFIX` and `$PIXI_ROOT` bound read-only; caches under `~/.cache` bound through; `--unshare-all --share-net --die-with-parent`. Both need the AppArmor profile at `/etc/apparmor.d/bwrap` (`pixi run install-apparmor`).
+Read-only root; `/tmp`, `/home`, `/root` as tmpfs; the target workdir bound read-write (or a temp dir if `-` is passed); `$CONDA_PREFIX` and `$PIXI_ROOT` bound read-only; caches under `~/.cache` bound through; `--unshare-all --share-net --die-with-parent`. Needs the AppArmor profile at `/etc/apparmor.d/bwrap` (`pixi run install-apparmor`).
 
 **CUDA passthrough**: when the host has the NVIDIA driver loaded, every `/dev/nvidia*` node is `--dev-bind`-ed through the fresh `--dev /dev` (plus `/proc/driver/nvidia` read-only), so CUDA builds and llama.cpp GPU runs work from inside the sandbox. `nvidia-modprobe -u -c=0` is invoked first (best-effort) to create `/dev/nvidia-uvm`, which the driver creates on demand and without which CUDA init fails. No-op on hosts without an NVIDIA driver — the section is skipped entirely.
 
-`--with-git` (both): binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` read-only and `~/.config/gh` read-write. `SSH_AUTH_SOCK` is reachable automatically under `/run/` (the systemd/gnome-keyring default) and is bound explicitly if it lives under `/tmp`. The conda-forge `gh` shadows any snap-installed one.
-
-pi-specific:
+`--with-git`: binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` read-only and `~/.config/gh` read-write. `SSH_AUTH_SOCK` is reachable automatically under `/run/` (the systemd/gnome-keyring default) and is bound explicitly if it lives under `/tmp`. The conda-forge `gh` shadows any snap-installed one.
 
 - Mounts `$CONDA_PREFIX/home/.pi` as `~/.pi`; bind-mounts `~/.pi/agent/{auth,trust,settings}.json` and `sessions/` from the host.
 - If the workdir is a **git worktree**, binds the main repo's common `.git` dir read-write so git can read shared objects and update worktree admin files, without exposing the main checkout.
@@ -179,19 +172,17 @@ pi-specific:
 - On exit, rsyncs `skills`, `AGENTS.md`, `keybindings.json` back from `$CONDA_PREFIX/home/.pi/agent/` into `pixi-recipes/pi-home/`, so edits made from inside pi can be reviewed and committed. `-c --no-times` keeps mtimes stable when content is unchanged, otherwise pixi-build would rebuild the recipe on every launch.
 - Unsets all `PIXI_*` / `CONDA_*` plus `INIT_CWD`, `XML_CATALOG_FILES`, `GSETTINGS_SCHEMA_DIR` before exec.
 
-claude-specific: binds `~/.claude` and `~/.claude.json`; calls `inject-claude-extensions.sh` to deploy the packaged rtk hooks/settings into the host's `~/.claude/`; runs `claude --dangerously-skip-permissions`.
-
-`pi-unsafe.sh` / `claude-unsafe.sh` run with full host access (dev/debug only). `pi-unsafe.sh` additionally symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where MSYS bash cannot symlink, and forces `HOME=%USERPROFILE%` so bash's `~` matches pi's) and cleans up via `trap`.
+`pi-unsafe.sh` runs with full host access (dev/debug only) and additionally symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where MSYS bash cannot symlink, and forces `HOME=%USERPROFILE%` so bash's `~` matches pi's) and cleans up via `trap`.
 
 ### `~/.local/bin` wrappers
 
-`pixi r install` runs all five installers; `install-bin.sh` symlinks `scripts/install/{pi,claude,herdr,gh}` into `~/.local/bin` and generates a herdr desktop entry + icon (picking ptyxis / gnome-terminal / plain terminal depending on what exists). `pixi r uninstall` removes them.
+`pixi r install` runs all five installers; `install-bin.sh` symlinks `scripts/install/{pi,herdr,gh}` into `~/.local/bin` and generates a herdr desktop entry + icon (picking ptyxis / gnome-terminal / plain terminal depending on what exists). `pixi r uninstall` removes them.
 
 The wrappers `cd` into the repo and call the matching pixi task with your cwd as the workspace, forwarding the rest base64-encoded in `_FWD_ARGS` (which dodges pixi's shell-parser mangling of quotes). They resolve `--bind` relative paths against your cwd first, since the task itself runs with the repo as cwd, and honour `--no-sandbox` by routing to the `*-unsafe` task.
 
-Calling the pixi task directly is the awkward path: it takes exactly one positional argument (the workspace), so `--with-git`, `--bind` and any agent flags must follow a `--` separator. `pixi run claude --with-git` does **not** work — `--with-git` is consumed as the workspace directory.
+Calling the pixi task directly is the awkward path: it takes exactly one positional argument (the workspace), so `--with-git`, `--bind` and any agent flags must follow a `--` separator. `pixi run pi --with-git` does **not** work — `--with-git` is consumed as the workspace directory.
 
-`run-herdr.sh` backs the `herdr` task: it registers the file-viewer plugin, then **removes `$CONDA_PREFIX/bin` from PATH** so `pi`/`claude` spawned inside a herdr pane resolve the `~/.local/bin` wrappers instead of the raw conda binaries (which would bypass the sandbox). It resolves the real herdr binary _before_ the reorder, or `exec herdr` would re-enter its own wrapper forever, and `cd $HOME` so new panes start in `~`.
+`run-herdr.sh` backs the `herdr` task: it registers the file-viewer plugin, then **removes `$CONDA_PREFIX/bin` from PATH** so `pi` spawned inside a herdr pane resolves the `~/.local/bin` wrapper instead of the raw conda binaries (which would bypass the sandbox). It resolves the real herdr binary _before_ the reorder, or `exec herdr` would re-enter its own wrapper forever, and `cd $HOME` so new panes start in `~`.
 
 ## Python tooling
 
@@ -321,13 +312,10 @@ pixi run -e llamacpp-source-cuda llama-hello                   # smoke test with
 pixi run pi /path/to/workspace
 pixi run pi /path/to/workspace -- --with-git
 pixi run pi-unsafe /path/to/ws            # full host access, debugging only
-pixi run claude /path/to/workspace        # sandboxed, --dangerously-skip-permissions
-pixi run claude . -- --with-git --resume
 pixi run herdr
 
 # …or, after `pixi r install`, from any directory (the wrapper supplies the cwd):
 pi --with-git
-claude --with-git --resume
 
 # Benchmarks and analysis
 pixi run -e llamacpp-source-cuda perplexity -c perplexity.yaml   # edit/duplicate the yaml first
@@ -355,6 +343,5 @@ To use the file-viewer plugin, bind a key in `~/.config/herdr/config.toml` (e.g.
 - **Symlinks into `${PREFIX}/bin` must be relative** (`../opt/llama/...`) for prefix portability.
 - **Windows scripts run under the MSYS2 bash shipped by the environment** — the default feature pins `m2-bash`, `m2-coreutils`, `m2-grep`, `m2-sed` on win-64, because a plain `bash` from PATH on Windows resolves to WSL, which discards the pixi environment. Don't use `jq` (not on conda-forge for win-64), `nc`, `pkill`/`pgrep`, or `ln -s` in cross-platform scripts. Use `node -e` for JSON, `curl` for port checks (Windows ships it in System32), `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` or an NTFS junction (`cmd //c 'mklink /J <link> <target>'`, no admin rights needed) instead of symlinks. Add another `m2-*` package if a script needs a further external command.
 - **All three platforms are targeted**: `linux-64`, `linux-aarch64`, `win-64`.
-- **`CLAUDE.md` is a symlink to `AGENTS.md`**, and **`.claude/skills` is a symlink to `.agents/skills/`**, for Claude Code compatibility.
 - **Never run `pixi install -e agents` from inside the bwrap sandbox — it leaves a half-extracted env.** The env prefix is _effectively_ read-write (the `--ro-bind $CONDA_PREFIX` is shadowed by the later `--bind $DIR $DIR` workdir bind, which detaches the read-only submount). After rebuilding the changed local recipe in `.pixi/bld`, the env sync deletes the old extracted files and only then fails on `home/.pi/agent/settings.json` with **EBUSY** — the host's file is mounted over the package copy via the `~/.pi` bind chain, and nothing inside the namespace can unlink it. Result: binaries, libraries and plugin `package.json`s deleted, new files never written (e.g. `bin/git` breaks with `libiconv.so.2: cannot open shared object file`). Repair and reinstall from the host with `pixi install -e agents`; any `pixi run <task>` in `agents` triggers the same implicit install whenever a local recipe changed. `pixi update` / `pixi lock` are lockfile-only and safe from the sandbox.
 - **`--host-ram <size>` simulates a smaller host** by launching llama-server in a transient systemd user scope with a cgroup v2 `MemoryMax` and swap off. That is the only limit that accounts the page cache holding the mmap'd weights — RLIMIT_RSS is unenforced and RLIMIT_AS caps address space, not residency. Linux with a delegated memory controller only. Caveats: page cache warmed by an earlier run is charged to that run's cgroup and stays free, and mlock'd or pinned memory that doesn't fit gets the server OOM-killed rather than paged (use `load-mode = mmap`).

@@ -51,8 +51,8 @@ bash "$(dirname "$0")/inject-pi-extensions.sh"
 # otherwise the bare `pi` below would resolve to that wrapper and re-enter.
 PI_BIN="$(command -v pi)"
 
-# Prepend ~/.local/bin to $PATH so children resolve the naked pi/claude
-# wrappers instead of the raw conda binaries, while keeping $CONDA_PREFIX/bin
+# Prepend ~/.local/bin to $PATH so children resolve the naked pi wrapper
+# instead of the raw conda binary, while keeping $CONDA_PREFIX/bin
 # available so tools with no wrapper (e.g. rtk, gh) still resolve. Stripping
 # $CONDA_PREFIX/bin entirely breaks the rtk extension ("rtk binary not found").
 if [ -d "$HOME/.local/bin" ]; then

@@ -24,7 +24,6 @@ curl -fsSL https://pixi.sh/install.sh | sh  # One-off installation
 pixi r install  # One-off installation of several components
 pixi r start-server  # Start llama.cpp server for local models
 cd /path/to/workspace && pi  # Just like regular pi, but managed by pixi and sandboxed
-cd /path/to/workspace && claude
 herdr                              # Terminal multiplexer / agent orchestrator
 pixi r stop-server
 pixi r uninstall
@@ -36,7 +35,6 @@ pixi r uninstall
 powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | iex"  # One-off installation
 pixi r start-server  # Start llama.cpp server for local models
 pixi r pi-unsafe /path/to/workspace  # Just like regular pi, but managed by pixi
-pixi r claude-unsafe /path/to/workspace
 pixi r stop-server
 ```
 
@@ -249,34 +247,11 @@ pixi r pi-unsafe /path/to/workspace                # Windows
 pixi r pi-unsafe /path/to/workspace -- -p "Hello"  # Windows; pass arbitrary parameters (note --)
 ```
 
-## Claude Code
-
-[Claude Code](https://claude.ai/code) is deployed and managed exactly like Pi;
-no separate system-wide installation needed.
-
-Linux:
-
-```bash
-pixi r install                        # One-off
-cd /path/to/workspace && claude       # Sandboxed
-claude --no-sandbox                   # Full system access
-claude --bind /data                   # Bind extra directories into the sandbox
-claude --with-git                     # Enable `git push`, `git` pull/fetch from private repos, and `gh`
-```
-
-Windows:
-
-```bash
-pixi r claude-unsafe /path/to/workspace              # Full system access
-pixi r claude-unsafe                                 # in a temporary directory
-pixi r claude-unsafe /path/to/workspace -- --resume  # pass arbitrary parameters to claude after --
-```
-
 ## herdr
 
 [herdr](https://herdr.dev) is an agent-first terminal multiplexer and coding-agent
 orchestrator. It is packaged as a conda recipe in `pixi-recipes/herdr/` and installed
-alongside pi and claude.
+alongside pi.
 
 Linux:
 
@@ -318,20 +293,18 @@ pixi r gh pr list
 
 ### git push and gh inside the agent sandbox
 
-By default the `pixi r pi` and `pixi r claude` sandboxes block `git push` on public
+By default the `pixi r pi` sandbox blocks `git push` on public
 accounts, all remote git commands on private accounts, and the `gh` CLI (to read/run CI,
 open and interact on PRs, etc). Pass `--with-git` to allow the agent to act as you on
 your GitHub account.
 
 ```bash
 pi --with-git
-claude --with-git
 ```
 
-To verify everything is wired up correctly before starting real work, run either:
+To verify everything is wired up correctly before starting real work, run:
 
 - `pi --with-git "run the test-git-auth skill"`
-- `claude --with-git "run the test-git-auth skill"`
 
 ## Benchmarking
 
@@ -396,7 +369,7 @@ for why, and how to read the numbers without over-interpreting them.
 There are skills available; you can ask pi to
 
 - _"Summarize changes in the latest llama.cpp"_ (installed version vs. latest upstream)
-- _"Update everything"_ (llama.cpp recipes, pi-extensions, Claude Code, herdr, pixi environments)
+- _"Update everything"_ (llama.cpp recipes, pi-extensions, herdr, pixi environments)
 
 ## Missing features
 

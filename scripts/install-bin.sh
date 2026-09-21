@@ -3,7 +3,7 @@
 mkdir -p ~/.local/bin
 mkdir -p ~/.local/share/applications
 mkdir -p ~/.local/share/icons
-ln -fsv $PWD/scripts/install/{claude,gh,herdr,pi} ~/.local/bin/
+ln -fsv $PWD/scripts/install/{gh,herdr,pi} ~/.local/bin/
 cp -fv scripts/install/herdr.png ~/.local/share/icons/
 
 # GNOME hides desktop entries whose Exec binary is not in PATH, so pick a

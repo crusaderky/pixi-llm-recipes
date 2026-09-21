@@ -131,23 +131,6 @@ pi.args = [{ arg = "root_dir", default = "-" }]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
 
-[feature.claude.dependencies]
-claude = { path = "pixi-recipes/claude" }
-claude-extensions = { path = "pixi-recipes/claude-extensions" }
-claude-home = { path = "pixi-recipes/claude-home" }
-
-[feature.claude.tasks]
-claude-unsafe.cmd = "bash scripts/claude-unsafe.sh {{ root_dir }}"
-claude-unsafe.args = [{ arg = "root_dir", default = "-" }]
-
-[feature.claude.target.linux-64-glibc234.tasks]
-claude.cmd = "bash scripts/bwrap-claude.sh {{ root_dir }}"
-claude.args = [{ arg = "root_dir", default = "-" }]
-
-[feature.claude.target.linux-aarch64-glibc234.tasks]
-claude.cmd = "bash scripts/bwrap-claude.sh {{ root_dir }}"
-claude.args = [{ arg = "root_dir", default = "-" }]
-
 [feature.herdr.dependencies]
 herdr = { path = "pixi-recipes/herdr" }
 
@@ -164,7 +147,7 @@ EDITOR = "vim"
 
 [feature.herdr.tasks]
 # Route through run-herdr.sh so children spawned inside herdr see the
-# `~/.local/bin/{pi,claude}` sandbox wrappers ($CONDA_PREFIX/bin comes first
+# `~/.local/bin/pi` sandbox wrapper ($CONDA_PREFIX/bin comes first
 # after pixi activation and would otherwise shadow them).
 herdr = "bash scripts/run-herdr.sh"
 
@@ -239,5 +222,5 @@ llamacpp-binary-cpu = ["llamacpp", "llamacpp-binary-cpu"]
 llamacpp-binary-cuda = ["llamacpp", "llamacpp-binary-cuda"]
 llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
-agents = ["pi", "claude", "sandbox", "git", "herdr", "pytools"]
+agents = ["pi", "sandbox", "git", "herdr", "pytools"]
 lint = { features = ["lint"], no-default-feature = true }

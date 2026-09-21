@@ -1,7 +1,7 @@
 ---
 name: test-git-auth
 description: Verify that git push and the gh CLI work (authenticated). Creates a throwaway branch with an empty commit, pushes it, verifies the push, then deletes the branch locally and remotely. Also fetches recent CI run logs via gh to confirm gh auth.
-compatibility: Requires a git remote named "origin" and an authenticated gh CLI. Works inside bwrap-claude.sh --with-git or bwrap-pi.sh --with-git.
+compatibility: Requires a git remote named "origin" and an authenticated gh CLI. Works inside bwrap-pi.sh --with-git.
 allowed-tools: Bash
 ---
 
@@ -68,7 +68,7 @@ gh:        <owner>/<repo> — <table from gh run list>
 If checks 1, 4 or 6 failed, add prominently:
 
 > **Likely cause:** the sandbox was started without `--with-git`. Re-launch with
-> `claude --with-git` / `pi --with-git` (or `pixi run <task> <workspace> -- --with-git`).
+> `pi --with-git` (or `pixi run <task> <workspace> -- --with-git`).
 
 If `SSH_AUTH_SOCK` is set but points under `/tmp/` and is unreachable, note that the
 sandbox only auto-binds `/tmp` sockets detected at launch time — the path outside may

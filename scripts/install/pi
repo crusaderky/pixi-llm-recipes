@@ -19,7 +19,7 @@ REPO="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
 TASK=pi
 TASK_UNSAFE=pi-unsafe
 
-# --no-sandbox routes to {pi,claude}-unsafe
+# --no-sandbox routes to pi-unsafe
 # --bind paths made absolute (sandbox runs with the repo as its cwd).
 # Consumed args are stripped, rest forwarded verbatim.
 ARGS=()
