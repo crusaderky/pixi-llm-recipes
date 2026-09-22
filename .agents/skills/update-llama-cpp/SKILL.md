@@ -1,7 +1,7 @@
 ---
 name: update-llama-cpp
 description: Update both llama-cpp conda recipes (source + binary) to the latest upstream release. Updates BOTH the active fork's version pin and the commented-out mainline variant pin in each recipe.yaml. Use when the user wants to bump llama-cpp to a newer version.
-compatibility: Uses `scripts/llama-cpp-changelog.py`, which works from a local commits-only clone cached at `~/.cache/llama-cpp-changelog/<repo>.git`. No `gh` CLI or token needed; the PR section is skipped without GitHub auth.
+compatibility: Uses `scripts/llama-cpp-changelog.py`, which works from a local commits-only clone cached at `~/.cache/llama-cpp-changelog/<owner>-<repo>.git`. No `gh` CLI or token needed; the PR section is skipped without GitHub auth.
 allowed-tools: Bash Read Edit
 ---
 

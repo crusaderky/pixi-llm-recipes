@@ -21,7 +21,7 @@ GitHub access: no `gh` CLI dependency. Uses urllib with an optional
 GITHUB_TOKEN/GH_TOKEN env var for the REST + GraphQL calls (PR section).
 When no token is set, the script falls back to a local commits-only git
 clone (`--filter=tree:0`) cached under
-`~/.cache/llama-cpp-changelog/llama.cpp.git`. Tags, commit subjects, and
+`~/.cache/llama-cpp-changelog/<owner>-<repo>.git`. Tags, commit subjects, and
 dates are read from git instead of the REST API (no rate limit). The PR
 section is skipped without auth (it requires GraphQL).
 
@@ -70,12 +70,43 @@ def _tag_key(name: str) -> tuple[int, ...] | None:
 
 
 def _git_cache() -> Path:
-    """Per-fork cache for the commits-only git clone (no-auth fallback)."""
+    """Per-fork cache for the commits-only git clone (no-auth fallback).
+
+    Keyed on `owner-repo` — every llama.cpp fork on GitHub is a `llama.cpp`
+    (or similar) repo name, so keying on the name alone would make distinct
+    forks collide on one clone with the wrong `origin`.
+    """
     override = os.environ.get("LLAMA_CPP_CHANGELOG_CACHE")
     if override:
         return Path(override)
-    repo_name = REPO.split("/", 1)[1]
-    return Path.home() / ".cache" / "llama-cpp-changelog" / f"{repo_name}.git"
+    owner, repo_name = REPO.split("/", 1)
+    return Path.home() / ".cache" / "llama-cpp-changelog" / f"{owner}-{repo_name}.git"
+
+
+def _adopt_legacy_cache(cache: Path) -> None:
+    """Migrate the pre-owner-keyed clone (`<repo>.git`) when it points at REPO.
+
+    The old key ignored the owner, so the single shared cache ends up holding
+    whichever fork cloned it first (ggml-org upstream on most machines). Adopt
+    it only when its `origin` matches the requested repo, renaming it into the
+    new per-fork path; any other fork's run then clones fresh instead of
+    reading the wrong refs.
+    """
+    legacy = cache.parent / f"{REPO.split('/', 1)[1]}.git"
+    if legacy == cache or cache.exists() or not (legacy / "config").exists():
+        return
+
+    def norm(url: str) -> str:
+        return url.strip().rstrip("/").removesuffix(".git").lower()
+
+    r = subprocess.run(
+        ["git", "--git-dir", str(legacy), "config", "--get", "remote.origin.url"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if r.returncode == 0 and norm(r.stdout) == norm(REPO_URL):
+        legacy.replace(cache)
 
 
 # --------------------------------------------------------------------------- #
@@ -145,6 +176,8 @@ def _ensure_git_cache() -> None:
     cache = _git_cache()
     if not _git_cache_ready():
         cache.parent.mkdir(parents=True, exist_ok=True)
+        _adopt_legacy_cache(cache)
+    if not _git_cache_ready():
         tmp = cache.with_suffix(".tmp")
         if tmp.exists():
             shutil.rmtree(tmp)

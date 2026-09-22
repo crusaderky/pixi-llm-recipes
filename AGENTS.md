@@ -279,7 +279,7 @@ Architecture knowledge that the GGUF does **not** carry, and therefore lives in 
 
 ### `scripts/llama-cpp-changelog.py` — deterministic changelog dumper
 
-Dumps a markdown changelog between two git refs of any llama.cpp fork. Repo defaults to the active `fork:` in the source recipe (`--repo owner/name` to override). `from` defaults to the recipe's `# Last sync with main at <tag>` comment, else the active `version:`, else the commented-out `# version:` for the selected repo; `to` defaults to the repo's latest **stable** release tag (`preview-*` skipped). Handles `bNNNN` and `vX.Y.Z` tags. Git fallback cache is per-fork at `~/.cache/llama-cpp-changelog/<repo>.git`.
+Dumps a markdown changelog between two git refs of any llama.cpp fork. Repo defaults to the active `fork:` in the source recipe (`--repo owner/name` to override). `from` defaults to the recipe's `# Last sync with main at <tag>` comment, else the active `version:`, else the commented-out `# version:` for the selected repo; `to` defaults to the repo's latest **stable** release tag (`preview-*` skipped). Handles `bNNNN` and `vX.Y.Z` tags. Git fallback cache is per-fork at `~/.cache/llama-cpp-changelog/<owner>-<repo>.git` (keyed on the full `owner/repo` so distinct forks of `llama.cpp` cannot collide on one clone; a pre-existing name-only cache is adopted on first use when its `origin` matches).
 
 Sections: header (refs, dates, counts), tags in range with dates + URLs, PRs merged in range (filtered by merge-commit SHA, body excerpt up to 1200 chars), and direct commits with no PR. PRs need authenticated `gh` (or `GITHUB_TOKEN`/`GH_TOKEN`); tags/commits work unauthenticated but rate-limited.
 
