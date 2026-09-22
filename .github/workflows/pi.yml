@@ -82,7 +82,16 @@ jobs:
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         run: |
+          rm -f out.txt
           pi --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
+          grep hello123 out.txt
+
+      - name: pi --no-git
+        if: matrix.os != 'windows-latest'
+        working-directory: ../dummy
+        run: |
+          rm -f out.txt
+          pi --model LFM2.5-230M --no-git -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: pi --no-sandbox Hello world (global start script)
@@ -93,6 +102,7 @@ jobs:
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         run: |
+          rm -f out.txt
           pi --no-sandbox --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
