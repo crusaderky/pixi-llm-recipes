@@ -12,31 +12,42 @@
 #               re-enables any of it.
 #   blocked     (--no-git) git's network subcommands are refused entirely.
 #
-# This is a policy guard, not a security boundary. Residual holes that a
-# deliberately hostile sandboxed process can still use, in rising order of
-# effort — none of them reachable without leaving the PATH:
-#   - `git send-pack` is blocked here, but `git push` internally spawns it
-#     outside the PATH, and the pre-push hook does not run for it;
-#   - an alias pre-written into the workspace's own .git/config (written with
-#     bash, not `git config`) can hide `--force --no-verify` from argv;
-#   - the real git by absolute path after unsetting the session environment
-#     (GIT_CONFIG_COUNT carries the policy hook).
-# The pre-push hook in scripts/git-guards/hooks/ backstops plain `git push`
-# (any invocation path) while that environment is intact.
+# This is a policy guard, not a security boundary. Hardened here:
+#   - core.hooksPath is re-injected on every invocation, so `env -u
+#     GIT_CONFIG_COUNT` / a rewritten GIT_CONFIG_* environment cannot drop the
+#     pre-push hook while this wrapper is the one being invoked;
+#   - that hook fails closed when the remote tip is not present locally, so a
+#     force spelled through `remote.<name>.push` (invisible to the argv scan
+#     below) cannot pass it either;
+#   - `git send-pack` is blocked, and the dashed `git-send-pack` found on PATH
+#     is refused by the stub next to this script. Its absolute path under
+#     `git --exec-path` is not covered.
+# Residual holes, none of them reachable without a deliberate step outside the
+# PATH: the real git by absolute path (where `-c core.hooksPath=` disables the
+# hook and `--force` never reaches this wrapper); the gh token readable in
+# ~/.config/gh (raw HTTP with it does anything the token can); and any non-git
+# client (curl, dulwich, compiled libgit2) using that token. See README.md,
+# "guard layer, not a security boundary".
 set -o errexit
 set -o nounset
 
-# Policy is decided by a marker the sandboxed process cannot forge:
-# /etc/pi-git-policy is bind-mounted by bwrap-pi.sh in --no-git sessions over
-# the read-only root. $PI_GIT_GUARD is honoured only as a fallback (it is
-# unused outside the sandbox); inside the sandbox flipping it cannot
-# downgrade a --no-git session.
-if [ -e /etc/pi-git-policy ]; then
-  POLICY=blocked
-else
-  POLICY="${PI_GIT_GUARD:-restricted}"
-fi
+# Policy comes from $PI_GIT_GUARD, set by bwrap-pi.sh: restricted by default,
+# blocked under --no-git. Inside the sandbox the agent can flip it, but that
+# only tightens what this wrapper does: --no-git's enforcement is that no
+# GitHub credential is bound into the sandbox at all, so a downgraded wrapper
+# has nothing to authenticate with.
+POLICY="${PI_GIT_GUARD:-restricted}"
 SELF="$(readlink -f "$0")"
+SELF_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+
+# Re-inject the session's policy hooksPath on every invocation. The injected
+# GIT_CONFIG_* environment is what backstops invocations that bypass this
+# wrapper entirely, and a caller can otherwise drop or rewrite it. `-c
+# core.hooksPath=...` still outranks it — the argv scan below blocks that key,
+# and absolute-path git is a documented residual.
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0=core.hooksPath
+export GIT_CONFIG_VALUE_0="$SELF_DIR/hooks"
 
 # Resolve the real git: first executable `git` on PATH outside this directory.
 REAL=""

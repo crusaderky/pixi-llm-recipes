@@ -11,7 +11,8 @@
 #   Git/GitHub access is ON by default under a non-destructive policy: fetch/pull,
 #   fast-forward pushes and gh reads/creation work; force-push, remote branch/ref
 #   deletion and deleting/modifying GitHub posts are blocked.
-#   --no-git blocks GitHub access entirely.
+#   --no-git binds no GitHub credential at all — that is its enforcement — and
+#   switches git's network transport and gh off as a UX layer.
 #   GitHub authentication is https + the gh token only: ssh keys/sockets are
 #   never bound in (an agent/key is an unscopeable full-write credential), and
 #   the host's /run is hidden behind a tmpfs (it holds live ssh-agent sockets
@@ -92,10 +93,10 @@ fi
 #   default:   non-destructive policy — git/gh work, but force-push, remote
 #              ref/branch deletion and deleting/modifying GitHub posts are
 #              blocked (guard wrappers on PATH + the pre-push policy hook).
-#   --no-git:  all GitHub access blocked — no credentials bound (above), no git
-#              network transport, gh pointed at an empty config, and an
-#              unforgeable marker (/etc/pi-git-policy) that keeps the wrappers
-#              blocked even if the agent flips $PI_GIT_GUARD.
+#   --no-git:  no GitHub credential is bound (above) — that is the enforcement:
+#              without a token or key there is nothing to write with. The env
+#              layers below only add UX (git's network transport off, gh pointed
+#              at an empty config); they are not load-bearing.
 # $GUARD_BIN is bound read-only at the bottom of the bwrap invocation — after
 # the workdir bind, so it stays read-only even when the workspace is this repo.
 GUARD_BIN="$(cd "$(dirname "$0")/git-guards" && pwd)"
@@ -112,15 +113,21 @@ if [ "$NO_GIT" = true ]; then
   POLICY_ARGS="$POLICY_ARGS --setenv GIT_ALLOW_PROTOCOL file"
   POLICY_ARGS="$POLICY_ARGS --setenv GIT_TERMINAL_PROMPT 0"
   POLICY_ARGS="$POLICY_ARGS --setenv GH_CONFIG_DIR /tmp/pi-gh-empty"
-  POLICY_ARGS="$POLICY_ARGS --unsetenv SSH_AUTH_SOCK --unsetenv GH_TOKEN --unsetenv GITHUB_TOKEN"
-  # Enforcement is mount-based, not env-based: the marker wins over $PI_GIT_GUARD,
-  # so flipping the variable inside the sandbox cannot downgrade the policy.
-  POLICY_ARGS="$POLICY_ARGS --ro-bind $GUARD_BIN/marker-blocked /etc/pi-git-policy"
+  # No credential carrier may survive into this mode: environment tokens, the
+  # ssh/askpass hooks, and GIT_CONFIG_* (a host shell can carry an
+  # http.<url>.extraheader Authorization there).
+  POLICY_ARGS="$POLICY_ARGS --unsetenv SSH_AUTH_SOCK"
+  POLICY_ARGS="$POLICY_ARGS --unsetenv GH_TOKEN --unsetenv GITHUB_TOKEN"
+  POLICY_ARGS="$POLICY_ARGS --unsetenv GH_ENTERPRISE_TOKEN --unsetenv GITHUB_ENTERPRISE_TOKEN"
+  POLICY_ARGS="$POLICY_ARGS --unsetenv GIT_CONFIG_COUNT --unsetenv GIT_CONFIG_KEY_0 --unsetenv GIT_CONFIG_VALUE_0"
+  POLICY_ARGS="$POLICY_ARGS --unsetenv GIT_ASKPASS --unsetenv SSH_ASKPASS --unsetenv GIT_SSH_COMMAND"
 else
   POLICY_ARGS="$POLICY_ARGS --setenv PI_GIT_GUARD restricted"
   # core.hooksPath for this session only (like a -c flag): the host's own git
   # config is never touched. hook-dispatch carries the pre-push policy and
-  # delegates every other hook name to the repository's own hooks.
+  # delegates every other hook name to the repository's own hooks. The git
+  # wrapper re-injects these on every invocation, so the agent cannot drop them
+  # by rewriting its environment.
   POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_COUNT 1"
   POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_KEY_0 core.hooksPath"
   POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_VALUE_0 $HOOKS_DIR"

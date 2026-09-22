@@ -2,7 +2,8 @@
 # Run Pi with full access to the whole host (development/debugging only).
 # No GitHub policy applies here: it would be unenforceable with full host
 # access (absolute paths, cmd.exe on Windows, raw HTTP calls all bypass
-# PATH/env guards). The sandboxed `pi` is where the policy lives.
+# PATH/env guards). The sandboxed `pi` is where the policy lives, and `--no-git`
+# is refused here rather than silently ignored.
 set -o errexit
 set -o nounset
 
@@ -90,19 +91,20 @@ elif [ $# -ge 2 ]; then
   FWD_ARGS=("${@:2}")
 fi
 
-# Consume --no-git; every other forwarded arg goes to pi verbatim. It is a
-# no-op here: this mode has full host access, and any GitHub restriction would
-# be cosmetic — a child that resolves git/gh outside PATH (an absolute path,
-# cmd.exe on Windows, a raw HTTP call with the host token) sidesteps every
-# PATH/env-level guard, so the sandbox's git-guards layer is deliberately not
-# applied. If you need the policy, use the sandbox (default `pi`).
+# --no-git is refused rather than swallowed: this mode has full host access
+# (absolute paths, cmd.exe on Windows, the host's gh token on disk), so no
+# PATH/env guard can hold, and starting an unrestricted session after the
+# caller asked for a block is worse than not starting at all. Every other
+# forwarded arg goes to pi verbatim.
 PI_ARGS=()
 for arg in "${FWD_ARGS[@]}"; do
   if [ "$arg" = "--no-git" ]; then
-    echo "pi-unsafe: --no-git ignored (unsandboxed mode cannot restrict GitHub access)." >&2
-  else
-    PI_ARGS+=("$arg")
+    echo "pi-unsafe: --no-git cannot be honoured without the sandbox." >&2
+    echo "This mode has full host access and the host's GitHub credentials;" >&2
+    echo "use the sandboxed \`pi --no-git\` instead." >&2
+    exit 2
   fi
+  PI_ARGS+=("$arg")
 done
 cd "$DIR"
 "$PI_BIN" "${PI_ARGS[@]}"

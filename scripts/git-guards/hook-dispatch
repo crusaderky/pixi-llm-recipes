@@ -31,15 +31,17 @@ if [ "$HOOK" = "pre-push" ]; then
       echo "pi git policy: deleting remote ref '$REMOTE_REF' is blocked (removing branches included)." >&2
       STATUS=1
     elif ! is_zeros "$REMOTE_SHA"; then
-      # The ff check needs the remote object locally (it is there whenever the
-      # remote-tracking refs are current). When it is not, the check is
-      # skipped — the server itself rejects a non-ff update unless the push is
-      # forced, and the force spellings are blocked by the wrapper.
-      if git cat-file -e "$REMOTE_SHA" 2>/dev/null < /dev/null; then
-        if ! git merge-base --is-ancestor "$REMOTE_SHA" "$LOCAL_SHA" 2>/dev/null < /dev/null; then
-          echo "pi git policy: non-fast-forward update of '$REMOTE_REF' is blocked (force-push)." >&2
-          STATUS=1
-        fi
+      # The ff check needs the remote tip object locally. It is absent whenever
+      # the remote has moved since the last fetch — the normal case in an
+      # active repo, and exactly the state a force-push wants. Fail closed: an
+      # update whose fast-forwardness cannot be proven is a non-fast-forward
+      # by definition (an ancestor tip would be in the object store).
+      if ! git cat-file -e "$REMOTE_SHA" 2>/dev/null < /dev/null; then
+        echo "pi git policy: cannot verify fast-forward of '$REMOTE_REF' (remote tip not present locally); blocked." >&2
+        STATUS=1
+      elif ! git merge-base --is-ancestor "$REMOTE_SHA" "$LOCAL_SHA" 2>/dev/null < /dev/null; then
+        echo "pi git policy: non-fast-forward update of '$REMOTE_REF' is blocked (force-push)." >&2
+        STATUS=1
       fi
     fi
   done
@@ -53,10 +55,28 @@ case "$GD" in
   *) GD="$PWD/$GD" ;;
 esac
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
-case "$GD/hooks/$HOOK" in
-  "$SELF_DIR"/*) exit 0 ;; # our own directory: nothing to delegate to
-esac
-TARGET="$GD/hooks/$HOOK"
+
+# The session's core.hooksPath shadows the repository's own one, so a repo that
+# sets core.hooksPath (husky, a committed .githooks dir) would silently lose
+# every hook. Read the repository's value with --file, which does not merge the
+# session-injected environment, and delegate to what the repo itself chose.
+HOOKS_DIR="$GD/hooks"
+REPO_HOOKS_PATH="$(git config --file "$GD/config" --get core.hooksPath 2>/dev/null || true)"
+if [ -n "$REPO_HOOKS_PATH" ]; then
+  case "$REPO_HOOKS_PATH" in
+    /*) ;;
+    *) REPO_HOOKS_PATH="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")/$REPO_HOOKS_PATH" ;;
+  esac
+  case "$REPO_HOOKS_PATH/$HOOK" in
+    "$SELF_DIR"/*) exit 0 ;; # our own directory: nothing to delegate to
+  esac
+  HOOKS_DIR="$REPO_HOOKS_PATH"
+else
+  case "$HOOKS_DIR/$HOOK" in
+    "$SELF_DIR"/*) exit 0 ;; # our own directory: nothing to delegate to
+  esac
+fi
+TARGET="$HOOKS_DIR/$HOOK"
 if [ -x "$TARGET" ]; then
   exec "$TARGET" "$@"
 fi

@@ -1,7 +1,7 @@
 ---
 name: test-git-auth
 description: Verify that git and the gh CLI work (authenticated) under the sandbox's default non-destructive GitHub policy. Leaves zero remote clutter: authenticates with `git push --dry-run`, probes that the policy guard blocks force-push and API mutations, then reads CI via gh.
-compatibility: Requires a git remote named "origin" and GitHub setup from `pixi r install` (run it on the host first). Works in the default git-enabled mode. Under `--no-git` every check is expected to FAIL by design — that is the point of the mode.
+compatibility: Requires a git remote named "origin" and GitHub setup from `pixi r install` (run it on the host first). Works in the default git-enabled mode. Under `--no-git` the authenticated checks are expected to FAIL by design (no credential is bound) — that is the point of the mode.
 allowed-tools: Bash
 ---
 
@@ -40,19 +40,65 @@ git push --force --dry-run origin HEAD 2>&1 | head -2   # expect "blocked by the
 gh api -X DELETE /repos/none/none 2>&1 | head -2        # expect the same from the gh guard
 git config alias.probe "push --force" 2>&1 | head -1   # expect the same (alias writes are blocked)
 git send-pack --dry-run 2>&1 | head -1                 # expect the same (plumbing push is blocked)
+git-send-pack --dry-run 2>&1 | head -1                 # expect the same (dashed binary's stub)
 ```
 
-Third probe — the policy must not be env-downgradeable. Under `--no-git` both must
-STILL be refused (the `/etc/pi-git-policy` marker wins over `$PI_GIT_GUARD`); in the
-default mode the results equal probe 1:
+Then the env-downgrade probes. In the default mode the wrapper re-injects
+`core.hooksPath` on every invocation, so a caller-supplied `GIT_CONFIG_*` cannot drop the
+hook and the push must return the same refusal. Under `--no-git` both must STILL be
+refused (the guard is `blocked`), though the mode's real enforcement is that no GitHub
+credential is bound at all:
 
 ```bash
-PI_GIT_GUARD=restricted git push --force --dry-run origin HEAD 2>&1 | head -2
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null \
+  git push --force --dry-run origin HEAD 2>&1 | head -2
 PI_GIT_GUARD=restricted gh api -X DELETE /repos/none/none 2>&1 | head -2
 ```
 
-If a probe reaches the network instead, report the policy layer as MISSING (or, for
-the third probe, as ENV-DOWNGRADEABLE).
+If a probe reaches the network instead, report the policy layer as MISSING (or, for the
+override probe, as ENV-DOWNGRADEABLE).
+
+## Phase 1b — local regression harness (no network, no remote clutter)
+
+The probes above only exercise argv. These cover the routes that once bypassed the guard:
+every one must be refused. Runs entirely against a throwaway bare repo in `/tmp`:
+
+```bash
+T=$(mktemp -d)
+export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+git init -q --bare "$T/r.git" && git -C "$T/r.git" symbolic-ref HEAD refs/heads/main
+git init -q "$T/seed" && (cd "$T/seed"; echo A > f; git add f; git commit -qm A
+  git push -q "$T/r.git" HEAD:refs/heads/main)
+git -C "$T/r.git" branch side main     # non-current branch, safe to target
+
+# a) force hidden in remote.<name>.push, remote tip never fetched: the pre-push hook
+#    must fail closed (no fetch above, on purpose).
+git init -q "$T/evil" && (cd "$T/evil"; echo E > e; git add e; git commit -qm E
+  git remote add origin "$T/r.git"
+  git config remote.origin.push '+refs/heads/main:refs/heads/main'
+  git push 2>&1) | tail -1
+
+# b) the same force with the caller rewriting the hook environment: the wrapper
+#    re-injects core.hooksPath, so this must be refused too.
+(cd "$T/evil"; GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath \
+  GIT_CONFIG_VALUE_0=/dev/null git push 2>&1) | tail -1
+
+# c) deletion hidden in remote.<name>.push
+git clone -q "$T/r.git" "$T/del" && (cd "$T/del"
+  git config remote.origin.push ':refs/heads/side'; git push 2>&1) | tail -1
+
+# d) gh must ignore a caller-supplied config dir (alias expansion bypasses the verb
+#    denylist). Expect "unknown command" and no ALIAS-RAN output.
+mkdir -p "$T/ghcfg"
+printf 'aliases:\n  probe: "!echo ALIAS-RAN"\n' > "$T/ghcfg/config.yml"
+GH_CONFIG_DIR="$T/ghcfg" gh probe 2>&1 | tail -1
+
+echo "refs: main=$(git -C "$T/r.git" rev-parse --short main) side=$(git -C "$T/r.git" rev-parse --short side)"
+rm -rf "$T"
+```
+
+Pass = every step refused and both refs unchanged. Any `+ … (forced update)`,
+`- [deleted]`, or `ALIAS-RAN` means the corresponding guard is broken.
 
 ## Phase 2 — git push authentication
 
@@ -81,6 +127,10 @@ the third probe, as ENV-DOWNGRADEABLE).
 | 7 | env-flip resisted            | ✓ / ✗  | … |
 | 8 | git push --dry-run           | ✓ / ✗  | … |
 | 9 | remote refs unchanged        | ✓ / ✗  | … |
+| 10 | hidden refspec force blocked | ✓ / ✗  | hook fails closed, Phase 1b(a) |
+| 11 | hook env override blocked    | ✓ / ✗  | wrapper re-injects, Phase 1b(b) |
+| 12 | hidden refspec delete blocked| ✓ / ✗  | Phase 1b(c) |
+| 13 | gh config-dir alias ignored  | ✓ / ✗  | Phase 1b(d) |
 
 gh:  <owner>/<repo> — <table from gh run list>
 ```
@@ -91,10 +141,7 @@ If checks 1, 2, 3 or 4 failed, add prominently:
 > one-off GitHub setup has never run — execute `pixi r install` (or `pixi r install-git`)
 > on the host and restart the session.
 
-If `SSH_AUTH_SOCK` is set but points under `/tmp/` and is unreachable, note that the
-sandbox only auto-binds `/tmp` sockets detected at launch time — the path outside may
-differ from the one inside.
-
-Remind the reader of the policy in the report footer: force-push, remote branch/ref
-deletion and deleting/modifying GitHub posts are blocked in every mode, with no flag to
-re-enable them — such operations belong to the human's own shell.
+Remind the reader of the policy in the report footer: in the default mode force-push,
+remote branch/ref deletion and deleting/modifying GitHub posts are blocked, with no flag
+to re-enable them — such operations belong to the human's own shell (or a `--no-git`
+session, which has no GitHub credential to do them with).

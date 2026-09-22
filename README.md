@@ -235,7 +235,7 @@ This is the recommended way to run it (Linux only).
 pixi r install                        # One-off (also sets up GitHub access)
 cd /path/to/workspace && pi           # Sandboxed
 pi --bind /data                       # Bind extra directories into the sandbox
-pi --no-git                           # Block all GitHub access (untrusted prompts)
+pi --no-git                           # No GitHub credentials (untrusted prompts)
 ```
 
 If you need full host access for development or debugging, or if you are on Windows,
@@ -312,22 +312,29 @@ shell when it expires.
   deleting or editing posts, `close`/`merge`/`lock` and other state changes, repo and
   admin mutations, and raw `gh api` mutations. Run such operations from your own shell.
 
-Pass `--no-git` to block GitHub access entirely (credentials are not bound, `gh` is
-disabled, git's network transport is switched off) — the right default for untrusted
-prompts. Enforcement is mount-based: a marker file bind-mounted at `/etc/pi-git-policy`
-over the read-only root, so flipping the `PI_GIT_GUARD` env var inside the sandbox cannot
-downgrade the mode:
+Pass `--no-git` for untrusted prompts: no GitHub credential is bound at all (no
+`~/.config/gh`, no `~/.gitconfig`, no `~/.git-credentials`, no `~/.ssh` and no agent
+socket — the host's `/run` is a tmpfs). That absence is the enforcement: without a
+token or key there is nothing to write with, whatever the agent does to PATH, git hooks
+or the environment. `GIT_ALLOW_PROTOCOL=file`, the empty `GH_CONFIG_DIR` and the guard
+stubs only keep git's network transport and `gh` quiet on top.
 
 ```bash
 pi --no-git
 ```
 
 The policy is a guard layer (PATH wrappers plus a `pre-push` hook, all in
-`scripts/git-guards/` and bound read-only into the sandbox), not a security boundary:
-the real `git`/`gh` by absolute path after unsetting the session environment, and raw
-`curl` with the readable gh token, still reach GitHub. Cap that blast radius by
-authenticating `gh` with a fine-grained PAT scoped to the repos the agent may touch
-(contents/issues/PRs read-write, nothing else). `pi-unsafe` applies no policy at all —
+`scripts/git-guards/` and bound read-only into the sandbox), not a security boundary.
+It is hardened against the cheap escapes — the wrapper re-injects `core.hooksPath` on
+every invocation, the hook fails closed when the remote tip has not been fetched, and
+`gh` is pinned to its own config directory so aliases cannot be smuggled in — but these
+remain: the real `git`/`gh` by absolute path (including `git --exec-path` binaries) and
+raw `curl` with the gh token, which is readable because the agent needs it to push.
+Cap that blast radius by authenticating `gh` with a fine-grained PAT scoped to the repos
+the agent may touch (contents/issues/PRs read-write, nothing else). For the one thing no
+token scope can express, put force-push prevention server-side: a separate bot identity
+plus repo rulesets that deny it, with your own account in the bypass list so your own
+shell stays unrestricted. `pi-unsafe` applies no policy at all (and refuses `--no-git`) —
 use the sandbox when the policy matters.
 
 To verify everything is wired up before starting real work, run (leaves zero remote

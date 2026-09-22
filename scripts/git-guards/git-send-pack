@@ -1,0 +1,13 @@
+#!/bin/bash
+# Advisory stub for the dashed git-send-pack binary.
+#
+# `git send-pack` (the subcommand spelling) is blocked by the git policy
+# wrapper, but the dashed binary in git's exec-path is a separate program that
+# runs no hooks, so a bare `git-send-pack` would otherwise be an unguarded
+# plumbing push. This stub sits first on PATH inside the sandbox and refuses
+# it. Its absolute path ($(git --exec-path)/git-send-pack) is not covered:
+# the policy is a guard layer, not a security boundary.
+echo "git-send-pack: blocked by the pi non-destructive GitHub policy." >&2
+echo "Plumbing push: no policy hook runs for it. Use plain \`git push\`" >&2
+echo "(fast-forwards only), or do it from your own shell." >&2
+exit 1

@@ -17,20 +17,18 @@
 # The verb denylist below is best-effort coverage of gh's command surface, not
 # a security boundary; the raw `gh api` rules keep the two from drifting
 # apart by refusing the escape hatch (mutations, and any body whose payload
-# is not inspectable in argv) wholesale.
+# is not inspectable in argv) wholesale. gh's own alias expansion is handled
+# too: it runs after this wrapper's argv scan, so the config directory is
+# pinned rather than left to $GH_CONFIG_DIR / $XDG_CONFIG_HOME.
 set -o errexit
 set -o nounset
 
-# Policy is decided by a marker the sandboxed process cannot forge:
-# /etc/pi-git-policy is bind-mounted by bwrap-pi.sh in --no-git sessions over
-# the read-only root. $PI_GIT_GUARD is honoured only as a fallback (it is
-# unused outside the sandbox); inside the sandbox flipping it cannot
-# downgrade a --no-git session.
-if [ -e /etc/pi-git-policy ]; then
-  POLICY=blocked
-else
-  POLICY="${PI_GIT_GUARD:-restricted}"
-fi
+# Policy comes from $PI_GIT_GUARD, set by bwrap-pi.sh: restricted by default,
+# blocked under --no-git. Inside the sandbox the agent can flip it, but that
+# only tightens what this wrapper does: --no-git's enforcement is that no
+# GitHub credential is bound into the sandbox at all, so a downgraded wrapper
+# has nothing to authenticate with.
+POLICY="${PI_GIT_GUARD:-restricted}"
 SELF="$(readlink -f "$0")"
 
 # Resolve the real gh: first executable `gh` on PATH outside this directory.
@@ -50,6 +48,14 @@ if [ -z "$REAL" ]; then
   exit 127
 fi
 
+# gh expands aliases internally, after this wrapper's verb scan, and takes its
+# config directory from $GH_CONFIG_DIR / $XDG_CONFIG_HOME. A writable config
+# dir (the agent's own, holding `evil = api -X DELETE ...` or a `!shell`
+# alias) would therefore bypass the denylist wholesale, so pin gh to the
+# session's config location: ~/.config/gh, which bwrap-pi.sh binds read-only
+# in the default mode and does not bind at all under --no-git.
+unset GH_CONFIG_DIR XDG_CONFIG_HOME
+
 block() {
   echo "gh: '$1' blocked by the pi non-destructive GitHub policy." >&2
   echo "Allowed: reads and creating issues, PRs, comments and releases. Blocked:" >&2
@@ -66,7 +72,7 @@ if [ "$POLICY" = "blocked" ]; then
 fi
 
 # Verbs that mutate or destroy, whatever their command group.
-DENY_VERBS="delete edit update archive unarchive rename transfer merge close reopen lock unlock pin unpin disable cancel ready update-branch revert set unset add upgrade rerun run"
+DENY_VERBS="delete edit update archive unarchive rename transfer merge close reopen lock unlock pin unpin disable enable cancel ready update-branch revert set unset add upgrade rerun run start stop"
 
 # Collect the leading <group> <verb> pair, skipping global flags that take a
 # value.
@@ -204,6 +210,14 @@ case "$(printf '%s' "${GROUP:-} ${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
         --approve | --request-changes | -a | -r) block "gh pr review $arg (state-changing review)" ;;
       esac
     done
+    ;;
+  "project "*)
+    # `gh project` mutations never use a bare denied verb (`item-edit`,
+    # `field-create`, `copy`, ...), so allow the read verbs only.
+    case "$(printf '%s' "${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
+      "" | list | view | field-list | item-list | link-list) ;;
+      *) block "gh project ${VERB}" ;;
+    esac
     ;;
 esac
 
