@@ -232,7 +232,7 @@ access to /home beyond the workspace directory you point it at.
 This is the recommended way to run it (Linux only).
 
 ```bash
-pixi r install                        # One-off (also sets up GitHub access)
+pixi r install                        # One-off (also sets up limited GitHub access)
 cd /path/to/workspace && pi           # Sandboxed
 pi --bind /data                       # Bind extra directories into the sandbox
 pi --no-git                           # No GitHub credentials (untrusted prompts)
@@ -293,49 +293,51 @@ pixi r gh pr list
 
 ### git and gh inside the agent sandbox
 
-`pixi r install` sets GitHub up once: `gh auth login` the first time only (reruns never
-create a second token — a stored-but-broken token is refreshed instead), the `gh`
-https credential helper, and your `git` identity.
+`pixi r install` sets GitHub up access with `gh auth login`, the `gh` https credential
+helper, and your `git` identity.
 
 By default the agent can act as you on GitHub under a **non-destructive policy**.
 Authentication is https + the gh token only: no ssh keys and no ssh-agent socket are
-visible inside the sandbox (they are unscopeable full-write credentials), and the
-host's `/run` — which holds every live agent socket plus the docker sockets — is hidden
-behind a tmpfs. `~/.config/gh` is bound read-only, so refresh the token from your own
-shell when it expires.
+visible inside the sandbox (they are unscopeable full-write credentials). `~/.config/gh`
+is bound read-only.
 
 - **Allowed**: `git` fetch/pull and fast-forward pushes, creating branches, all `gh`
   reads (CI logs, PRs, issues, releases), and creating issues, PRs, comments and
   releases.
-- **Blocked** (no flag re-enables any of it): force-push in every spelling (including
-  clustered short flags like `-uf` and `+refspec`), deleting remote branches and tags,
-  deleting or editing posts, `close`/`merge`/`lock` and other state changes, repo and
-  admin mutations, and raw `gh api` mutations. Run such operations from your own shell.
+- **Blocked**: force-push, deleting remote branches and tags, deleting or editing posts,
+  `close`/`merge`/`lock` and other state changes, repo and admin mutations, and raw `gh
+  api` mutations.
 
-Pass `--no-git` for untrusted prompts: no GitHub credential is bound at all (no
-`~/.config/gh`, no `~/.gitconfig`, no `~/.git-credentials`, no `~/.ssh` and no agent
-socket — the host's `/run` is a tmpfs). That absence is the enforcement: without a
-token or key there is nothing to write with, whatever the agent does to PATH, git hooks
-or the environment. `GIT_ALLOW_PROTOCOL=file`, the empty `GH_CONFIG_DIR` and the guard
-stubs only keep git's network transport and `gh` quiet on top.
+#### IMPORTANT WARNING
+
+This policy is a safety layer, not a security one. It is designed to prevent a genuinely
+incompetent agent from doing irreverisble damage. It will not stop a malicious agent
+from completely wiping out your remote GitHub account or stealing data from private
+remote repositories.**
+
+To reduce the blast radius, you may manually
+
+- authenticatie `gh` with a fine-grained PAT scoped to the repos the agent may touch
+(contents/issues/PRs read-write, nothing else);
+- put force-push prevention server-side: a separate bot identity plus repo rulesets that
+deny it, with your own account in the bypass list so your own unsandboxed shell stays
+unrestricted.
+
+You can start pi with the `--no-git` flag for untrusted prompts that are secure against
+a malicious actor (at least as far as GitHub credential are involved). Note that this
+has undesirable side effects, like being unable to read posts and Actions logs on a
+public repository.
 
 ```bash
 pi --no-git
 ```
 
-The policy is a guard layer (PATH wrappers plus a `pre-push` hook, all in
-`scripts/git-guards/` and bound read-only into the sandbox), not a security boundary.
-It is hardened against the cheap escapes — the wrapper re-injects `core.hooksPath` on
-every invocation, the hook fails closed when the remote tip has not been fetched, and
-`gh` is pinned to its own config directory so aliases cannot be smuggled in — but these
-remain: the real `git`/`gh` by absolute path (including `git --exec-path` binaries) and
-raw `curl` with the gh token, which is readable because the agent needs it to push.
-Cap that blast radius by authenticating `gh` with a fine-grained PAT scoped to the repos
-the agent may touch (contents/issues/PRs read-write, nothing else). For the one thing no
-token scope can express, put force-push prevention server-side: a separate bot identity
-plus repo rulesets that deny it, with your own account in the bypass list so your own
-shell stays unrestricted. `pi-unsafe` applies no policy at all (and refuses `--no-git`) —
-use the sandbox when the policy matters.
+Note that nothing, in any case, stops the agent from accidentally corrupting the local
+`.git` directory. **Always sync to a remote repository** to be able to recover from
+disasters.
+
+`pixi r pi-unsafe` and `pi --no-sandbox` apply no policy at all; any `git` and `gh`
+command you can execute from your terminal, the agent can too.
 
 To verify everything is wired up before starting real work, run (leaves zero remote
 clutter — the push check is a `git push --dry-run`):
