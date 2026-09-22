@@ -954,6 +954,26 @@ MODEL_KV: dict[str, ModelKV] = {
         key_dim=128,
         value_dim=128,
     ),
+    # `mimo2` (ggml-org/MiMo-V2.6-Flash-RL-GGUF): block_count 48, ordinary
+    # transformer -- no recurrent, MLA or MTP blocks, so 9 + 39 = block_count.
+    # Interleaved SWA is declared in the GGUF as a per-layer
+    # `attention.sliding_window_pattern` bool array (so mimo2 needs no
+    # _ARCH_SWA_PATTERN entry): 0 = full attention on blocks 0, 5, 11, 17, 23,
+    # 29, 35, 41, 47 -- exactly the 9 layers whose `head_count_kv` is 4 -- and
+    # 1 = sliding window on the other 39, at `attention.sliding_window` 128,
+    # with 8 KV heads; those are also precisely the 39 layers carrying an
+    # `attn_sinks` tensor. `attention.key_length` 192 / `value_length` 128.
+    # KVarN is out on the 192-dim K -- not one of KVARN_HEAD_DIMS, and
+    # llama-server refuses to start rather than falling back.
+    "MiMo-V2.6-Flash-RL": ModelKV(
+        full_attn_layers=9,
+        full_attn_kv_heads=4,
+        sliding_window_layers=39,
+        sliding_window_kv_heads=8,
+        sliding_window_size=128,
+        key_dim=192,  # kvarn not supported
+        value_dim=128,
+    ),
 }
 MODEL_KV["Ornith-1.5-35B"] = MODEL_KV["Qwen3.6-35B-A3B"]
 MODEL_KV["Kat-Coder-V2.5-Dev"] = MODEL_KV["Qwen3.6-35B-A3B"]
