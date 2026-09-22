@@ -297,28 +297,38 @@ pixi r gh pr list
 create a second token — a stored-but-broken token is refreshed instead), the `gh`
 https credential helper, and your `git` identity.
 
-By default the agent can act as you on GitHub under a **non-destructive policy**:
+By default the agent can act as you on GitHub under a **non-destructive policy**.
+Authentication is https + the gh token only: no ssh keys and no ssh-agent socket are
+visible inside the sandbox (they are unscopeable full-write credentials), and the
+host's `/run` — which holds every live agent socket plus the docker sockets — is hidden
+behind a tmpfs. `~/.config/gh` is bound read-only, so refresh the token from your own
+shell when it expires.
 
 - **Allowed**: `git` fetch/pull and fast-forward pushes, creating branches, all `gh`
   reads (CI logs, PRs, issues, releases), and creating issues, PRs, comments and
   releases.
-- **Blocked** (no flag re-enables any of it): force-push, deleting remote branches and
-  tags, deleting or editing posts, `close`/`merge`/`lock` and other state changes, repo
-  and admin mutations, and raw `gh api` mutations. Run such operations from your own
-  shell.
+- **Blocked** (no flag re-enables any of it): force-push in every spelling (including
+  clustered short flags like `-uf` and `+refspec`), deleting remote branches and tags,
+  deleting or editing posts, `close`/`merge`/`lock` and other state changes, repo and
+  admin mutations, and raw `gh api` mutations. Run such operations from your own shell.
 
 Pass `--no-git` to block GitHub access entirely (credentials are not bound, `gh` is
-disabled, git's network transport is switched off, and ssh-agent sockets are hidden)
-— the right default for untrusted prompts. Enforcement is mount-based: a marker file
-bind-mounted at `/etc/pi-git-policy` over the read-only root, so flipping the
-`PI_GIT_GUARD` env var inside the sandbox cannot downgrade the mode:
+disabled, git's network transport is switched off) — the right default for untrusted
+prompts. Enforcement is mount-based: a marker file bind-mounted at `/etc/pi-git-policy`
+over the read-only root, so flipping the `PI_GIT_GUARD` env var inside the sandbox cannot
+downgrade the mode:
 
 ```bash
 pi --no-git
 ```
 
-The policy is a guard layer (PATH wrappers and a `pre-push` hook, all in
-`scripts/git-guards/` and bound read-only into the sandbox), not a security boundary.
+The policy is a guard layer (PATH wrappers plus a `pre-push` hook, all in
+`scripts/git-guards/` and bound read-only into the sandbox), not a security boundary:
+the real `git`/`gh` by absolute path after unsetting the session environment, and raw
+`curl` with the readable gh token, still reach GitHub. Cap that blast radius by
+authenticating `gh` with a fine-grained PAT scoped to the repos the agent may touch
+(contents/issues/PRs read-write, nothing else). `pi-unsafe` applies no policy at all —
+use the sandbox when the policy matters.
 
 To verify everything is wired up before starting real work, run (leaves zero remote
 clutter — the push check is a `git push --dry-run`):

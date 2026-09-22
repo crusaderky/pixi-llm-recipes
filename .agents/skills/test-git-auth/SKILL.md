@@ -19,13 +19,14 @@ Collect all in one Bash call:
 ```bash
 echo "git  -> $(command -v git)"; echo "gh   -> $(command -v gh)"  # 1. guard wrappers first on PATH?
 git config --global --get user.name; git config --global --get user.email  # 2. identity visible?
-git config --get core.hooksPath                               # 3. policy hooks injected?
+echo "hooksPath -> ${GIT_CONFIG_VALUE_0:-<unset>}"            # 3. policy hooks injected?
 gh auth status 2>&1                                           # 4. "Logged in to github.com"?
 ```
 
-Check 1 passes when both resolve into `scripts/git-guards` (the policy wrappers). Check 3
-expects `…/scripts/git-guards/hooks` (always injected on Linux; the symlink farm is
-skipped on Windows, where the policy is wrapper-only).
+Check 1 passes when both resolve into `scripts/git-guards` (the policy wrappers). Check
+2 must not read `alias.*` keys via `git config`: the guard blocks them. Check 3 expects
+`…/scripts/git-guards/hooks` (the policy hooks are injected through the `GIT_CONFIG_*`
+environment — the env var is the authoritative check).
 Check 4 failure maps to `--no-git` or missing GitHub setup; annotate accordingly and
 still attempt the later phases.
 
@@ -37,6 +38,8 @@ DELETE against a nonexistent path):
 ```bash
 git push --force --dry-run origin HEAD 2>&1 | head -2   # expect "blocked by the pi non-destructive GitHub policy"
 gh api -X DELETE /repos/none/none 2>&1 | head -2        # expect the same from the gh guard
+git config alias.probe "push --force" 2>&1 | head -1   # expect the same (alias writes are blocked)
+git send-pack --dry-run 2>&1 | head -1                 # expect the same (plumbing push is blocked)
 ```
 
 Third probe — the policy must not be env-downgradeable. Under `--no-git` both must

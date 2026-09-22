@@ -1,28 +1,31 @@
 #!/bin/bash
-# `gh` policy wrapper for pi sessions — non-destructive GitHub policy.
+# `gh` policy wrapper for pi sandbox sessions — non-destructive GitHub policy.
 #
-# Placed in front of the real gh by the pi launchers (bwrap-pi.sh, pi-unsafe.sh)
-# via a PATH prepend. Two policies, selected by $PI_GIT_GUARD (default: restricted):
+# Placed in front of the real gh by bwrap-pi.sh via a PATH prepend. Two
+# policies, selected by $PI_GIT_GUARD (default: restricted):
 #
-#   restricted  gh works, but GitHub-side destruction is blocked. Allowed: reads
-#               (gh */view, list, checks, run logs, `gh api` GET, `gh api graphql`
-#               queries) and *creating* content (issue/pr/comment/release/gist).
-#               Blocked: deleting or editing posts, close/reopen/lock/merge/ready,
-#               repo and admin mutations, and every raw `gh api` mutation. There
-#               is no flag to re-enable them.
+#   restricted  gh works, but GitHub-side destruction is blocked. Allowed:
+#               reads (view/list/checks/run logs, `gh api` GET, `gh api
+#               graphql` queries) and creating content (issues, PRs,
+#               comments, releases, gists). Blocked: deleting or editing
+#               posts, close/merge/lock/ready and other state changes,
+#               approving/requesting changes on reviews, repo and admin
+#               mutations, and every raw `gh api` mutation. There is no flag
+#               to re-enable them.
 #   blocked     (--no-git) every gh command is refused entirely.
 #
-# Verb denylist below is best-effort coverage of gh's command surface, not a
-# security boundary; the raw `gh api` rule keeps the two from drifting apart by
-# refusing the escape hatch (mutations) wholesale.
+# The verb denylist below is best-effort coverage of gh's command surface, not
+# a security boundary; the raw `gh api` rules keep the two from drifting
+# apart by refusing the escape hatch (mutations, and any body whose payload
+# is not inspectable in argv) wholesale.
 set -o errexit
 set -o nounset
 
 # Policy is decided by a marker the sandboxed process cannot forge:
-# /etc/pi-git-policy is bind-mounted by bwrap-pi.sh in --no-git sessions over the
-# read-only root. $PI_GIT_GUARD is honoured only as a fallback where mounts are
-# impossible (pi-unsafe); inside the sandbox flipping it cannot downgrade a
-# --no-git session.
+# /etc/pi-git-policy is bind-mounted by bwrap-pi.sh in --no-git sessions over
+# the read-only root. $PI_GIT_GUARD is honoured only as a fallback (it is
+# unused outside the sandbox); inside the sandbox flipping it cannot
+# downgrade a --no-git session.
 if [ -e /etc/pi-git-policy ]; then
   POLICY=blocked
 else
@@ -63,9 +66,10 @@ if [ "$POLICY" = "blocked" ]; then
 fi
 
 # Verbs that mutate or destroy, whatever their command group.
-DENY_VERBS="delete edit update archive unarchive rename transfer merge close reopen lock unlock pin unpin disable cancel ready update-branch revert set unset add upgrade"
+DENY_VERBS="delete edit update archive unarchive rename transfer merge close reopen lock unlock pin unpin disable cancel ready update-branch revert set unset add upgrade rerun run"
 
-# Collect the leading <group> <verb> pair, skipping global flags that take a value.
+# Collect the leading <group> <verb> pair, skipping global flags that take a
+# value.
 GROUP=""
 VERB=""
 EXPECT_VALUE=false
@@ -85,17 +89,26 @@ for arg in "$@"; do
         GROUP="$arg"
       elif [ -z "$VERB" ]; then
         VERB="$arg"
-        break
       fi
       ;;
   esac
 done
 
-# `gh api` is the raw escape hatch: allow reads only.
+# `gh api` is the raw escape hatch: allow reads only. Rules, in order:
+#   - a method, if given, must be GET;
+#   - --input (body from a file) is refused wholesale: its payload cannot be
+#     inspected in argv, for graphql and REST alike;
+#   - without a method, any field flag implies POST and is refused;
+#   - graphql queries stay usable: only their field values are scanned for the
+#     `mutation` keyword (so a query for a field literally named e.g.
+#     `mutationCount` elsewhere in argv does not trip the scan), and
+#     file-backed field values (-F key=@file) are refused like --input.
 if [ "$GROUP" = "api" ]; then
   METHOD_GIVEN=false
   IMPLICIT_POST=false
-  EXPECT_VALUE=false
+  EXPECT_VALUE=false   # -X / --method takes a value
+  EXPECT_FIELD=false   # -f / --field / --raw-field / -F takes a value
+  API_FIELD_VALUES=()
   for arg in "$@"; do
     if [ "$EXPECT_VALUE" = true ]; then
       METHOD_GIVEN=true
@@ -106,51 +119,69 @@ if [ "$GROUP" = "api" ]; then
       EXPECT_VALUE=false
       continue
     fi
+    if [ "$EXPECT_FIELD" = true ]; then
+      IMPLICIT_POST=true
+      API_FIELD_VALUES+=("$arg")
+      EXPECT_FIELD=false
+      continue
+    fi
     case "$arg" in
-      -X | --method) EXPECT_VALUE=true ;;
-      --method=*)
+      -X | --method)
+        EXPECT_VALUE=true
+        ;;
+      --method=* | -X?*)
         METHOD_GIVEN=true
-        case "${arg#*=}" in
+        method="${arg#*X}"; method="${method#--method=}"; method="${method#-}"
+        case "$method" in
           [Gg][Ee][Tt]) ;;
           *) block "gh api $arg (mutations must go through non-destructive gh commands)" ;;
         esac
         ;;
-      -X?*)
-        METHOD_GIVEN=true
-        case "${arg#-X}" in
-          [Gg][Ee][Tt]) ;;
-          *) block "gh api $arg (mutations must go through non-destructive gh commands)" ;;
-        esac
+      --input | --input=*)
+        block "gh api $arg (file-backed body: use gh issue/pr comment to post)"
         ;;
-      -f | -f?* | -F | -F?* | --field | --field=* | --raw-field | --raw-field=* | --input | --input=*) IMPLICIT_POST=true ;;
+      -f | --field | --raw-field | -F)
+        IMPLICIT_POST=true
+        EXPECT_FIELD=true
+        ;;
+      -f?* | -F?* | --field=* | --raw-field=*)
+        IMPLICIT_POST=true
+        v="${arg#-f}"; v="${v#-F}"; v="${v#--field=}"; v="${v#--raw-field=}"
+        API_FIELD_VALUES+=("$v")
+        ;;
     esac
   done
-  case "${VERB:-}" in
-    [Gg][Rr][Aa][Pp][Hh][Qq][Ll])
-      for arg in "$@"; do
-        case "$arg" in
-          *[Mm][Uu][Tt][Aa][Tt][Ii][Oo][Nn]*) block "gh api graphql mutation (use gh issue/pr comment to post)" ;;
+  case "$(printf '%s' "${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
+    graphql)
+      for v in ${API_FIELD_VALUES[@]+"${API_FIELD_VALUES[@]}"}; do
+        # -F key=@file reads the value from a file: uninspectable, refuse.
+        case "$v" in
+          *=@*) block "gh api graphql $v (file-backed field payloads cannot be inspected)" ;;
         esac
+        if printf '%s' "$v" | grep -qiE '(^|[^a-zA-Z])mutation([^a-zA-Z]|$)'; then
+          block "gh api graphql mutation (use gh issue/pr comment to post)"
+        fi
       done
       exec "$REAL" "$@"
       ;;
   esac
   if [ "$METHOD_GIVEN" = false ] && [ "$IMPLICIT_POST" = true ]; then
-    block "gh api with --field/--input (POST); use gh issue/pr comment to post"
+    block "gh api with a field flag (implicit POST); use gh issue/pr comment to post"
   fi
   exec "$REAL" "$@"
 fi
 
-# `gh auth git-credential` is the git credential helper; the rest of `gh auth`
-# mutates authentication state (and `gh auth token` leaks the credential).
+# `gh auth git-credential` is the git credential helper (needed for git push
+# over https); `gh auth status` is a read. The rest of `gh auth` mutates
+# authentication state (and `gh auth token` leaks the credential).
 if [ "$GROUP" = "auth" ]; then
-  case "${VERB:-}" in
+  case "$(printf '%s' "${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
     login | logout | refresh | switch | setup-git | token) block "gh auth ${VERB}" ;;
   esac
 fi
 
 # Per-command extras the generic verb list cannot see.
-case "${GROUP:-} ${VERB:-}" in
+case "$(printf '%s' "${GROUP:-} ${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
   "issue comment" | "pr comment" | "discussion comment")
     for arg in "$@"; do
       case "$arg" in
@@ -162,6 +193,15 @@ case "${GROUP:-} ${VERB:-}" in
     for arg in "$@"; do
       case "$arg" in
         --clobber) block "gh release upload --clobber (overwrites an existing asset)" ;;
+      esac
+    done
+    ;;
+  "pr review")
+    # flags only: the verb `review` without any of these submits an ordinary
+    # comment, which is allowed content creation.
+    for arg in "$@"; do
+      case "$arg" in
+        --approve | --request-changes | -a | -r) block "gh pr review $arg (state-changing review)" ;;
       esac
     done
     ;;

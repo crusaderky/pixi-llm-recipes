@@ -8,10 +8,17 @@
 # and llama.cpp GPU runs work from inside the sandbox.
 #
 # Usage: bwrap-pi.sh <dir|-> [--no-git] [--bind <dir>] ... [-- pi-args...]
-#   Git/GitHub access is ON by default under a non-destructive policy: fast-forward
-#   pushes, fetch/pull and gh reads/creation work; force-push, remote branch/ref
+#   Git/GitHub access is ON by default under a non-destructive policy: fetch/pull,
+#   fast-forward pushes and gh reads/creation work; force-push, remote branch/ref
 #   deletion and deleting/modifying GitHub posts are blocked.
 #   --no-git blocks GitHub access entirely.
+#   GitHub authentication is https + the gh token only: ssh keys/sockets are
+#   never bound in (an agent/key is an unscopeable full-write credential), and
+#   the host's /run is hidden behind a tmpfs (it holds live ssh-agent sockets
+#   and the docker sockets — root-equivalent escapes; AF_UNIX connect() works
+#   across read-only mounts, so hiding them requires the tmpfs). Only
+#   /run/systemd/resolve is re-exposed afterwards: /etc/resolv.conf is a symlink
+#   into it on systemd hosts, and its sockets carry no privilege.
 #   Forwarded args are read from _FWD_ARGS env var (base64-encoded, null-separated,
 #   set by the scripts/pi wrapper) or, as a fallback, from positional args $2 onward
 #   (for direct `pixi r pi -- <args>` invocations).
@@ -63,21 +70,20 @@ while [ $i -lt ${#FWD_ARGS[@]} ]; do
   fi
 done
 
-# Git/GitHub credentials: bound by default (the non-destructive policy below is
-# what keeps the access safe). Read-only, except ~/.config/gh which gh may write
-# token refreshes to. --no-git drops all of it.
-# The SSH agent socket (SSH_AUTH_SOCK) is accessible via the root bind as long as it
-# lives under /run/ (typical for gnome-keyring/systemd). If it's under /tmp, bind it too.
+# Git/GitHub credentials: bound read-only, and https-only. ~/.gitconfig and
+# ~/.config/git carry identity and behaviour; ~/.config/gh carries the gh
+# token (read-only — gh does not need to write it: run `gh auth refresh` from
+# your own shell when it expires, and it also keeps the agent from adding gh
+# aliases, which the policy wrapper cannot see through). Nothing else: no
+# ~/.ssh, no ~/.git-credentials, no ssh-agent socket — ssh keys are unscopeable
+# full-write credentials, so the sandbox pushes over https through the
+# `gh auth git-credential` helper instead. --no-git drops all of it.
 GIT_BINDS=""
 if [ "$NO_GIT" = false ]; then
-  for p in "$HOME/.ssh" "$HOME/.config/git" "$HOME/.git-credentials"; do
+  for p in "$HOME/.config/git" "$HOME/.config/gh"; do
     [ -e "$p" ] && GIT_BINDS="$GIT_BINDS --ro-bind $p $p"
   done
   [ -f "$HOME/.gitconfig" ] && GIT_BINDS="$GIT_BINDS --ro-bind $HOME/.gitconfig $HOME/.gitconfig"
-  [ -d "$HOME/.config/gh" ] && GIT_BINDS="$GIT_BINDS --bind $HOME/.config/gh $HOME/.config/gh"
-  if [ -n "${SSH_AUTH_SOCK:-}" ] && [[ "$SSH_AUTH_SOCK" == /tmp/* ]]; then
-    GIT_BINDS="$GIT_BINDS --ro-bind $SSH_AUTH_SOCK $SSH_AUTH_SOCK"
-  fi
 fi
 
 # GitHub policy layer (scripts/git-guards: the git/gh PATH wrappers plus the
@@ -86,15 +92,20 @@ fi
 #   default:   non-destructive policy — git/gh work, but force-push, remote
 #              ref/branch deletion and deleting/modifying GitHub posts are
 #              blocked (guard wrappers on PATH + the pre-push policy hook).
-#   --no-git:  all GitHub access blocked — guard stubs, no credentials bound
-#              (above), no git network transport, gh pointed at an empty config,
-#              ssh-agent sockets hidden, and an unforgeable marker
-#              (/etc/pi-git-policy) that keeps the wrappers blocked even if the
-#              agent flips $PI_GIT_GUARD.
+#   --no-git:  all GitHub access blocked — no credentials bound (above), no git
+#              network transport, gh pointed at an empty config, and an
+#              unforgeable marker (/etc/pi-git-policy) that keeps the wrappers
+#              blocked even if the agent flips $PI_GIT_GUARD.
 # $GUARD_BIN is bound read-only at the bottom of the bwrap invocation — after
 # the workdir bind, so it stays read-only even when the workspace is this repo.
 GUARD_BIN="$(cd "$(dirname "$0")/git-guards" && pwd)"
 HOOKS_DIR="$GUARD_BIN/hooks"
+# DNS: /etc/resolv.conf is a symlink into /run/systemd/resolve on systemd
+# hosts, so the /run tmpfs below would break name resolution. Re-expose that
+# one directory (resolver sockets only, no privilege).
+RESOLV_BIND=""
+[ -d /run/systemd/resolve ] && RESOLV_BIND="--ro-bind /run/systemd/resolve /run/systemd/resolve"
+
 POLICY_ARGS="--setenv PATH $GUARD_BIN:$PATH"
 if [ "$NO_GIT" = true ]; then
   POLICY_ARGS="$POLICY_ARGS --setenv PI_GIT_GUARD blocked"
@@ -105,14 +116,6 @@ if [ "$NO_GIT" = true ]; then
   # Enforcement is mount-based, not env-based: the marker wins over $PI_GIT_GUARD,
   # so flipping the variable inside the sandbox cannot downgrade the policy.
   POLICY_ARGS="$POLICY_ARGS --ro-bind $GUARD_BIN/marker-blocked /etc/pi-git-policy"
-  # Unsetting SSH_AUTH_SOCK is cosmetic: the agent socket lives under /run and is
-  # reachable through the read-only root bind (AF_UNIX connect works on read-only
-  # mounts). Hide the usual socket homes and the socket itself.
-  _RT="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-  for _d in "$_RT/keyring" "$_RT/ssh-unix-local" /run/ssh-unix-local; do
-    [ -d "$_d" ] && POLICY_ARGS="$POLICY_ARGS --tmpfs $_d"
-  done
-  [ -n "${SSH_AUTH_SOCK:-}" ] && POLICY_ARGS="$POLICY_ARGS --ro-bind /dev/null $SSH_AUTH_SOCK"
 else
   POLICY_ARGS="$POLICY_ARGS --setenv PI_GIT_GUARD restricted"
   # core.hooksPath for this session only (like a -c flag): the host's own git
@@ -201,6 +204,8 @@ bwrap \
   --tmpfs /tmp \
   --tmpfs /home \
   --tmpfs /root \
+  --tmpfs /run \
+  $RESOLV_BIND \
   --bind "$HOME/.cache/ccache"            "$HOME/.cache/ccache" \
   --bind "$HOME/.cache/llama-cpp-changelog"    "$HOME/.cache/llama-cpp-changelog" \
   --bind "$HOME/.cache/pip"               "$HOME/.cache/pip" \

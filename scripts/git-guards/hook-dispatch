@@ -31,6 +31,10 @@ if [ "$HOOK" = "pre-push" ]; then
       echo "pi git policy: deleting remote ref '$REMOTE_REF' is blocked (removing branches included)." >&2
       STATUS=1
     elif ! is_zeros "$REMOTE_SHA"; then
+      # The ff check needs the remote object locally (it is there whenever the
+      # remote-tracking refs are current). When it is not, the check is
+      # skipped — the server itself rejects a non-ff update unless the push is
+      # forced, and the force spellings are blocked by the wrapper.
       if git cat-file -e "$REMOTE_SHA" 2>/dev/null < /dev/null; then
         if ! git merge-base --is-ancestor "$REMOTE_SHA" "$LOCAL_SHA" 2>/dev/null < /dev/null; then
           echo "pi git policy: non-fast-forward update of '$REMOTE_REF' is blocked (force-push)." >&2

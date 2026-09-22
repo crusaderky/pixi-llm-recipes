@@ -11,12 +11,13 @@
 #                      made absolute against your cwd BEFORE forwarding, because
 #                      the sandbox task runs with the repo as its cwd.
 #   --no-sandbox       Skip the bubblewrap sandbox; route to the `pi-unsafe` task
-#                      (full host access, for development/debugging).
+#                      (full host access, for development/debugging — no
+#                      GitHub policy applies there, including --no-git).
 # All other args are forwarded verbatim to pi.
 #
 # Git/GitHub access is on by default under a non-destructive policy (no
 # force-push, no remote branch/ref deletion, no deleting/modifying GitHub
-# posts).
+# posts), https-only: the sandbox never sees ssh keys or agent sockets.
 set -o errexit
 set -o nounset
 

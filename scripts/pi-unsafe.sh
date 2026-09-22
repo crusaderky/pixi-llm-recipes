@@ -1,5 +1,8 @@
 #!/bin/bash
-# Run Pi with full access to the whole host
+# Run Pi with full access to the whole host (development/debugging only).
+# No GitHub policy applies here: it would be unenforceable with full host
+# access (absolute paths, cmd.exe on Windows, raw HTTP calls all bypass
+# PATH/env guards). The sandboxed `pi` is where the policy lives.
 set -o errexit
 set -o nounset
 
@@ -87,40 +90,19 @@ elif [ $# -ge 2 ]; then
   FWD_ARGS=("${@:2}")
 fi
 
-# Consume --no-git; every other forwarded arg goes to pi verbatim.
-NO_GIT=false
+# Consume --no-git; every other forwarded arg goes to pi verbatim. It is a
+# no-op here: this mode has full host access, and any GitHub restriction would
+# be cosmetic — a child that resolves git/gh outside PATH (an absolute path,
+# cmd.exe on Windows, a raw HTTP call with the host token) sidesteps every
+# PATH/env-level guard, so the sandbox's git-guards layer is deliberately not
+# applied. If you need the policy, use the sandbox (default `pi`).
 PI_ARGS=()
 for arg in "${FWD_ARGS[@]}"; do
   if [ "$arg" = "--no-git" ]; then
-    NO_GIT=true
+    echo "pi-unsafe: --no-git ignored (unsandboxed mode cannot restrict GitHub access)." >&2
   else
     PI_ARGS+=("$arg")
   fi
 done
-
-# GitHub policy layer — same policy as bwrap-pi.sh, best-effort without the
-# sandbox (no read-only mounts exist here to carry the unforgeable marker, so
-# $PI_GIT_GUARD is the enforcement channel and a child that resolves git/gh
-# outside PATH, e.g. cmd.exe on Windows, sidesteps the wrappers):
-# non-destructive by default, everything blocked with --no-git.
-_GUARD="$(cd "$(dirname "$0")/git-guards" && pwd)"
-PATH="$_GUARD:$PATH"
-if [ "$NO_GIT" = true ]; then
-  export PI_GIT_GUARD=blocked
-  export GIT_ALLOW_PROTOCOL=file
-  export GIT_TERMINAL_PROMPT=0
-  export GH_CONFIG_DIR="${TMPDIR:-/tmp}/pi-gh-empty"
-  mkdir -p "$GH_CONFIG_DIR"
-  unset SSH_AUTH_SOCK GH_TOKEN GITHUB_TOKEN
-else
-  export PI_GIT_GUARD=restricted
-  # The hooks/ farm is symlinks; a git-for-windows checkout materialises them as
-  # text stubs, so hook injection is Linux-only (Windows is best-effort anyway).
-  if [[ "$OSTYPE" != msys* && "$OSTYPE" != cygwin* ]] && [ -d "$_GUARD/hooks" ]; then
-    export GIT_CONFIG_COUNT=1
-    export GIT_CONFIG_KEY_0=core.hooksPath
-    export GIT_CONFIG_VALUE_0="$_GUARD/hooks"
-  fi
-fi
 cd "$DIR"
 "$PI_BIN" "${PI_ARGS[@]}"

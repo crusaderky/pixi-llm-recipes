@@ -5,4 +5,9 @@ over the read-only root filesystem. The git/gh policy wrappers treat the marker'
 presence as "blocked" and ignore $PI_GIT_GUARD, so an agent that exports
 PI_GIT_GUARD=restricted inside the sandbox cannot downgrade the policy.
 
+No GitHub credentials are bound in these sessions either (no gh config, no
+git credentials, and no ssh access: the host's /run is hidden behind a tmpfs),
+so the env layers (GIT_ALLOW_PROTOCOL=file, the empty GH_CONFIG_DIR) are
+belt-and-suspenders rather than the load-bearing wall.
+
 Do not delete this file from the repo: without it the marker mount has no source.

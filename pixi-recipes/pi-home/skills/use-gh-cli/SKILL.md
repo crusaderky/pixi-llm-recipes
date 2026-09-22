@@ -23,13 +23,18 @@ workarounds — and tell the user:
 destruction — with no flag to re-enable it:
 
 - **Allowed**: `gh */view`, `list`, `checks`, `run` logs, `gh api` GET and `gh api graphql`
-  queries, and creating issues, PRs, comments and releases.
+  queries (inline field values), and creating issues, PRs, comments and releases.
 - **Blocked**: deleting or editing posts (including `comment --edit-last/--delete-last`),
-  `close`/`reopen`/`lock`/`merge`/`ready`, repo and admin mutations (secrets, variables,
-  deploy keys, settings), `gh auth` state changes, and every raw `gh api` mutation.
+  `close`/`reopen`/`lock`/`merge`/`ready`, state-changing reviews (`pr review --approve`),
+  `run cancel`/`rerun`, `workflow run`, repo and admin mutations (secrets, variables,
+  deploy keys, settings), `gh auth` state changes, and every raw `gh api` mutation
+  (including file-backed bodies: `--input`, `-F key=@file`).
 
 If a command is blocked, do not route around it (no `gh api` tricks, no scripts): report
 the block and suggest the user run that one operation from their own shell.
+
+Note: the guard only exists in the sandboxed `pi` sessions. `pi-unsafe` and your own
+shell have no GitHub restrictions.
 
 ## CI logs
 
