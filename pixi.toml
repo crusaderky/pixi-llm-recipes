@@ -190,7 +190,7 @@ llama-cpp-changelog = "python scripts/llama-cpp-changelog.py"
 gguf-meta-extract = "python scripts/gguf-meta-extract.py"
 [feature.pytools.tasks.openrouter-models]
 args = [
-  { arg = "models", default = "z-ai/glm-5.3 z-ai/glm-5.3-flash deepseek/deepseek-v4.1-flash moonshotai/kimi-k3" },
+  { arg = "models", default = "xiaomi/mimo-v2.6-pro xiaomi/mimo-v2.6-flash z-ai/glm-5.3 z-ai/glm-5.3-flash deepseek/deepseek-v4.1-flash moonshotai/kimi-k3" },
 ]
 cmd = "python scripts/openrouter_model_report.py {{ models }}"
 

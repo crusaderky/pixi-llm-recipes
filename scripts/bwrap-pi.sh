@@ -118,11 +118,14 @@ mkdir -p ~/.cache/uv
 mkdir -p ~/.pi/agent/sessions
 mkdir -p ~/.config/rtk
 
-for f in auth trust settings models; do
+for f in auth trust settings; do
   if [ ! -f ~/.pi/agent/$f.json ]; then
     echo "{}" > ~/.pi/agent/$f.json
   fi
 done
+if [ ! -f ~/.pi/agent/models.json ]; then
+  echo '{"providers": {}}' > ~/.pi/agent/models.json
+fi
 
 bash "$(dirname "$0")/inject-pi-extensions.sh"
 
