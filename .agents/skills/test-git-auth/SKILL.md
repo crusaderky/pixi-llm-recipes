@@ -1,6 +1,6 @@
 ---
 name: test-git-auth
-description: Verify that git and the gh CLI work (authenticated) under the sandbox's default non-destructive GitHub policy. Leaves zero remote clutter: authenticates with `git push --dry-run`, probes that the policy guard blocks force-push and API mutations, then reads CI via gh.
+description: Verify that git and the gh CLI work (authenticated) under the sandbox's default non-destructive GitHub policy. Leaves zero remote clutter, authenticates with `git push --dry-run`, probes that the policy guard blocks force-push and API mutations, then reads CI via gh.
 compatibility: Requires a git remote named "origin" and GitHub setup from `pixi r install` (run it on the host first). Works in the default git-enabled mode. Under `--no-git` the authenticated checks are expected to FAIL by design (no credential is bound) — that is the point of the mode.
 allowed-tools: Bash
 ---

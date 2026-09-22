@@ -318,10 +318,10 @@ remote repositories.**
 To reduce the blast radius, you may manually
 
 - authenticatie `gh` with a fine-grained PAT scoped to the repos the agent may touch
-(contents/issues/PRs read-write, nothing else);
+  (contents/issues/PRs read-write, nothing else);
 - put force-push prevention server-side: a separate bot identity plus repo rulesets that
-deny it, with your own account in the bypass list so your own unsandboxed shell stays
-unrestricted.
+  deny it, with your own account in the bypass list so your own unsandboxed shell stays
+  unrestricted.
 
 You can start pi with the `--no-git` flag for untrusted prompts that are secure against
 a malicious actor (at least as far as GitHub credential are involved). Note that this
