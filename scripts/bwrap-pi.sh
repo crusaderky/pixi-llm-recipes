@@ -85,6 +85,19 @@ if [ "$NO_GIT" = false ]; then
     [ -e "$p" ] && GIT_BINDS="$GIT_BINDS --ro-bind $p $p"
   done
   [ -f "$HOME/.gitconfig" ] && GIT_BINDS="$GIT_BINDS --ro-bind $HOME/.gitconfig $HOME/.gitconfig"
+  # The gh token must be in plain hosts.yml storage: a keyring-stored one
+  # (gh auth login --secure-storage) is invisible here, because the /run
+  # tmpfs below takes the keyring's D-Bus socket with it, and every push
+  # inside the session fails with "could not read Username". Warn now
+  # instead of failing later; `pixi r install-git` migrates the token.
+  if [ -f "$HOME/.config/gh/hosts.yml" ] \
+     && grep -q 'user:' "$HOME/.config/gh/hosts.yml" \
+     && ! grep -q 'oauth_token' "$HOME/.config/gh/hosts.yml"; then
+    echo "WARNING: gh token is in the system keyring, which this sandbox cannot" >&2
+    echo "read (/run is hidden) — pushes inside the session will fail. Run" >&2
+    echo "'pixi r install-git' on the host: it re-stores the token in plain" >&2
+    echo "hosts.yml storage."
+  fi
 fi
 
 # GitHub policy layer (scripts/git-guards: the git/gh PATH wrappers plus the

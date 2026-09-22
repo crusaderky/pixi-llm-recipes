@@ -18,6 +18,16 @@
 set -o errexit
 set -o nounset
 
+# gh flipped its storage default: `gh auth login` now stores the token in the
+# system credential store (keyring) unless `--insecure-storage` is passed, and
+# a keyring token is invisible inside the bwrap sandbox, whose /run tmpfs hides
+# the keyring's D-Bus socket. Probe for the flag so the script also works with
+# older gh versions, where plain hosts.yml was already the default.
+GH_LOGIN_FLAGS=()
+if gh help auth login 2> /dev/null | grep -q -- --insecure-storage; then
+  GH_LOGIN_FLAGS=(--insecure-storage)
+fi
+
 echo "== GitHub authentication =="
 if gh auth status -h github.com > /dev/null 2>&1; then
   echo "Already authenticated to github.com; keeping the existing token."
@@ -26,7 +36,25 @@ elif gh auth token -h github.com > /dev/null 2>&1; then
   gh auth refresh -h github.com
 else
   echo "No GitHub credentials found; running 'gh auth login' (this creates one token)."
-  gh auth login -h github.com
+  gh auth login -h github.com "${GH_LOGIN_FLAGS[@]}"
+fi
+
+# The token must live in plain hosts.yml storage: gh may keep it in the system
+# credential store (the default since the storage flip, or gh auth login
+# --secure-storage on older versions), and the bwrap sandbox hides the host's
+# /run — the keyring's D-Bus socket goes with it — so sessions see an account
+# with no token and every push fails with "could not read Username". Re-store
+# the working token in plain storage: no new token, no browser.
+HOSTS_FILE="${GH_CONFIG_DIR:-$HOME/.config/gh}/hosts.yml"
+if [ -f "$HOSTS_FILE" ] && grep -q 'user:' "$HOSTS_FILE" 2> /dev/null \
+   && ! grep -q 'oauth_token' "$HOSTS_FILE" 2> /dev/null; then
+  echo "Token lives in the system keyring, which the bwrap sandbox cannot read"
+  echo "(/run is hidden); re-storing it in plain hosts.yml storage."
+  GH_TOKEN_VALUE="$(gh auth token -h github.com)"
+  GH_USER="$(gh api user --jq .login)"
+  gh auth logout -h github.com -u "$GH_USER"
+  printf '%s\n' "$GH_TOKEN_VALUE" | gh auth login "${GH_LOGIN_FLAGS[@]}" --with-token
+  echo "Token re-stored in $HOSTS_FILE."
 fi
 
 echo "== git https credential helper =="
