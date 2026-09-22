@@ -7,7 +7,19 @@
 # (/dev/nvidia* are dev-bound through the fresh --dev /dev), so CUDA builds
 # and llama.cpp GPU runs work from inside the sandbox.
 #
-# Usage: bwrap-pi.sh <dir|-> [--with-git] [--bind <dir>] ... [-- pi-args...]
+# Usage: bwrap-pi.sh <dir|-> [--no-git] [--bind <dir>] ... [-- pi-args...]
+#   Git/GitHub access is ON by default under a non-destructive policy: fetch/pull,
+#   fast-forward pushes and gh reads/creation work; force-push, remote branch/ref
+#   deletion and deleting/modifying GitHub posts are blocked.
+#   --no-git binds no GitHub credential at all — that is its enforcement — and
+#   switches git's network transport and gh off as a UX layer.
+#   GitHub authentication is https + the gh token only: ssh keys/sockets are
+#   never bound in (an agent/key is an unscopeable full-write credential), and
+#   the host's /run is hidden behind a tmpfs (it holds live ssh-agent sockets
+#   and the docker sockets — root-equivalent escapes; AF_UNIX connect() works
+#   across read-only mounts, so hiding them requires the tmpfs). Only
+#   /run/systemd/resolve is re-exposed afterwards: /etc/resolv.conf is a symlink
+#   into it on systemd hosts, and its sockets carry no privilege.
 #   Forwarded args are read from _FWD_ARGS env var (base64-encoded, null-separated,
 #   set by the scripts/pi wrapper) or, as a fallback, from positional args $2 onward
 #   (for direct `pixi r pi -- <args>` invocations).
@@ -38,9 +50,9 @@ elif [ $# -ge 2 ]; then
   FWD_ARGS=("${@:2}")
 fi
 
-# Parse --bind <dir> pairs and --with-git flags from forwarded args
+# Parse --bind <dir> pairs and --no-git flags from forwarded args
 EXTRA_BINDS=""
-WITH_GIT=false
+NO_GIT=false
 PI_ARGS=()
 i=0
 while [ $i -lt ${#FWD_ARGS[@]} ]; do
@@ -50,8 +62,8 @@ while [ $i -lt ${#FWD_ARGS[@]} ]; do
     ABS_BIND="$(realpath "$bind_dir")"
     EXTRA_BINDS="$EXTRA_BINDS --bind $ABS_BIND $ABS_BIND"
     i=$((i + 2))
-  elif [ "$arg" = "--with-git" ]; then
-    WITH_GIT=true
+  elif [ "$arg" = "--no-git" ]; then
+    NO_GIT=true
     i=$((i + 1))
   else
     PI_ARGS+=("$arg")
@@ -59,20 +71,79 @@ while [ $i -lt ${#FWD_ARGS[@]} ]; do
   fi
 done
 
-# --with-git: bind SSH keys, git config, and gh CLI auth into the sandbox (read-only,
-# except ~/.config/gh which gh may write token refreshes to).
-# The SSH agent socket (SSH_AUTH_SOCK) is accessible via the root bind as long as it
-# lives under /run/ (typical for gnome-keyring/systemd). If it's under /tmp, bind it too.
+# Git/GitHub credentials: bound read-only, and https-only. ~/.gitconfig and
+# ~/.config/git carry identity and behaviour; ~/.config/gh carries the gh
+# token (read-only — gh does not need to write it: run `gh auth refresh` from
+# your own shell when it expires, and it also keeps the agent from adding gh
+# aliases, which the policy wrapper cannot see through). Nothing else: no
+# ~/.ssh, no ~/.git-credentials, no ssh-agent socket — ssh keys are unscopeable
+# full-write credentials, so the sandbox pushes over https through the
+# `gh auth git-credential` helper instead. --no-git drops all of it.
 GIT_BINDS=""
-if [ "$WITH_GIT" = true ]; then
-  for p in "$HOME/.ssh" "$HOME/.config/git" "$HOME/.git-credentials"; do
+if [ "$NO_GIT" = false ]; then
+  for p in "$HOME/.config/git" "$HOME/.config/gh"; do
     [ -e "$p" ] && GIT_BINDS="$GIT_BINDS --ro-bind $p $p"
   done
   [ -f "$HOME/.gitconfig" ] && GIT_BINDS="$GIT_BINDS --ro-bind $HOME/.gitconfig $HOME/.gitconfig"
-  [ -d "$HOME/.config/gh" ] && GIT_BINDS="$GIT_BINDS --bind $HOME/.config/gh $HOME/.config/gh"
-  if [ -n "${SSH_AUTH_SOCK:-}" ] && [[ "$SSH_AUTH_SOCK" == /tmp/* ]]; then
-    GIT_BINDS="$GIT_BINDS --ro-bind $SSH_AUTH_SOCK $SSH_AUTH_SOCK"
+  # The gh token must be in plain hosts.yml storage: a keyring-stored one
+  # (gh auth login --secure-storage) is invisible here, because the /run
+  # tmpfs below takes the keyring's D-Bus socket with it, and every push
+  # inside the session fails with "could not read Username". Warn now
+  # instead of failing later; `pixi r install-git` migrates the token.
+  if [ -f "$HOME/.config/gh/hosts.yml" ] \
+     && grep -q 'user:' "$HOME/.config/gh/hosts.yml" \
+     && ! grep -q 'oauth_token' "$HOME/.config/gh/hosts.yml"; then
+    echo "WARNING: gh token is in the system keyring, which this sandbox cannot" >&2
+    echo "read (/run is hidden) — pushes inside the session will fail. Run" >&2
+    echo "'pixi r install-git' on the host: it re-stores the token in plain" >&2
+    echo "hosts.yml storage."
   fi
+fi
+
+# GitHub policy layer (scripts/git-guards: the git/gh PATH wrappers plus the
+# hooks/ symlink farm over hook-dispatch). Present in every mode; there is no
+# flag that re-enables destructive activity.
+#   default:   non-destructive policy — git/gh work, but force-push, remote
+#              ref/branch deletion and deleting/modifying GitHub posts are
+#              blocked (guard wrappers on PATH + the pre-push policy hook).
+#   --no-git:  no GitHub credential is bound (above) — that is the enforcement:
+#              without a token or key there is nothing to write with. The env
+#              layers below only add UX (git's network transport off, gh pointed
+#              at an empty config); they are not load-bearing.
+# $GUARD_BIN is bound read-only at the bottom of the bwrap invocation — after
+# the workdir bind, so it stays read-only even when the workspace is this repo.
+GUARD_BIN="$(cd "$(dirname "$0")/git-guards" && pwd)"
+HOOKS_DIR="$GUARD_BIN/hooks"
+# DNS: /etc/resolv.conf is a symlink into /run/systemd/resolve on systemd
+# hosts, so the /run tmpfs below would break name resolution. Re-expose that
+# one directory (resolver sockets only, no privilege).
+RESOLV_BIND=""
+[ -d /run/systemd/resolve ] && RESOLV_BIND="--ro-bind /run/systemd/resolve /run/systemd/resolve"
+
+POLICY_ARGS="--setenv PATH $GUARD_BIN:$PATH"
+if [ "$NO_GIT" = true ]; then
+  POLICY_ARGS="$POLICY_ARGS --setenv PI_GIT_GUARD blocked"
+  POLICY_ARGS="$POLICY_ARGS --setenv GIT_ALLOW_PROTOCOL file"
+  POLICY_ARGS="$POLICY_ARGS --setenv GIT_TERMINAL_PROMPT 0"
+  POLICY_ARGS="$POLICY_ARGS --setenv GH_CONFIG_DIR /tmp/pi-gh-empty"
+  # No credential carrier may survive into this mode: environment tokens, the
+  # ssh/askpass hooks, and GIT_CONFIG_* (a host shell can carry an
+  # http.<url>.extraheader Authorization there).
+  POLICY_ARGS="$POLICY_ARGS --unsetenv SSH_AUTH_SOCK"
+  POLICY_ARGS="$POLICY_ARGS --unsetenv GH_TOKEN --unsetenv GITHUB_TOKEN"
+  POLICY_ARGS="$POLICY_ARGS --unsetenv GH_ENTERPRISE_TOKEN --unsetenv GITHUB_ENTERPRISE_TOKEN"
+  POLICY_ARGS="$POLICY_ARGS --unsetenv GIT_CONFIG_COUNT --unsetenv GIT_CONFIG_KEY_0 --unsetenv GIT_CONFIG_VALUE_0"
+  POLICY_ARGS="$POLICY_ARGS --unsetenv GIT_ASKPASS --unsetenv SSH_ASKPASS --unsetenv GIT_SSH_COMMAND"
+else
+  POLICY_ARGS="$POLICY_ARGS --setenv PI_GIT_GUARD restricted"
+  # core.hooksPath for this session only (like a -c flag): the host's own git
+  # config is never touched. hook-dispatch carries the pre-push policy and
+  # delegates every other hook name to the repository's own hooks. The git
+  # wrapper re-injects these on every invocation, so the agent cannot drop them
+  # by rewriting its environment.
+  POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_COUNT 1"
+  POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_KEY_0 core.hooksPath"
+  POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_VALUE_0 $HOOKS_DIR"
 fi
 
 # Expose NVIDIA CUDA devices when the host driver is loaded. --dev /dev
@@ -142,7 +213,9 @@ unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 
 # Note: --ro-bind $_CONDA_PREFIX must be after --bind $1.
 # When setting pixi-llm-recipes as the project root for the bind,
-# re-bind $CONDA_PREFIX as read-only after it's bound as read-write
+# re-bind $CONDA_PREFIX as read-only after it's bound as read-write.
+# Same for $GUARD_BIN: after $ARGS, so the policy files stay read-only even
+# when the workspace is this repo (which would bind them read-write).
 
 bwrap \
   --ro-bind / / \
@@ -151,6 +224,8 @@ bwrap \
   --tmpfs /tmp \
   --tmpfs /home \
   --tmpfs /root \
+  --tmpfs /run \
+  $RESOLV_BIND \
   --bind "$HOME/.cache/ccache"            "$HOME/.cache/ccache" \
   --bind "$HOME/.cache/llama-cpp-changelog"    "$HOME/.cache/llama-cpp-changelog" \
   --bind "$HOME/.cache/pip"               "$HOME/.cache/pip" \
@@ -169,7 +244,9 @@ bwrap \
   $WORKTREE_BINDS \
   $GIT_BINDS \
   $CUDA_BINDS \
+  $POLICY_ARGS \
   $ARGS \
+  --ro-bind "$GUARD_BIN"                  "$GUARD_BIN" \
   --ro-bind "$_CONDA_PREFIX"              "$_CONDA_PREFIX" \
   --die-with-parent \
   --unshare-all --share-net \

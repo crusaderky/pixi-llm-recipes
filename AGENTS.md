@@ -36,7 +36,8 @@ scripts/
   inject-pi-extensions.sh inject-herdr-file-viewer.sh
   install-bin.sh uninstall-bin.sh               # ~/.local/bin wrappers + herdr desktop entry
   install-apparmor.sh install-memlock.sh install-clipboard.sh
-  install-file-viewer-renderers.sh
+  install-file-viewer-renderers.sh install-git.sh
+  git-guards/                                   # git/gh policy wrappers, hook-dispatch + hooks/ farm
   install/{pi,herdr,gh}                         # the wrappers themselves
   install/herdr.desktop install/herdr.png
   gguf_common.py kv_cache_common.py perplexity_common.py   # importable shared modules
@@ -71,7 +72,7 @@ Environments:
 Platform gating: source-cuda and source-rocm are linux-64 only; binary-cuda and binary-rocm are linux-64 only; binary-vulkan is linux-64 + win-64 (beellama ships no arm64 vulkan asset).
 
 Root `[tasks]` (present in every env): `stop-server`, `stop-forge-server`, `restart-server`, `restart-forge-server`.
-Linux `[target.*.tasks]`: `install-apparmor`, `install-bin`, `install-clipboard`, `install-file-viewer-renderers`, `install-memlock`, `install` (= all five), `uninstall`.
+Linux `[target.*.tasks]`: `install-apparmor`, `install-bin`, `install-clipboard`, `install-file-viewer-renderers`, `install-git`, `install-memlock`, `install` (= all six), `uninstall`.
 
 **`-e <env>` is only required when a task exists in more than one environment** — in practice only the `llamacpp` feature's tasks, which exist in all eight `llamacpp-*` envs. Everything else (`pi`, `herdr`, `gh`, `llama-benchy`, `perplexity-report`, …) resolves on its own.
 
@@ -164,7 +165,13 @@ Read-only root; `/tmp`, `/home`, `/root` as tmpfs; the target workdir bound read
 
 **CUDA passthrough**: when the host has the NVIDIA driver loaded, every `/dev/nvidia*` node is `--dev-bind`-ed through the fresh `--dev /dev` (plus `/proc/driver/nvidia` read-only), so CUDA builds and llama.cpp GPU runs work from inside the sandbox. `nvidia-modprobe -u -c=0` is invoked first (best-effort) to create `/dev/nvidia-uvm`, which the driver creates on demand and without which CUDA init fails. No-op on hosts without an NVIDIA driver — the section is skipped entirely.
 
-`--with-git`: binds `~/.ssh`, `~/.gitconfig`, `~/.config/git`, `~/.git-credentials` read-only and `~/.config/gh` read-write. `SSH_AUTH_SOCK` is reachable automatically under `/run/` (the systemd/gnome-keyring default) and is bound explicitly if it lives under `/tmp`. The conda-forge `gh` shadows any snap-installed one.
+**GitHub access is on by default under a non-destructive policy**, and it is https-only: `~/.gitconfig`, `~/.config/git` and `~/.config/gh` (the gh token) are bound read-only, and that is all — no `~/.ssh`, no `~/.git-credentials`, no ssh-agent socket. SSH keys are unscopeable full-write credentials and every agent socket on the host (`$XDG_RUNTIME_DIR/keyring/ssh`, `gcr/ssh`, `gnupg/S.gpg-agent.ssh`, …) is a live one, so the sandbox pushes over https through the `gh auth git-credential` helper instead (run `gh auth refresh` on the host when the token expires; the `gh` wrapper also pins the config directory, so the agent cannot point `gh` at its own `GH_CONFIG_DIR`/`XDG_CONFIG_HOME` and reach an alias the wrapper cannot see). The token must live in **plain hosts.yml storage**: one in the system keyring (`gh auth login --secure-storage`) is invisible to every session, because the `/run` tmpfs below takes the keyring's D-Bus socket with it and `gh` then sees an account with no token — pushes fail with `could not read Username`. `install-git.sh` detects a working keyring token and re-stores it in plain storage (`gh auth token` → `logout` → `login --insecure-storage --with-token`; no new token, no browser), and `bwrap-pi.sh` warns at launch. Fresh `gh auth login` runs need `--insecure-storage` too on newer `gh`, which stores in the system credential store by default. The host's entire `/run` is hidden behind a tmpfs — it holds those agent sockets plus the docker sockets (`/run/docker.sock`, `/run/user/$UID/docker.sock`), and AF_UNIX connect() works across read-only mounts, so hiding them requires the tmpfs. Only `/run/systemd/resolve` is re-exposed: `/etc/resolv.conf` symlinks into it on systemd hosts and its sockets carry no privilege. The conda-forge `gh` shadows any snap-installed one.
+
+The policy layer is `scripts/git-guards/` (`git` and `gh` PATH wrappers) plus a `pre-push` hook in `scripts/git-guards/hooks/` — a committed symlink farm over `hook-dispatch` covering every standard hook name — injected per-session via `GIT_CONFIG_COUNT` → `core.hooksPath` (never touching the host's git config; the `git` wrapper re-injects that environment on every invocation, so the agent cannot drop the hook by rewriting `GIT_CONFIG_*`; `hook-dispatch` fails closed when the remote tip has not been fetched, delegates `pre-push` to the repository's own hook after the policy check, and sends every other hook name to the repository's own `core.hooksPath` when it sets one, so lefthook keeps working). `bwrap-pi.sh` binds `scripts/git-guards` read-only — _after_ the workdir bind, so the policy files stay read-only even when the workspace is this repo. Allowed: fetch/pull, fast-forward pushes, all `gh` reads, creating issues/PRs/comments/releases. Blocked — **no flag re-enables any of it**: force-push (long, short, clustered `-uf`, and `+refspec` spellings), remote ref/branch deletion, deleting or editing posts, `close`/`merge`/`lock` and other state changes, state-changing reviews, `run cancel`/`rerun`, `workflow run`, repo/admin mutations (secrets, variables, deploy keys), `gh auth` state changes, and raw `gh api` mutations (GET and inline `graphql` queries only; `--input` and `-F key=@file` bodies are refused — their payload is not inspectable in argv). The git guard also blocks the routes around the hook: `git send-pack` (plumbing push, runs no hooks; the dashed `git-send-pack` binary is refused by a stub on PATH), `-c`/`--config-env` config of `alias.*`/`core.hooksPath` (case-insensitively — git matches config keys that way, and a `-c` value outranks the injected hook path), `git config` writes of `alias.*` (a repo-config `core.hooksPath` cannot shadow the policy hook — the wrapper re-injects the env value — and `hook-dispatch` delegates to it afterwards), and aliases themselves: internal aliases are expanded and re-scanned by the wrapper, external `!…` aliases are run by the wrapper with the guard still in front (git would prepend its exec-path to PATH, which shadows the guard with the real git).
+
+`pi --no-git` binds no GitHub credential at all: no `~/.config/gh`, no `~/.gitconfig`, no `~/.git-credentials`, no `~/.ssh`/agent socket, and `GH_TOKEN`/`GITHUB_TOKEN`/`GH_ENTERPRISE_TOKEN`/`GIT_CONFIG_*`/askpass/`GIT_SSH_COMMAND` unset (a host shell can carry an `http.<url>.extraheader` credential in `GIT_CONFIG_*`). That absence is the enforcement: without a token or key there is nothing to write with, however the agent manipulates PATH, hooks or the environment. The env layers (`GIT_ALLOW_PROTOCOL=file`, `GH_CONFIG_DIR` pointed at an empty dir, the guard stubs refusing network subcommands and all of `gh`) are UX on top, not the wall.
+
+A guard layer, not a security boundary. Residual holes, all requiring a deliberate step outside the PATH: the real `git`/`gh` by absolute path (and `git --exec-path` helper binaries — the per-name stubs only cover bare PATH invocations); for those absolute-path invocations, `-c core.hooksPath=` or a dropped `GIT_CONFIG_*` environment removes the hook, whereas a wrapper-mediated invocation cannot drop it; the gh token itself, readable from the read-only `~/.config/gh` — raw `curl` against the API with it does anything the token can, as does any non-git client (dulwich, libgit2) — cap this blast radius by authenticating gh with a fine-grained PAT scoped to the repos the agent may touch (contents/issues/PRs read-write and nothing else), and put force-push prevention server-side (a separate bot identity plus repo rulesets that deny it, with your own account in the bypass list so your shell stays unrestricted), since no token scope can express it; and unauthenticated public network access, which stays open because killing the network namespace would take web fetch/search and the local llama-server with it. `pi-unsafe` applies no policy at all and refuses `--no-git` instead of ignoring it — use the sandbox when the policy matters.
 
 - Mounts `$CONDA_PREFIX/home/.pi` as `~/.pi`; bind-mounts `~/.pi/agent/{auth,trust,settings}.json` and `sessions/` from the host.
 - If the workdir is a **git worktree**, binds the main repo's common `.git` dir read-write so git can read shared objects and update worktree admin files, without exposing the main checkout.
@@ -172,15 +179,15 @@ Read-only root; `/tmp`, `/home`, `/root` as tmpfs; the target workdir bound read
 - On exit, rsyncs `skills`, `AGENTS.md`, `keybindings.json` back from `$CONDA_PREFIX/home/.pi/agent/` into `pixi-recipes/pi-home/`, so edits made from inside pi can be reviewed and committed. `-c --no-times` keeps mtimes stable when content is unchanged, otherwise pixi-build would rebuild the recipe on every launch.
 - Unsets all `PIXI_*` / `CONDA_*` plus `INIT_CWD`, `XML_CATALOG_FILES`, `GSETTINGS_SCHEMA_DIR` before exec.
 
-`pi-unsafe.sh` runs with full host access (dev/debug only) and additionally symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where MSYS bash cannot symlink, and forces `HOME=%USERPROFILE%` so bash's `~` matches pi's) and cleans up via `trap`.
+`pi-unsafe.sh` runs with full host access (dev/debug only) and additionally symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where MSYS bash cannot symlink, and forces `HOME=%USERPROFILE%` so bash's `~` matches pi's) and cleans up via `trap`. It consumes `--no-git` only to swallow the flag (with a warning): no GitHub policy applies there — with full host access, absolute paths, `cmd.exe` on Windows and raw HTTP calls with the host token sidestep every PATH/env guard, so the sandbox's `git-guards` layer is deliberately not attempted. Use the sandboxed `pi` when the policy matters.
 
 ### `~/.local/bin` wrappers
 
-`pixi r install` runs all five installers; `install-bin.sh` symlinks `scripts/install/{pi,herdr,gh}` into `~/.local/bin` and generates a herdr desktop entry + icon (picking ptyxis / gnome-terminal / plain terminal depending on what exists). `pixi r uninstall` removes them.
+`pixi r install` runs all six installers (`install-bin.sh`, `install-apparmor.sh`, `install-clipboard.sh`, `install-file-viewer-renderers.sh`, `install-git.sh`, `install-memlock.sh`); `install-bin.sh` symlinks `scripts/install/{pi,herdr,gh}` into `~/.local/bin` and generates a herdr desktop entry + icon (picking ptyxis / gnome-terminal / plain terminal depending on what exists). `install-git.sh` does the one-off GitHub groundwork (`gh auth login` only when no token exists at all — reruns never mint a second one; `gh auth setup-git` helper; `user.name`/`user.email` from the GitHub profile when missing); every step is idempotent — the policy hooks need no install, they are versioned in `scripts/git-guards/hooks/`. `pixi r uninstall` removes the `~/.local/bin` wrappers.
 
 The wrappers `cd` into the repo and call the matching pixi task with your cwd as the workspace, forwarding the rest base64-encoded in `_FWD_ARGS` (which dodges pixi's shell-parser mangling of quotes). They resolve `--bind` relative paths against your cwd first, since the task itself runs with the repo as cwd, and honour `--no-sandbox` by routing to the `*-unsafe` task.
 
-Calling the pixi task directly is the awkward path: it takes exactly one positional argument (the workspace), so `--with-git`, `--bind` and any agent flags must follow a `--` separator. `pixi run pi --with-git` does **not** work — `--with-git` is consumed as the workspace directory.
+Calling the pixi task directly is the awkward path: it takes exactly one positional argument (the workspace), so `--no-git`, `--bind` and any agent flags must follow a `--` separator. `pixi run pi --no-git` does **not** work — `--no-git` is consumed as the workspace directory.
 
 `run-herdr.sh` backs the `herdr` task: it registers the file-viewer plugin, then **removes `$CONDA_PREFIX/bin` from PATH** so `pi` spawned inside a herdr pane resolves the `~/.local/bin` wrapper instead of the raw conda binaries (which would bypass the sandbox). It resolves the real herdr binary _before_ the reorder, or `exec herdr` would re-enter its own wrapper forever, and `cd $HOME` so new panes start in `~`.
 
@@ -308,14 +315,15 @@ pixi run -e llamacpp-source-cuda llama-list-devices
 pixi run -e llamacpp-source-cuda llama-hello                   # smoke test with llama-cli
 
 # Agents. The task takes exactly one positional arg (the workspace, `-` for a temp
-# dir); everything else MUST come after `--`, including --with-git and --bind.
+# dir); everything else MUST come after `--`, including --no-git and --bind.
 pixi run pi /path/to/workspace
-pixi run pi /path/to/workspace -- --with-git
+pixi run pi /path/to/workspace -- --no-git   # block all GitHub access
 pixi run pi-unsafe /path/to/ws            # full host access, debugging only
 pixi run herdr
 
 # …or, after `pixi r install`, from any directory (the wrapper supplies the cwd):
-pi --with-git
+pi
+pi --no-git
 
 # Benchmarks and analysis
 pixi run -e llamacpp-source-cuda perplexity -c perplexity.yaml   # edit/duplicate the yaml first

@@ -1,0 +1,83 @@
+#!/bin/sh
+# git hook dispatcher for the pi non-destructive GitHub policy.
+#
+# Committed under scripts/git-guards/hooks/ under every standard git hook name
+# (a symlink farm, all pointing at this script). The pi launchers inject
+# core.hooksPath at that directory via GIT_CONFIG_COUNT, so the policy applies to
+# every repository inside agent sessions without touching the host's git config.
+#
+# - `pre-push` enforces the policy: no remote ref deletion, no non-fast-forward
+#   update (force-push). This is the backstop behind scripts/git-guards/git and
+#   fires even when git is invoked by absolute path.
+# - every other hook name, and pre-push after a policy pass, delegates to the
+#   repository's own hook of the same name, which the injected core.hooksPath
+#   would otherwise shadow (e.g. lefthook's pre-commit).
+set -e
+
+HOOK="$(basename "$0")"
+
+# All-zero (or empty) object id: the zero sha of both sha1 and sha256 repos.
+is_zeros() {
+  case "$1" in
+    "" | *[!0]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+if [ "$HOOK" = "pre-push" ]; then
+  STATUS=0
+  while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
+    if is_zeros "$LOCAL_SHA"; then
+      echo "pi git policy: deleting remote ref '$REMOTE_REF' is blocked (removing branches included)." >&2
+      STATUS=1
+    elif ! is_zeros "$REMOTE_SHA"; then
+      # The ff check needs the remote tip object locally. It is absent whenever
+      # the remote has moved since the last fetch — the normal case in an
+      # active repo, and exactly the state a force-push wants. Fail closed: an
+      # update whose fast-forwardness cannot be proven is a non-fast-forward
+      # by definition (an ancestor tip would be in the object store).
+      if ! git cat-file -e "$REMOTE_SHA" 2>/dev/null < /dev/null; then
+        echo "pi git policy: cannot verify fast-forward of '$REMOTE_REF' (remote tip not present locally); blocked." >&2
+        STATUS=1
+      elif ! git merge-base --is-ancestor "$REMOTE_SHA" "$LOCAL_SHA" 2>/dev/null < /dev/null; then
+        echo "pi git policy: non-fast-forward update of '$REMOTE_REF' is blocked (force-push)." >&2
+        STATUS=1
+      fi
+    fi
+  done
+  [ "$STATUS" = 0 ] || exit 1
+fi
+
+GD="$(git rev-parse --git-common-dir 2>/dev/null)" || exit 0
+case "$GD" in
+  "" | .) GD="$PWD/.git" ;;
+  /*) ;;
+  *) GD="$PWD/$GD" ;;
+esac
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# The session's core.hooksPath shadows the repository's own one, so a repo that
+# sets core.hooksPath (husky, a committed .githooks dir) would silently lose
+# every hook. Read the repository's value with --file, which does not merge the
+# session-injected environment, and delegate to what the repo itself chose.
+HOOKS_DIR="$GD/hooks"
+REPO_HOOKS_PATH="$(git config --file "$GD/config" --get core.hooksPath 2>/dev/null || true)"
+if [ -n "$REPO_HOOKS_PATH" ]; then
+  case "$REPO_HOOKS_PATH" in
+    /*) ;;
+    *) REPO_HOOKS_PATH="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")/$REPO_HOOKS_PATH" ;;
+  esac
+  case "$REPO_HOOKS_PATH/$HOOK" in
+    "$SELF_DIR"/*) exit 0 ;; # our own directory: nothing to delegate to
+  esac
+  HOOKS_DIR="$REPO_HOOKS_PATH"
+else
+  case "$HOOKS_DIR/$HOOK" in
+    "$SELF_DIR"/*) exit 0 ;; # our own directory: nothing to delegate to
+  esac
+fi
+TARGET="$HOOKS_DIR/$HOOK"
+if [ -x "$TARGET" ]; then
+  exec "$TARGET" "$@"
+fi
+exit 0

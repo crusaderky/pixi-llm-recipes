@@ -1,0 +1,231 @@
+#!/bin/bash
+# `gh` policy wrapper for pi sandbox sessions — non-destructive GitHub policy.
+#
+# Placed in front of the real gh by bwrap-pi.sh via a PATH prepend. Two
+# policies, selected by $PI_GIT_GUARD (default: restricted):
+#
+#   restricted  gh works, but GitHub-side destruction is blocked. Allowed:
+#               reads (view/list/checks/run logs, `gh api` GET, `gh api
+#               graphql` queries) and creating content (issues, PRs,
+#               comments, releases, gists). Blocked: deleting or editing
+#               posts, close/merge/lock/ready and other state changes,
+#               approving/requesting changes on reviews, repo and admin
+#               mutations, and every raw `gh api` mutation. There is no flag
+#               to re-enable them.
+#   blocked     (--no-git) every gh command is refused entirely.
+#
+# The verb denylist below is best-effort coverage of gh's command surface, not
+# a security boundary; the raw `gh api` rules keep the two from drifting
+# apart by refusing the escape hatch (mutations, and any body whose payload
+# is not inspectable in argv) wholesale. gh's own alias expansion is handled
+# too: it runs after this wrapper's argv scan, so the config directory is
+# pinned rather than left to $GH_CONFIG_DIR / $XDG_CONFIG_HOME.
+set -o errexit
+set -o nounset
+
+# Policy comes from $PI_GIT_GUARD, set by bwrap-pi.sh: restricted by default,
+# blocked under --no-git. Inside the sandbox the agent can flip it, but that
+# only tightens what this wrapper does: --no-git's enforcement is that no
+# GitHub credential is bound into the sandbox at all, so a downgraded wrapper
+# has nothing to authenticate with.
+POLICY="${PI_GIT_GUARD:-restricted}"
+SELF="$(readlink -f "$0")"
+
+# Resolve the real gh: first executable `gh` on PATH outside this directory.
+REAL=""
+IFS=':' read -r -a _path_dirs <<< "${PATH:-}"
+for _d in "${_path_dirs[@]}"; do
+  [ -n "$_d" ] || continue
+  for _c in "$_d/gh" "$_d/gh.exe"; do
+    if [ -x "$_c" ] && [ ! -d "$_c" ] && [ "$(readlink -f "$_c")" != "$SELF" ]; then
+      REAL="$_c"
+      break 2
+    fi
+  done
+done
+if [ -z "$REAL" ]; then
+  echo "pi gh guard: cannot find the real gh binary on PATH" >&2
+  exit 127
+fi
+
+# gh expands aliases internally, after this wrapper's verb scan, and takes its
+# config directory from $GH_CONFIG_DIR / $XDG_CONFIG_HOME. A writable config
+# dir (the agent's own, holding `evil = api -X DELETE ...` or a `!shell`
+# alias) would therefore bypass the denylist wholesale, so pin gh to the
+# session's config location: ~/.config/gh, which bwrap-pi.sh binds read-only
+# in the default mode and does not bind at all under --no-git.
+unset GH_CONFIG_DIR XDG_CONFIG_HOME
+
+block() {
+  echo "gh: '$1' blocked by the pi non-destructive GitHub policy." >&2
+  echo "Allowed: reads and creating issues, PRs, comments and releases. Blocked:" >&2
+  echo "deleting or editing posts, close/merge/lock and other state changes, repo" >&2
+  echo "and admin mutations, and raw \`gh api\` mutations. No flag re-enables this" >&2
+  echo "- do it from your own shell." >&2
+  exit 1
+}
+
+if [ "$POLICY" = "blocked" ]; then
+  echo "gh is disabled in this session (--no-git): all GitHub access is blocked." >&2
+  echo "Relaunch without --no-git to use gh under the non-destructive policy." >&2
+  exit 1
+fi
+
+# Verbs that mutate or destroy, whatever their command group.
+DENY_VERBS="delete edit update archive unarchive rename transfer merge close reopen lock unlock pin unpin disable enable cancel ready update-branch revert set unset add upgrade rerun run start stop"
+
+# Collect the leading <group> <verb> pair, skipping global flags that take a
+# value.
+GROUP=""
+VERB=""
+EXPECT_VALUE=false
+for arg in "$@"; do
+  if [ "$EXPECT_VALUE" = true ]; then
+    EXPECT_VALUE=false
+    continue
+  fi
+  case "$arg" in
+    -R | --repo | --hostname)
+      EXPECT_VALUE=true
+      ;;
+    -*)
+      ;;
+    *)
+      if [ -z "$GROUP" ]; then
+        GROUP="$arg"
+      elif [ -z "$VERB" ]; then
+        VERB="$arg"
+      fi
+      ;;
+  esac
+done
+
+# `gh api` is the raw escape hatch: allow reads only. Rules, in order:
+#   - a method, if given, must be GET;
+#   - --input (body from a file) is refused wholesale: its payload cannot be
+#     inspected in argv, for graphql and REST alike;
+#   - without a method, any field flag implies POST and is refused;
+#   - graphql queries stay usable: only their field values are scanned for the
+#     `mutation` keyword (so a query for a field literally named e.g.
+#     `mutationCount` elsewhere in argv does not trip the scan), and
+#     file-backed field values (-F key=@file) are refused like --input.
+if [ "$GROUP" = "api" ]; then
+  METHOD_GIVEN=false
+  IMPLICIT_POST=false
+  EXPECT_VALUE=false   # -X / --method takes a value
+  EXPECT_FIELD=false   # -f / --field / --raw-field / -F takes a value
+  API_FIELD_VALUES=()
+  for arg in "$@"; do
+    if [ "$EXPECT_VALUE" = true ]; then
+      METHOD_GIVEN=true
+      case "$arg" in
+        [Gg][Ee][Tt]) ;;
+        *) block "gh api -X $arg (mutations must go through non-destructive gh commands)" ;;
+      esac
+      EXPECT_VALUE=false
+      continue
+    fi
+    if [ "$EXPECT_FIELD" = true ]; then
+      IMPLICIT_POST=true
+      API_FIELD_VALUES+=("$arg")
+      EXPECT_FIELD=false
+      continue
+    fi
+    case "$arg" in
+      -X | --method)
+        EXPECT_VALUE=true
+        ;;
+      --method=* | -X?*)
+        METHOD_GIVEN=true
+        method="${arg#*X}"; method="${method#--method=}"; method="${method#-}"
+        case "$method" in
+          [Gg][Ee][Tt]) ;;
+          *) block "gh api $arg (mutations must go through non-destructive gh commands)" ;;
+        esac
+        ;;
+      --input | --input=*)
+        block "gh api $arg (file-backed body: use gh issue/pr comment to post)"
+        ;;
+      -f | --field | --raw-field | -F)
+        IMPLICIT_POST=true
+        EXPECT_FIELD=true
+        ;;
+      -f?* | -F?* | --field=* | --raw-field=*)
+        IMPLICIT_POST=true
+        v="${arg#-f}"; v="${v#-F}"; v="${v#--field=}"; v="${v#--raw-field=}"
+        API_FIELD_VALUES+=("$v")
+        ;;
+    esac
+  done
+  case "$(printf '%s' "${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
+    graphql)
+      for v in ${API_FIELD_VALUES[@]+"${API_FIELD_VALUES[@]}"}; do
+        # -F key=@file reads the value from a file: uninspectable, refuse.
+        case "$v" in
+          *=@*) block "gh api graphql $v (file-backed field payloads cannot be inspected)" ;;
+        esac
+        if printf '%s' "$v" | grep -qiE '(^|[^a-zA-Z])mutation([^a-zA-Z]|$)'; then
+          block "gh api graphql mutation (use gh issue/pr comment to post)"
+        fi
+      done
+      exec "$REAL" "$@"
+      ;;
+  esac
+  if [ "$METHOD_GIVEN" = false ] && [ "$IMPLICIT_POST" = true ]; then
+    block "gh api with a field flag (implicit POST); use gh issue/pr comment to post"
+  fi
+  exec "$REAL" "$@"
+fi
+
+# `gh auth git-credential` is the git credential helper (needed for git push
+# over https); `gh auth status` is a read. The rest of `gh auth` mutates
+# authentication state (and `gh auth token` leaks the credential).
+if [ "$GROUP" = "auth" ]; then
+  case "$(printf '%s' "${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
+    login | logout | refresh | switch | setup-git | token) block "gh auth ${VERB}" ;;
+  esac
+fi
+
+# Per-command extras the generic verb list cannot see.
+case "$(printf '%s' "${GROUP:-} ${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
+  "issue comment" | "pr comment" | "discussion comment")
+    for arg in "$@"; do
+      case "$arg" in
+        --edit-last | --delete-last | --create-if-none) block "gh ${GROUP} comment $arg" ;;
+      esac
+    done
+    ;;
+  "release upload")
+    for arg in "$@"; do
+      case "$arg" in
+        --clobber) block "gh release upload --clobber (overwrites an existing asset)" ;;
+      esac
+    done
+    ;;
+  "pr review")
+    # flags only: the verb `review` without any of these submits an ordinary
+    # comment, which is allowed content creation.
+    for arg in "$@"; do
+      case "$arg" in
+        --approve | --request-changes | -a | -r) block "gh pr review $arg (state-changing review)" ;;
+      esac
+    done
+    ;;
+  "project "*)
+    # `gh project` mutations never use a bare denied verb (`item-edit`,
+    # `field-create`, `copy`, ...), so allow the read verbs only.
+    case "$(printf '%s' "${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
+      "" | list | view | field-list | item-list | link-list) ;;
+      *) block "gh project ${VERB}" ;;
+    esac
+    ;;
+esac
+
+case " $DENY_VERBS " in
+  *" ${VERB:-} "*) block "gh ${GROUP} ${VERB}" ;;
+esac
+case "${VERB:-}" in
+  set-* | delete-*) block "gh ${GROUP} ${VERB}" ;;
+esac
+
+exec "$REAL" "$@"

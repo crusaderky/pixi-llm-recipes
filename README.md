@@ -232,10 +232,10 @@ access to /home beyond the workspace directory you point it at.
 This is the recommended way to run it (Linux only).
 
 ```bash
-pixi r install                        # One-off
+pixi r install                        # One-off (also sets up limited GitHub access)
 cd /path/to/workspace && pi           # Sandboxed
 pi --bind /data                       # Bind extra directories into the sandbox
-pi --with-git                         # Enable `git push`, `git` pull/fetch from private repos, and `gh`
+pi --no-git                           # No GitHub credentials (untrusted prompts)
 ```
 
 If you need full host access for development or debugging, or if you are on Windows,
@@ -291,20 +291,58 @@ pixi r git status
 pixi r gh pr list
 ```
 
-### git push and gh inside the agent sandbox
+### git and gh inside the agent sandbox
 
-By default the `pixi r pi` sandbox blocks `git push` on public
-accounts, all remote git commands on private accounts, and the `gh` CLI (to read/run CI,
-open and interact on PRs, etc). Pass `--with-git` to allow the agent to act as you on
-your GitHub account.
+`pixi r install` sets GitHub up access with `gh auth login`, the `gh` https credential
+helper, and your `git` identity.
+
+By default the agent can act as you on GitHub under a **non-destructive policy**.
+Authentication is https + the gh token only: no ssh keys and no ssh-agent socket are
+visible inside the sandbox (they are unscopeable full-write credentials). `~/.config/gh`
+is bound read-only.
+
+- **Allowed**: `git` fetch/pull and fast-forward pushes, creating branches, all `gh`
+  reads (CI logs, PRs, issues, releases), and creating issues, PRs, comments and
+  releases.
+- **Blocked**: force-push, deleting remote branches and tags, deleting or editing posts,
+  `close`/`merge`/`lock` and other state changes, repo and admin mutations, and raw `gh
+  api` mutations.
+
+#### IMPORTANT WARNING
+
+This policy is a safety layer, not a security one. It is designed to prevent a genuinely
+incompetent agent from doing irreverisble damage. It will not stop a malicious agent
+from completely wiping out your remote GitHub account or stealing data from private
+remote repositories.**
+
+To reduce the blast radius, you may manually
+
+- authenticatie `gh` with a fine-grained PAT scoped to the repos the agent may touch
+  (contents/issues/PRs read-write, nothing else);
+- put force-push prevention server-side: a separate bot identity plus repo rulesets that
+  deny it, with your own account in the bypass list so your own unsandboxed shell stays
+  unrestricted.
+
+You can start pi with the `--no-git` flag for untrusted prompts that are secure against
+a malicious actor (at least as far as GitHub credential are involved). Note that this
+has undesirable side effects, like being unable to read posts and Actions logs on a
+public repository.
 
 ```bash
-pi --with-git
+pi --no-git
 ```
 
-To verify everything is wired up correctly before starting real work, run:
+Note that nothing, in any case, stops the agent from accidentally corrupting the local
+`.git` directory. **Always sync to a remote repository** to be able to recover from
+disasters.
 
-- `pi --with-git "run the test-git-auth skill"`
+`pixi r pi-unsafe` and `pi --no-sandbox` apply no policy at all; any `git` and `gh`
+command you can execute from your terminal, the agent can too.
+
+To verify everything is wired up before starting real work, run (leaves zero remote
+clutter — the push check is a `git push --dry-run`):
+
+- `pi "run the test-git-auth skill"`
 
 ## Benchmarking
 

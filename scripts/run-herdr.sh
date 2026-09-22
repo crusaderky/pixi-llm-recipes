@@ -5,7 +5,7 @@
 # `$CONDA_PREFIX/bin` to PATH. That dir contains the raw `pi` binary
 # (from pi-coding-agent), which then shadows the `~/.local/bin/pi` wrapper installed by
 # `pixi r install`. Children spawned inside herdr inherit this PATH, so `pi`
-# inside a herdr pane would skip the bubblewrap sandbox and the `--with-git` /
+# inside a herdr pane would skip the bubblewrap sandbox and the `--no-git` /
 # `--bind` / `--no-sandbox` argument handling that lives in
 # that wrapper.
 #

@@ -1,0 +1,250 @@
+#!/bin/bash
+# `git` policy wrapper for pi sandbox sessions — non-destructive GitHub policy.
+#
+# Placed in front of the real git by bwrap-pi.sh via a PATH prepend. Two
+# policies, selected by $PI_GIT_GUARD (default: restricted):
+#
+#   restricted  git works, but GitHub-side destruction is blocked: force-push,
+#               remote ref/branch deletion, and every config route that would
+#               neutralize the pre-push policy hook (`core.hooksPath`, aliases
+#               — including their case-variant spellings, since git matches
+#               config keys case-insensitively). There is no flag that
+#               re-enables any of it.
+#   blocked     (--no-git) git's network subcommands are refused entirely.
+#
+# This is a policy guard, not a security boundary. Hardened here:
+#   - core.hooksPath is re-injected on every invocation, so `env -u
+#     GIT_CONFIG_COUNT` / a rewritten GIT_CONFIG_* environment cannot drop the
+#     pre-push hook while this wrapper is the one being invoked;
+#   - that hook fails closed when the remote tip is not present locally, so a
+#     force spelled through `remote.<name>.push` (invisible to the argv scan
+#     below) cannot pass it either;
+#   - `git send-pack` is blocked, and the dashed `git-send-pack` found on PATH
+#     is refused by the stub next to this script. Its absolute path under
+#     `git --exec-path` is not covered.
+# Residual holes, none of them reachable without a deliberate step outside the
+# PATH: the real git by absolute path (where `-c core.hooksPath=` disables the
+# hook and `--force` never reaches this wrapper); the gh token readable in
+# ~/.config/gh (raw HTTP with it does anything the token can); and any non-git
+# client (curl, dulwich, compiled libgit2) using that token. See README.md,
+# "guard layer, not a security boundary".
+set -o errexit
+set -o nounset
+
+# Policy comes from $PI_GIT_GUARD, set by bwrap-pi.sh: restricted by default,
+# blocked under --no-git. Inside the sandbox the agent can flip it, but that
+# only tightens what this wrapper does: --no-git's enforcement is that no
+# GitHub credential is bound into the sandbox at all, so a downgraded wrapper
+# has nothing to authenticate with.
+POLICY="${PI_GIT_GUARD:-restricted}"
+SELF="$(readlink -f "$0")"
+SELF_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+
+# Re-inject the session's policy hooksPath on every invocation. The injected
+# GIT_CONFIG_* environment is what backstops invocations that bypass this
+# wrapper entirely, and a caller can otherwise drop or rewrite it. `-c
+# core.hooksPath=...` still outranks it — the argv scan below blocks that key,
+# and absolute-path git is a documented residual.
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0=core.hooksPath
+export GIT_CONFIG_VALUE_0="$SELF_DIR/hooks"
+
+# Resolve the real git: first executable `git` on PATH outside this directory.
+REAL=""
+IFS=':' read -r -a _path_dirs <<< "${PATH:-}"
+for _d in "${_path_dirs[@]}"; do
+  [ -n "$_d" ] || continue
+  for _c in "$_d/git" "$_d/git.exe"; do
+    if [ -x "$_c" ] && [ ! -d "$_c" ] && [ "$(readlink -f "$_c")" != "$SELF" ]; then
+      REAL="$_c"
+      break 2
+    fi
+  done
+done
+if [ -z "$REAL" ]; then
+  echo "pi git guard: cannot find the real git binary on PATH" >&2
+  exit 127
+fi
+
+block() {
+  echo "git: '$1' blocked by the pi non-destructive GitHub policy." >&2
+  echo "Allowed: normal git work and fast-forward pushes. Blocked: force-push," >&2
+  echo "deleting remote branches/refs, and plumbing routes around the policy" >&2
+  echo "hooks. No flag re-enables this - do it from your own shell." >&2
+  exit 1
+}
+
+# A config key that would neutralize the policy (git matches keys
+# case-insensitively, so match the lowercased spelling). `core.hooksPath`
+# re-points git away from the policy hook farm (a `-c` value beats the
+# session-injected hooksPath); `alias.*` can hide a `push --force --no-verify`
+# from the subcommand scan below. Keys without `=` (bool keys) included.
+check_config_key() {
+  local key="${1%%=*}"
+  case "$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')" in
+    alias.* | core.hookspath)
+      block "'$1' (aliases and core.hooksPath are the policy hook's weak points)"
+      ;;
+  esac
+}
+
+# Locate the subcommand (first bare token after git's own global options),
+# checking every inline config value on the way. Everything before the
+# subcommand is PREFIX_ARGS, everything after REST_ARGS: alias expansion below
+# needs to reassemble the command line.
+SUB=""
+VERB=""
+PREFIX_ARGS=()
+REST_ARGS=()
+EXPECT_VALUE=false
+for arg in "$@"; do
+  if [ "$EXPECT_VALUE" = true ]; then
+    check_config_key "$arg"
+    if [ -z "$SUB" ]; then PREFIX_ARGS+=("$arg"); fi
+    EXPECT_VALUE=false
+    continue
+  fi
+  case "$arg" in
+    -c | --config-env | -C | --git-dir | --work-tree | --namespace | --exec-path | --attr-source)
+      EXPECT_VALUE=true
+      if [ -z "$SUB" ]; then PREFIX_ARGS+=("$arg"); fi
+      ;;
+    -c*)
+      check_config_key "${arg#-c}"
+      if [ -z "$SUB" ]; then PREFIX_ARGS+=("$arg"); fi
+      ;;
+    --config-env=*)
+      check_config_key "${arg#--config-env=}"
+      if [ -z "$SUB" ]; then PREFIX_ARGS+=("$arg"); fi
+      ;;
+    -*)
+      if [ -z "$SUB" ]; then PREFIX_ARGS+=("$arg"); fi
+      ;;
+    *)
+      if [ -z "$SUB" ]; then
+        SUB="$arg"
+      else
+        [ -z "$VERB" ] && VERB="$arg"
+        REST_ARGS+=("$arg")
+      fi
+      ;;
+  esac
+done
+
+# Alias expansion: aliases hide their payload from the subcommand scans
+# below (`git fp` where fp = `push --force --no-verify`, however the alias
+# reached the config — inline `-c` is already blocked above, but the
+# workspace's .git/config is writable with plain bash). Internal aliases are
+# expanded here and re-scanned, so they cannot smuggle anything past the
+# scans; external `!...` aliases run through the shell, where `git` on PATH
+# re-enters this guard. Deviation from git: an alias shadowing a builtin name
+# is expanded where git would run the builtin — safe direction (more
+# scanning, never less).
+if [ -n "$SUB" ]; then
+  ALIAS="$($REAL config --get "alias.$SUB" 2>/dev/null || true)"
+  if [ -n "$ALIAS" ]; then
+    if [ "${_PI_ALIAS_DEPTH:-0}" -ge 5 ]; then
+      block "alias chain deeper than 5 (possible alias loop)"
+    fi
+    case "$ALIAS" in
+      \!*)
+        # external alias: git would run it through the shell with its own
+        # exec-path prepended to PATH, which shadows this guard with the real
+        # git. Run it here instead: same shell semantics, but the PATH keeps
+        # the guard in front, so the `git` the payload calls is guarded. Depth
+        # is reset: the payload's git calls are fresh commands, not alias
+        # chain steps.
+        payload="${ALIAS#!}"
+        [ -n "$(printf '%s' "$payload" | tr -d '[:space:]')" ] \
+          || block "empty external alias '$SUB'"
+        export _PI_ALIAS_DEPTH=0
+        exec /bin/sh -c "$payload \"\$@\"" "$ALIAS" "${REST_ARGS[@]}"
+        ;;
+    esac
+    read -r -a ALIAS_WORDS <<< "$ALIAS"
+    if [ "${#ALIAS_WORDS[@]}" -gt 0 ]; then
+      export _PI_ALIAS_DEPTH=$((${_PI_ALIAS_DEPTH:-0} + 1))
+      exec "$SELF" "${PREFIX_ARGS[@]}" "${ALIAS_WORDS[@]}" "${REST_ARGS[@]}"
+    fi
+  fi
+fi
+
+if [ "$POLICY" = "blocked" ]; then
+  # Every network-facing subcommand, including the read fetches that do not go
+  # through fetch/pull (remote update/prune, submodule --remote, archive
+  # --remote) and the plumbing transports. Read-only ones are stopped for
+  # consistency with --no-git's "no GitHub access at all" contract; the
+  # GIT_ALLOW_PROTOCOL=file transport allowlist is the layer that actually
+  # holds (it applies however git is invoked).
+  case "$SUB" in
+    clone | fetch | pull | push | ls-remote | request-pull | send-email | credential | fetch-pack | send-pack | upload-pack | upload-archive)
+      block "$SUB (all git network access is disabled in this session: --no-git)"
+      ;;
+  esac
+  case "$SUB $VERB" in
+    "remote update" | "remote prune")
+      block "$SUB $VERB (network fetch: disabled in this session: --no-git)"
+      ;;
+  esac
+  if [ "$SUB" = "submodule" ] && [ "$VERB" = "update" ]; then
+    for arg in "$@"; do
+      case "$arg" in
+        --remote | --remote=*) block "submodule update --remote (network fetch: --no-git)" ;;
+      esac
+    done
+  fi
+  if [ "$SUB" = "archive" ]; then
+    for arg in "$@"; do
+      case "$arg" in
+        --remote | --remote=*) block "archive --remote (network read: --no-git)" ;;
+      esac
+    done
+  fi
+  exec "$REAL" "$@"
+fi
+
+# restricted -----------------------------------------------------------------
+
+# `send-pack` is the plumbing behind push: it force-updates remote refs and
+# runs no hooks, so it would skip both policy layers.
+case "$SUB" in
+  send-pack) block "send-pack (plumbing push: no policy hook runs for it)" ;;
+esac
+
+# Persistent alias writes via the `config` subcommand (the workspace's
+# .git/config is writable inside the sandbox). Belt-and-suspenders: alias
+# expansion below already re-scans whatever an alias does. Reads are blocked
+# too — over-blocking a read is safe, and `core.hooksPath` is deliberately NOT
+# blocked here: a repo-config value loses to the session-injected hook path
+# (only the command-line channels above can beat it), and tools like pre-commit
+# legitimately query the key.
+if [ "$SUB" = "config" ]; then
+  for arg in "$@"; do
+    case "$(printf '%s' "$arg" | tr '[:upper:]' '[:lower:]')" in
+      alias.*)
+        block "git config $arg (aliases are re-scanned on expansion anyway, but not created here)"
+        ;;
+    esac
+  done
+fi
+
+# Push flags. Beyond the long spellings: any short-option cluster containing
+# `f` (`git push -uf` = `-u -f`), refspecs that force (`+src:dst`) or delete
+# (`:dst`, `src:`), and `--no-verify` (it skips the pre-push policy hook).
+# Clusters with an `f` that is not force do not exist on push; `-o<value>`
+# push options may be over-blocked, which is the safe direction.
+if [ "$SUB" = "push" ]; then
+  for arg in "$@"; do
+    case "$arg" in
+      --force | --force=* | --force-with-lease | --force-with-lease=* | \
+        --force-if-includes | --force-if-includes=* | \
+        --delete | --delete=* | --mirror | --prune | --prune-tags | \
+        --no-verify | -f | -f?* | -[!-]*f* | \
+        +* | :* | *:)
+        block "push $arg"
+        ;;
+    esac
+  done
+fi
+
+exec "$REAL" "$@"

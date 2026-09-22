@@ -62,6 +62,11 @@ jobs:
 
       - name: Global install
         if: matrix.os != 'windows-latest'
+        env:
+          # CI cannot open a browser for gh's device flow, so install-git.sh
+          # skips the interactive `gh auth login` there; this token answers its
+          # API calls (`gh auth setup-git`, git identity) instead.
+          GH_TOKEN: ${{ github.token }}
         run: pixi r install
 
       - name: pi Hello world
@@ -82,7 +87,16 @@ jobs:
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         run: |
+          rm -f out.txt
           pi --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
+          grep hello123 out.txt
+
+      - name: pi --no-git
+        if: matrix.os != 'windows-latest'
+        working-directory: ../dummy
+        run: |
+          rm -f out.txt
+          pi --model LFM2.5-230M --no-git -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: pi --no-sandbox Hello world (global start script)
@@ -93,6 +107,7 @@ jobs:
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         run: |
+          rm -f out.txt
           pi --no-sandbox --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
