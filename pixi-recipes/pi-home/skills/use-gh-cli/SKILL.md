@@ -1,6 +1,6 @@
 ---
 name: use-gh-cli
-description: Use `gh` CLI for GitHub operations (CI logs, PRs, issues, releases) instead of HTTP web fetch. GitHub API requires authentication; `web_fetch` returns limited/empty data. The `gh` CLI is pre-authenticated and available in the sandbox.
+description: Use `gh` CLI for GitHub operations (CI logs, PRs, issues, releases) instead of HTTP web fetch. GitHub API requires authentication; `web_fetch` returns limited/empty data. The `gh` CLI is authenticated and available in agent sessions under a non-destructive policy.
 ---
 
 # Use gh CLI for GitHub
@@ -13,8 +13,23 @@ issue details and release assets all fail that way. Use `gh` instead; never fall
 **Before any `gh` command, run `gh auth status`.** If it fails, stop immediately — no
 workarounds — and tell the user:
 
-> `gh` is not authenticated. Restart with `--with-git` to bind GitHub credentials into
-> the sandbox: `pi --with-git` (or `pixi run pi <workspace> -- --with-git`).
+> `gh` is not authenticated. Either this session was started with `--no-git` (relaunch
+> without it), or the one-off GitHub setup has never run: execute `pixi r install` (or
+> `pixi r install-git`) on the host and restart the session.
+
+## Non-destructive policy
+
+`gh` runs under a guard that allows reads and _creating_ content, and blocks GitHub-side
+destruction — with no flag to re-enable it:
+
+- **Allowed**: `gh */view`, `list`, `checks`, `run` logs, `gh api` GET and `gh api graphql`
+  queries, and creating issues, PRs, comments and releases.
+- **Blocked**: deleting or editing posts (including `comment --edit-last/--delete-last`),
+  `close`/`reopen`/`lock`/`merge`/`ready`, repo and admin mutations (secrets, variables,
+  deploy keys, settings), `gh auth` state changes, and every raw `gh api` mutation.
+
+If a command is blocked, do not route around it (no `gh api` tricks, no scripts): report
+the block and suggest the user run that one operation from their own shell.
 
 ## CI logs
 

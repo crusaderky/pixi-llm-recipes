@@ -232,10 +232,10 @@ access to /home beyond the workspace directory you point it at.
 This is the recommended way to run it (Linux only).
 
 ```bash
-pixi r install                        # One-off
+pixi r install                        # One-off (also sets up GitHub access)
 cd /path/to/workspace && pi           # Sandboxed
 pi --bind /data                       # Bind extra directories into the sandbox
-pi --with-git                         # Enable `git push`, `git` pull/fetch from private repos, and `gh`
+pi --no-git                           # Block all GitHub access (untrusted prompts)
 ```
 
 If you need full host access for development or debugging, or if you are on Windows,
@@ -291,20 +291,39 @@ pixi r git status
 pixi r gh pr list
 ```
 
-### git push and gh inside the agent sandbox
+### git and gh inside the agent sandbox
 
-By default the `pixi r pi` sandbox blocks `git push` on public
-accounts, all remote git commands on private accounts, and the `gh` CLI (to read/run CI,
-open and interact on PRs, etc). Pass `--with-git` to allow the agent to act as you on
-your GitHub account.
+`pixi r install` sets GitHub up once: `gh auth login` the first time only (reruns never
+create a second token — a stored-but-broken token is refreshed instead), the `gh`
+https credential helper, and your `git` identity.
+
+By default the agent can act as you on GitHub under a **non-destructive policy**:
+
+- **Allowed**: `git` fetch/pull and fast-forward pushes, creating branches, all `gh`
+  reads (CI logs, PRs, issues, releases), and creating issues, PRs, comments and
+  releases.
+- **Blocked** (no flag re-enables any of it): force-push, deleting remote branches and
+  tags, deleting or editing posts, `close`/`merge`/`lock` and other state changes, repo
+  and admin mutations, and raw `gh api` mutations. Run such operations from your own
+  shell.
+
+Pass `--no-git` to block GitHub access entirely (credentials are not bound, `gh` is
+disabled, git's network transport is switched off, and ssh-agent sockets are hidden)
+— the right default for untrusted prompts. Enforcement is mount-based: a marker file
+bind-mounted at `/etc/pi-git-policy` over the read-only root, so flipping the
+`PI_GIT_GUARD` env var inside the sandbox cannot downgrade the mode:
 
 ```bash
-pi --with-git
+pi --no-git
 ```
 
-To verify everything is wired up correctly before starting real work, run:
+The policy is a guard layer (PATH wrappers and a `pre-push` hook, all in
+`scripts/git-guards/` and bound read-only into the sandbox), not a security boundary.
 
-- `pi --with-git "run the test-git-auth skill"`
+To verify everything is wired up before starting real work, run (leaves zero remote
+clutter — the push check is a `git push --dry-run`):
+
+- `pi "run the test-git-auth skill"`
 
 ## Benchmarking
 

@@ -1,0 +1,59 @@
+#!/bin/sh
+# git hook dispatcher for the pi non-destructive GitHub policy.
+#
+# Committed under scripts/git-guards/hooks/ under every standard git hook name
+# (a symlink farm, all pointing at this script). The pi launchers inject
+# core.hooksPath at that directory via GIT_CONFIG_COUNT, so the policy applies to
+# every repository inside agent sessions without touching the host's git config.
+#
+# - `pre-push` enforces the policy: no remote ref deletion, no non-fast-forward
+#   update (force-push). This is the backstop behind scripts/git-guards/git and
+#   fires even when git is invoked by absolute path.
+# - every other hook name, and pre-push after a policy pass, delegates to the
+#   repository's own hook of the same name, which the injected core.hooksPath
+#   would otherwise shadow (e.g. lefthook's pre-commit).
+set -e
+
+HOOK="$(basename "$0")"
+
+# All-zero (or empty) object id: the zero sha of both sha1 and sha256 repos.
+is_zeros() {
+  case "$1" in
+    "" | *[!0]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+if [ "$HOOK" = "pre-push" ]; then
+  STATUS=0
+  while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
+    if is_zeros "$LOCAL_SHA"; then
+      echo "pi git policy: deleting remote ref '$REMOTE_REF' is blocked (removing branches included)." >&2
+      STATUS=1
+    elif ! is_zeros "$REMOTE_SHA"; then
+      if git cat-file -e "$REMOTE_SHA" 2>/dev/null < /dev/null; then
+        if ! git merge-base --is-ancestor "$REMOTE_SHA" "$LOCAL_SHA" 2>/dev/null < /dev/null; then
+          echo "pi git policy: non-fast-forward update of '$REMOTE_REF' is blocked (force-push)." >&2
+          STATUS=1
+        fi
+      fi
+    fi
+  done
+  [ "$STATUS" = 0 ] || exit 1
+fi
+
+GD="$(git rev-parse --git-common-dir 2>/dev/null)" || exit 0
+case "$GD" in
+  "" | .) GD="$PWD/.git" ;;
+  /*) ;;
+  *) GD="$PWD/$GD" ;;
+esac
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+case "$GD/hooks/$HOOK" in
+  "$SELF_DIR"/*) exit 0 ;; # our own directory: nothing to delegate to
+esac
+TARGET="$GD/hooks/$HOOK"
+if [ -x "$TARGET" ]; then
+  exec "$TARGET" "$@"
+fi
+exit 0

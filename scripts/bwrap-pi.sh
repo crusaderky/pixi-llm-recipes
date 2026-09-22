@@ -7,7 +7,11 @@
 # (/dev/nvidia* are dev-bound through the fresh --dev /dev), so CUDA builds
 # and llama.cpp GPU runs work from inside the sandbox.
 #
-# Usage: bwrap-pi.sh <dir|-> [--with-git] [--bind <dir>] ... [-- pi-args...]
+# Usage: bwrap-pi.sh <dir|-> [--no-git] [--bind <dir>] ... [-- pi-args...]
+#   Git/GitHub access is ON by default under a non-destructive policy: fast-forward
+#   pushes, fetch/pull and gh reads/creation work; force-push, remote branch/ref
+#   deletion and deleting/modifying GitHub posts are blocked.
+#   --no-git blocks GitHub access entirely.
 #   Forwarded args are read from _FWD_ARGS env var (base64-encoded, null-separated,
 #   set by the scripts/pi wrapper) or, as a fallback, from positional args $2 onward
 #   (for direct `pixi r pi -- <args>` invocations).
@@ -38,9 +42,9 @@ elif [ $# -ge 2 ]; then
   FWD_ARGS=("${@:2}")
 fi
 
-# Parse --bind <dir> pairs and --with-git flags from forwarded args
+# Parse --bind <dir> pairs and --no-git flags from forwarded args
 EXTRA_BINDS=""
-WITH_GIT=false
+NO_GIT=false
 PI_ARGS=()
 i=0
 while [ $i -lt ${#FWD_ARGS[@]} ]; do
@@ -50,8 +54,8 @@ while [ $i -lt ${#FWD_ARGS[@]} ]; do
     ABS_BIND="$(realpath "$bind_dir")"
     EXTRA_BINDS="$EXTRA_BINDS --bind $ABS_BIND $ABS_BIND"
     i=$((i + 2))
-  elif [ "$arg" = "--with-git" ]; then
-    WITH_GIT=true
+  elif [ "$arg" = "--no-git" ]; then
+    NO_GIT=true
     i=$((i + 1))
   else
     PI_ARGS+=("$arg")
@@ -59,12 +63,13 @@ while [ $i -lt ${#FWD_ARGS[@]} ]; do
   fi
 done
 
-# --with-git: bind SSH keys, git config, and gh CLI auth into the sandbox (read-only,
-# except ~/.config/gh which gh may write token refreshes to).
+# Git/GitHub credentials: bound by default (the non-destructive policy below is
+# what keeps the access safe). Read-only, except ~/.config/gh which gh may write
+# token refreshes to. --no-git drops all of it.
 # The SSH agent socket (SSH_AUTH_SOCK) is accessible via the root bind as long as it
 # lives under /run/ (typical for gnome-keyring/systemd). If it's under /tmp, bind it too.
 GIT_BINDS=""
-if [ "$WITH_GIT" = true ]; then
+if [ "$NO_GIT" = false ]; then
   for p in "$HOME/.ssh" "$HOME/.config/git" "$HOME/.git-credentials"; do
     [ -e "$p" ] && GIT_BINDS="$GIT_BINDS --ro-bind $p $p"
   done
@@ -73,6 +78,49 @@ if [ "$WITH_GIT" = true ]; then
   if [ -n "${SSH_AUTH_SOCK:-}" ] && [[ "$SSH_AUTH_SOCK" == /tmp/* ]]; then
     GIT_BINDS="$GIT_BINDS --ro-bind $SSH_AUTH_SOCK $SSH_AUTH_SOCK"
   fi
+fi
+
+# GitHub policy layer (scripts/git-guards: the git/gh PATH wrappers plus the
+# hooks/ symlink farm over hook-dispatch). Present in every mode; there is no
+# flag that re-enables destructive activity.
+#   default:   non-destructive policy — git/gh work, but force-push, remote
+#              ref/branch deletion and deleting/modifying GitHub posts are
+#              blocked (guard wrappers on PATH + the pre-push policy hook).
+#   --no-git:  all GitHub access blocked — guard stubs, no credentials bound
+#              (above), no git network transport, gh pointed at an empty config,
+#              ssh-agent sockets hidden, and an unforgeable marker
+#              (/etc/pi-git-policy) that keeps the wrappers blocked even if the
+#              agent flips $PI_GIT_GUARD.
+# $GUARD_BIN is bound read-only at the bottom of the bwrap invocation — after
+# the workdir bind, so it stays read-only even when the workspace is this repo.
+GUARD_BIN="$(cd "$(dirname "$0")/git-guards" && pwd)"
+HOOKS_DIR="$GUARD_BIN/hooks"
+POLICY_ARGS="--setenv PATH $GUARD_BIN:$PATH"
+if [ "$NO_GIT" = true ]; then
+  POLICY_ARGS="$POLICY_ARGS --setenv PI_GIT_GUARD blocked"
+  POLICY_ARGS="$POLICY_ARGS --setenv GIT_ALLOW_PROTOCOL file"
+  POLICY_ARGS="$POLICY_ARGS --setenv GIT_TERMINAL_PROMPT 0"
+  POLICY_ARGS="$POLICY_ARGS --setenv GH_CONFIG_DIR /tmp/pi-gh-empty"
+  POLICY_ARGS="$POLICY_ARGS --unsetenv SSH_AUTH_SOCK --unsetenv GH_TOKEN --unsetenv GITHUB_TOKEN"
+  # Enforcement is mount-based, not env-based: the marker wins over $PI_GIT_GUARD,
+  # so flipping the variable inside the sandbox cannot downgrade the policy.
+  POLICY_ARGS="$POLICY_ARGS --ro-bind $GUARD_BIN/marker-blocked /etc/pi-git-policy"
+  # Unsetting SSH_AUTH_SOCK is cosmetic: the agent socket lives under /run and is
+  # reachable through the read-only root bind (AF_UNIX connect works on read-only
+  # mounts). Hide the usual socket homes and the socket itself.
+  _RT="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  for _d in "$_RT/keyring" "$_RT/ssh-unix-local" /run/ssh-unix-local; do
+    [ -d "$_d" ] && POLICY_ARGS="$POLICY_ARGS --tmpfs $_d"
+  done
+  [ -n "${SSH_AUTH_SOCK:-}" ] && POLICY_ARGS="$POLICY_ARGS --ro-bind /dev/null $SSH_AUTH_SOCK"
+else
+  POLICY_ARGS="$POLICY_ARGS --setenv PI_GIT_GUARD restricted"
+  # core.hooksPath for this session only (like a -c flag): the host's own git
+  # config is never touched. hook-dispatch carries the pre-push policy and
+  # delegates every other hook name to the repository's own hooks.
+  POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_COUNT 1"
+  POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_KEY_0 core.hooksPath"
+  POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_VALUE_0 $HOOKS_DIR"
 fi
 
 # Expose NVIDIA CUDA devices when the host driver is loaded. --dev /dev
@@ -142,7 +190,9 @@ unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 
 # Note: --ro-bind $_CONDA_PREFIX must be after --bind $1.
 # When setting pixi-llm-recipes as the project root for the bind,
-# re-bind $CONDA_PREFIX as read-only after it's bound as read-write
+# re-bind $CONDA_PREFIX as read-only after it's bound as read-write.
+# Same for $GUARD_BIN: after $ARGS, so the policy files stay read-only even
+# when the workspace is this repo (which would bind them read-write).
 
 bwrap \
   --ro-bind / / \
@@ -169,7 +219,9 @@ bwrap \
   $WORKTREE_BINDS \
   $GIT_BINDS \
   $CUDA_BINDS \
+  $POLICY_ARGS \
   $ARGS \
+  --ro-bind "$GUARD_BIN"                  "$GUARD_BIN" \
   --ro-bind "$_CONDA_PREFIX"              "$_CONDA_PREFIX" \
   --die-with-parent \
   --unshare-all --share-net \

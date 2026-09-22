@@ -1,7 +1,7 @@
 ---
 name: llama-cpp-changelog
 description: Summarize changes between two versions of llama.cpp (any fork). Repo defaults to the active fork pinned in pixi-recipes/llama-cpp-source/recipe.yaml (override with `--repo owner/name`); initial version defaults to that fork's pinned version; final version defaults to the fork's latest stable release. Refs can be overridden with arbitrary git refs. Handles both upstream `bNNNN` and beellama `vX.Y.Z` tags.
-compatibility: Tags/commits print without GitHub auth; the PR section is skipped without a GitHub token (it needs GraphQL).
+compatibility: Tags/commits print without GitHub auth; the PR section is skipped without a GitHub token (it needs GraphQL). A `--no-git` session blocks the script's network git clone fallback — use the default mode.
 allowed-tools: Bash Read
 ---
 

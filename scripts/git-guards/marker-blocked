@@ -1,0 +1,8 @@
+pi git guard policy marker: this session blocks ALL GitHub access (--no-git).
+
+bwrap-pi.sh bind-mounts this file at /etc/pi-git-policy inside --no-git sessions,
+over the read-only root filesystem. The git/gh policy wrappers treat the marker's
+presence as "blocked" and ignore $PI_GIT_GUARD, so an agent that exports
+PI_GIT_GUARD=restricted inside the sandbox cannot downgrade the policy.
+
+Do not delete this file from the repo: without it the marker mount has no source.

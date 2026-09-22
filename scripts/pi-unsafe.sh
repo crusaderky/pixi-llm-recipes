@@ -87,6 +87,40 @@ elif [ $# -ge 2 ]; then
   FWD_ARGS=("${@:2}")
 fi
 
-PI_ARGS=("${FWD_ARGS[@]}")
+# Consume --no-git; every other forwarded arg goes to pi verbatim.
+NO_GIT=false
+PI_ARGS=()
+for arg in "${FWD_ARGS[@]}"; do
+  if [ "$arg" = "--no-git" ]; then
+    NO_GIT=true
+  else
+    PI_ARGS+=("$arg")
+  fi
+done
+
+# GitHub policy layer — same policy as bwrap-pi.sh, best-effort without the
+# sandbox (no read-only mounts exist here to carry the unforgeable marker, so
+# $PI_GIT_GUARD is the enforcement channel and a child that resolves git/gh
+# outside PATH, e.g. cmd.exe on Windows, sidesteps the wrappers):
+# non-destructive by default, everything blocked with --no-git.
+_GUARD="$(cd "$(dirname "$0")/git-guards" && pwd)"
+PATH="$_GUARD:$PATH"
+if [ "$NO_GIT" = true ]; then
+  export PI_GIT_GUARD=blocked
+  export GIT_ALLOW_PROTOCOL=file
+  export GIT_TERMINAL_PROMPT=0
+  export GH_CONFIG_DIR="${TMPDIR:-/tmp}/pi-gh-empty"
+  mkdir -p "$GH_CONFIG_DIR"
+  unset SSH_AUTH_SOCK GH_TOKEN GITHUB_TOKEN
+else
+  export PI_GIT_GUARD=restricted
+  # The hooks/ farm is symlinks; a git-for-windows checkout materialises them as
+  # text stubs, so hook injection is Linux-only (Windows is best-effort anyway).
+  if [[ "$OSTYPE" != msys* && "$OSTYPE" != cygwin* ]] && [ -d "$_GUARD/hooks" ]; then
+    export GIT_CONFIG_COUNT=1
+    export GIT_CONFIG_KEY_0=core.hooksPath
+    export GIT_CONFIG_VALUE_0="$_GUARD/hooks"
+  fi
+fi
 cd "$DIR"
 "$PI_BIN" "${PI_ARGS[@]}"

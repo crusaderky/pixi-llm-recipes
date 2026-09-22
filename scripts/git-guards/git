@@ -1,0 +1,109 @@
+#!/bin/bash
+# `git` policy wrapper for pi sessions — non-destructive GitHub policy.
+#
+# Placed in front of the real git by the pi launchers (bwrap-pi.sh, pi-unsafe.sh)
+# via a PATH prepend. Two policies, selected by $PI_GIT_GUARD (default: restricted):
+#
+#   restricted  git works, but GitHub-side destruction is blocked: force-push,
+#               remote ref/branch deletion, and `--no-verify`/`core.hooksPath`
+#               tricks to escape the pre-push policy hook. There is no flag to
+#               re-enable them.
+#   blocked     (--no-git) every network subcommand is refused entirely.
+#
+# This is a policy guard, not a security boundary: the pre-push hook in
+# scripts/git-guards/hooks catches force-push/deletion even when git is invoked by
+# absolute path, but a deliberately hostile caller can route around both layers.
+set -o errexit
+set -o nounset
+
+# Policy is decided by a marker the sandboxed process cannot forge:
+# /etc/pi-git-policy is bind-mounted by bwrap-pi.sh in --no-git sessions over the
+# read-only root. $PI_GIT_GUARD is honoured only as a fallback where mounts are
+# impossible (pi-unsafe); inside the sandbox flipping it cannot downgrade a
+# --no-git session.
+if [ -e /etc/pi-git-policy ]; then
+  POLICY=blocked
+else
+  POLICY="${PI_GIT_GUARD:-restricted}"
+fi
+SELF="$(readlink -f "$0")"
+
+# Resolve the real git: first executable `git` on PATH outside this directory.
+REAL=""
+IFS=':' read -r -a _path_dirs <<< "${PATH:-}"
+for _d in "${_path_dirs[@]}"; do
+  [ -n "$_d" ] || continue
+  for _c in "$_d/git" "$_d/git.exe"; do
+    if [ -x "$_c" ] && [ ! -d "$_c" ] && [ "$(readlink -f "$_c")" != "$SELF" ]; then
+      REAL="$_c"
+      break 2
+    fi
+  done
+done
+if [ -z "$REAL" ]; then
+  echo "pi git guard: cannot find the real git binary on PATH" >&2
+  exit 127
+fi
+
+block() {
+  echo "git: '$1' blocked by the pi non-destructive GitHub policy." >&2
+  echo "Allowed: normal git work and fast-forward pushes. Blocked: force-push," >&2
+  echo "deleting remote branches/refs, deleting or modifying GitHub posts, and" >&2
+  echo "other destructive activity. No flag re-enables this - do it from your own shell." >&2
+  exit 1
+}
+
+if [ "$POLICY" = "blocked" ]; then
+  case "${1:-}" in
+    clone | fetch | pull | push | ls-remote | request-pull | send-email | credential | fetch-pack | send-pack | upload-archive)
+      block "$1 (all git network access is disabled in this session: --no-git)"
+      ;;
+  esac
+  exec "$REAL" "$@"
+fi
+
+# restricted: locate the subcommand (first bare token after git's own global
+# options), rejecting config overrides that would neutralize the policy hook.
+SUB=""
+EXPECT_VALUE=false
+for arg in "$@"; do
+  if [ "$EXPECT_VALUE" = true ]; then
+    case "$arg" in
+      core.hooksPath* | alias.*) block "-c $arg" ;;
+    esac
+    EXPECT_VALUE=false
+    continue
+  fi
+  case "$arg" in
+    -c | --config-env | -C | --git-dir | --work-tree | --namespace | --exec-path | --attr-source)
+      EXPECT_VALUE=true
+      ;;
+    -c*core.hooksPath* | -c*alias.* | --config-env=*core.hooksPath* | --config-env=*alias.*)
+      block "$arg"
+      ;;
+    -*)
+      ;;
+    *)
+      [ -z "$SUB" ] && SUB="$arg"
+      ;;
+  esac
+done
+
+if [ "$SUB" = "push" ]; then
+  for arg in "$@"; do
+    case "$arg" in
+      --force | --force=* | --force-with-lease | --force-with-lease=* | --force-if-includes | \
+        --delete | --delete=* | --mirror | --prune | --prune-tags | --no-verify | -f | -f?*)
+        block "push $arg"
+        ;;
+      +*)
+        block "push refspec '$arg' (+ forces a non-fast-forward update)"
+        ;;
+      :* | *:)
+        block "push refspec '$arg' (deletes a remote ref)"
+        ;;
+    esac
+  done
+fi
+
+exec "$REAL" "$@"
