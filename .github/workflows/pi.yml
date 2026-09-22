@@ -62,6 +62,11 @@ jobs:
 
       - name: Global install
         if: matrix.os != 'windows-latest'
+        env:
+          # CI cannot open a browser for gh's device flow, so install-git.sh
+          # skips the interactive `gh auth login` there; this token answers its
+          # API calls (`gh auth setup-git`, git identity) instead.
+          GH_TOKEN: ${{ github.token }}
         run: pixi r install
 
       - name: pi Hello world
