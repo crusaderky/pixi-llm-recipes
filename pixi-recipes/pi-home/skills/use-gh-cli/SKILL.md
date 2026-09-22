@@ -25,10 +25,11 @@ destruction — with no flag to re-enable it:
 - **Allowed**: `gh */view`, `list`, `checks`, `run` logs, `gh api` GET and `gh api graphql`
   queries (inline field values), and creating issues, PRs, comments and releases.
 - **Blocked**: deleting or editing posts (including `comment --edit-last/--delete-last`),
-  `close`/`reopen`/`lock`/`merge`/`ready`, state-changing reviews (`pr review --approve`),
-  `run cancel`/`rerun`, `workflow run`, repo and admin mutations (secrets, variables,
-  deploy keys, settings), `gh auth` state changes, and every raw `gh api` mutation
-  (including file-backed bodies: `--input`, `-F key=@file`).
+  `close`/`reopen`/`lock`/`merge`/`ready`/`pin`/`unpin` and other state changes,
+  state-changing reviews (`pr review --approve/--request-changes`), `run cancel`/`rerun`,
+  `workflow run`, `release upload --clobber`, repo and admin mutations (secrets,
+  variables, deploy keys, settings), `gh auth` state changes, and every raw `gh api`
+  mutation (including file-backed bodies: `--input`, `-F key=@file`).
 
 If a command is blocked, do not route around it (no `gh api` tricks, no scripts): report
 the block and suggest the user run that one operation from their own shell.
