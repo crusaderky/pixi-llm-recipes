@@ -10,6 +10,8 @@
 #   --bind <dir>       Bind an extra directory read-write. Relative paths are
 #                      made absolute against your cwd BEFORE forwarding, because
 #                      the sandbox task runs with the repo as its cwd.
+#   --subagents        Load pi-subagents for this run (disabled by default to
+#                      keep its ~3.5k system-prompt tokens out of every session).
 #   --no-sandbox       Skip the bubblewrap sandbox; route to the `pi-unsafe` task
 #                      (full host access, for development/debugging — no
 #                      GitHub policy applies there, including --no-git).
