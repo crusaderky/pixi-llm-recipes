@@ -174,6 +174,7 @@ _CONDA_PREFIX="$CONDA_PREFIX"
 # directory read-write so git can read shared objects and update worktree admin
 # files (refs, locks) without exposing the main worktree's checked-out files.
 WORKTREE_BINDS=""
+HERDR_WORKTREE_BINDS=""
 if [ "$1" != "-" ]; then
   if GD="$(git -C "$DIR" rev-parse --git-dir 2>/dev/null)" \
      && GC="$(git -C "$DIR" rev-parse --git-common-dir 2>/dev/null)"; then
@@ -182,6 +183,29 @@ if [ "$1" != "-" ]; then
     if [ "$GD_ABS" != "$GC_ABS" ]; then
       WORKTREE_BINDS="--bind $GC_ABS $GC_ABS"
     fi
+  fi
+
+  # Herdr worktrees must survive this sandbox. Only expose the project-specific
+  # worktree directory when DIR is the root of an actual Git checkout. Keep this
+  # bind when DIR is already a worktree too: the current-worktree bind alone
+  # would not expose persistent siblings. Derive the project name from its path
+  # instead of treating the worktree name as a new project; the target path is
+  # unchanged.
+  if GIT_ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null)" \
+     && [ "$GIT_ROOT" = "$DIR" ]; then
+    HERDR_WORKTREES="$HOME/.herdr/worktrees"
+    case "$DIR" in
+      "$HERDR_WORKTREES"/*/*)
+        HERDR_PROJECT="${DIR#"$HERDR_WORKTREES"/}"
+        HERDR_PROJECT="${HERDR_PROJECT%%/*}"
+        ;;
+      *)
+        HERDR_PROJECT="$(basename "$DIR")"
+        ;;
+    esac
+    HERDR_WORKTREE_DIR="$HERDR_WORKTREES/$HERDR_PROJECT"
+    mkdir -p "$HERDR_WORKTREE_DIR"
+    HERDR_WORKTREE_BINDS="--bind $HERDR_WORKTREE_DIR $HERDR_WORKTREE_DIR"
   fi
 fi
 
@@ -269,6 +293,7 @@ bwrap \
   --tmpfs "$HOME/.pi/agent/intercom" \
   --ro-bind "$_PIXI_ROOT"                 "$_PIXI_ROOT" \
   $EXTRA_BINDS \
+  $HERDR_WORKTREE_BINDS \
   $WORKTREE_BINDS \
   $GIT_BINDS \
   $CUDA_BINDS \

@@ -291,6 +291,18 @@ pre-installed and pre-configured, bound to the following keyboard shortcuts:
 `pixi r install` also installs its optional Markdown/terminal renderers (`delta`, `bat`,
 `glow`) when missing, so files render nicely inside the viewer.
 
+## git worktrees
+
+For a Git project, the sandbox also binds `~/.herdr/worktrees/<project>` read-write.
+This is the same location where Herdr creates new worktrees when you right click on a
+space and select "New worktree". This directory contains all Herdr worktrees for that
+project, so agents can see and use every existing worktree; changes persist when pi
+exits. New worktrees created by the agent will land in the same directory tree, and you
+can right-click on the space in Herdr and add them with "Open worktree". Likewise, if
+you start pi in a worktree (anywhere), the main project will always be included in the
+sandbox. You should not create worktrees outside the project directory or
+`~/.herdr/worktrees/<project>`.
+
 ## git and GitHub CLI
 
 The `agents` environment bundles `git` and the [GitHub CLI](https://cli.github.com/)
