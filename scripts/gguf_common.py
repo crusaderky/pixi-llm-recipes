@@ -22,6 +22,7 @@ GGUFReader on complete files.
 """
 
 import math
+import re
 import struct
 import sys
 
@@ -354,6 +355,16 @@ ARCH_LAZY_TENSORS = {
     # `ple.heads_per_ngram` hash heads, ~20M n-gram rows each (320,001,536 rows
     # of 160 on Qwen3.8-Flash-Next), of which 16 are gathered per token.
     "qwen4exp": ("per_layer_token_embd.weight",),
+    # `{engram.head_dim, rows}` per Engram layer -- DeepSeek-V4.1-Flash's
+    # conditional n-gram memory: `{engram.layer_ids}` = two hash-embedding
+    # tables of ~384M rows x 256 dims (196.6B params total, ~183 GiB at the
+    # checkpoint's fp8 / ~195 GiB at Q8_0 -- two fifths of the file), gathered
+    # a few rows per token by 2- to 4-gram hashes of the surrounding tokens.
+    # Looked up row-at-a-time like the PLE table above; the reference
+    # implementation keeps them in pinned host memory even on 288 GiB GPUs, and
+    # llama-model-loader.h's TENSOR_READ_LAZY comment names "PLE / engrams
+    # embd" as the use case. Never resident weights.
+    "deepseek41": ("engram_embd.weight",),
 }
 
 # `auto_lazy_min_size` in llama-model-loader.cpp: under the default
@@ -361,6 +372,11 @@ ARCH_LAZY_TENSORS = {
 # because a small one is cheap enough to keep resident. `--tensor-read-lazy on`
 # drops the threshold; `off` keeps everything resident.
 LAZY_AUTO_MIN_BYTES = 4 << 30
+
+# Strips the `blk.N.` prefix of a per-layer tensor name, for matching lazy-tensor
+# entries that are written arch-relative (the create_tensor call has no layer in
+# its name).
+_RE_BLK_LAYER = re.compile(r"^blk\.\d+\.(.+)$")
 
 # Lazy reading needs the mmap the rows are read from, and `use_mmap` is set for
 # exactly these `--load-mode` values (llama-model-loader.cpp). Under `mlock`
@@ -376,18 +392,22 @@ def lazy_tensors(metadata, tensors, threshold=LAZY_AUTO_MIN_BYTES):
     `TENSOR_READ_LAZY` and that clears *threshold* (pass 0 for
     `--tensor-read-lazy on`, which has none). Empty for every architecture not in
     `ARCH_LAZY_TENSORS`, and for a shard that does not happen to hold the tensor
-    -- the caller sums over a model's shards.
+    -- the caller sums over a model's shards. Names match on the
+    `blk.N.`-stripped form, so a per-layer tensor (`blk.N.engram_embd.weight`)
+    hits the same entry as a global one.
     """
     arch = metadata.get("general.architecture")
     names = ARCH_LAZY_TENSORS.get(arch, ())
     if not names:
         return
     for name, dims, ttype in tensors:
-        if name not in names:
+        m = _RE_BLK_LAYER.match(name)
+        base = m.group(1) if m else name
+        if base not in names:
             continue
         nbytes = tensor_nbytes(dims, ttype)
         if nbytes and nbytes > threshold:
-            yield name, nbytes
+            yield base, nbytes
 
 
 def lazy_tensor_bytes(metadata, tensors, threshold=LAZY_AUTO_MIN_BYTES):

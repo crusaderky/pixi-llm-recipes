@@ -832,7 +832,8 @@ def lazy_bytes_by_shard(files: list[pathlib.Path]) -> dict[pathlib.Path, int]:
     """Bytes of each shard that llama.cpp reads from disk on demand.
 
     A `TENSOR_READ_LAZY` tensor -- today the n-gram / per-layer embedding table of
-    `gemma4` and `qwen4exp` -- is registered as a byte range in the mmap and its
+    `gemma4` / `qwen4exp` and DeepSeek-V4.1-Flash's two Engram tables (`deepseek41`)
+    -- is registered as a byte range in the mmap and its
     rows are gathered per token; it never joins the resident weights and never
     reaches VRAM. On Qwen3.8-Flash-Next that is a quarter of the file, so the
     report has to be able to take it out of the cost axis, and only a header read

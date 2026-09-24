@@ -871,6 +871,41 @@ MODEL_KV: dict[str, ModelKV] = {
             CompressedKV("lid state", 21, 1, 256, 256, fixed_rows=8, elem_bpw=32.0),
         ),
     ),
+    # The V4 sibling that shares nothing of the above except the K-only fused
+    # latent. CSA2 ("compressed sparse attention 2") inverts the layout: instead
+    # of every compressed layer keeping its own cache, only the `kv_source`
+    # layers -- the 4 blocks that carry `attn_compressor_kv` (layers 2, 8, 14 at
+    # ratio 2, layer 20 at ratio 1) -- pool their attention into latents that
+    # every ratio-carrying layer then attends, so the compressed history is ONE
+    # cache per source layer. The indexer is likewise 4 index-key caches on the
+    # same 4 layers at `indexer.key_length` (128); the remaining
+    # `indexer.proj`/`attn_q_b` layers reuse them. Together, at fp4 with the
+    # checkpoint's scale formats, that reproduces DeepSeek's published 890
+    # bytes/token global KV exactly -- the cross-check that pins this geometry.
+    # Raw cache: all 40 blocks are sliding-window at 128 (K-only fused latent,
+    # `attention.value_length` never allocated).
+    #
+    # Same two caveats as V4-Flash, plus one: KVarN never reaches these caches
+    # (see KVARN_FALLBACK), the tail reaches only the raw window (clamped to
+    # 128), and -- llama.cpp has no deepseek41 loader yet -- the sizing follows
+    # the architecture as DeepSeek's reference implementation allocates it,
+    # at the run's K quant rather than the checkpoint's fp4.
+    "DeepSeek-V4.1-Flash": ModelKV(
+        full_attn_layers=0,
+        full_attn_kv_heads=0,
+        sliding_window_layers=40,
+        sliding_window_kv_heads=1,
+        sliding_window_size=128,
+        key_dim=512,
+        value_dim=0,
+        compressed=(
+            CompressedKV("comp kv r1", 1, 1, 512, 0, ratio=1),
+            CompressedKV("comp kv r2", 3, 1, 512, 0, ratio=2),
+            CompressedKV("comp state r2", 3, 1, 512, 512, fixed_rows=2, elem_bpw=32.0),
+            CompressedKV("index k r1", 1, 1, 128, 0, ratio=1),
+            CompressedKV("index k r2", 3, 1, 128, 0, ratio=2),
+        ),
+    ),
     # `k2-horizon`. Three plain GQA stacks -- no SWA, no MLA, no MTP, no
     # recurrent blocks -- so `block_count` really is the cache layer count here
     # and the geometry is as boring as it looks. What is novel is MoVA

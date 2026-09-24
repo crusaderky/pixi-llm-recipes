@@ -279,6 +279,11 @@ _ARCH_SWA_PATTERN = {
     "afmoe": (4, False),
     "cohere2": (4, False),
     "deepseek4": (0, False),
+    # DeepSeek-V4.1-Flash: same loader shape as deepseek4 -- every layer keeps
+    # its own 128-token window (`attention.sliding_window`) while the history
+    # lives in the shared compressed caches of `_dsv41_compressed_groups`, so
+    # the pattern is all-SWA here too.
+    "deepseek41": (0, False),
     "exaone-moe": (4, False),
     "exaone4": (4, False),
     "gemma-embedding": (6, False),
@@ -457,7 +462,12 @@ def _ple_conv_state_group(md, arch, n_embd, recr_layers):
 # (`dsv4_make_k_only` in llama-kv-cache-dsv4.cpp) purely to get `has_v = false`
 # storage, so `attention.value_length` is never allocated -- exactly as for a real
 # MLA model, but without `key_length_mla` / `value_length_mla` in the header.
-_ARCH_K_ONLY_CACHE = {"deepseek4"}
+# deepseek41 fuses K and V the same way: the compressor and the raw `attn_kv`
+# row both emit ONE 512-wide latent per token (`head_count_kv` = 1 covers all
+# 64 attention heads, see `sparse_attn` in DeepSeek's own reference
+# implementation), so the declared `attention.value_length` (512) is dead
+# weight here too.
+_ARCH_K_ONLY_CACHE = {"deepseek4", "deepseek41"}
 
 # Architectures that keep their lightning-indexer keys in the *main* KV cache, as
 # an extra f32 stream of `n_embd_k_idx(il)` next to K/V (`hparams.indexer_kv =
@@ -494,8 +504,11 @@ _ARCH_INDEXER_SIDE_CACHE = {"deepseek32", "glm-dsa", "qwen4exp"}
 # through: `llama_kv_cache_dsa` (deepseek32 / glm-dsa) has no KVarN parameter at
 # all and builds both its children as plain `llama_kv_cache`, and
 # `llama_kv_cache_dsv4` passes `llama_kvarn_default_params()` (DISABLED) to its raw
-# cache and nothing to its compressed ones.
-_ARCH_NO_KVARN = {"deepseek32", "deepseek4", "glm-dsa"}
+# cache and nothing to its compressed ones. deepseek41 rides the same
+# bespoke-cache shape (a port would mirror llama-kv-cache-dsv4), and -- unlike
+# dsa -- its 512/128 head dims would pass the KVarN head-dim test, so without
+# this entry the kvarn rows below would be sized as if they were real.
+_ARCH_NO_KVARN = {"deepseek32", "deepseek4", "deepseek41", "glm-dsa"}
 
 # DeepSeek-V4 compressed caches, mirroring llama-kv-cache-dsv4.cpp: the only two
 # `attention.compress_ratios` values the loader accepts (0 = no compressed cache
@@ -593,7 +606,9 @@ def _group_kv_heads(head_kv, layers):
     return sum(head_kv[il] for il in layers) / len(layers)
 
 
-def _compressed_groups(md, arch, head_kv, key_length, value_length, cached, n_layer):
+def _compressed_groups(
+    md, arch, head_kv, key_length, value_length, cached, n_layer, tensors
+):
     """Cache groups an architecture allocates *besides* its token KV cache.
 
     Empty for all but the sparse-attention architectures, which cache their
@@ -609,9 +624,14 @@ def _compressed_groups(md, arch, head_kv, key_length, value_length, cached, n_la
       * `deepseek4` -- three *compressed* caches plus compressor state, see
         `_dsv4_compressed_groups`, and the raw token cache holds only a
         128-token window.
+      * `deepseek41` -- shared compressed caches keyed by source layer, see
+        `_dsv41_compressed_groups`; the raw token cache is likewise a
+        128-token window.
     """
     if arch == "deepseek4":
         return _dsv4_compressed_groups(md, arch, head_kv, key_length, n_layer)
+    if arch == "deepseek41":
+        return _dsv41_compressed_groups(md, arch, tensors, head_kv, key_length, n_layer)
     if arch not in _ARCH_INDEXER_SIDE_CACHE:
         return ()
 
@@ -754,7 +774,128 @@ def _dsv4_compressed_groups(md, arch, head_kv, key_length, n_layer):
     return tuple(groups)
 
 
-def _model_kv_from_metadata(md):
+def _dsv41_compressed_groups(md, arch, tensors, head_kv, key_length, n_layer):
+    """DeepSeek-V4.1-Flash's shared compressed caches, as a tuple of CompressedKV.
+
+    CSA2 ("compressed sparse attention 2", the tech report's name) inverts
+    DeepSeek-V4's layout: instead of every compressed layer keeping its own
+    cache, exactly the layers that carry an `attn_compressor_kv` tensor (the
+    "Full" CSA2 mode; DeepSeek's config calls them `kv_source_layers`) pool
+    their attention into latents that *every* ratio-carrying layer then
+    attends -- "layers sharing a ratio also share one compressed KV, produced
+    by their source layer" (`inference/model.py`). A non-source layer with
+    `compress_ratios[il] = 2` allocates nothing; it reads its source's cache.
+    The lightning-indexer likewise: the layers carrying `indexer.k_norm` (the
+    `owns_k` indexers) keep the index-key cache, and the bare `indexer.proj` /
+    `indexer.attn_q_b` layers reuse it.
+
+    So the compressed history lives in one cache per source layer -- 3 at
+    ratio 2 (layers 2, 8, 14) plus 1 at ratio 1 (layer 20) at `key_length`
+    (512) wide, and the index-key caches beside them at `indexer.key_length`
+    (128) wide, each at its layer's ratio and tail-less:
+
+        3 x ceil(n_ctx/2) + n_ctx latents of 512, one per 512-wide row
+        (indexer keys: 3 x ceil(n_ctx/2) + n_ctx rows of 128)
+
+    which reproduces DeepSeek's published 890 bytes/token global KV at fp4
+    (E2M1 body + one E4M3 scale per 16 channels for the latents, one E8M0 per
+    32 for the index keys) exactly: 3x144 + 288 + 3x34 + 68 = 890.
+
+    The per-layer widths and the ratio of each source come from the GGUF; the
+    ratios the *source layers* compress at are `compress_ratios[il]` of their
+    own layer (the ratio of a non-source layer selects how far back it can
+    see, not what it allocates). Ratio-2 sources additionally hold the
+    partial-group compressor ring -- `kv_state` + `score_state`, `ratio` rows
+    of `key_length` f32 each per sequence (ratio 1 has no pooling and so no
+    state). Unlike DSV4 the caches carry no 256-cell pad in the reference;
+    sized un-padded (`pad = 1`).
+
+    Returns () with a warning when the tensors do not mark any source (a
+    GGUF converted from metadata only) -- the caller then reports the raw
+    sliding-window cache alone, a drastic underestimate.
+    """
+    ratios = _norm_per_layer(md.get(f"{arch}.attention.compress_ratios"), n_layer)
+    if ratios is None:
+        sys.stderr.write(
+            f"WARNING: '{arch}' carries no per-layer attention.compress_ratios; "
+            "its compressed KV caches -- which hold the entire context -- cannot "
+            "be sized. The KV-cache figures below cover only the "
+            "sliding-window cache and are a drastic UNDERESTIMATE.\n"
+        )
+        return ()
+
+    # Which layers own a cache is not in the metadata -- it is what the tensor
+    # table marks: `attn_compressor_kv` for a KV source, `indexer.k_norm` for an
+    # index-key owner (the bare `indexer.proj`/`attn_q_b` layers read that
+    # cache). Only backbone blocks count; draft blocks carry ratio 0 anyway.
+    comp_sources, idx_sources = {}, {}
+    for name, _, _ in tensors:
+        m = _BLK.match(name)
+        if not m:
+            continue
+        il = int(m.group(1))
+        if il >= n_layer or il >= len(ratios) or not ratios[il]:
+            continue
+        if m.group(2) == "attn_compressor_kv.weight":
+            comp_sources.setdefault(ratios[il], []).append(il)
+        elif m.group(2) == "indexer.k_norm.weight":
+            idx_sources.setdefault(ratios[il], []).append(il)
+    if not comp_sources and not idx_sources:
+        sys.stderr.write(
+            f"WARNING: '{arch}' carries no compressor/indexer tensors, so its "
+            "shared compressed caches cannot be located. The KV-cache figures "
+            "below cover only the sliding-window cache and are a drastic "
+            "UNDERESTIMATE.\n"
+        )
+        return ()
+
+    indexer_dim = md.get(f"{arch}.attention.indexer.key_length")
+    groups = []
+    for ratio in sorted(comp_sources):
+        layers = comp_sources[ratio]
+        groups.append(
+            CompressedKV(
+                f"comp kv r{ratio}",
+                len(layers),
+                _group_kv_heads(head_kv, layers),
+                key_length,
+                0,  # K-only: one fused latent, see _ARCH_K_ONLY_CACHE
+                ratio=ratio,
+            )
+        )
+        if ratio > 1:  # ratio 1 has no pooling, hence no ring
+            groups.append(
+                CompressedKV(
+                    f"comp state r{ratio}",
+                    len(layers),
+                    1,
+                    key_length,
+                    key_length,  # two f32 tensors per layer: kv + score
+                    fixed_rows=ratio,
+                    elem_bpw=_DSV4_STATE_BPW,
+                )
+            )
+    for ratio in sorted(idx_sources):
+        layers = idx_sources[ratio]
+        groups.append(
+            CompressedKV(
+                f"index k r{ratio}",
+                len(layers),
+                1,  # the indexer's own hparams fill n_head_kv_arr with 1
+                indexer_dim or key_length,
+                0,
+                ratio=ratio,
+            )
+        )
+    if not indexer_dim:
+        sys.stderr.write(
+            f"WARNING: '{arch}' carries no attention.indexer.key_length; its "
+            "index-key caches are sized at the full latent width instead.\n"
+        )
+    return tuple(groups)
+
+
+def _model_kv_from_metadata(md, tensors=None):
     """KV-cache geometry derived from GGUF hparams, as a ModelKV.
 
     Handles fused QKV (no separate attn_k/attn_v tensors), per-layer GQA
@@ -763,7 +904,8 @@ def _model_kv_from_metadata(md):
     recurrent blocks of a hybrid model -- hold no KV cache and are counted in
     neither group, per the ModelKV contract. Layer counts stay *physical*: a
     looped / recursive architecture is expanded by ModelKV via `n_loops` (see
-    `_n_loops`), never here.
+    `_n_loops`), never here. `tensors` feeds the source-layer detection of
+    `_dsv41_compressed_groups`.
 
     MLA models are handled here too: `attention.key_length` is already the
     cached latent width (kv_lora_rank + rope), and llama.cpp allocates no V
@@ -892,9 +1034,10 @@ def _model_kv_from_metadata(md):
     full_layers = [il for il in cached if il not in swa_set]
 
     # Side caches allocated *in addition* to the token cache above; () for all
-    # but the sparse-attention architectures.
+    # but the sparse-attention architectures. The tensor list is what locates a
+    # deepseek41's shared caches (the metadata does not carry the source layers).
     compressed = _compressed_groups(
-        md, arch, head_kv, key_length, value_length, cached, n_layer
+        md, arch, head_kv, key_length, value_length, cached, n_layer, tensors or ()
     )
 
     # A hybrid's recurrent blocks are not free: each holds a per-sequence f32
@@ -1061,7 +1204,7 @@ def estimate_context_vram(tensors, metadata, n_ctx=262144):
     # recurrent / linear-attention blocks). Tensor shapes are the fallback for
     # GGUFs whose hparams are missing.
     arch = metadata.get("general.architecture")
-    result = _model_kv_from_metadata(metadata)
+    result = _model_kv_from_metadata(metadata, tensors)
     if result is None:
         result = _model_kv_from_tensors(tensors, _n_loops(metadata))
     spec, info = result
@@ -1468,9 +1611,9 @@ def main():
             continue
         parts = r[1].split(".")
         base = parts[0]
-        # `blk.N.` is stripped from r[1], so put it back before matching: a lazy
-        # name is a whole tensor name, not a base name.
-        if (f"blk.{r[0]}.{r[1]}" if r[0] != "" else r[1]) in lazy:
+        # `blk.N.` is stripped from r[1], and `lazy_tensors` yields stripped
+        # names too, so the bare names match directly.
+        if r[1] in lazy:
             lazy_bytes += r[6]
             continue
         # `ffn_gate.<i>.weight` is the pre-merge per-expert spelling (grok and
