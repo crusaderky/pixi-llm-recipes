@@ -38,10 +38,9 @@ is exposed rw as `~/.pi`, and the host's `~/.pi/agent/{auth,trust,settings}.json
   reproduction leaves e.g. `bin/git` unable to load (`libiconv.so.2: cannot open
   shared object file`) and every plugin's `package.json` gone.
 * **Consequences.** Phase 6 (`pixi update`) runs fine from the sandbox. Any
-  `pixi run <task>` in the `agents` env (including the `llama-cpp-changelog` task
-  in phase 4) triggers the implicit install and destroys the env in the sandbox
-  once a local recipe has changed — run it from the host, or run the underlying
-  script directly (`python3 scripts/llama-cpp-changelog.py …`, stdlib-only).
+  `pixi run <task>` in the `agents` env triggers the implicit install and destroys
+  the env in the sandbox once a local recipe has changed — run it from the host,
+  or run the underlying script directly.
 * **Picking up the recipe changes, and repairing a half-extracted env, happen
   only via `pixi install -e agents` from the host** (no bind mounts there, so the
   EBUSY file deletes fine and the env syncs fully; the sandbox rebuild in
