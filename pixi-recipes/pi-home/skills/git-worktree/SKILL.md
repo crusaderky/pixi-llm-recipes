@@ -2,7 +2,6 @@
 name: git-worktree
 description: Create persistent Git worktrees in the sandbox-safe Herdr worktree directory. Use when a task needs an isolated checkout, branch, or parallel changes.
 compatibility: The sandbox binds each project's ~/.herdr/worktrees directory. Worktrees created elsewhere disappear when pi exits.
-allowed-tools: Bash
 ---
 
 # Git worktrees

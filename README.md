@@ -206,6 +206,31 @@ remain free to the capped one.
 [pi](https://pi.dev) is configured so that only configuration lives in `~/.pi`.
 All extensions are installed ephimerally in your pixi environment.
 
+### Skills
+
+Pi advertises skills at startup and loads their full instructions on demand. Ask for a
+skill by name or invoke it explicitly with `/skill:<name>`.
+
+Skills under `.agents/skills/` are available only when pi starts in this repository:
+
+- `llama-cpp-changelog` — summarize llama.cpp changes between refs
+- `test-git-auth` — verify sandboxed GitHub authentication and policy guards
+- `update-all` — refresh all pinned recipes and the lockfile
+- `update-herdr-file-viewer` — update
+  [herdr-file-viewer](https://github.com/smarzban/herdr-file-viewer)
+- `update-herdr` — update [Herdr](https://herdr.dev/)
+- `update-llama-cpp` — update both llama.cpp recipes
+- `update-pi-extensions` — refresh pinned Pi extension versions
+
+Skills under `pixi-recipes/pi-home/skills/` are packaged into pi's environment and are
+available in every workspace:
+
+- `autoreview` — review and fix a PR or local branch, apply fixes immediately, and push
+  and monitor CI. Used to review a PR written by another one of your agents; NOT a PR
+  from another person.
+- `git-worktree` — create Git worktrees that integrate well with the Pi sandbox and Herdr
+- `use-gh-cli` — use authenticated `gh` for GitHub operations
+
 ### Extensions
 
 The `pi-extensions` conda package installs a pinned selection of pi plugins, so the
@@ -415,13 +440,6 @@ It's an extractive needle-recall task, which is deliberately robust: it will not
 KV-cache quantization harm that `perplexity` does, and its run-to-run variance is
 large. See [`sample-data/context-bench/README.md`](sample-data/context-bench/README.md)
 for why, and how to read the numbers without over-interpreting them.
-
-## Maintenance
-
-There are skills available; you can ask pi to
-
-- _"Summarize changes in the latest llama.cpp"_ (installed version vs. latest upstream)
-- _"Update everything"_ (llama.cpp recipes, pi-extensions, herdr, pixi environments)
 
 ## Missing features
 
