@@ -7,8 +7,7 @@
 # (/dev/nvidia* are dev-bound through the fresh --dev /dev), so CUDA builds
 # and llama.cpp GPU runs work from inside the sandbox.
 #
-# Usage: bwrap-pi.sh <dir|-> [--no-git] [--subagents] [--bind <dir>] ... [-- pi-args...]
-#   --subagents loads the otherwise-filtered pi-subagents package for this run.
+# Usage: bwrap-pi.sh <dir|-> [--no-git] [--bind <dir>] ... [-- pi-args...]
 #   Git/GitHub access is ON by default under a non-destructive policy: fetch/pull,
 #   fast-forward pushes and gh reads/creation work; force-push, remote branch/ref
 #   deletion and deleting/modifying GitHub posts are blocked.
@@ -51,10 +50,9 @@ elif [ $# -ge 2 ]; then
   FWD_ARGS=("${@:2}")
 fi
 
-# Parse --bind <dir> pairs, --no-git, and --subagents from forwarded args.
+# Parse --bind <dir> pairs and --no-git flags from forwarded args
 EXTRA_BINDS=""
 NO_GIT=false
-WITH_SUBAGENTS=false
 PI_ARGS=()
 i=0
 while [ $i -lt ${#FWD_ARGS[@]} ]; do
@@ -66,9 +64,6 @@ while [ $i -lt ${#FWD_ARGS[@]} ]; do
     i=$((i + 2))
   elif [ "$arg" = "--no-git" ]; then
     NO_GIT=true
-    i=$((i + 1))
-  elif [ "$arg" = "--subagents" ]; then
-    WITH_SUBAGENTS=true
     i=$((i + 1))
   else
     PI_ARGS+=("$arg")
@@ -229,22 +224,6 @@ fi
 
 bash "$(dirname "$0")/inject-pi-extensions.sh"
 
-SUBAGENT_ARGS=()
-if [ "$WITH_SUBAGENTS" = true ]; then
-  SUBAGENT_DIR="$_CONDA_PREFIX/home/.pi/agent/npm/node_modules/pi-subagents"
-  for resource in index.js skills prompts; do
-    if [ ! -e "$SUBAGENT_DIR/$resource" ]; then
-      echo "pi-subagents resource not found: $SUBAGENT_DIR/$resource" >&2
-      exit 1
-    fi
-  done
-  SUBAGENT_ARGS=(
-    --extension "$SUBAGENT_DIR/index.js"
-    --skill "$SUBAGENT_DIR/skills"
-    --prompt-template "$SUBAGENT_DIR/prompts"
-  )
-fi
-
 function cleanup {
   rsync -avcO --no-perms --no-times "$_CONDA_PREFIX"/home/.pi/agent/{skills,AGENTS.md,keybindings.json} pixi-recipes/pi-home/
 }
@@ -303,4 +282,4 @@ bwrap \
   --ro-bind "$_CONDA_PREFIX"              "$_CONDA_PREFIX" \
   --die-with-parent \
   --unshare-all --share-net \
-  -- pi "${SUBAGENT_ARGS[@]}" "${PI_ARGS[@]}"
+  -- pi "${PI_ARGS[@]}"

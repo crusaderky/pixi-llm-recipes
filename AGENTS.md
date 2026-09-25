@@ -176,7 +176,7 @@ A guard layer, not a security boundary. Residual holes, all requiring a delibera
 - Mounts `$CONDA_PREFIX/home/.pi` as `~/.pi`; bind-mounts `~/.pi/agent/{auth,trust,settings}.json` and `sessions/` from the host.
 - Mounts a fresh **tmpfs** at `~/.pi/agent/intercom`, so the pi-intercom broker and its unix socket stay private per sandbox: a session and its pi-subagents children can talk; independent sandboxes and the host cannot. Without it the extension would write shared state into `$CONDA_PREFIX` through the rw `~/.pi` bind.
 - If the workdir is a **git worktree**, binds the main repo's common `.git` dir read-write so git can read shared objects and update worktree admin files, without exposing the main checkout.
-- Calls `inject-pi-extensions.sh` to merge the packaged `packages` block into `~/.pi/agent/settings.json`. `pi-subagents` resources are filtered by default; `pi --subagents` loads them per run, avoiding ~3.5k baseline prompt tokens.
+- Calls `inject-pi-extensions.sh` to merge the packaged `packages` block into `~/.pi/agent/settings.json`.
 - On exit, rsyncs `skills`, `AGENTS.md`, `keybindings.json` back from `$CONDA_PREFIX/home/.pi/agent/` into `pixi-recipes/pi-home/`, so edits made from inside pi can be reviewed and committed. `-c --no-times` keeps mtimes stable when content is unchanged, otherwise pixi-build would rebuild the recipe on every launch.
 - Unsets all `PIXI_*` / `CONDA_*` plus `INIT_CWD`, `XML_CATALOG_FILES`, `GSETTINGS_SCHEMA_DIR` before exec.
 
@@ -317,7 +317,7 @@ pixi run -e llamacpp-source-cuda llama-list-devices
 pixi run -e llamacpp-source-cuda llama-hello                   # smoke test with llama-cli
 
 # Agents. The task takes exactly one positional arg (the workspace, `-` for a temp
-# dir); everything else MUST come after `--`, including --no-git, --subagents and --bind.
+# dir); everything else MUST come after `--`, including --no-git and --bind.
 pixi run pi /path/to/workspace
 pixi run pi /path/to/workspace -- --no-git   # block all GitHub access
 pixi run pi-unsafe /path/to/ws            # full host access, debugging only
@@ -326,7 +326,6 @@ pixi run herdr
 # …or, after `pixi r install`, from any directory (the wrapper supplies the cwd):
 pi
 pi --no-git
-pi --subagents
 
 # Benchmarks and analysis
 pixi run -e llamacpp-source-cuda perplexity -c perplexity.yaml   # edit/duplicate the yaml first

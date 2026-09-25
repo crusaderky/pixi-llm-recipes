@@ -5,6 +5,6 @@ Credit to https://www.reddit.com/r/LocalLLaMA/comments/1uimjdi/glm_52_q1_s_vs_qw
 
 ## Usage
 
-1. Keep `pi-subagents` disabled (the default; do not pass `--subagents`) and remove any
-   other extensions that may pollute the evaluation.
+1. In `../pixi-recipes/pi-extensions/recipe.yaml`, remove all extensions that may pollute
+   the evaluation (like pi-subagents)
 2. Run `pi -ns --model <model tag> @prompt.md`

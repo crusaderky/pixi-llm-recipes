@@ -217,18 +217,12 @@ agent setup is versioned and reproducible:
 | [pi-intercom](https://pi.dev/packages/pi-intercom)                                   | messaging between pi sessions in the same sandbox    |
 | [pi-llama-cpp](https://pi.dev/packages/pi-llama-cpp)                                 | zero-config llama.cpp integration                    |
 | [pi-ollama-cloud](https://pi.dev/packages/pi-ollama-cloud)                           | Ollama cloud model provider + web search / web fetch |
-| [pi-subagents](https://github.com/nicobailon/pi-subagents)                           | opt-in sub-agents for complex tasks                  |
+| [pi-subagents](https://github.com/nicobailon/pi-subagents)                           | spawn sub-agents for complex tasks                   |
 | [pi-token-speed](https://pi.dev/packages/pi-token-speed)                             | token throughput monitoring                          |
 | [pi-usage-extension](https://pi.dev/packages/@tmustier/pi-usage-extension)           | tokens usage tracking                                |
 | [rpiv-ask-user-question](https://pi.dev/packages/@juicesharp/rpiv-ask-user-question) | stop and ask the user when in doubt                  |
 | [caveman](https://github.com/JuliusBrussee/caveman)                                  | drastically reduce output tokens consumed            |
 | [rtk](https://github.com/rtk-ai/rtk)                                                 | drastically reduce input tokens consumed             |
-
-`pi-subagents` stays installed and versioned, but its extension, skills, and prompt
-templates are filtered out by default. This keeps roughly 3.5k tokens out of every
-system prompt. Pass `pi --subagents` to load the complete package for one session;
-`pi --no-sandbox --subagents` and direct `pixi r pi-unsafe ... -- --subagents`
-invocations work too.
 
 **Note:** The effects of `pi install` will be wiped the next time your pixi environment is regenerated!
 You should update `pixi-recipes/pi-extension/recipe.yaml` instead.
@@ -244,7 +238,6 @@ pixi r install                        # One-off (also sets up limited GitHub acc
 cd /path/to/workspace && pi           # Sandboxed
 pi --bind /data                       # Bind extra directories into the sandbox
 pi --no-git                           # No GitHub credentials (untrusted prompts)
-pi --subagents                        # Load pi-subagents for this session
 ```
 
 If you need full host access for development or debugging, or if you are on Windows,
@@ -252,10 +245,8 @@ there's an escape hatch:
 
 ```bash
 pi --no-sandbox                                    # Linux
-pi --no-sandbox --subagents                        # Linux, with pi-subagents loaded
 pixi r pi-unsafe /path/to/workspace                # Windows
 pixi r pi-unsafe /path/to/workspace -- -p "Hello"  # Windows; pass arbitrary parameters (note --)
-pixi r pi-unsafe /path/to/workspace -- --subagents # Windows, with pi-subagents loaded
 ```
 
 ## herdr

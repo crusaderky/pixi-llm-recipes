@@ -51,9 +51,6 @@ trap cleanup EXIT
 
 bash "$(dirname "$0")/inject-pi-extensions.sh"
 
-# CONDA_PREFIX is unset before Pi starts; retain package path for --subagents.
-SUBAGENT_DIR="$CONDA_PREFIX/home/.pi/agent/npm/node_modules/pi-subagents"
-
 # Resolve the real pi binary before prepending ~/.local/bin to PATH,
 # otherwise the bare `pi` below would resolve to that wrapper and re-enter.
 PI_BIN="$(command -v pi)"
@@ -97,37 +94,17 @@ fi
 # --no-git is refused rather than swallowed: this mode has full host access
 # (absolute paths, cmd.exe on Windows, the host's gh token on disk), so no
 # PATH/env guard can hold, and starting an unrestricted session after the
-# caller asked for a block is worse than not starting at all. --subagents
-# explicitly loads the otherwise-filtered package; every other arg goes to pi.
+# caller asked for a block is worse than not starting at all. Every other
+# forwarded arg goes to pi verbatim.
 PI_ARGS=()
-WITH_SUBAGENTS=false
 for arg in "${FWD_ARGS[@]}"; do
   if [ "$arg" = "--no-git" ]; then
     echo "pi-unsafe: --no-git cannot be honoured without the sandbox." >&2
     echo "This mode has full host access and the host's GitHub credentials;" >&2
     echo "use the sandboxed \`pi --no-git\` instead." >&2
     exit 2
-  elif [ "$arg" = "--subagents" ]; then
-    WITH_SUBAGENTS=true
-  else
-    PI_ARGS+=("$arg")
   fi
+  PI_ARGS+=("$arg")
 done
-
-SUBAGENT_ARGS=()
-if [ "$WITH_SUBAGENTS" = true ]; then
-  for resource in index.js skills prompts; do
-    if [ ! -e "$SUBAGENT_DIR/$resource" ]; then
-      echo "pi-subagents resource not found: $SUBAGENT_DIR/$resource" >&2
-      exit 1
-    fi
-  done
-  SUBAGENT_ARGS=(
-    --extension "$SUBAGENT_DIR/index.js"
-    --skill "$SUBAGENT_DIR/skills"
-    --prompt-template "$SUBAGENT_DIR/prompts"
-  )
-fi
-
 cd "$DIR"
-"$PI_BIN" "${SUBAGENT_ARGS[@]}" "${PI_ARGS[@]}"
+"$PI_BIN" "${PI_ARGS[@]}"
