@@ -473,8 +473,9 @@ _ARCH_K_ONLY_CACHE = {"deepseek4", "deepseek41"}
 # an extra f32 stream of `n_embd_k_idx(il)` next to K/V (`hparams.indexer_kv =
 # true`, allocated in llama-kv-cache.cpp). MiniMax-M3's MSA is the only one.
 # The other architectures that ship `.indexer.` tensors -- deepseek32, glm-dsa,
-# qwen4exp and deepseek4 -- put those keys in a side cache of their own instead,
-# at the run's K quant and (for deepseek4) at one row per 4 tokens;
+# qwen4exp, deepseek4, hyv4 and hy_v4 -- put those keys in a side cache of
+# their own instead, at the run's K quant and (for deepseek4) at one row per 4
+# tokens;
 # `_compressed_groups` models those, so charging them a full-context f32 stream as
 # well would both double-count and overstate the rate.
 _ARCH_INDEXER_KV = {"minimax-m3"}
@@ -495,20 +496,53 @@ _ARCH_INDEXER_KV = {"minimax-m3"}
 # graph. Mirrored rather than corrected: it is allocation, not arithmetic.
 # DeepSeek-V4 is absent -- its indexer cache is *compressed* (one row per 4
 # tokens), which `_dsv4_compressed_groups` models instead.
-_ARCH_INDEXER_SIDE_CACHE = {"deepseek32", "glm-dsa", "qwen4exp"}
+_ARCH_INDEXER_SIDE_CACHE = {
+    "deepseek32",
+    "glm-dsa",
+    "qwen4exp",
+    # Hy4-preview. Two spellings, two different allocations: the GGUFs of
+    # AngelSlim/Hy4-preview-GGUF carry `general.architecture = hyv4` (their own
+    # patched llama.cpp, which is the only build that loads them -- "Neither file
+    # runs on stock llama.cpp"), while upstream's loader name is `hy_v4`.
+    "hyv4",
+    "hy_v4",
+}
+
+# Of those, the ones whose indexer key cache is filtered down to the layers that
+# actually own an indexer -- `filter_lid = hparams.is_indexer_full(il)` in the
+# `llama_kv_cache_dsa` call of llama-model.cpp. `hyv4` is deliberately absent:
+# its patched `create_memory` branch passes `nullptr` for both filters, so its
+# indexer cache is allocated on *every* cached layer even though only the
+# `attention.indexer.is_full` ones (21 of 78 here) are ever written or read by the
+# graph. Mirrored as allocated, not as needed.
+_ARCH_INDEXER_FULL_ONLY = {"glm-dsa", "hy_v4"}
+
+# The GGUF key carrying that per-layer flag. Upstream reads
+# `%s.attention.indexer.types`; the Hy4-preview converter writes
+# `%s.attention.indexer.is_full`.
+_INDEXER_FULL_KEYS = ("attention.indexer.is_full", "attention.indexer.types")
+
+_INDEXER_FULL_TRUE = {"full", "1", "true", "yes"}
 
 # Architectures whose bespoke cache never receives the KVarN params, so
 # `-ctk kvarnN` silently stores the plain fallback type instead
 # (`kv_cache_common.KVARN_FALLBACK`). llama-model.cpp branches to these caches
 # before the `params.kvarn.type != DISABLED` test that everything else goes
-# through: `llama_kv_cache_dsa` (deepseek32 / glm-dsa) has no KVarN parameter at
-# all and builds both its children as plain `llama_kv_cache`, and
+# through: `llama_kv_cache_dsa` (deepseek32 / glm-dsa / hyv4 / hy_v4) has no KVarN
+# parameter at all and builds both its children as plain `llama_kv_cache`, and
 # `llama_kv_cache_dsv4` passes `llama_kvarn_default_params()` (DISABLED) to its raw
 # cache and nothing to its compressed ones. deepseek41 rides the same
 # bespoke-cache shape (a port would mirror llama-kv-cache-dsv4), and -- unlike
 # dsa -- its 512/128 head dims would pass the KVarN head-dim test, so without
 # this entry the kvarn rows below would be sized as if they were real.
-_ARCH_NO_KVARN = {"deepseek32", "deepseek4", "deepseek41", "glm-dsa"}
+_ARCH_NO_KVARN = {
+    "deepseek32",
+    "deepseek4",
+    "deepseek41",
+    "glm-dsa",
+    "hyv4",
+    "hy_v4",
+}
 
 # DeepSeek-V4 compressed caches, mirroring llama-kv-cache-dsv4.cpp: the only two
 # `attention.compress_ratios` values the loader accepts (0 = no compressed cache
@@ -606,6 +640,22 @@ def _group_kv_heads(head_kv, layers):
     return sum(head_kv[il] for il in layers) / len(layers)
 
 
+def _indexer_full_flags(md, arch, n_layer):
+    """Per-layer "this block owns an indexer" bool list, or None if absent.
+
+    Two spellings in the wild: the Hy4-preview converter writes
+    `attention.indexer.is_full` (0/1 ints), upstream's loader reads
+    `attention.indexer.types`.
+    """
+    for key in _INDEXER_FULL_KEYS:
+        vals = _norm_per_layer(md.get(f"{arch}.{key}"), n_layer)
+        if vals:
+            return [
+                v in _INDEXER_FULL_TRUE if isinstance(v, str) else bool(v) for v in vals
+            ]
+    return None
+
+
 def _compressed_groups(
     md, arch, head_kv, key_length, value_length, cached, n_layer, tensors
 ):
@@ -615,12 +665,14 @@ def _compressed_groups(
     lightning-indexer keys in a side cache of their own instead of in the main one
     (`_ARCH_INDEXER_KV`):
 
-      * `_ARCH_INDEXER_SIDE_CACHE` (`deepseek32`, `glm-dsa`, `qwen4exp`) -- one
-        extra full-context cache of one row per token, `head_count_kv` forced to 1
-        and the key head dim replaced by `attention.indexer.key_length`, at the
-        run's K/V quant and with no exact tail. K-only on the two MLA
-        architectures; on `qwen4exp` a V of `value_length` rides along, see
-        `_ARCH_INDEXER_SIDE_CACHE`.
+      * `_ARCH_INDEXER_SIDE_CACHE` (`deepseek32`, `glm-dsa`, `qwen4exp`, `hyv4`,
+        `hy_v4`) -- one extra full-context cache of one row per token,
+        `head_count_kv` forced to 1 and the key head dim replaced by
+        `attention.indexer.key_length`, at the run's K/V quant and with no exact
+        tail. K-only on the MLA architectures; on `qwen4exp` a V of
+        `value_length` rides along, see `_ARCH_INDEXER_SIDE_CACHE`. The layer
+        count is every cached layer except on `_ARCH_INDEXER_FULL_ONLY`, where
+        only the indexer-owning ones are cached.
       * `deepseek4` -- three *compressed* caches plus compressor state, see
         `_dsv4_compressed_groups`, and the raw token cache holds only a
         128-token window.
@@ -642,6 +694,15 @@ def _compressed_groups(
             "lightning-indexer key cache is not counted below.\n"
         )
         return ()
+    # `_ARCH_INDEXER_FULL_ONLY` filters the indexer cache down to the layers
+    # that own one; the rest allocate it on every cached layer whether or not
+    # the graph ever touches it (hyv4, whose patched build passes no filter).
+    n_idx = len(cached)
+    if arch in _ARCH_INDEXER_FULL_ONLY:
+        full = _indexer_full_flags(md, arch, n_layer)
+        if full:
+            n_idx = sum(1 for il in cached if full[il])
+
     return (
         CompressedKV(
             # Named after llama.cpp's own tensor tag for the cache, so a reader
@@ -650,7 +711,7 @@ def _compressed_groups(
             # llama_kv_cache_dsa (whose upstream name for it is the "lightning
             # indexer", LID).
             "idx (indexer)" if arch == "qwen4exp" else "lid (indexer)",
-            len(cached),
+            n_idx,
             1,  # the doctored hparams fill n_head_kv_arr with 1
             indexer_dim,
             # `has_v = !is_mla()` on the doctored hparams: zero for the MLA

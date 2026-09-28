@@ -906,6 +906,49 @@ MODEL_KV: dict[str, ModelKV] = {
             CompressedKV("index k r2", 3, 1, 128, 0, ratio=2),
         ),
     ),
+    # Hy4-preview (`AngelSlim/Hy4-preview-GGUF`). Note the spelling: these
+    # GGUFs ship `general.architecture = hyv4`, their own port of the upstream
+    # `hy_v4` loader, shipped as a patch set in the repo -- "Neither file runs on
+    # stock llama.cpp". Both are MLA + DSA, so of `block_count` 78:
+    #
+    # * every block caches: no `nextn_predict_layers` (no MTP head), nothing
+    #   recurrent, and no `attention.sliding_window` -- this is a plain full-
+    #   context trunk, so 78 cache layers.
+    # * MLA: `attention.key_length` = 576 is already the cached latent
+    #   (`attention.kv_lora_rank` 512 + `rope.dimension_count` 64), and
+    #   `key_length_mla` / `value_length_mla` (256/256) are present, so
+    #   `is_mla()` holds and llama.cpp allocates no V cache --
+    #   `attention.value_length` (512) must NOT be counted.
+    # * DSA: `llama_kv_cache_dsa`'s second, tail-less cache (`kv_lid`) holds the
+    #   lightning-indexer keys. It is built by fooling a plain `llama_kv_cache`
+    #   with a copy of the hparams whose `n_head_kv_arr` is all 1s and whose
+    #   `n_embd_head_k_full` is `attention.indexer.key_length` = 128; K-only,
+    #   because that copy keeps MLA and `has_v = !is_mla()`. One row per token,
+    #   at the run's K quant, shared across sequences (`kv_unified`).
+    #
+    # The `lid` layer count is all 78, NOT the 21 layers that own an indexer
+    # (`attention.indexer.is_full`, layers 0, 1, 5, 9, ... 73, 77): upstream's
+    # `hy_v4` branch passes `filter_lid = is_indexer_full(il)`, but the published
+    # `hyv4` build passes `nullptr` for both filters, so every layer is
+    # allocated an indexer cache that only the 21 full layers ever write or read.
+    # Mirrored as allocated, as always -- but if these weights are ever
+    # re-converted upstream, that row drops to 21 layers (~0.7 GiB at q8_0/256k
+    # instead of 2.59 GiB).
+    #
+    # KVarN is doubly out: `llama_kvarn_validate_runtime` rejects MLA before
+    # the head-dim test, and 576 is not one of `KVARN_HEAD_DIMS` either.
+    "Hy4-preview": ModelKV(
+        full_attn_layers=78,
+        full_attn_kv_heads=1,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=576,  # kvarn not supported
+        value_dim=0,
+        compressed=(
+            CompressedKV("lid (indexer)", 78, 1, 128, 0, ratio=1, per_seq=False),
+        ),
+    ),
     # `k2-horizon`. Three plain GQA stacks -- no SWA, no MLA, no MTP, no
     # recurrent blocks -- so `block_count` really is the cache layer count here
     # and the geometry is as boring as it looks. What is novel is MoVA
