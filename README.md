@@ -124,7 +124,6 @@ served on demand. All models were carefully cherry-picked and tuned.
 | MiniCPM5-2B        | Q6_K DSpark    | 2.6 GB       | 128k q6/q6          | 6.4 GB              | 7,460 tok/s         | 200 tok/s          | 🔴     |
 | LFM2.5-230M        | Q4_K_M         | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴     |
 | LFM2.5-VL-3B       | Q8_0           | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅     |
-| Muse-Glimmer-30B   | Q4_K_XL DFlash | 19 GB        | 256k kvarn5         | 21.0 GB             | 938 tok/s           | 124 tok/s          | ✅     |
 
 **Notes:**
 
