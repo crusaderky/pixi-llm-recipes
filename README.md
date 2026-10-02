@@ -339,12 +339,12 @@ Authentication is https + the gh token only: no ssh keys and no ssh-agent socket
 visible inside the sandbox (they are unscopeable full-write credentials). `~/.config/gh`
 is bound read-only.
 
-- **Allowed**: `git` fetch/pull and fast-forward pushes, creating branches, all `gh`
-  reads (CI logs, PRs, issues, releases), and creating issues, PRs, comments and
-  releases.
-- **Blocked**: force-push, deleting remote branches and tags, deleting or editing posts,
-  `close`/`merge`/`lock` and other state changes, repo and admin mutations, and raw `gh
-  api` mutations.
+- **Allowed**: `git` fetch/pull and fast-forward pushes; creating branches; all `gh`
+  reads (CI logs, PRs, issues, releases); creating and editing issues, PRs, and
+  comments, and creating new releases.
+- **Blocked**: force-push, deleting remote branches and tags, deleting any post, editing
+  releases, `close`/`merge`/`lock` and other state changes, repo and admin
+  mutations, and raw `gh api` mutations.
 
 #### IMPORTANT WARNING
 

@@ -23,8 +23,14 @@ workarounds — and tell the user:
 destruction — with no flag to re-enable it:
 
 - **Allowed**: `gh */view`, `list`, `checks`, `run` logs, `gh api` GET and `gh api graphql`
-  queries (inline field values), and creating issues, PRs, comments and releases.
-- **Blocked**: deleting or editing posts (including `comment --edit-last/--delete-last`),
+  queries (inline field values), creating issues, PRs, comments and releases, editing an
+  issue or PR (`gh issue edit` / `gh pr edit`), and editing your own last comment
+  (`gh issue comment N --edit-last --body ...`, likewise `gh pr comment`). `--edit-last`
+  only ever rewrites the **authenticated user's** most recent comment on that thread and
+  gh requires a replacement `--body`, so it cannot touch another author's comment — use
+  it to fix a typo in something you just posted.
+- **Blocked**: deleting any post (`comment --delete-last`, `issue/pr/release delete`,
+  `gh api -X DELETE`), editing releases, `comment --create-if-none`,
   `close`/`reopen`/`lock`/`merge`/`ready`/`pin`/`unpin` and other state changes,
   state-changing reviews (`pr review --approve/--request-changes`), `run cancel`/`rerun`,
   `workflow run`, `release upload --clobber`, repo and admin mutations (secrets,

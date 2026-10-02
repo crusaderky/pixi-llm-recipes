@@ -1,33 +1,34 @@
 #!/bin/bash
 # `gh` policy wrapper for pi sandbox sessions — non-destructive GitHub policy.
 #
-# Placed in front of the real gh by bwrap-pi.sh via a PATH prepend. Two
-# policies, selected by $PI_GIT_GUARD (default: restricted):
+# Placed in front of the real gh by bwrap-pi.sh via a PATH prepend. Two policies,
+# selected by $PI_GIT_GUARD (default: restricted):
 #
-#   restricted  gh works, but GitHub-side destruction is blocked. Allowed:
-#               reads (view/list/checks/run logs, `gh api` GET, `gh api
-#               graphql` queries) and creating content (issues, PRs,
-#               comments, releases, gists). Blocked: deleting or editing
-#               posts, close/merge/lock/ready and other state changes,
-#               approving/requesting changes on reviews, repo and admin
-#               mutations, and every raw `gh api` mutation. There is no flag
-#               to re-enable them.
-#   blocked     (--no-git) every gh command is refused entirely.
+#   restricted  gh works, but GitHub-side destruction is blocked. Allowed: reads
+#               (view/list/checks/run logs, `gh api` GET, `gh api graphql` queries),
+#               creating content (issues, PRs, comments, releases, gists), revising an
+#               issue or PR in place (`gh issue edit` / `gh pr edit`: title, body, base
+#               branch, labels, assignees, milestone) and fixing your own last comment
+#               (`gh issue/pr comment --edit-last`, which gh resolves to the
+#               authenticated author's most recent comment). Blocked: deleting any post,
+#               editing releases, close/merge/lock/ready and other state changes,
+#               approving/requesting changes on reviews, repo and admin mutations, and
+#               every raw `gh api` mutation. There is no flag to re-enable them. blocked
+#               (--no-git) every gh command is refused entirely.
 #
-# The verb denylist below is best-effort coverage of gh's command surface, not
-# a security boundary; the raw `gh api` rules keep the two from drifting
-# apart by refusing the escape hatch (mutations, and any body whose payload
-# is not inspectable in argv) wholesale. gh's own alias expansion is handled
-# too: it runs after this wrapper's argv scan, so the config directory is
-# pinned rather than left to $GH_CONFIG_DIR / $XDG_CONFIG_HOME.
+# The verb denylist below is best-effort coverage of gh's command surface, not a
+# security boundary; the raw `gh api` rules keep the two from drifting apart by refusing
+# the escape hatch (mutations, and any body whose payload is not inspectable in argv)
+# wholesale. gh's own alias expansion is handled too: it runs after this wrapper's argv
+# scan, so the config directory is pinned rather than left to $GH_CONFIG_DIR /
+# $XDG_CONFIG_HOME.
 set -o errexit
 set -o nounset
 
-# Policy comes from $PI_GIT_GUARD, set by bwrap-pi.sh: restricted by default,
-# blocked under --no-git. Inside the sandbox the agent can flip it, but that
-# only tightens what this wrapper does: --no-git's enforcement is that no
-# GitHub credential is bound into the sandbox at all, so a downgraded wrapper
-# has nothing to authenticate with.
+# Policy comes from $PI_GIT_GUARD, set by bwrap-pi.sh: restricted by default, blocked
+# under --no-git. Inside the sandbox the agent can flip it, but that only tightens what
+# this wrapper does: --no-git's enforcement is that no GitHub credential is bound into
+# the sandbox at all, so a downgraded wrapper has nothing to authenticate with.
 POLICY="${PI_GIT_GUARD:-restricted}"
 SELF="$(readlink -f "$0")"
 
@@ -48,20 +49,22 @@ if [ -z "$REAL" ]; then
   exit 127
 fi
 
-# gh expands aliases internally, after this wrapper's verb scan, and takes its
-# config directory from $GH_CONFIG_DIR / $XDG_CONFIG_HOME. A writable config
-# dir (the agent's own, holding `evil = api -X DELETE ...` or a `!shell`
-# alias) would therefore bypass the denylist wholesale, so pin gh to the
-# session's config location: ~/.config/gh, which bwrap-pi.sh binds read-only
-# in the default mode and does not bind at all under --no-git.
+# gh expands aliases internally, after this wrapper's verb scan, and takes its config
+# directory from $GH_CONFIG_DIR / $XDG_CONFIG_HOME. A writable config dir (the agent's
+# own, holding `evil = api -X DELETE ...` or a `!shell` alias) would therefore bypass
+# the denylist wholesale, so pin gh to the session's config location: ~/.config/gh,
+# which bwrap-pi.sh binds read-only in the default mode and does not bind at all under
+# --no-git.
 unset GH_CONFIG_DIR XDG_CONFIG_HOME
 
 block() {
   echo "gh: '$1' blocked by the pi non-destructive GitHub policy." >&2
-  echo "Allowed: reads and creating issues, PRs, comments and releases. Blocked:" >&2
-  echo "deleting or editing posts, close/merge/lock and other state changes, repo" >&2
-  echo "and admin mutations, and raw \`gh api\` mutations. No flag re-enables this" >&2
-  echo "- do it from your own shell." >&2
+  echo "Allowed: reads, creating issues, PRs, comments and releases, editing an" >&2
+  echo "issue or PR in place (\`gh issue edit\` / \`gh pr edit\`) and your own" >&2
+  echo "last comment (\`gh issue/pr comment --edit-last\`). Blocked: deleting" >&2
+  echo "any post, editing releases, close/merge/lock and other state changes," >&2
+  echo "repo and admin mutations, and raw \`gh api\` mutations. No flag" >&2
+  echo "re-enables this - do it from your own shell." >&2
   exit 1
 }
 
@@ -71,7 +74,9 @@ if [ "$POLICY" = "blocked" ]; then
   exit 1
 fi
 
-# Verbs that mutate or destroy, whatever their command group.
+# Verbs that mutate or destroy, whatever their command group. `edit` sits on the list
+# like the rest and is taken back off again by the allowlist near the bottom, which is
+# the only route to a permitted edit.
 DENY_VERBS="delete edit update archive unarchive rename transfer merge close reopen lock unlock pin unpin disable enable cancel ready update-branch revert set unset add upgrade rerun run start stop"
 
 # Collect the leading <group> <verb> pair, skipping global flags that take a
@@ -102,13 +107,13 @@ done
 
 # `gh api` is the raw escape hatch: allow reads only. Rules, in order:
 #   - a method, if given, must be GET;
-#   - --input (body from a file) is refused wholesale: its payload cannot be
-#     inspected in argv, for graphql and REST alike;
+#   - --input (body from a file) is refused wholesale: its payload cannot be inspected
+#     in argv, for graphql and REST alike;
 #   - without a method, any field flag implies POST and is refused;
 #   - graphql queries stay usable: only their field values are scanned for the
-#     `mutation` keyword (so a query for a field literally named e.g.
-#     `mutationCount` elsewhere in argv does not trip the scan), and
-#     file-backed field values (-F key=@file) are refused like --input.
+#     `mutation` keyword (so a query for a field literally named e.g. `mutationCount`
+#     elsewhere in argv does not trip the scan), and file-backed field values (-F
+#     key=@file) are refused like --input.
 if [ "$GROUP" = "api" ]; then
   METHOD_GIVEN=false
   IMPLICIT_POST=false
@@ -177,9 +182,9 @@ if [ "$GROUP" = "api" ]; then
   exec "$REAL" "$@"
 fi
 
-# `gh auth git-credential` is the git credential helper (needed for git push
-# over https); `gh auth status` is a read. The rest of `gh auth` mutates
-# authentication state (and `gh auth token` leaks the credential).
+# `gh auth git-credential` is the git credential helper (needed for git push over
+# https); `gh auth status` is a read. The rest of `gh auth` mutates authentication state
+# (and `gh auth token` leaks the credential).
 if [ "$GROUP" = "auth" ]; then
   case "$(printf '%s' "${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
     login | logout | refresh | switch | setup-git | token) block "gh auth ${VERB}" ;;
@@ -189,9 +194,15 @@ fi
 # Per-command extras the generic verb list cannot see.
 case "$(printf '%s' "${GROUP:-} ${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
   "issue comment" | "pr comment" | "discussion comment")
+    # --edit-last is allowed, and is the only comment-edit route: gh resolves it to the
+    # authenticated author's own most recent comment and requires a new --body, so it
+    # can revise what this session posted and nothing else (no other author's comment,
+    # no earlier comment of this author's). Editing a comment by id is only reachable
+    # through `gh api -X PATCH`, which the raw API rules below still refuse, and
+    # --delete-last stays a separate flag.
     for arg in "$@"; do
       case "$arg" in
-        --edit-last | --delete-last | --create-if-none) block "gh ${GROUP} comment $arg" ;;
+        --delete-last | --create-if-none) block "gh ${GROUP} comment $arg" ;;
       esac
     done
     ;;
@@ -219,6 +230,20 @@ case "$(printf '%s' "${GROUP:-} ${VERB:-}" | tr '[:upper:]' '[:lower:]')" in
       *) block "gh project ${VERB}" ;;
     esac
     ;;
+esac
+
+# Allowed edits, checked on the same `<group> <verb>` pair the denylist uses, so this
+# cannot widen anything else: revising an issue or PR in place is not destruction, and
+# an agent that opened the post is the one who has to be able to fix a typo in it,
+# retitle it, move it to the right base branch, or fix its labels. `edit` flags stay
+# subject to gh's own semantics, so nothing here can delete: every delete path (`gh pr
+# delete`, `gh issue delete`, `gh api -X DELETE`, `comment --delete-last`, `release
+# delete`) is a different command and still blocked. `gh release edit` is deliberately
+# not here — it rewrites published release metadata, and `gh pr view/edit` covers the
+# agent's own work. Comment bodies are not reachable from here at all (gh has no
+# `comment edit` subcommand); they have their own `--edit-last` rule above.
+case " pr edit issue edit " in
+  *" ${GROUP:-} ${VERB:-} "*) exec "$REAL" "$@" ;;
 esac
 
 case " $DENY_VERBS " in

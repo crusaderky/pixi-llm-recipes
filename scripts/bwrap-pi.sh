@@ -9,8 +9,10 @@
 #
 # Usage: bwrap-pi.sh <dir|-> [--no-git] [--bind <dir>] ... [-- pi-args...]
 #   Git/GitHub access is ON by default under a non-destructive policy: fetch/pull,
-#   fast-forward pushes and gh reads/creation work; force-push, remote branch/ref
-#   deletion and deleting/modifying GitHub posts are blocked.
+#   fast-forward pushes and gh reads/creation work, as does editing an issue or PR
+#   in place (gh issue edit / gh pr edit) and your own last comment
+#   (gh issue/pr comment --edit-last); force-push, remote branch/ref
+#   deletion, deleting any post and editing releases are blocked.
 #   --no-git binds no GitHub credential at all — that is its enforcement — and
 #   switches git's network transport and gh off as a UX layer.
 #   GitHub authentication is https + the gh token only: ssh keys/sockets are
@@ -104,7 +106,7 @@ fi
 # hooks/ symlink farm over hook-dispatch). Present in every mode; there is no
 # flag that re-enables destructive activity.
 #   default:   non-destructive policy — git/gh work, but force-push, remote
-#              ref/branch deletion and deleting/modifying GitHub posts are
+#              ref/branch deletion, deleting any post and editing releases are
 #              blocked (guard wrappers on PATH + the pre-push policy hook).
 #   --no-git:  no GitHub credential is bound (above) — that is the enforcement:
 #              without a token or key there is nothing to write with. The env
