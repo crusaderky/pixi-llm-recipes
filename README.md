@@ -92,64 +92,33 @@ pixi r -e llamacpp-source-cuda start-server
 
 ## Strata
 
-[Strata](https://github.com/Niko1221/Strata) runs the 125B Qwen3.8-Flash-Next
-mixture-of-experts model on one consumer GPU plus system RAM, and serves it with
-OpenAI-, Anthropic- and Responses-compatible APIs, images included. Its `strata`
-environment is Linux x64 only: the engine and the image encoder are C++/CUDA and are
-**compiled at install time** (~5-9 min on a 32-core host), because Strata publishes no
-Linux prebuilt.
-
-Its port is `port` in `strata.ini` — **8082** here, so nothing collides: llama-server keeps
-8080 (8081 when it runs behind the forge proxy, see below). VRAM, not the port, is what
-decides whether llama-server and Strata can run at once. `start-strata` refuses a port someone
-else owns and names llama-server when that is who holds it; `--port <n>` (or `STRATA_PORT`)
-picks another.
-
-Serving on its own port also means its own browser origin: llama-server's web UI is a PWA
-whose service worker is registered per origin, so a page cached from it can no longer
-shadow Strata's. (`/monitor` is not a route: the chat page is at `/`, and Monitor is a tab
-on it.)
+[Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next on one consumer GPU
+plus system RAM, and serves it with OpenAI-, Anthropic- and Responses-compatible APIs,
+vision included. Strata is configured by `strata.ini` and runs by default on port
+**8082**, so that it does not collide with llama-server (8080) or forge-proxy (8081, see
+below).
 
 ```bash
 pixi install -e strata    # solve the environment and compile the engine
-pixi r start-strata       # first run prepares the model (pack + MTP layer, ~2 min), then serves
-pixi r strata-install     # prepare only: model files, pack, MTP layer, no server
+pixi r strata-install     # (optional) prepare only: model files, pack, MTP layer
+pixi r start-strata       # first run calls strata-install
 pixi r stop-strata
 pixi r restart-strata
-pixi r strata-help        # every parameter Strata takes, and what strata.ini says right now
+pixi r strata-help        # everything you can put in strata.ini
 ```
 
-What it serves, and how it is sized, is `strata.ini` in this repo's root: every key of it is
-an argument for Strata's own setup.py — the model and its quant, the context, the KV cache,
-the VRAM reserve, the port, the images. `strata-help` above prints the whole flag list with
-setup.py's own explanation of each, and the file itself lists the quants and what each one
-costs to download.
+Model files are downloaded into the Hugging Face cache (`~/.cache/huggingface/hub`),
+which is shared with llama-server.
 
-Model files come from the shared Hugging Face cache (`~/.cache/huggingface/hub`, the same
-blobs `llama-server -hf` downloads) and everything Strata writes stays inside
-`$CONDA_PREFIX`, with one deliberate exception: the server's output goes to `strata.log` in
-the directory you start it from.
+The server's output goes to `strata.log` in the project root directory.
 
-Both pi launchers (`pi` and the unsandboxed `pi-unsafe`) add it to `~/.pi/agent/models.json`
-as the **`strata` provider** — endpoint and context size from `strata.ini`, model name from
-the installed run config, and `settings.json`'s model cycle gets the model too. Once. An
-existing `strata` provider is never overwritten, so hand edits stick; a provider still
-pointing at an old port is reported instead.
+Both pi launchers (`pi` and the unsandboxed `pi-unsafe`) add it to
+`~/.pi/agent/models.json` as the **`strata` provider**. An existing `strata` provider is
+never overwritten, so hand edits stick.
 
-A 24 GB card is the target and gets filled: ~23.7 GiB with `vram-reserve-mib = 2000` in
-`strata.ini` — pinned there against the engine's own 700, which leaves a desktop on the same
-card without the VRAM it needs — and about 65 tokens/s decode on an RTX 3090 with the MTP
-draft head doing the guessing. The CUDA architectures default to `86` (RTX 30 series); another
-card wants `STRATA_CUDA_ARCHITECTURES=89,120 pixi install -e strata`.
-
-That reserve keeps the GPU's own memory free; it does not keep the desktop alive. Ubuntu ships
-the login session itself as a `systemd-oomd` kill candidate (a 50% memory-pressure limit on
-`user@<uid>.service`), and a model that holds ~30 GB of RAM plus the page cache of the ~55 GB of
-GGUF it just read crosses it easily — oomd then kills the session, and gnome-shell, the X server
-and the loading model all go down together. On screen that reads as "X crashed"; X's own log says
-it exited cleanly. It is a host policy, so no VRAM setting avoids it: `pixi r install-oomd` (part
-of `pixi r install`) writes a `systemd` drop-in that takes the session out of oomd's reach, and
-warns if something else still arms it.
+On Ubuntu 24.04, strata has been observed to cause random restarts in the whole X
+server. They are prevented by tweaking `systemd-oomd` through `pixi r install-oomd`
+(part of `pixi r install`).
 
 ## Forge guardrails proxy
 
@@ -173,21 +142,20 @@ Nothing else changes.
 
 ## Models
 
-Strata is set up to run Qwen3.8-Flash. Its configuration is `strata.ini` in the repo root
-(`pixi r strata-help` prints every parameter it can name).
+Strata is set up to run Qwen3.8-Flash. It is configured in `strata.ini`.
 
 Llama.cpp models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Engine    | Model               | Variant       | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
-| --------- | ------------------- | ------------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
-| Strata    | Qwen3.8-Flash       | IQ3_XXS       | 72 GB        | 256k int8/int8      | 21.0 GB<sup>4</sup> | 900 tok/s           | 77 tok/s           | ✅     |
-| BeeLlama  | Qwen3.8-Flash       | IQ3_XXS       | 72 GB        | 256k kvarn5         | 19.8 GB<sup>4</sup> | 214 tok/s           | 20 tok/s           | ✅     |
-| BeeLlama  | Qwen3.8-27B         | IQ4_XS MTP    | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
-| BeeLlama  | Occamy-1.0          | IQ4_XS MTP    | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
-| BeeLlama  | MiniCPM5-2B         | Q6_K DSpark   | 2.6 GB       | 128k q6/q6          | 6.4 GB              | 7,460 tok/s         | 200 tok/s          | 🔴     |
-| llama.cpp | LFM2.5-230M         | Q4_K_M        | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴     |
-| llama.cpp | LFM2.5-VL-3B        | Q8_0          | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅     |
+| Engine    | Model         | Variant     | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
+| --------- | ------------- | ----------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
+| Strata    | Qwen3.8-Flash | IQ3_XXS     | 72 GB        | 256k int8/int8      | 21.0 GB<sup>4</sup> | 900 tok/s           | 77 tok/s           | ✅     |
+| BeeLlama  | Qwen3.8-Flash | IQ3_XXS     | 72 GB        | 256k kvarn5         | 19.8 GB<sup>4</sup> | 214 tok/s           | 20 tok/s           | ✅     |
+| BeeLlama  | Qwen3.8-27B   | IQ4_XS MTP  | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
+| BeeLlama  | Occamy-1.0    | IQ4_XS MTP  | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
+| BeeLlama  | MiniCPM5-2B   | Q6_K DSpark | 2.6 GB       | 128k q6/q6          | 6.4 GB              | 7,460 tok/s         | 200 tok/s          | 🔴     |
+| llama.cpp | LFM2.5-230M   | Q4_K_M      | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴     |
+| llama.cpp | LFM2.5-VL-3B  | Q8_0        | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅     |
 
 **Notes:**
 
@@ -283,8 +251,8 @@ Skills under `.agents/skills/` are available only when pi starts in this reposit
 - `update-herdr` — update [Herdr](https://herdr.dev/)
 - `update-llama-cpp` — update both llama.cpp recipes
 - `update-pi-extensions` — refresh pinned Pi extension versions
-- `update-strata` — update the [Strata](https://github.com/Niko1221/Strata) recipe (version
-  pin, the llama.cpp commit its engine builds against, requirements) and rebuild the engine
+- `update-strata` — update the Strata recipe (version pin, the llama.cpp commit its
+  engine builds against, requirements) and rebuild the engine
 
 Skills under `pixi-recipes/pi-home/skills/` are packaged into pi's environment and are
 available in every workspace:
