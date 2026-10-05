@@ -16,11 +16,11 @@ build:
       PLUGINS: >-
         pi-btw@0.7.1
         pi-caveman@1.0.8
-        pi-intercom@0.16.0
+        pi-intercom@0.16.1
         pi-llama-cpp@0.16.0
-        pi-web-access@0.35.0
-        pi-subagents@0.74.0
-        pi-token-speed@0.10.2
+        pi-web-access@0.36.0
+        pi-subagents@0.76.0
+        pi-token-speed@0.11.0
         @juicesharp/rpiv-ask-user-question@2.12.0
         @tmustier/pi-usage-extension@0.9.5
 
