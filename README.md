@@ -90,6 +90,38 @@ Alternatively, you can select an environment non-interactively:
 pixi r -e llamacpp-source-cuda start-server
 ```
 
+## Strata
+
+[Strata](https://github.com/Niko1221/Strata) runs the 125B Qwen3.8-Flash-Next
+mixture-of-experts model on one consumer GPU plus system RAM, and serves it with
+OpenAI-, Anthropic- and Responses-compatible APIs, images included. Its `strata`
+environment is Linux x64 only: the engine and the image encoder are C++/CUDA and are
+**compiled at install time** (~5-9 min on a 32-core host), because Strata publishes no
+Linux prebuilt.
+
+It listens on port 8080 — the same port as llama-server — so the two are mutually
+exclusive. `start-strata` refuses a port someone else owns and names llama-server when
+that is who holds it.
+
+```bash
+pixi install -e strata    # solve the environment and compile the engine
+pixi r start-strata       # first run prepares the model (pack + MTP layer, ~2 min), then serves
+pixi r strata-install     # prepare only: model files, pack, MTP layer, no server
+pixi r stop-strata
+pixi r restart-strata
+```
+
+Model files come from the shared Hugging Face cache (`~/.cache/huggingface/hub`, the same
+blobs `llama-server -hf` downloads) and everything Strata writes stays inside
+`$CONDA_PREFIX`, with one deliberate exception: the server's output goes to `strata.log` in
+the directory you start it from. The default model is the 55 GB Coder IQ1_M; another size
+is `pixi r strata-install -- --family qwen --model IQ3_S` (84 GB, and more RAM).
+
+A 24 GB card is the target and gets filled: ~23.7 GiB with `--vram-reserve-mib 700`, and
+about 65 tokens/s decode on an RTX 3090 with the MTP draft head doing the guessing. The
+CUDA architectures default to `86` (RTX 30 series); another card wants
+`STRATA_CUDA_ARCHITECTURES=89,120 pixi install -e strata`.
+
 ## Forge guardrails proxy
 
 [forge](https://github.com/antoinezambelli/forge) is a transparent reliability layer for
@@ -220,6 +252,8 @@ Skills under `.agents/skills/` are available only when pi starts in this reposit
 - `update-herdr` — update [Herdr](https://herdr.dev/)
 - `update-llama-cpp` — update both llama.cpp recipes
 - `update-pi-extensions` — refresh pinned Pi extension versions
+- `update-strata` — update the [Strata](https://github.com/Niko1221/Strata) recipe (version
+  pin, the llama.cpp commit its engine builds against, requirements) and rebuild the engine
 
 Skills under `pixi-recipes/pi-home/skills/` are packaged into pi's environment and are
 available in every workspace:

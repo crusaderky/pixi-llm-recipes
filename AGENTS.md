@@ -29,6 +29,8 @@ sample-data/
   context-bench/             # long-context recall benchmark (books, answer keys, runner)
 scripts/
   start-server.sh stop-server.sh                # llama-server lifecycle
+  start-strata.sh stop-strata.sh strata-install.sh   # Strata lifecycle (see "Strata" below)
+  strata-run.py                                 # Strata's setup.py, with pixi owning the deps
   start-forge-server.sh stop-forge-server.sh    # forge guardrails proxy lifecycle
   bwrap-pi.sh                                   # bubblewrap sandbox
   pi-unsafe.sh                                  # unsandboxed equivalent (dev/debug only)
@@ -46,6 +48,7 @@ scripts/
 pixi-recipes/
   llama-cpp-source/    recipe.yaml variants.yaml build.sh patches/
   llama-cpp-binary/    recipe.yaml variants.yaml build.sh build.bat
+  strata/              recipe.yaml build.sh   # app + engine + image encoder, compiled here
   pi-extensions/ pi-home/
   herdr/ herdr-file-viewer/
 ```
@@ -60,6 +63,7 @@ pixi-recipes/
 | `sandbox`                                         | `bubblewrap` (Linux only)                                                                                   | —                                                                                                                                                                           |
 | `herdr`                                           | `herdr`, `herdr-file-viewer` (linux-64 + win-64 only)                                                       | `herdr`                                                                                                                                                                     |
 | `git`                                             | `git`, `gh`                                                                                                 | `git`, `gh`                                                                                                                                                                 |
+| `strata`                                          | the `strata` recipe (app + compiled engine, linux-64 only) + `huggingface_hub` + `curl`                     | `start-strata`, `stop-strata`, `restart-strata`, `strata-install`                                                                                                           |
 | `pytools`                                         | python 3.14, `llama-benchy`, `forge-guardrails`, huggingface_hub, transformers, openai, matplotlib, tomli-w | `llama-benchy`, `hf`, `context-bench`, `aggregate-context-bench`, `perplexity-report`, `llama-cpp-changelog`, `gguf-meta-extract`, `openrouter-model`, `start-forge-server` |
 | `lint`                                            | lefthook, ruff, dprint, actionlint, shellcheck, pyflakes, codespell, blacken-docs                           | `lint`, `install-git-hooks`, `update-dprint`                                                                                                                                |
 
@@ -68,8 +72,9 @@ Environments:
 - Eight `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` = `llamacpp` + the matching backend feature.
 - `agents` = `pi` + `sandbox` + `git` + `herdr` + `pytools`. There is no standalone `herdr` env.
 - `lint` = `lint` alone (`no-default-feature`).
+- `strata` = `strata` alone (`no-default-feature`); it shares the 8080 port with the `llamacpp-*` envs.
 
-Platform gating: source-cuda and source-rocm are linux-64 only; binary-cuda and binary-rocm are linux-64 only; binary-vulkan is linux-64 + win-64 (beellama ships no arm64 vulkan asset).
+Platform gating: source-cuda and source-rocm are linux-64 only; binary-cuda and binary-rocm are linux-64 only; binary-vulkan is linux-64 + win-64 (beellama ships no arm64 vulkan asset). `strata` is linux-64 only — its engine is compiled CUDA, and the release's Windows engine would be a second recipe.
 
 Root `[tasks]` (present in every env): `stop-server`, `stop-forge-server`, `restart-server`, `restart-forge-server`.
 Linux `[target.*.tasks]`: `install-apparmor`, `install-bin`, `install-clipboard`, `install-file-viewer-renderers`, `install-git`, `install-memlock`, `install` (= all six), `uninstall`.
@@ -150,12 +155,112 @@ On Windows there is no `opt/llama` split and no symlinks: executables and DLLs a
 | `pi-home`           | Copies `skills/`, `AGENTS.md`, `keybindings.json` into `${PREFIX}/home/.pi/agent/`, `web-search.json` into `${PREFIX}/home/.pi/` (one level up — not a typo), and seeds an empty `agent/bin/`.                                                                                                  |
 | `herdr`             | Downloads pre-built release binaries. Linux = stable (`https://herdr.dev/latest.json`, tag `v{version_stable}`); Windows = preview-only (`preview.json`, tag `{version_preview}`). Context pins `version_stable`, `sha256_stable_{x86_64,aarch64}`, `version_preview`, `sha256_preview_win_64`. |
 | `herdr-file-viewer` | Lays down a herdr plugin root under `${PREFIX}/home/.config/herdr/plugins/herdr-file-viewer/`: prebuilt binary at `target/release/`, plus manifest/scripts/example config fetched from the tagged source.                                                                                       |
+| `strata`            | Strata's app tree plus its C++/CUDA engine and image encoder, all compiled at install time (see [Strata](#strata-strata-env-port-8080)).                                                                                                                                                        |
 
 Both `herdr` recipes set `dynamic_linking.binary_relocation: false` — the upstream Linux prebuilts are static-pie musl binaries, and rattler-build's default patchelf pass corrupts them (adds RPATH + PT_LOAD; the result segfaults).
 
 `herdr-file-viewer` also writes a portable `entry.json` (version, `min_herdr_version`, description — no absolute paths) next to the manifest. `scripts/inject-herdr-file-viewer.sh` reads it and merges the plugin into `~/.config/herdr/plugins.json`, filling `manifest_path`/`plugin_root` from `$CONDA_PREFIX`. It runs from `run-herdr.sh` before the PIXI/CONDA env is stripped, so nothing but the registry entry and the user's `config.toml` lands in `~/`.
 
-Version bumps for `herdr`, `herdr-file-viewer`, `pi-extensions` and `llama-cpp` all have dedicated skills in `.agents/skills/`; `update-all` chains them and refreshes the lockfile.
+Version bumps for `herdr`, `herdr-file-viewer`, `pi-extensions`, `strata` and `llama-cpp` all have dedicated skills in `.agents/skills/`; `update-all` chains them and refreshes the lockfile.
+
+## Strata (`strata` env, port 8080)
+
+[Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next — a 125B MoE — on one GPU plus system RAM and
+serves it on `127.0.0.1:8080` with OpenAI-, Anthropic- and Responses-compatible APIs
+(`/v1/chat/completions`, `/v1/models`, `/v1/messages`). It is **mutually exclusive with llama-server on purpose**: both
+listen on 8080. `start-strata.sh` refuses a port someone else owns, and tells Strata's `/health` (which carries
+`"loaded"`) from llama-server's (which does not), so the check cannot mistake one for the other.
+
+```bash
+pixi install -e strata     # solves the env AND compiles the engine (~8 min on a 32-core host, once)
+pixi run start-strata      # first run: pack + MTP layer (~2 min, ~8 GiB), then serve on 8080
+pixi run strata-install    # the first-run half alone (model files + pack + MTP), no server
+pixi run stop-strata       # SIGTERM (the server answers the engine with QUIT), then SIGKILL
+pixi run restart-strata
+```
+
+A 24 GB card is the target and gets filled: 23.7 of 24.5 GiB, `--vram-reserve-mib 700`, the expert cache and the
+prompt path sharing what is left, everything past that streamed from RAM and SSD. Decode is ~65 tok/s on a 3090
+(~380 tok/s prefill) with the MTP head drafting — `strata.log` reports the expert-cache hit rate per reply.
+
+### Where everything goes
+
+| what                                                                          | where                                                                   |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| app, engine, image encoder, run configs, engine log                           | `$CONDA_PREFIX/opt/strata`                                              |
+| expert pack (`strata-data/packs`), MTP layer (`strata-data/mtp/rt`), settings | `$CONDA_PREFIX/strata-data`, `$CONDA_PREFIX/.config/strata`             |
+| the model's GGUF shards                                                       | `~/.cache/huggingface/hub` — **the same blobs `llama-server -hf` uses** |
+| the `--gguf-dir` folder of symlinks into that cache                           | `$CONDA_PREFIX/strata-models/<tag>`                                     |
+| the server's own output                                                       | `strata.log` in the invoking directory (the repo root under pixi)       |
+
+Everything else Strata writes is inside `$CONDA_PREFIX`. The Hub cache is the deliberate shared exception, and
+`strata.log` the one file that lands outside it (it is `$PWD` at the call, exactly like `llama-server.log`).
+`strata-run.py` redirects `XDG_CONFIG_HOME` to `$CONDA_PREFIX/.config` for the same reason — setup.py otherwise
+writes `~/.config/strata/settings.json`.
+
+The generated `strata-<tag>.json` / `run-<tag>.sh` / `.log` land **next to the packaged app**, inside
+`$CONDA_PREFIX/opt/strata`, and are not part of any package's file list: a recipe rebuild (which `pixi install`
+triggers on any edit under `pixi-recipes/strata/`) replaces the engine but leaves them, and with them the pack and the
+MTP layer, alone — so the second start skips everything the first did.
+
+### Why the recipe builds the engine
+
+Strata publishes **no Linux prebuilt** (its release assets are Windows-only), so a Linux install compiles the engine
+with `cmake -DSTRATA_ENABLE_CUDA=ON` — upstream's Dockerfile does the same, at image build time. Doing it in the
+recipe is what makes `pixi install -e strata` yield a usable env: the first start has nothing to compile and no
+compiler has to exist at runtime. `build.sh` drives **Strata's own `setup.py`** (`cmake_build`) rather than its own
+CMake command line, so the flags cannot drift from upstream; it then writes `engine/BUILD.json` the way the
+Dockerfile does (`source: "local"` plus `source_hash(ENGINE_SOURCES)`), and ships the pinned `llama.cpp` checkout, so
+`get_llama_cpp()` returns it instead of downloading the archive and the pack tools read GGUFs through its `gguf-py`.
+
+`cuda_architectures` (context var, `STRATA_CUDA_ARCHITECTURES` in the environment)
+defaults to `86`, i.e. RTX 30 series. Another card may need e.g.
+`STRATA_CUDA_ARCHITECTURES=89,120 pixi install -e strata`.
+
+### `scripts/strata-run.py` — what differs from `./setup.sh`
+
+The wrapper loads Strata's `setup.py` as a module and replaces exactly two behaviours:
+
+- **Dependencies.** Step 3, and `pip_cuda_libs()` for a ready-made engine, run
+  `python -m pip install <pinned wheels>` into whatever interpreter runs them — a `.venv` upstream, **the conda
+  prefix** here. `pip_install` is replaced with a check that the packages are importable, so nothing installs into
+  the env. The CUDA libraries come from conda (`libcublas`, `libcurand`, `cuda-cudart`) rather than NVIDIA's wheels,
+  which also means there is no `site-packages/nvidia/**` for `cuda_lib_dirs()` to find: `BUILD.json` records
+  `${PREFIX}/lib` as the engine's library directory instead, and the server prepends it to `LD_LIBRARY_PATH`
+  (`start-strata.sh` sets the same path for anything run by hand).
+- **The model files.** setup.py downloads each shard into `<data-dir>/models` with its own `.done` markers — a second
+  55-111 GB copy that llamacpp cannot see. `strata-run.py` fetches them with `huggingface_hub` into
+  `~/.cache/huggingface/hub` instead, at the revision `setup.py` pins (`HF_REVISIONS`, with the same fallback to
+  `main` when a repository has dropped it — upstream's `hf_unpinned`), and hands over a folder of symlinks as
+  `--gguf-dir`. `pixi install -e strata` therefore downloads no model, and the first start reuses what the cache
+  already holds: the Coder's `IQ1_M` shards and vision encoder have been there since llamacpp fetched them.
+
+The MTP draft layer is the one download that cannot go through the Hub cache: `tools/mtp_fetch.py` reads ~5 GB of
+_byte ranges_ out of 28 shards of the 360 GB BF16 checkpoint (`Qwen/Qwen3.8-Flash-Next`, pinned revision — no GGUF
+repo ships an MTP head: checked ISTA-DASLab's two, ukisai's Swift-1.5 and Unsloth's), so caching it as blobs would
+mean the whole checkpoint. It lands in `$CONDA_PREFIX/strata-data/mtp`, like the pack — and only `rt/` (787 MB) is
+what the engine loads (`--mtp`, a folder, not a file). The ~5 GB of tensors and the `mtp-q2_0.gguf` `mtp_rt.py`
+consumed are build inputs, so `strata-run.py` checks the tensors against the checkpoint's SHA256 (`mtp_fetch.py
+verify`, upstream's #327 check) and deletes both once `rt/` is built — 6.1 GB back on this machine.
+`--keep-mtp-inputs` / `STRATA_KEEP_MTP_INPUTS=1` keeps them; they are dead weight otherwise, since setup.py's only
+trigger to rebuild the layer is `rt/experts.bin` going missing, and that re-fetches everything anyway.
+
+GGUF-published MTP heads do exist — `unsloth/Qwen3.8-Flash-Next-GGUF/MTP/mtp-Qwen3.8-Flash-Next-{shared-,}{Q8_0,Q4_K_M,BF16}.gguf`,
+1.8-7.8 GB, in the `mtp-` sidecar convention beellama resolves (`find_best_mtp()` in `common/download.cpp`, fed by
+`--spec-type draft-mtp` / `--mtp`) — and those belong in the Hub cache, where `llama-server` puts them by itself. They
+are **not** Strata's format: Strata wants the `rt/` blob layout its own `mtp_pack.py`+`mtp_rt.py` build at q2_0 (the
+main model's expert format, chosen by measured draft acceptance), while an MTP export from llama.cpp drops the head
+entirely (`supports_mtp_export = False`). Do not point `--mtp` at one of those files.
+
+The default is `--family coder --model IQ1_M` — the Coder's only size, the 55 GB already in the cache, overridable
+with `STRATA_FAMILY`/`STRATA_MODEL`. Another size downloads what it weighs
+(`pixi run strata-install -- --family qwen --model IQ3_S`, 84 GB), and any unknown argument is forwarded to setup.py,
+so `--context`, `--gpu`, `--parallel`, `--vision` and the rest work as upstream documents them.
+
+The pin to watch is `llama_cpp_commit` in `pixi-recipes/strata/recipe.yaml`: it must equal `LLAMA_CPP_COMMIT` in the
+`setup.py` of the packaged version, since the engine links against that ggml and the runtime tools read GGUFs with its
+`gguf-py`. Unlike `fork:` in the llama-cpp recipes it is safe to bump on its own — it is not a deliberate fork choice,
+it is upstream's own pin.
 
 ## Sandboxes and wrappers
 
@@ -316,6 +421,12 @@ pixi run -e llamacpp-source-cuda restart-server
 pixi run -e llamacpp-source-cuda llama-list-devices
 pixi run -e llamacpp-source-cuda llama-hello                   # smoke test with llama-cli
 
+# Strata (same 8080 port as llama-server: the two cannot run at once)
+pixi install -e strata        # solves the env and compiles the engine (~8 min, once)
+pixi run start-strata         # prepares the model files on the first run, then serves on 8080
+pixi run strata-install       # prepare only (Hub cache + pack + MTP layer)
+pixi run stop-strata
+
 # Agents. The task takes exactly one positional arg (the workspace, `-` for a temp
 # dir); everything else MUST come after `--`, including --no-git and --bind.
 pixi run pi /path/to/workspace
@@ -339,6 +450,7 @@ pixi run openrouter-models z-ai/glm-5.3  # per-provider CSV + HTML report into .
 # Building packages
 pixi build
 pixi build --path pixi-recipes/llama-cpp-source
+pixi build --path pixi-recipes/strata
 ```
 
 To use the file-viewer plugin, bind a key in `~/.config/herdr/config.toml` (e.g. `prefix+f` → `herdr plugin action invoke open-file-viewer --plugin herdr-file-viewer`) and `herdr server reload-config`. Optional renderers (`glow`/`delta`/`bat`) come from `pixi r install-file-viewer-renderers`.

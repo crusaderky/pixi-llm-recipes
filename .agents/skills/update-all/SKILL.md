@@ -1,6 +1,6 @@
 ---
 name: update-all
-description: Update everything — llama.cpp (source + binary recipes), pi-extensions npm packages, herdr and herdr-file-viewer recipes, then run `pixi update` to refresh the lockfile. Triggered by "update yourself", "update everything", or "do a full update".
+description: Update everything — llama.cpp (source + binary recipes), pi-extensions npm packages, herdr and herdr-file-viewer recipes, the strata recipe (pins + engine rebuild), then run `pixi update` to refresh the lockfile. Triggered by "update yourself", "update everything", or "do a full update".
 compatibility: Requires network access to api.github.com, registry.npmjs.org and herdr.dev. Designed for the pixi-llm-recipes project.
 allowed-tools: Bash, Read, Edit, WebFetch
 ---
@@ -57,8 +57,12 @@ nothing moved.
 2. **update-pi-extensions** — npm pins in the `PLUGINS` list.
 3. **update-herdr-file-viewer** — version + two SHA-256 digests.
 4. **update-herdr** — stable (Linux) and preview (Windows) pins.
-5. **`pixi update`** from the project root, to refresh `pixi.lock`.
-6. **Report**:
+5. **update-strata** — the `version` pin plus the llama.cpp commit its engine builds against, and
+   then `pixi install -e strata` (the engine is compiled, so the pin alone is a half-update; that
+   env install is the one long phase, ~5-9 min, and — unlike `-e agents` — it is safe from the
+   sandbox, whose bind mounts do not cover the strata prefix).
+6. **`pixi update`** from the project root, to refresh `pixi.lock`.
+7. **Report**:
 
 ```
 ## Update Complete
@@ -73,6 +77,12 @@ nothing moved.
 
 ### herdr-file-viewer / herdr
 - <old> → <new>, or "already at latest <version>"
+
+### strata
+- Version: <old> → <new>        (llama.cpp commit: <old> → <new>)
+- Engine rebuilt via `pixi install -e strata`; smoke test: <health / decode / MTP draft>
+- Interface touch points: all present | MISSING <list>
+- pack/MTP re-prepared: no | yes (<why>)
 
 ### pixi.lock
 - Refreshed via `pixi update`.

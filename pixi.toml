@@ -161,6 +161,29 @@ gh = "*"
 git = "git"
 gh = "gh"
 
+[feature.strata]
+# Strata's engine is C++/CUDA and is compiled by the recipe at install time, so this
+# feature is x86-64 Linux only (the release also publishes a Windows engine, which would
+# be a second recipe).
+platforms = ["linux-64-glibc234"]
+
+[feature.strata.dependencies]
+strata = { path = "pixi-recipes/strata" }
+# The model shards come from ~/.cache/huggingface/hub -- the same blobs `llama-server -hf`
+# downloads -- through scripts/strata-run.py, which replaces setup.py's own downloader
+# with huggingface_hub and hands setup.py a folder of symlinks (--gguf-dir).
+huggingface_hub = "*"
+# start-strata.sh polls Strata's /health with it (the host's curl would usually do, but
+# the task should not depend on one being installed)
+curl = "*"
+
+[feature.strata.tasks]
+# 8080, like llama-server: the port is what keeps the two from running at once.
+start-strata = "bash scripts/start-strata.sh"
+stop-strata = "bash scripts/stop-strata.sh"
+restart-strata = { depends-on = ["stop-strata", "start-strata"] }
+strata-install = "bash scripts/strata-install.sh"
+
 [feature.pytools.dependencies]
 python = "=3.14"
 huggingface_hub = "*"
@@ -226,3 +249,4 @@ llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
 agents = ["pi", "sandbox", "git", "herdr", "pytools"]
 lint = { features = ["lint"], no-default-feature = true }
+strata = { features = ["strata"], no-default-feature = true }
