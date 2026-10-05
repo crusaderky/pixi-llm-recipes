@@ -178,7 +178,9 @@ huggingface_hub = "*"
 curl = "*"
 
 [feature.strata.tasks]
-# 8080, like llama-server: the port is what keeps the two from running at once.
+# 8082: llama-server keeps 8080 and the forge layout's llama-server backend keeps 8081, so
+# no two of the three collide. `start-strata --port <n>` overrides it, and so does
+# STRATA_PORT.
 start-strata = "bash scripts/start-strata.sh"
 stop-strata = "bash scripts/stop-strata.sh"
 restart-strata = { depends-on = ["stop-strata", "start-strata"] }

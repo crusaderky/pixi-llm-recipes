@@ -72,7 +72,7 @@ Environments:
 - Eight `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` = `llamacpp` + the matching backend feature.
 - `agents` = `pi` + `sandbox` + `git` + `herdr` + `pytools`. There is no standalone `herdr` env.
 - `lint` = `lint` alone (`no-default-feature`).
-- `strata` = `strata` alone (`no-default-feature`); it shares the 8080 port with the `llamacpp-*` envs.
+- `strata` = `strata` alone (`no-default-feature`); it serves on 8082, so the three ports stay apart: 8080 is llama-server's, 8081 the forge layout's llama-server backend, 8082 Strata's (VRAM, not the port, keeps llama-server and Strata from running together).
 
 Platform gating: source-cuda and source-rocm are linux-64 only; binary-cuda and binary-rocm are linux-64 only; binary-vulkan is linux-64 + win-64 (beellama ships no arm64 vulkan asset). `strata` is linux-64 only — its engine is compiled CUDA, and the release's Windows engine would be a second recipe.
 
@@ -163,21 +163,25 @@ Both `herdr` recipes set `dynamic_linking.binary_relocation: false` — the upst
 
 Version bumps for `herdr`, `herdr-file-viewer`, `pi-extensions`, `strata` and `llama-cpp` all have dedicated skills in `.agents/skills/`; `update-all` chains them and refreshes the lockfile.
 
-## Strata (`strata` env, port 8080)
+## Strata (`strata` env, port 8082)
 
 [Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next — a 125B MoE — on one GPU plus system RAM and
-serves it on `127.0.0.1:8080` with OpenAI-, Anthropic- and Responses-compatible APIs
-(`/v1/chat/completions`, `/v1/models`, `/v1/messages`). It is **mutually exclusive with llama-server on purpose**: both
-listen on 8080. `start-strata.sh` refuses a port someone else owns, and tells Strata's `/health` (which carries
+serves it on `127.0.0.1:8082` with OpenAI-, Anthropic- and Responses-compatible APIs
+(`/v1/chat/completions`, `/v1/models`, `/v1/messages`). 8080 is llama-server's and 8081 the forge layout's llama-server
+backend, so no two of the three collide — whether llama-server and Strata can run at the same time is a VRAM question,
+not a port one. `start-strata.sh` still refuses a port someone else owns, and tells Strata's `/health` (which carries
 `"loaded"`) from llama-server's (which does not), so the check cannot mistake one for the other.
 
 ```bash
 pixi install -e strata     # solves the env AND compiles the engine (~8 min on a 32-core host, once)
-pixi run start-strata      # first run: pack + MTP layer (~2 min, ~8 GiB), then serve on 8080
+pixi run start-strata      # first run: pack + MTP layer (~2 min, ~8 GiB), then serve on 8082
 pixi run strata-install    # the first-run half alone (model files + pack + MTP), no server
 pixi run stop-strata       # SIGTERM (the server answers the engine with QUIT), then SIGKILL
 pixi run restart-strata
 ```
+
+`--port <n>` and `STRATA_PORT` override it (both halves: the health check and setup.py, which lets the CLI port win
+over the one recorded in the run config).
 
 A 24 GB card is the target and gets filled: 23.7 of 24.5 GiB, `--vram-reserve-mib 700`, the expert cache and the
 prompt path sharing what is left, everything past that streamed from RAM and SSD. Decode is ~65 tok/s on a 3090
@@ -197,6 +201,13 @@ Everything else Strata writes is inside `$CONDA_PREFIX`. The Hub cache is the de
 `strata.log` the one file that lands outside it (it is `$PWD` at the call, exactly like `llama-server.log`).
 `strata-run.py` redirects `XDG_CONFIG_HOME` to `$CONDA_PREFIX/.config` for the same reason — setup.py otherwise
 writes `~/.config/strata/settings.json`.
+
+Serving on its own port means its own browser origin, which is also what ended an earlier confusion worth knowing
+about: llama-server's webui is a PWA (`/sw.js`, `/manifest.webmanifest`, `/_app/version.json` — its own security test
+requests them) and a service worker belongs to the _origin_, not the server, so while the two shared 8080 a browser
+that had opened llama-server's UI kept rendering that cached page on `localhost:8080` however correct Strata's own
+response was (`curl -s localhost:8080 | head -3` shows `<title>Strata</title>` either way). Distinct ports, distinct
+origins; `start-strata --port <n>` remains the escape hatch if one is ever run on llama-server's port.
 
 The generated `strata-<tag>.json` / `run-<tag>.sh` / `.log` land **next to the packaged app**, inside
 `$CONDA_PREFIX/opt/strata`, and are not part of any package's file list: a recipe rebuild (which `pixi install`
@@ -421,9 +432,9 @@ pixi run -e llamacpp-source-cuda restart-server
 pixi run -e llamacpp-source-cuda llama-list-devices
 pixi run -e llamacpp-source-cuda llama-hello                   # smoke test with llama-cli
 
-# Strata (same 8080 port as llama-server: the two cannot run at once)
+# Strata (8082; llama-server keeps 8080 and the forge backend 8081 -- VRAM, not the port, is the limit)
 pixi install -e strata        # solves the env and compiles the engine (~8 min, once)
-pixi run start-strata         # prepares the model files on the first run, then serves on 8080
+pixi run start-strata         # prepares the model files on the first run, then serves on 8082
 pixi run strata-install       # prepare only (Hub cache + pack + MTP layer)
 pixi run stop-strata
 

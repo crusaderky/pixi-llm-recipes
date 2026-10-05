@@ -99,9 +99,15 @@ environment is Linux x64 only: the engine and the image encoder are C++/CUDA and
 **compiled at install time** (~5-9 min on a 32-core host), because Strata publishes no
 Linux prebuilt.
 
-It listens on port 8080 — the same port as llama-server — so the two are mutually
-exclusive. `start-strata` refuses a port someone else owns and names llama-server when
-that is who holds it.
+It listens on port **8082**, so nothing collides: llama-server keeps 8080 (8081 when it runs
+behind the forge proxy, see below). VRAM, not the port, is what decides whether llama-server
+and Strata can run at once. `start-strata` refuses a port someone else owns and names
+llama-server when that is who holds it; `--port <n>` (or `STRATA_PORT`) picks another.
+
+Serving on its own port also means its own browser origin: llama-server's web UI is a PWA
+whose service worker is registered per origin, so a page cached from it can no longer
+shadow Strata's. (`/monitor` is not a route: the chat page is at `/`, and Monitor is a tab
+on it.)
 
 ```bash
 pixi install -e strata    # solve the environment and compile the engine

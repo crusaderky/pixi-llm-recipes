@@ -289,7 +289,7 @@ def main() -> int:
     )
     parser.add_argument("--data-dir", default=os.environ.get("STRATA_DATA"))
     parser.add_argument(
-        "--port", type=int, default=int(os.environ.get("STRATA_PORT", "8080"))
+        "--port", type=int, default=int(os.environ.get("STRATA_PORT", "8082"))
     )
     parser.add_argument(
         "--no-start", action="store_true", help="prepare the files, do not start"

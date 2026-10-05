@@ -89,7 +89,9 @@ about:
   summary: Qwen3.8-Flash-Next on one consumer GPU, with an OpenAI- and Anthropic-compatible API
   description: |
     Strata runs the Qwen3.8-Flash-Next mixture-of-experts model on one consumer GPU
-    (12 GB of VRAM or more) plus system RAM, and serves it on http://127.0.0.1:8080.
+    (12 GB of VRAM or more) plus system RAM, and serves it on 127.0.0.1 with OpenAI-,
+    Anthropic- and Responses-compatible APIs. The listening port belongs to whoever starts
+    it, not to this package.
 
     This package builds the C++/CUDA engine and the image encoder from the pinned
     release. The model files are not part of it: they are read from the Hugging Face

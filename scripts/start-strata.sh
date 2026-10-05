@@ -12,11 +12,13 @@ set -o pipefail
 # already there), takes ~5 GB of MTP tensors out of the Qwen checkpoint and prepares the
 # pack. That is a couple of minutes, once; later starts only load the model (~40 s).
 #
-# Strata listens on 8080, the port llama-server uses too, so the two cannot run at the same
-# time: this refuses to start when something else already owns the port.
+# Strata listens on 8082 by default: llama-server owns 8080 and the forge layout gives its own
+# llama-server backend 8081, so none of the three collides. A port someone else owns is
+# refused rather than taken over.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PORT=8080
+# STRATA_PORT overrides it for both halves: the health check below and setup.py
+PORT="${STRATA_PORT:-8082}"
 ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -49,7 +51,7 @@ if server_is_up; then
         echo "Strata is already running on port ${PORT}."
         exit 0
     fi
-    echo "Port ${PORT} is in use by another server (llama-server listens there too)." >&2
+    echo "Port ${PORT} is in use by another server (llama-server on 8080, the forge backend on 8081, another Strata)." >&2
     echo "Stop it first (pixi run stop-server), then start Strata again." >&2
     exit 1
 fi

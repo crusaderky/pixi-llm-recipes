@@ -77,7 +77,7 @@ at `0`, and leave the `skip:` list, `dynamic_linking`, and the CUDA requirements
 pixi install -e strata              # ~5-9 min: compiles the engine + image encoder for the new sources
 pixi run -e strata strata-install   # re-prepares: re-verifies the model, rewrites the run config
 pixi run -e strata start-strata     # ~40 s warm, then /health says "loaded": true
-curl -s http://127.0.0.1:8080/health
+curl -s http://127.0.0.1:8082/health
 pixi run -e strata stop-strata
 ```
 
