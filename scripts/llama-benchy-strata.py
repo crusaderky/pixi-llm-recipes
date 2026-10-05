@@ -29,9 +29,12 @@ from strata_common import flag_value, installed_ports, resolve_port, strata_args
 #: tokens. Everything else is llama-benchy's own default.
 BASE_ARGS = [
     "--no-cache",
-    "--runs", "7",
-    "--tg", "128",
-    "--tokenizer", "Qwen/Qwen3.8-Flash-Next",
+    "--runs",
+    "7",
+    "--tg",
+    "128",
+    "--tokenizer",
+    "Qwen/Qwen3.8-Flash-Next",
 ]
 
 
