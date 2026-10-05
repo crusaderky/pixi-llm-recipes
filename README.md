@@ -456,6 +456,12 @@ To get the list, you can just run:
 pixi r llama-benchy
 ```
 
+`llama-benchy-strata` does the same for the current model set up in `strata.ini`:
+
+```bash
+pixi r llama-benchy-strata
+```
+
 ### Model and KV cache quantization quality
 
 `perplexity` runs `llama-perplexity` over a cross-product of arbitrary command-line

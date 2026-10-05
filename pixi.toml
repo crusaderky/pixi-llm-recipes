@@ -213,6 +213,7 @@ llama-benchy = ">=0.4.0"
 
 [feature.pytools.tasks]
 llama-benchy = "python -m llama_benchy --base-url http://localhost:8080/v1 --no-cache --runs 3 --tg 128"
+llama-benchy-strata = "python -m llama_benchy --base-url http://localhost:8082/v1 --no-cache --runs 7 --tg 128 --model qwen3.8-flash-next-iq3_xxs"
 hf = "hf"
 context-bench = "python sample-data/context-bench/run_benchmark.py"
 aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_results.py"
