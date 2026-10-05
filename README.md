@@ -166,7 +166,9 @@ Nothing else changes.
 
 ## Models
 
-Models are defined in `models.ini` (llama-server's native preset format) and are
+Strata is set up to run Qwen3.8-Flash. Its configuration is in the header of `scripts/strata-run.py`
+
+Llama.cpp models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
 | Model               | Variant       | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |

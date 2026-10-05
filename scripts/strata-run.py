@@ -57,8 +57,8 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-DEFAULT_FAMILY = "coder"
-DEFAULT_MODEL = "IQ1_M"
+DEFAULT_FAMILY = "qwen"
+DEFAULT_MODEL = "IQ3_XXS"
 #: The image encoder on the GPU (Strata's `--vision gpu`): the Coder keeps the visual
 #: experts, and the encoder is compiled into the package.
 DEFAULT_VISION = "gpu"
@@ -66,12 +66,7 @@ DEFAULT_VISION = "gpu"
 #: positions), so no rope scaling is involved and there is nothing to trade off. The deployment
 #: does not retune it per start; `--context` on the command line still wins over the pin.
 DEFAULT_CONTEXT = "262144"
-#: VRAM the engine keeps free for other programs, in MiB.  The engine's own default is 700,
-#: which a card that also drives the display does not survive: once the expert cache (plus
-#: the image encoder, on ``--vision gpu``) holds the rest of the card, the driver evicts the
-#: desktop's buffers and the X server / Wayland session goes with them (upstream #560, #516
-#: -- setup.py's own advice there is 3072 for an AMD card on a Linux desktop).  The cost is
-#: ~1.3 GB of expert cache, a few percent of decode speed.
+#: VRAM the engine keeps free for other programs, in MiB.
 DEFAULT_VRAM_RESERVE_MIB = "2000"
 
 #: A pinned file URL as setup.py builds it: <endpoint>/<owner>/<repo>/resolve/<sha>/<path>
