@@ -37,7 +37,7 @@ scripts/
   run-herdr.sh                                  # herdr launcher (PATH fixup + plugin inject)
   inject-pi-extensions.sh inject-strata-model.sh inject-herdr-file-viewer.sh
   install-bin.sh uninstall-bin.sh               # ~/.local/bin wrappers + herdr desktop entry
-  install-apparmor.sh install-memlock.sh install-clipboard.sh
+  install-apparmor.sh install-memlock.sh install-oomd.sh install-clipboard.sh
   install-file-viewer-renderers.sh install-git.sh
   git-guards/                                   # git/gh policy wrappers, hook-dispatch + hooks/ farm
   install/{pi,herdr,gh}                         # the wrappers themselves
@@ -77,7 +77,7 @@ Environments:
 Platform gating: source-cuda and source-rocm are linux-64 only; binary-cuda and binary-rocm are linux-64 only; binary-vulkan is linux-64 + win-64 (beellama ships no arm64 vulkan asset). `strata` is linux-64 only — its engine is compiled CUDA, and the release's Windows engine would be a second recipe.
 
 Root `[tasks]` (present in every env): `stop-server`, `stop-forge-server`, `restart-server`, `restart-forge-server`.
-Linux `[target.*.tasks]`: `install-apparmor`, `install-bin`, `install-clipboard`, `install-file-viewer-renderers`, `install-git`, `install-memlock`, `install` (= all six), `uninstall`.
+Linux `[target.*.tasks]`: `install-apparmor`, `install-bin`, `install-clipboard`, `install-file-viewer-renderers`, `install-git`, `install-memlock`, `install-oomd`, `install` (= all seven), `uninstall`.
 
 **`-e <env>` is only required when a task exists in more than one environment** — in practice only the `llamacpp` feature's tasks, which exist in all eight `llamacpp-*` envs. Everything else (`pi`, `herdr`, `gh`, `llama-benchy`, `perplexity-report`, …) resolves on its own.
 
@@ -183,9 +183,31 @@ pixi run restart-strata
 `--port <n>` and `STRATA_PORT` override it (both halves: the health check and setup.py, which lets the CLI port win
 over the one recorded in the run config).
 
-A 24 GB card is the target and gets filled: 23.7 of 24.5 GiB, `--vram-reserve-mib 700`, the expert cache and the
+A 24 GB card is the target and gets filled: 23.7 of 24.5 GiB, `--vram-reserve-mib 2000`, the expert cache and the
 prompt path sharing what is left, everything past that streamed from RAM and SSD. Decode is ~65 tok/s on a 3090
-(~380 tok/s prefill) with the MTP head drafting — `strata.log` reports the expert-cache hit rate per reply.
+(~380 tok/s prefill) with the MTP head drafting — `strata.log` reports the expert-cache hit rate per reply. The
+reserve is another **pin**, not the engine's own 700 MiB default: at 700 the expert cache (and the image encoder,
+on `--vision gpu`) holds the rest of the card, the driver evicts whatever the desktop had there, and the X server
+goes down mid-reply — upstream's advice for exactly that is 3072 (#560, #516). `DEFAULT_VRAM_RESERVE_MIB` in
+`scripts/strata-run.py` is 2000 (~1.3 GB back from the expert cache, a few percent of speed);
+`STRATA_VRAM_RESERVE_MIB` or an explicit `--vram-reserve-mib` overrides it, and a config still carrying 700 is
+rewritten at the next start.
+
+A desktop dies for a second, unrelated reason, and it is the one that actually bites here: **Ubuntu ships the login
+session itself as a `systemd-oomd` kill candidate.** `/usr/lib/systemd/system/user@.service.d/10-oomd-user-service-defaults.conf`
+sets `ManagedOOMMemoryPressure=kill` with a 50% limit, so once the whole `user@<uid>.service` subtree stays above
+50% memory pressure for 20 s _with reclaim activity_, oomd SIGKILLs a cgroup below it — and a leaf is all a
+candidate needs to be. The recorded victim was `user@<uid>.service/init.scope`, i.e. `systemd --user` itself, which
+takes every unit in the session with it: gnome-shell, the terminal, the model mid-load, and the X server (whose log
+says `Server terminated successfully (0)` — a clean exit, no core dump, no `(EE) NVIDIA`, no kernel `Xid`, which is
+why it reads as "X crashed"). Four kills in one afternoon. Pressure, not usage, is what trips it: ~30 GB of locked
+anon cannot be reclaimed, so the kernel keeps reclaiming the ~55 GB of GGUF page cache the run charged to that
+session's cgroup — and that charge survives the process, which is why the first starts work and later ones do not.
+Nothing about it is VRAM, so no reserve, quant or context setting avoids it: `scripts/install-oomd.sh`
+(`pixi r install-oomd`, part of `pixi r install`) writes
+`/etc/systemd/system/user@.service.d/90-oomd-user-session.conf` with `ManagedOOMMemoryPressure=auto`, which makes
+`systemd-oomd` neither monitor nor choose that unit — the kernel's own OOM killer stays the backstop, and it kills
+a process rather than the session. The script warns when another drop-in, or an ancestor slice, still reports `kill`.
 
 ### Where everything goes
 
@@ -270,7 +292,10 @@ so `--context`, `--gpu`, `--parallel`, `--vision` and the rest work as upstream 
 pinned** though: `scripts/strata-run.py` defaults `--context` to `DEFAULT_CONTEXT` (262144 = 256K, the model's
 trained window, no rope scaling) and rewrites `--max-context` in the run config before every start — setup.py's
 start path reads the config verbatim and ignores `--context`, and its setup path without `--gguf-dir` would want
-the shards re-downloaded. `STRATA_CONTEXT` overrides the pin; an explicit `--context` still wins.
+the shards re-downloaded. `STRATA_CONTEXT` overrides the pin; an explicit `--context` still wins. The **VRAM
+reserve is pinned the same way** (`DEFAULT_VRAM_RESERVE_MIB`, 2000 MiB — see above), and for a config, not just
+the first start: a run config that disagrees is what a start passes `--vram-reserve-mib` for, setup.py rewriting
+its `args` when it sees it.
 
 The pin to watch is `llama_cpp_commit` in `pixi-recipes/strata/recipe.yaml`: it must equal `LLAMA_CPP_COMMIT` in the
 `setup.py` of the packaged version, since the engine links against that ggml and the runtime tools read GGUFs with its
@@ -304,7 +329,7 @@ A guard layer, not a security boundary. Residual holes, all requiring a delibera
 
 ### `~/.local/bin` wrappers
 
-`pixi r install` runs all six installers (`install-bin.sh`, `install-apparmor.sh`, `install-clipboard.sh`, `install-file-viewer-renderers.sh`, `install-git.sh`, `install-memlock.sh`); `install-bin.sh` symlinks `scripts/install/{pi,herdr,gh}` into `~/.local/bin` and generates a herdr desktop entry + icon (picking ptyxis / gnome-terminal / plain terminal depending on what exists). `install-git.sh` does the one-off GitHub groundwork (`gh auth login` only when no token exists at all — reruns never mint a second one; `gh auth setup-git` helper; `user.name`/`user.email` from the GitHub profile when missing); every step is idempotent — the policy hooks need no install, they are versioned in `scripts/git-guards/hooks/`. `pixi r uninstall` removes the `~/.local/bin` wrappers.
+`pixi r install` runs all seven installers (`install-bin.sh`, `install-apparmor.sh`, `install-clipboard.sh`, `install-file-viewer-renderers.sh`, `install-git.sh`, `install-memlock.sh`, `install-oomd.sh`); `install-bin.sh` symlinks `scripts/install/{pi,herdr,gh}` into `~/.local/bin` and generates a herdr desktop entry + icon (picking ptyxis / gnome-terminal / plain terminal depending on what exists). `install-git.sh` does the one-off GitHub groundwork (`gh auth login` only when no token exists at all — reruns never mint a second one; `gh auth setup-git` helper; `user.name`/`user.email` from the GitHub profile when missing); every step is idempotent — the policy hooks need no install, they are versioned in `scripts/git-guards/hooks/`. `install-oomd.sh` takes the login session out of `systemd-oomd`'s hands (see the [Strata](#strata-strata-env-port-8082) section); it is a no-op where oomd is not installed. `pixi r uninstall` removes the `~/.local/bin` wrappers.
 
 The wrappers `cd` into the repo and call the matching pixi task with your cwd as the workspace, forwarding the rest base64-encoded in `_FWD_ARGS` (which dodges pixi's shell-parser mangling of quotes). They resolve `--bind` relative paths against your cwd first, since the task itself runs with the repo as cwd, and honour `--no-sandbox` by routing to the `*-unsafe` task.
 

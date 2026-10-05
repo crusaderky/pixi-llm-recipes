@@ -20,7 +20,10 @@ install-clipboard = "bash scripts/install-clipboard.sh"
 install-file-viewer-renderers = "bash scripts/install-file-viewer-renderers.sh"
 install-git = "bash scripts/install-git.sh"
 install-memlock = "bash scripts/install-memlock.sh"
-install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-git", "install-memlock"] }
+# A model load holds the login session's cgroup above systemd-oomd's 50% memory-pressure
+# limit, and the cgroup oomd kills for that can be init.scope -- i.e. the whole desktop.
+install-oomd = "bash scripts/install-oomd.sh"
+install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-git", "install-memlock", "install-oomd"] }
 uninstall = "bash scripts/uninstall-bin.sh"
 
 [target.linux-aarch64-glibc234.tasks]
@@ -30,7 +33,8 @@ install-clipboard = "bash scripts/install-clipboard.sh"
 install-file-viewer-renderers = "bash scripts/install-file-viewer-renderers.sh"
 install-git = "bash scripts/install-git.sh"
 install-memlock = "bash scripts/install-memlock.sh"
-install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-git", "install-memlock"] }
+install-oomd = "bash scripts/install-oomd.sh"
+install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-git", "install-memlock", "install-oomd"] }
 uninstall = "bash scripts/uninstall-bin.sh"
 
 # Tasks invoke `bash scripts/*.sh`. On Windows, a plain `bash` from PATH would

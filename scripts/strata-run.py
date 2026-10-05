@@ -35,6 +35,13 @@ redirected there with ``XDG_CONFIG_HOME`` too.
 The context is pinned (``STRATA_CONTEXT``, default 262144 = 256K): setup.py's start path
 ignores ``--context``, so a config that drifted is rewritten here rather than re-running the
 setup path -- that path without ``--gguf-dir`` would want the shards downloaded again.
+
+So is the VRAM the engine leaves to everything else (``STRATA_VRAM_RESERVE_MIB``, default
+``DEFAULT_VRAM_RESERVE_MIB``): the engine's own 700 MiB is small enough that a deployment on
+a card that also drives the display ends with the expert cache -- and the image encoder, on
+``--vision gpu`` -- holding the rest of it, and the desktop's own buffers evicted.  That is
+what takes the X server or the compositor down mid-reply.  A config still carrying 700 is
+rewritten at the next start.
 """
 
 from __future__ import annotations
@@ -59,6 +66,13 @@ DEFAULT_VISION = "gpu"
 #: positions), so no rope scaling is involved and there is nothing to trade off. The deployment
 #: does not retune it per start; `--context` on the command line still wins over the pin.
 DEFAULT_CONTEXT = "262144"
+#: VRAM the engine keeps free for other programs, in MiB.  The engine's own default is 700,
+#: which a card that also drives the display does not survive: once the expert cache (plus
+#: the image encoder, on ``--vision gpu``) holds the rest of the card, the driver evicts the
+#: desktop's buffers and the X server / Wayland session goes with them (upstream #560, #516
+#: -- setup.py's own advice there is 3072 for an AMD card on a Linux desktop).  The cost is
+#: ~1.3 GB of expert cache, a few percent of decode speed.
+DEFAULT_VRAM_RESERVE_MIB = "2000"
 
 #: A pinned file URL as setup.py builds it: <endpoint>/<owner>/<repo>/resolve/<sha>/<path>
 RESOLVE_URL = re.compile(
@@ -319,6 +333,22 @@ def pin_context(config: Path, ctx: str) -> bool:
     return True
 
 
+def config_flag(config: Path, flag: str) -> str | None:
+    """`--flag`'s value in a run config's engine arguments, or None when it is not there.
+
+    setup.py's start path hands ``cfg["args"]`` to the engine verbatim, so that list is what
+    the engine will really run with -- whatever a command line said at some earlier start.
+    """
+    try:
+        cfg = json.loads(config.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return None
+    args = cfg.get("args", []) if isinstance(cfg, dict) else []
+    if not isinstance(args, list):
+        return None
+    return flag_value(args, flag, None)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(add_help=False)  # the useful --help is setup.py's
     parser.add_argument(
@@ -365,6 +395,11 @@ def main() -> int:
     tag = (setup.FAMILIES[family]["tag"] + model).lower()
     config = root / f"strata-{tag}.json"
     ctx = flag_value(forwarded, "--context", DEFAULT_CONTEXT)
+    reserve = flag_value(
+        forwarded,
+        "--vram-reserve-mib",
+        os.environ.get("STRATA_VRAM_RESERVE_MIB", DEFAULT_VRAM_RESERVE_MIB),
+    )
     install = not config.is_file() or any(
         arg.split("=")[0] in INSTALL_FLAGS for arg in forwarded
     )
@@ -376,6 +411,7 @@ def main() -> int:
             ("--model", model),
             ("--vision", vision),
             ("--context", ctx),
+            ("--vram-reserve-mib", reserve),
         ):
             if flag not in {arg.split("=")[0] for arg in forwarded}:
                 argv += [flag, value]
@@ -392,6 +428,14 @@ def main() -> int:
     # its start path would otherwise serve the stale --max-context.
     if pin_context(config, ctx):
         setup.ok(f"context: {ctx} tokens (pinned in {config.name})")
+    # The reserve, the same way -- but setup.py reads the engine's arguments from the config
+    # verbatim, so passing the flag is what rewrites them (and keeps the value for this
+    # model).  Only a config that disagrees with the pin is passed one, so the steady state
+    # does not rewrite the config on every start.
+    if "--vram-reserve-mib" not in {a.split("=")[0] for a in forwarded} and (
+        config_flag(config, "--vram-reserve-mib") != reserve
+    ):
+        forwarded = [*forwarded, "--vram-reserve-mib", reserve]
     # Let the server replace this process: the pid start-strata.sh records is then the
     # server's own, and SIGTERM lands in the code that answers the engine with QUIT --
     # the same reason upstream sets this for docker stop.

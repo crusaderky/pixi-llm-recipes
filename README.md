@@ -129,10 +129,20 @@ run config, and `settings.json`'s model cycle gets the model too. Once. An exist
 provider is never overwritten, so hand edits stick; a provider still pointing at an old port
 is reported instead.
 
-A 24 GB card is the target and gets filled: ~23.7 GiB with `--vram-reserve-mib 700`, and
-about 65 tokens/s decode on an RTX 3090 with the MTP draft head doing the guessing. The
-CUDA architectures default to `86` (RTX 30 series); another card wants
+A 24 GB card is the target and gets filled: ~23.7 GiB with `--vram-reserve-mib 2000` — the start
+scripts pin that against the engine's own 700, which leaves a desktop on the same card without
+the VRAM it needs — and about 65 tokens/s decode on an RTX 3090 with the MTP draft head doing
+the guessing. The CUDA architectures default to `86` (RTX 30 series); another card wants
 `STRATA_CUDA_ARCHITECTURES=89,120 pixi install -e strata`.
+
+That reserve keeps the GPU's own memory free; it does not keep the desktop alive. Ubuntu ships
+the login session itself as a `systemd-oomd` kill candidate (a 50% memory-pressure limit on
+`user@<uid>.service`), and a model that holds ~30 GB of RAM plus the page cache of the ~55 GB of
+GGUF it just read crosses it easily — oomd then kills the session, and gnome-shell, the X server
+and the loading model all go down together. On screen that reads as "X crashed"; X's own log says
+it exited cleanly. It is a host policy, so no VRAM setting avoids it: `pixi r install-oomd` (part
+of `pixi r install`) writes a `systemd` drop-in that takes the session out of oomd's reach, and
+warns if something else still arms it.
 
 ## Forge guardrails proxy
 
