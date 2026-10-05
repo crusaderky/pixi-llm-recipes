@@ -255,6 +255,6 @@ llamacpp-binary-cpu = ["llamacpp", "llamacpp-binary-cpu"]
 llamacpp-binary-cuda = ["llamacpp", "llamacpp-binary-cuda"]
 llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
+strata = { features = ["strata"] }
 agents = ["pi", "sandbox", "git", "herdr", "pytools"]
 lint = { features = ["lint"], no-default-feature = true }
-strata = { features = ["strata"], no-default-feature = true }
