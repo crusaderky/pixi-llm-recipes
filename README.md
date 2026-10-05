@@ -183,7 +183,6 @@ served on demand. All models were carefully cherry-picked and tuned.
 | --------- | ------------------- | ------------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
 | Strata    | Qwen3.8-Flash       | IQ3_XXS       | 72 GB        | 256k int8/int8      | 21.0 GB<sup>4</sup> | 900 tok/s           | 77 tok/s           | ✅     |
 | BeeLlama  | Qwen3.8-Flash       | IQ3_XXS       | 72 GB        | 256k kvarn5         | 19.8 GB<sup>4</sup> | 214 tok/s           | 20 tok/s           | ✅     |
-| BeeLlama  | Qwen3.8-Flash-Coder | IQ3_XS REAP50 | 56 GB        | 256k kvarn4         | 21.3 GB<sup>4</sup> | 222 tok/s           | 26 tok/s           | ✅ CPU |
 | BeeLlama  | Qwen3.8-27B         | IQ4_XS MTP    | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
 | BeeLlama  | Occamy-1.0          | IQ4_XS MTP    | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
 | BeeLlama  | MiniCPM5-2B         | Q6_K DSpark   | 2.6 GB       | 128k q6/q6          | 6.4 GB              | 7,460 tok/s         | 200 tok/s          | 🔴     |
