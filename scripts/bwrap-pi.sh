@@ -225,6 +225,7 @@ if [ ! -f ~/.pi/agent/models.json ]; then
 fi
 
 bash "$(dirname "$0")/inject-pi-extensions.sh"
+bash "$(dirname "$0")/inject-strata-model.sh"
 
 function cleanup {
   rsync -avcO --no-perms --no-times "$_CONDA_PREFIX"/home/.pi/agent/{skills,AGENTS.md,keybindings.json} pixi-recipes/pi-home/

@@ -35,7 +35,7 @@ scripts/
   bwrap-pi.sh                                   # bubblewrap sandbox
   pi-unsafe.sh                                  # unsandboxed equivalent (dev/debug only)
   run-herdr.sh                                  # herdr launcher (PATH fixup + plugin inject)
-  inject-pi-extensions.sh inject-herdr-file-viewer.sh
+  inject-pi-extensions.sh inject-strata-model.sh inject-herdr-file-viewer.sh
   install-bin.sh uninstall-bin.sh               # ~/.local/bin wrappers + herdr desktop entry
   install-apparmor.sh install-memlock.sh install-clipboard.sh
   install-file-viewer-renderers.sh install-git.sh
@@ -292,11 +292,11 @@ A guard layer, not a security boundary. Residual holes, all requiring a delibera
 - Mounts `$CONDA_PREFIX/home/.pi` as `~/.pi`; bind-mounts `~/.pi/agent/{auth,trust,settings}.json` and `sessions/` from the host.
 - Mounts a fresh **tmpfs** at `~/.pi/agent/intercom`, so the pi-intercom broker and its unix socket stay private per sandbox: a session and its pi-subagents children can talk; independent sandboxes and the host cannot. Without it the extension would write shared state into `$CONDA_PREFIX` through the rw `~/.pi` bind.
 - If the workdir is a **git worktree**, binds the main repo's common `.git` dir read-write so git can read shared objects and update worktree admin files, without exposing the main checkout.
-- Calls `inject-pi-extensions.sh` to merge the packaged `packages` block into `~/.pi/agent/settings.json`.
+- Calls `inject-pi-extensions.sh` to merge the packaged `packages` block into `~/.pi/agent/settings.json`, and `inject-strata-model.sh` to add the local Strata server to the host's `~/.pi/agent/models.json` as the `strata` provider (endpoint, model name and context size read from the newest run config; an existing provider is left alone, a stale port reported). Both run on the host before bwrap, and the binds above put their result inside the sandbox too.
 - On exit, rsyncs `skills`, `AGENTS.md`, `keybindings.json` back from `$CONDA_PREFIX/home/.pi/agent/` into `pixi-recipes/pi-home/`, so edits made from inside pi can be reviewed and committed. `-c --no-times` keeps mtimes stable when content is unchanged, otherwise pixi-build would rebuild the recipe on every launch.
 - Unsets all `PIXI_*` / `CONDA_*` plus `INIT_CWD`, `XML_CATALOG_FILES`, `GSETTINGS_SCHEMA_DIR` before exec.
 
-`pi-unsafe.sh` runs with full host access (dev/debug only) and additionally symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where MSYS bash cannot symlink, and forces `HOME=%USERPROFILE%` so bash's `~` matches pi's) and cleans up via `trap`. It consumes `--no-git` only to swallow the flag (with a warning): no GitHub policy applies there — with full host access, absolute paths, `cmd.exe` on Windows and raw HTTP calls with the host token sidestep every PATH/env guard, so the sandbox's `git-guards` layer is deliberately not attempted. Use the sandboxed `pi` when the policy matters.
+`pi-unsafe.sh` runs with full host access (dev/debug only) and additionally symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where MSYS bash cannot symlink, and forces `HOME=%USERPROFILE%` so bash's `~` matches pi's) and cleans up via `trap`. It calls the same two pi-config injectors, so a sandboxed and an unsandboxed session see the same packages and models. It consumes `--no-git` only to swallow the flag (with a warning): no GitHub policy applies there — with full host access, absolute paths, `cmd.exe` on Windows and raw HTTP calls with the host token sidestep every PATH/env guard, so the sandbox's `git-guards` layer is deliberately not attempted. Use the sandboxed `pi` when the policy matters.
 
 ### `~/.local/bin` wrappers
 

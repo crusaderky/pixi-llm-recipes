@@ -123,6 +123,12 @@ blobs `llama-server -hf` downloads) and everything Strata writes stays inside
 the directory you start it from. The default model is the 55 GB Coder IQ1_M; another size
 is `pixi r strata-install -- --family qwen --model IQ3_S` (84 GB, and more RAM).
 
+Both pi launchers (`pi` and the unsandboxed `pi-unsafe`) add it to `~/.pi/agent/models.json`
+as the **`strata` provider** — endpoint, model name and context size read from the installed
+run config, and `settings.json`'s model cycle gets the model too. Once. An existing `strata`
+provider is never overwritten, so hand edits stick; a provider still pointing at an old port
+is reported instead.
+
 A 24 GB card is the target and gets filled: ~23.7 GiB with `--vram-reserve-mib 700`, and
 about 65 tokens/s decode on an RTX 3090 with the MTP draft head doing the guessing. The
 CUDA architectures default to `86` (RTX 30 series); another card wants
