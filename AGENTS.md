@@ -266,7 +266,11 @@ entirely (`supports_mtp_export = False`). Do not point `--mtp` at one of those f
 The default is `--family coder --model IQ1_M` — the Coder's only size, the 55 GB already in the cache, overridable
 with `STRATA_FAMILY`/`STRATA_MODEL`. Another size downloads what it weighs
 (`pixi run strata-install -- --family qwen --model IQ3_S`, 84 GB), and any unknown argument is forwarded to setup.py,
-so `--context`, `--gpu`, `--parallel`, `--vision` and the rest work as upstream documents them.
+so `--context`, `--gpu`, `--parallel`, `--vision` and the rest work as upstream documents them. The **context is
+pinned** though: `scripts/strata-run.py` defaults `--context` to `DEFAULT_CONTEXT` (262144 = 256K, the model's
+trained window, no rope scaling) and rewrites `--max-context` in the run config before every start — setup.py's
+start path reads the config verbatim and ignores `--context`, and its setup path without `--gguf-dir` would want
+the shards re-downloaded. `STRATA_CONTEXT` overrides the pin; an explicit `--context` still wins.
 
 The pin to watch is `llama_cpp_commit` in `pixi-recipes/strata/recipe.yaml`: it must equal `LLAMA_CPP_COMMIT` in the
 `setup.py` of the packaged version, since the engine links against that ggml and the runtime tools read GGUFs with its

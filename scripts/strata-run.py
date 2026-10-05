@@ -31,12 +31,17 @@ redirected there with ``XDG_CONFIG_HOME`` too.
     python scripts/strata-run.py --no-start    # prepare the model files, do not start
     pixi run start-strata -- --model IQ2_XS    # anything unknown is forwarded to setup.py
     pixi run strata-install -- --keep-mtp-inputs
+
+The context is pinned (``STRATA_CONTEXT``, default 262144 = 256K): setup.py's start path
+ignores ``--context``, so a config that drifted is rewritten here rather than re-running the
+setup path -- that path without ``--gguf-dir`` would want the shards downloaded again.
 """
 
 from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
 import re
 import shutil
@@ -50,6 +55,10 @@ DEFAULT_MODEL = "IQ1_M"
 #: The image encoder on the GPU (Strata's `--vision gpu`): the Coder keeps the visual
 #: experts, and the encoder is compiled into the package.
 DEFAULT_VISION = "gpu"
+#: The context every run gets, pinned: 256K is Qwen3.8-Flash-Next's trained window (262,144
+#: positions), so no rope scaling is involved and there is nothing to trade off. The deployment
+#: does not retune it per start; `--context` on the command line still wins over the pin.
+DEFAULT_CONTEXT = "262144"
 
 #: A pinned file URL as setup.py builds it: <endpoint>/<owner>/<repo>/resolve/<sha>/<path>
 RESOLVE_URL = re.compile(
@@ -276,6 +285,40 @@ def flag_value(forwarded: list[str], flag: str, default: str) -> str:
     return default
 
 
+def pin_context(config: Path, ctx: str) -> bool:
+    """Rewrite ``--max-context`` in a run config; True when it had to change.
+
+    setup.py's start path takes the engine's arguments from the config verbatim and ignores
+    ``--context``, so the pin is applied to the file itself. Written the way setup.py writes it
+    (``json.dumps(cfg, indent=1)``, whole-file, moved over the old one) so a later setup run
+    sees the same bytes it would have written.
+    """
+    if not config.is_file():
+        return False
+    try:
+        cfg = json.loads(config.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(cfg, dict):
+        return False
+    args = cfg.get("args", [])
+    if "--max-context" in args:
+        i = args.index("--max-context") + 1
+        if i < len(args) and args[i] == str(ctx):
+            return False
+        if i < len(args):
+            args[i] = str(ctx)
+        else:
+            args.append(str(ctx))
+    else:
+        args += ["--max-context", str(ctx)]
+    cfg["args"] = args
+    tmp = config.with_name(config.name + ".tmp")
+    tmp.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
+    os.replace(tmp, config)
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(add_help=False)  # the useful --help is setup.py's
     parser.add_argument(
@@ -321,6 +364,7 @@ def main() -> int:
     common = ["--data-dir", data, "--port", str(args.port), "--no-browser", "--yes"]
     tag = (setup.FAMILIES[family]["tag"] + model).lower()
     config = root / f"strata-{tag}.json"
+    ctx = flag_value(forwarded, "--context", DEFAULT_CONTEXT)
     install = not config.is_file() or any(
         arg.split("=")[0] in INSTALL_FLAGS for arg in forwarded
     )
@@ -331,6 +375,7 @@ def main() -> int:
             ("--family", family),
             ("--model", model),
             ("--vision", vision),
+            ("--context", ctx),
         ):
             if flag not in {arg.split("=")[0] for arg in forwarded}:
                 argv += [flag, value]
@@ -343,6 +388,10 @@ def main() -> int:
         setup.ok(f"{config.name} is installed: nothing to prepare")
     if args.no_start:
         return 0
+    # The pinned context, applied to a config that setup.py wrote earlier (or hand-edited):
+    # its start path would otherwise serve the stale --max-context.
+    if pin_context(config, ctx):
+        setup.ok(f"context: {ctx} tokens (pinned in {config.name})")
     # Let the server replace this process: the pid start-strata.sh records is then the
     # server's own, and SIGTERM lands in the code that answers the engine with QUIT --
     # the same reason upstream sets this for docker stop.
