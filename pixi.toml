@@ -182,9 +182,9 @@ huggingface_hub = "*"
 curl = "*"
 
 [feature.strata.tasks]
-# 8082: llama-server keeps 8080 and the forge layout's llama-server backend keeps 8081, so
-# no two of the three collide. `start-strata --port <n>` overrides it, and so does
-# STRATA_PORT.
+# The port is `port` in strata.ini; `start-strata --port <n>` overrides it, and so does
+# STRATA_PORT. start-strata.sh asks scripts/strata-run.py which one that is, so its health
+# check polls the port Strata is about to listen on.
 start-strata = "bash scripts/start-strata.sh"
 stop-strata = "bash scripts/stop-strata.sh"
 restart-strata = { depends-on = ["stop-strata", "start-strata"] }
@@ -213,7 +213,14 @@ llama-benchy = ">=0.4.0"
 
 [feature.pytools.tasks]
 llama-benchy = "python -m llama_benchy --base-url http://localhost:8080/v1 --no-cache --runs 3 --tg 128"
-llama-benchy-strata = "python -m llama_benchy --base-url http://localhost:8082/v1 --no-cache --runs 7 --tg 128 --model qwen3.8-flash-next-iq3_xxs"
+# The model and the port come from the live server and strata.ini, so this follows whatever
+# Strata is actually serving. See scripts/llama-benchy-strata.py.
+llama-benchy-strata = "python scripts/llama-benchy-strata.py"
+# Every parameter Strata's setup.py accepts, printed by setup.py itself, plus how strata.ini
+# feeds them. It lives here rather than in the strata feature on purpose: the strata env is
+# the one whose install compiles a CUDA engine, and a help command must not trigger that. It
+# reads the strata app tree out of .pixi/envs/strata when that env is installed.
+strata-help = "python scripts/strata-help.py"
 hf = "hf"
 context-bench = "python sample-data/context-bench/run_benchmark.py"
 aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_results.py"

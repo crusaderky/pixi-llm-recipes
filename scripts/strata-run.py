@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Start Strata out of the conda package, with pixi owning the dependencies.
 
-The upstream installer (setup.py) assumes a plain ``./setup.sh`` checkout; two of the
+The upstream installer (setup.py) assumes a plain ``./setup.sh`` checkout; three of the
 things it does there are replaced here:
 
+* **Its command line.** What Strata runs with is ``strata.ini`` in the project root -- every
+  key of it is an argument for setup.py, and ``pixi run strata-help`` prints the whole flag
+  list. A command line after ``--`` and the ``STRATA_*`` variables override the file, in that
+  order. Nothing here has an opinion about a model, a context or a VRAM reserve: the file
+  does.
 * **Dependencies.** Its step 3, and ``pip_cuda_libs()`` for a ready-made engine, run
   ``python -m pip install <pinned wheels>`` into whichever interpreter is running -- a
   ``.venv`` upstream, the conda prefix here. Installing into a conda prefix is the one
@@ -20,35 +25,30 @@ things it does there are replaced here:
   folder the engine actually loads. Neither is read again -- ``rt/experts.bin`` going missing
   is setup.py's only reason to rebuild the layer, and it re-fetches the tensors then -- so
   they are checked against the pinned SHA256s (upstream's #327 check) and deleted once the
-  layer is built. ``--keep-mtp-inputs`` (or ``STRATA_KEEP_MTP_INPUTS=1``) keeps them.
+  layer is built. ``keep-mtp-inputs`` in strata.ini (or ``STRATA_KEEP_MTP_INPUTS=1``) keeps
+  them.
 
 Everything else stays setup.py's: the expert pack, the MTP draft layer, the run config.
 What it writes is all inside ``$CONDA_PREFIX`` -- the pack, the MTP layer and the config
 under ``$CONDA_PREFIX/strata-data`` and ``$CONDA_PREFIX/opt/strata``, its per-user settings
 redirected there with ``XDG_CONFIG_HOME`` too.
 
-    python scripts/strata-run.py               # install if needed, then start
-    python scripts/strata-run.py --no-start    # prepare the model files, do not start
-    pixi run start-strata -- --model IQ2_XS    # anything unknown is forwarded to setup.py
+    python scripts/strata-run.py               # prepare if needed, then start
+    python scripts/strata-run.py --no-start    # prepare only, do not start
+    python scripts/strata-run.py --print port         # the port strata.ini says, nothing else
+    pixi run start-strata -- --calibrate       # anything unknown is forwarded to setup.py
     pixi run strata-install -- --keep-mtp-inputs
 
-The context is pinned (``STRATA_CONTEXT``, default 262144 = 256K): setup.py's start path
-ignores ``--context``, so a config that drifted is rewritten here rather than re-running the
-setup path -- that path without ``--gguf-dir`` would want the shards downloaded again.
-
-So is the VRAM the engine leaves to everything else (``STRATA_VRAM_RESERVE_MIB``, default
-``DEFAULT_VRAM_RESERVE_MIB``): the engine's own 700 MiB is small enough that a deployment on
-a card that also drives the display ends with the expert cache -- and the image encoder, on
-``--vision gpu`` -- holding the rest of it, and the desktop's own buffers evicted.  That is
-what takes the X server or the compositor down mid-reply.  A config still carrying 700 is
-rewritten at the next start.
+setup.py's start path hands its run config's engine arguments to the engine verbatim, so a
+flag read only by its setup path (``--kv``, ``--parallel``, ``--vision``, ...) does nothing on
+a start. The part of the command line it only reads when preparing is recorded in
+``<data-dir>/strata-prepared.json``, and a change to it in strata.ini re-prepares the model
+once instead of being silently ignored. ``--context`` is the exception this wrapper can fix
+without a re-prepare: it rewrites ``--max-context`` in the run config before every start.
 """
 
 from __future__ import annotations
 
-import argparse
-import importlib.util
-import json
 import os
 import re
 import shutil
@@ -57,26 +57,34 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-DEFAULT_FAMILY = "qwen"
-DEFAULT_MODEL = "IQ3_XXS"
-#: The image encoder on the GPU (Strata's `--vision gpu`): the Coder keeps the visual
-#: experts, and the encoder is compiled into the package.
-DEFAULT_VISION = "gpu"
-#: The context every run gets, pinned: 256K is Qwen3.8-Flash-Next's trained window (262,144
-#: positions), so no rope scaling is involved and there is nothing to trade off. The deployment
-#: does not retune it per start; `--context` on the command line still wins over the pin.
-DEFAULT_CONTEXT = "262144"
-#: VRAM the engine keeps free for other programs, in MiB.
-DEFAULT_VRAM_RESERVE_MIB = "2048"
+from strata_common import (
+    INSTALL_FLAGS,
+    PRINT_RESOLVERS,
+    WRAPPER_FLAGS,
+    app_dir,
+    config_flag,
+    flag_name,
+    flag_value,
+    has_flag,
+    ini_path,
+    load_setup,
+    parse_args,
+    pin_context,
+    prepare_signature,
+    prepared_args,
+    record_prepared,
+    render,
+    run_setup,
+    signature_diff,
+    strata_args,
+    without,
+)
 
 #: A pinned file URL as setup.py builds it: <endpoint>/<owner>/<repo>/resolve/<sha>/<path>
 RESOLVE_URL = re.compile(
     r"^(?P<endpoint>https?://[^/]+)/(?P<repo>[^/]+/[^/]+)/resolve/"
     r"(?P<revision>[0-9a-f]{40})/(?P<path>.+)$"
 )
-#: setup.py's own switches that mean "install or reconfigure", not "start"
-INSTALL_FLAGS = ("--setup", "--family", "--model")
-
 #: The MTP draft layer's build inputs: the 31 raw tensors `tools/mtp_fetch.py` range-reads out
 #: of the 360 GB BF16 checkpoint (~5 GB) and the GGUF `tools/mtp_pack.py` made of them. The
 #: engine loads neither -- `--mtp` takes the `rt/` folder `tools/mtp_rt.py` writes -- and
@@ -84,32 +92,6 @@ INSTALL_FLAGS = ("--setup", "--family", "--model")
 #: the raw tensors anyway. `verify` makes the raw tensors worth their keep (#327: a mirror
 #: that ignores Range returns the shard's start, and nothing else would catch it).
 MTP_INPUTS = ("tensors", "mtp-q2_0.gguf")
-
-
-def app_dir() -> Path:
-    """The installed package: $CONDA_PREFIX/opt/strata ($STRATA_ROOT overrides it)."""
-    override = os.environ.get("STRATA_ROOT")
-    if override:
-        return Path(override)
-    prefix = os.environ.get("CONDA_PREFIX")
-    if not prefix:
-        sys.exit(
-            "CONDA_PREFIX is not set: run this through the pixi tasks "
-            "(pixi run start-strata / strata-install)"
-        )
-    return Path(prefix) / "opt" / "strata"
-
-
-def load_setup(root: Path) -> ModuleType:
-    """Strata's setup.py as a module, so its tables drive this wrapper and not a copy."""
-    sys.path.insert(0, str(root))
-    spec = importlib.util.spec_from_file_location("strata_setup", root / "setup.py")
-    if spec is None or spec.loader is None:
-        sys.exit(f"cannot load {root / 'setup.py'}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["strata_setup"] = module
-    spec.loader.exec_module(module)
-    return module
 
 
 def applies(line: str) -> bool:
@@ -150,7 +132,7 @@ def resolve_family(setup: ModuleType, family: str) -> str:
     """The family as setup.py spells it, or the choices it would have offered."""
     known = {name.lower(): name for name in setup.FAMILIES}
     if family.lower() not in known:
-        sys.exit(f"--family {family!r}: setup.py knows {', '.join(setup.FAMILIES)}")
+        sys.exit(f"family {family!r}: setup.py knows {', '.join(setup.FAMILIES)}")
     return known[family.lower()]
 
 
@@ -158,12 +140,12 @@ def resolve_model(setup: ModuleType, family: str, model: str) -> str:
     """The quant, checked against the family that ships it (`MODELS[...]['families']`)."""
     known = {name.lower(): name for name in setup.MODELS}
     if model.lower() not in known:
-        sys.exit(f"--model {model!r}: setup.py knows {', '.join(setup.MODELS)}")
+        sys.exit(f"model {model!r}: setup.py knows {', '.join(setup.MODELS)}")
     model = known[model.lower()]
     families = setup.MODELS[model].get("families", ("qwen", "swift"))
     if family not in families:
         sys.exit(
-            f"--model {model!r} exists only for {', '.join(families)}, not {family!r}"
+            f"model {model!r} exists only for {', '.join(families)}, not {family!r}"
         )
     return model
 
@@ -225,15 +207,6 @@ def gguf_dir(setup: ModuleType, family: str, model: str, vision: str) -> Path:
     return where
 
 
-def run_setup(setup: ModuleType, argv: list[str]) -> int:
-    """One setup.py invocation, in this process (the pip replacement has to stay in)."""
-    sys.argv = [str(setup.ROOT / "setup.py"), *argv]
-    try:
-        return int(setup.main() or 0)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
-
-
 def dir_bytes(path: Path) -> int:
     if path.is_file():
         return path.stat().st_size
@@ -284,158 +257,126 @@ def trim_mtp_inputs(setup: ModuleType, data: Path) -> None:
     )
 
 
-def flag_value(forwarded: list[str], flag: str, default: str) -> str:
-    """`--flag value` or `--flag=value` as the user gave it, else the default."""
-    for i, arg in enumerate(forwarded):
-        if arg.startswith(flag + "="):
-            return arg.split("=", 1)[1]
-        if arg == flag and i + 1 < len(forwarded):
-            return forwarded[i + 1]
-    return default
-
-
-def pin_context(config: Path, ctx: str) -> bool:
-    """Rewrite ``--max-context`` in a run config; True when it had to change.
-
-    setup.py's start path takes the engine's arguments from the config verbatim and ignores
-    ``--context``, so the pin is applied to the file itself. Written the way setup.py writes it
-    (``json.dumps(cfg, indent=1)``, whole-file, moved over the old one) so a later setup run
-    sees the same bytes it would have written.
-    """
-    if not config.is_file():
-        return False
-    try:
-        cfg = json.loads(config.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError):
-        return False
-    if not isinstance(cfg, dict):
-        return False
-    args = cfg.get("args", [])
-    if "--max-context" in args:
-        i = args.index("--max-context") + 1
-        if i < len(args) and args[i] == str(ctx):
-            return False
-        if i < len(args):
-            args[i] = str(ctx)
-        else:
-            args.append(str(ctx))
-    else:
-        args += ["--max-context", str(ctx)]
-    cfg["args"] = args
-    tmp = config.with_name(config.name + ".tmp")
-    tmp.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
-    os.replace(tmp, config)
-    return True
-
-
-def config_flag(config: Path, flag: str) -> str | None:
-    """`--flag`'s value in a run config's engine arguments, or None when it is not there.
-
-    setup.py's start path hands ``cfg["args"]`` to the engine verbatim, so that list is what
-    the engine will really run with -- whatever a command line said at some earlier start.
-    """
-    try:
-        cfg = json.loads(config.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError):
-        return None
-    args = cfg.get("args", []) if isinstance(cfg, dict) else []
-    if not isinstance(args, list):
-        return None
-    return flag_value(args, flag, None)
-
-
 def main() -> int:
-    parser = argparse.ArgumentParser(add_help=False)  # the useful --help is setup.py's
-    parser.add_argument(
-        "--family", default=os.environ.get("STRATA_FAMILY", DEFAULT_FAMILY)
-    )
-    parser.add_argument(
-        "--model", default=os.environ.get("STRATA_MODEL", DEFAULT_MODEL)
-    )
-    parser.add_argument(
-        "--vision", default=os.environ.get("STRATA_VISION", DEFAULT_VISION)
-    )
-    parser.add_argument("--data-dir", default=os.environ.get("STRATA_DATA"))
-    parser.add_argument(
-        "--port", type=int, default=int(os.environ.get("STRATA_PORT", "8082"))
-    )
-    parser.add_argument(
-        "--no-start", action="store_true", help="prepare the files, do not start"
-    )
-    parser.add_argument(
-        "--keep-mtp-inputs",
-        action="store_true",
-        default=bool(os.environ.get("STRATA_KEEP_MTP_INPUTS")),
-        help="keep the MTP draft layer's ~5.8 GB of build inputs (the raw checkpoint "
-        "tensors and the packed GGUF) instead of trimming them once rt/ is built",
-    )
-    args, forwarded = parser.parse_known_args([a for a in sys.argv[1:] if a != "--"])
+    cli = [a for a in sys.argv[1:] if a != "--"]
 
-    family = flag_value(forwarded, "--family", args.family)
-    model = flag_value(forwarded, "--model", args.model)
-    vision = flag_value(forwarded, "--vision", args.vision)
+    # start-strata.sh and inject-strata-model.sh ask this instead of carrying settings of
+    # their own, so a health check polls the port strata.ini is about to listen on
+    if "--print" in cli:
+        i = cli.index("--print")
+        if i + 1 >= len(cli):
+            print("--print takes a strata.ini key, e.g. --print port", file=sys.stderr)
+            return 2
+        key = cli[i + 1]
+        rest = [a for j, a in enumerate(cli) if j not in (i, i + 1)]
+        pairs = strata_args(rest)
+        flag = flag_name(key)
+        resolve = PRINT_RESOLVERS.get(flag)
+        value = resolve(pairs) if resolve else flag_value(pairs, flag)
+        if not value:
+            print(f"{ini_path()}: nothing says {key}", file=sys.stderr)
+            return 1
+        print(value)
+        return 0
+
+    pairs = strata_args(cli)
+    no_start = has_flag(pairs, "--no-start")
+    keep_mtp = has_flag(pairs, "--keep-mtp-inputs")
+    pairs = without(pairs, WRAPPER_FLAGS)
 
     root = app_dir()
-    prefix = Path(os.environ["CONDA_PREFIX"])
+    prefix = os.environ.get("CONDA_PREFIX")
+    if not prefix:
+        sys.exit(
+            "CONDA_PREFIX is not set: run this through the pixi tasks "
+            "(pixi run start-strata / strata-install)"
+        )
+    prefix = Path(prefix)
     # setup.py remembers the data folder in ~/.config/strata/settings.json; this env keeps
     # everything it writes under its own prefix
     os.environ.setdefault("XDG_CONFIG_HOME", str(prefix / ".config"))
     setup = load_setup(root)
     replace_pip(setup)
+
+    family = flag_value(pairs, "--family")
+    model = flag_value(pairs, "--model")
+    if not family or not model:
+        sys.exit(
+            f"{ini_path()} sets no family and model. This wrapper prepares the model files "
+            "itself, so it has to know which model it is preparing; `pixi run strata-help` "
+            "lists what setup.py offers."
+        )
     family = resolve_family(setup, family)
     model = resolve_model(setup, family, model)
 
-    data = args.data_dir or str(prefix / "strata-data")
-    common = ["--data-dir", data, "--port", str(args.port), "--no-browser", "--yes"]
+    # The layout default, not a setting: everything stays inside the env's own prefix.
+    # Passed on both paths -- setup.py's own default is `Strata-data` next to the app folder,
+    # and data_folder() moves model files between whatever it and the remembered one are.
+    data = Path(flag_value(pairs, "--data-dir") or prefix / "strata-data")
+    data_dir = ["--data-dir", str(data)]
     tag = (setup.FAMILIES[family]["tag"] + model).lower()
     config = root / f"strata-{tag}.json"
-    ctx = flag_value(forwarded, "--context", DEFAULT_CONTEXT)
-    reserve = flag_value(
-        forwarded,
-        "--vram-reserve-mib",
-        os.environ.get("STRATA_VRAM_RESERVE_MIB", DEFAULT_VRAM_RESERVE_MIB),
-    )
-    install = not config.is_file() or any(
-        arg.split("=")[0] in INSTALL_FLAGS for arg in forwarded
-    )
-    if install:
+    # Only decides whether the image encoder is fetched beside the shards. Without a
+    # `vision` in strata.ini the choice is setup.py's, and its recommended answer is the GPU
+    # encoder -- so fetching it is the assumption that cannot waste a later start.
+    vision = flag_value(pairs, "--vision", "gpu")
+
+    signature = prepare_signature(pairs)
+    prepared = prepared_args(data)  # what this data folder was last prepared with
+    reason = None
+    if not config.is_file():
+        reason = f"{config.name} is not installed"
+    elif no_start:
+        reason = "strata-install prepares whatever strata.ini says"
+    elif any(flag in INSTALL_FLAGS for flag, _ in parse_args(cli)):
+        reason = "asked for on the command line"
+    elif prepared is None:
+        reason = "nothing records how this model was prepared"
+    elif prepared != signature:
+        reason = f"strata.ini changed: {signature_diff(prepared, signature)}"
+
+    if reason:
+        print(f"  preparing the model: {reason}", flush=True)
         farm = gguf_dir(setup, family, model, vision)
-        argv = [*common, "--no-start", "--gguf-dir", str(farm)]
-        for flag, value in (
-            ("--family", family),
-            ("--model", model),
-            ("--vision", vision),
-            ("--context", ctx),
-            ("--vram-reserve-mib", reserve),
-        ):
-            if flag not in {arg.split("=")[0] for arg in forwarded}:
-                argv += [flag, value]
-        code = run_setup(setup, [*argv, *forwarded])
+        argv = [
+            *data_dir,
+            *render(without(pairs, {"--no-start"})),
+            "--no-start",
+            "--gguf-dir",
+            str(farm),
+        ]
+        code = run_setup(setup, argv)
         if code:
             return code
-        if not args.keep_mtp_inputs:
-            trim_mtp_inputs(setup, Path(data))
-    elif args.no_start:
-        setup.ok(f"{config.name} is installed: nothing to prepare")
-    if args.no_start:
+        record_prepared(data, tag, signature)
+        if not keep_mtp:
+            trim_mtp_inputs(setup, data)
+    if no_start:
         return 0
-    # The pinned context, applied to a config that setup.py wrote earlier (or hand-edited):
-    # its start path would otherwise serve the stale --max-context.
-    if pin_context(config, ctx):
-        setup.ok(f"context: {ctx} tokens (pinned in {config.name})")
-    # The reserve, the same way -- but setup.py reads the engine's arguments from the config
-    # verbatim, so passing the flag is what rewrites them (and keeps the value for this
-    # model).  Only a config that disagrees with the pin is passed one, so the steady state
-    # does not rewrite the config on every start.
-    if "--vram-reserve-mib" not in {a.split("=")[0] for a in forwarded} and (
-        config_flag(config, "--vram-reserve-mib") != reserve
-    ):
-        forwarded = [*forwarded, "--vram-reserve-mib", reserve]
+
+    # Several models can be installed at once and setup.py starts the newest run config, so
+    # the one strata.ini names has to be the newest by the time it looks.
+    if config.is_file():
+        config.touch()
+
+    # setup.py's start path ignores --context (it reads the config verbatim), so the context
+    # strata.ini asks for is applied to the config itself.
+    ctx = flag_value(pairs, "--context")
+    if ctx and pin_context(config, ctx):
+        setup.ok(f"context: {ctx} tokens ({config.name})")
+
+    # The VRAM reserve setup.py does read on a start -- but passing it rewrites the config,
+    # so a config that already agrees with strata.ini is left alone.
+    start = without(pairs, WRAPPER_FLAGS | INSTALL_FLAGS)
+    reserve = flag_value(pairs, "--vram-reserve-mib")
+    if reserve and config_flag(config, "--vram-reserve-mib") == reserve:
+        start = without(start, {"--vram-reserve-mib"})
+
     # Let the server replace this process: the pid start-strata.sh records is then the
     # server's own, and SIGTERM lands in the code that answers the engine with QUIT --
     # the same reason upstream sets this for docker stop.
     os.environ["STRATA_EXECV"] = "1"
-    return run_setup(setup, [*common, *forwarded])
+    return run_setup(setup, [*data_dir, *render(start)])
 
 
 if __name__ == "__main__":

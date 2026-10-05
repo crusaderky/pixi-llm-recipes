@@ -24,7 +24,7 @@ fi
 
 # The installed app tree: this env, a sibling env of it (the pixi layout of an agents env),
 # $STRATA_ROOT, or this script's own repo. Its newest run config carries the port, the model
-# name and the context size the server was prepared with.
+# name and the context size the model was prepared with.
 APP=""
 for candidate in "${STRATA_ROOT:-}" "${CONDA_PREFIX:-}/opt/strata" "${CONDA_PREFIX:-}/../strata/opt/strata" "$(dirname "$0")/../.pixi/envs/strata/opt/strata"; do
     if [ -n "${candidate}" ] && [ -f "${candidate}/setup.py" ]; then
@@ -33,11 +33,14 @@ for candidate in "${STRATA_ROOT:-}" "${CONDA_PREFIX:-}/opt/strata" "${CONDA_PREF
     fi
 done
 
-# Defaults: the pixi tasks' port, a model name Strata accepts for anything (it ignores the
-# field), and the context size the default setup settles on for a 24 GB card.
-PORT="${STRATA_PORT:-8082}"
+# Defaults for a machine with nothing installed yet: the port and the context strata.ini says
+# (asked from scripts/strata-run.py, which is what start-strata.sh starts on -- and STRATA_PORT
+# wins over it), and a model name Strata accepts for anything (Strata ignores the field). Once
+# a model is prepared, its run config supplies whatever the file left unset.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PORT="${STRATA_PORT:-$(python "${SCRIPT_DIR}/strata-run.py" --print port 2> /dev/null || true)}"
+CONTEXT="$(python "${SCRIPT_DIR}/strata-run.py" --print context 2> /dev/null || true)"
 MODEL="strata"
-CONTEXT=131072
 
 CONFIG=""
 if [ -n "${APP}" ]; then
@@ -50,20 +53,29 @@ if [ -n "${APP}" ]; then
     done
 fi
 if [ -n "${CONFIG}" ] && [ -f "${CONFIG}" ]; then
-    # one line: port model_name max-context
+    # one line: port model_name max-context (empty for whatever that config does not record)
     CONFIG_KEYS="$(node -e '
 const fs = require("fs");
 const cfg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
 const args = Array.isArray(cfg.args) ? cfg.args : [];
-const flag = (name) => (args.indexOf(name) >= 0 ? Number(args[args.indexOf(name) + 1]) || 0 : 0);
-process.stdout.write([cfg.port || 8082, cfg.model_name || "strata", flag("--max-context") || 131072].join(" "));
+const flag = (name) => (args.indexOf(name) >= 0 ? String(args[args.indexOf(name) + 1] || "") : "");
+process.stdout.write([cfg.port ? String(cfg.port) : "", cfg.model_name || "", flag("--max-context")].join(" "));
 ' "${CONFIG}")"
     read -r cfg_port cfg_model cfg_context <<< "${CONFIG_KEYS}"
-    if [ -z "${STRATA_PORT:-}" ]; then
+    if [ -z "${PORT}" ] && [ -n "${cfg_port}" ]; then
         PORT="${cfg_port}"
     fi
-    MODEL="${cfg_model}"
-    CONTEXT="${cfg_context}"
+    if [ -n "${cfg_model}" ]; then
+        MODEL="${cfg_model}"
+    fi
+    if [ -n "${cfg_context}" ] && [ -z "${CONTEXT}" ]; then
+        CONTEXT="${cfg_context}"
+    fi
+fi
+
+if [ -z "${PORT}" ] || [ -z "${CONTEXT}" ]; then
+    echo "strata: neither strata.ini nor an installed run config says where Strata serves; models.json left alone"
+    exit 0
 fi
 
 node - "${MODELS}" "${SETTINGS}" "http://127.0.0.1:${PORT}/v1" "${MODEL}" "${CONTEXT}" <<'JS'

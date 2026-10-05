@@ -35,9 +35,11 @@ revision's blobs stay until `hf cache delete`).
 > tools (`iq_pack.py`, `pack_index.py`, the tokenizer builder) read GGUFs through that commit's
 > `gguf-py`.
 
-> ⚠ **A version bump changes pins, not code.** Do not touch `build.sh`, `scripts/strata-run.py`
-> or the lifecycle scripts unless Phase 5 reports a real interface break — and if it does, report
-> it before rewriting anything.
+> ⚠ **A version bump changes pins, not code.** Do not touch `build.sh`, `scripts/strata-run.py`,
+> `scripts/strata_common.py` or the lifecycle scripts unless Phase 5 reports a real interface
+> break — and if it does, report it before rewriting anything. Not `strata.ini` either: which
+> model this machine serves, at what context and what VRAM reserve, is the owner's choice and
+> lives there.
 
 ## Phase 1 — the target version
 
@@ -81,12 +83,17 @@ curl -s http://127.0.0.1:8082/health
 pixi run -e strata stop-strata
 ```
 
+(`8082` is what `strata.ini` sets; `pixi run -e strata strata-help` prints the port and every
+other parameter the wrapper is about to pass.)
+
 - `pixi install -e strata` **is safe from the bwrap sandbox**, unlike `-e agents`: the strata
   prefix is not the bind-mounted one, so the EBUSY env-sync failure described in `update-all`
   cannot happen. The compile is the slow part; it does not touch the pack or the model.
-- Run `strata-install` after a bump even though the model is already prepared: the run config
+- Run `strata-install` after a bump even though the model is already prepared: it re-prepares
+  whatever `strata.ini` says right now, and the run config
   (`$CONDA_PREFIX/opt/strata/strata-<tag>.json`) is what carries the engine arguments and the
-  context size, and a plain `start-strata` reuses an existing config untouched. `strata-install`
+  context size — a plain `start-strata` reuses an existing config untouched unless the
+  preparation signature in `<data-dir>/strata-prepared.json` moved. `strata-install`
   is also the cheapest interface test — it exercises the `FAMILIES`/`MODELS`/`--gguf-dir` paths
   in the wrapper (~2 min, no download).
 - The pack (`strata-data/packs/<tag>`) and the MTP layer (`strata-data/mtp/rt`) carry **no

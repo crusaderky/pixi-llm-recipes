@@ -99,10 +99,11 @@ environment is Linux x64 only: the engine and the image encoder are C++/CUDA and
 **compiled at install time** (~5-9 min on a 32-core host), because Strata publishes no
 Linux prebuilt.
 
-It listens on port **8082**, so nothing collides: llama-server keeps 8080 (8081 when it runs
-behind the forge proxy, see below). VRAM, not the port, is what decides whether llama-server
-and Strata can run at once. `start-strata` refuses a port someone else owns and names
-llama-server when that is who holds it; `--port <n>` (or `STRATA_PORT`) picks another.
+Its port is `port` in `strata.ini` — **8082** here, so nothing collides: llama-server keeps
+8080 (8081 when it runs behind the forge proxy, see below). VRAM, not the port, is what
+decides whether llama-server and Strata can run at once. `start-strata` refuses a port someone
+else owns and names llama-server when that is who holds it; `--port <n>` (or `STRATA_PORT`)
+picks another.
 
 Serving on its own port also means its own browser origin: llama-server's web UI is a PWA
 whose service worker is registered per origin, so a page cached from it can no longer
@@ -115,25 +116,31 @@ pixi r start-strata       # first run prepares the model (pack + MTP layer, ~2 m
 pixi r strata-install     # prepare only: model files, pack, MTP layer, no server
 pixi r stop-strata
 pixi r restart-strata
+pixi r strata-help        # every parameter Strata takes, and what strata.ini says right now
 ```
+
+What it serves, and how it is sized, is `strata.ini` in this repo's root: every key of it is
+an argument for Strata's own setup.py — the model and its quant, the context, the KV cache,
+the VRAM reserve, the port, the images. `strata-help` above prints the whole flag list with
+setup.py's own explanation of each, and the file itself lists the quants and what each one
+costs to download.
 
 Model files come from the shared Hugging Face cache (`~/.cache/huggingface/hub`, the same
 blobs `llama-server -hf` downloads) and everything Strata writes stays inside
 `$CONDA_PREFIX`, with one deliberate exception: the server's output goes to `strata.log` in
-the directory you start it from. The default model is the 55 GB Coder IQ1_M; another size
-is `pixi r strata-install -- --family qwen --model IQ3_S` (84 GB, and more RAM).
+the directory you start it from.
 
 Both pi launchers (`pi` and the unsandboxed `pi-unsafe`) add it to `~/.pi/agent/models.json`
-as the **`strata` provider** — endpoint, model name and context size read from the installed
-run config, and `settings.json`'s model cycle gets the model too. Once. An existing `strata`
-provider is never overwritten, so hand edits stick; a provider still pointing at an old port
-is reported instead.
+as the **`strata` provider** — endpoint and context size from `strata.ini`, model name from
+the installed run config, and `settings.json`'s model cycle gets the model too. Once. An
+existing `strata` provider is never overwritten, so hand edits stick; a provider still
+pointing at an old port is reported instead.
 
-A 24 GB card is the target and gets filled: ~23.7 GiB with `--vram-reserve-mib 2048` — the start
-scripts pin that against the engine's own 700, which leaves a desktop on the same card without
-the VRAM it needs — and about 65 tokens/s decode on an RTX 3090 with the MTP draft head doing
-the guessing. The CUDA architectures default to `86` (RTX 30 series); another card wants
-`STRATA_CUDA_ARCHITECTURES=89,120 pixi install -e strata`.
+A 24 GB card is the target and gets filled: ~23.7 GiB with `vram-reserve-mib = 2000` in
+`strata.ini` — pinned there against the engine's own 700, which leaves a desktop on the same
+card without the VRAM it needs — and about 65 tokens/s decode on an RTX 3090 with the MTP
+draft head doing the guessing. The CUDA architectures default to `86` (RTX 30 series); another
+card wants `STRATA_CUDA_ARCHITECTURES=89,120 pixi install -e strata`.
 
 That reserve keeps the GPU's own memory free; it does not keep the desktop alive. Ubuntu ships
 the login session itself as a `systemd-oomd` kill candidate (a 50% memory-pressure limit on
@@ -166,7 +173,8 @@ Nothing else changes.
 
 ## Models
 
-Strata is set up to run Qwen3.8-Flash. Its configuration is in the header of `scripts/strata-run.py`
+Strata is set up to run Qwen3.8-Flash. Its configuration is `strata.ini` in the repo root
+(`pixi r strata-help` prints every parameter it can name).
 
 Llama.cpp models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
@@ -456,10 +464,13 @@ To get the list, you can just run:
 pixi r llama-benchy
 ```
 
-`llama-benchy-strata` does the same for the current model set up in `strata.ini`:
+`llama-benchy-strata` does the same for Strata: it reads the model name off the live
+server's `/v1/models` and the port off `strata.ini`, so it always measures whatever is
+actually loaded.
 
 ```bash
 pixi r llama-benchy-strata
+pixi r llama-benchy-strata -- --pp 4096 8192 --runs 5   # anything after -- goes to llama-benchy
 ```
 
 ### Model and KV cache quantization quality
