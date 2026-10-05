@@ -20,7 +20,10 @@ install-clipboard = "bash scripts/install-clipboard.sh"
 install-file-viewer-renderers = "bash scripts/install-file-viewer-renderers.sh"
 install-git = "bash scripts/install-git.sh"
 install-memlock = "bash scripts/install-memlock.sh"
-install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-git", "install-memlock"] }
+# A model load holds the login session's cgroup above systemd-oomd's 50% memory-pressure
+# limit, and the cgroup oomd kills for that can be init.scope -- i.e. the whole desktop.
+install-oomd = "bash scripts/install-oomd.sh"
+install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-git", "install-memlock", "install-oomd"] }
 uninstall = "bash scripts/uninstall-bin.sh"
 
 [target.linux-aarch64-glibc234.tasks]
@@ -30,7 +33,8 @@ install-clipboard = "bash scripts/install-clipboard.sh"
 install-file-viewer-renderers = "bash scripts/install-file-viewer-renderers.sh"
 install-git = "bash scripts/install-git.sh"
 install-memlock = "bash scripts/install-memlock.sh"
-install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-git", "install-memlock"] }
+install-oomd = "bash scripts/install-oomd.sh"
+install = { depends-on = ["install-apparmor", "install-bin", "install-clipboard", "install-file-viewer-renderers", "install-git", "install-memlock", "install-oomd"] }
 uninstall = "bash scripts/uninstall-bin.sh"
 
 # Tasks invoke `bash scripts/*.sh`. On Windows, a plain `bash` from PATH would
@@ -161,6 +165,32 @@ gh = "*"
 git = "git"
 gh = "gh"
 
+[feature.strata]
+# Strata's engine is C++/CUDA and is compiled by the recipe at install time, so this
+# feature is x86-64 Linux only (the release also publishes a Windows engine, which would
+# be a second recipe).
+platforms = ["linux-64-glibc234"]
+
+[feature.strata.dependencies]
+strata = { path = "pixi-recipes/strata" }
+# The model shards come from ~/.cache/huggingface/hub -- the same blobs `llama-server -hf`
+# downloads -- through scripts/strata-run.py, which replaces setup.py's own downloader
+# with huggingface_hub and hands setup.py a folder of symlinks (--gguf-dir).
+huggingface_hub = "*"
+# start-strata.sh polls Strata's /health with it (the host's curl would usually do, but
+# the task should not depend on one being installed)
+curl = "*"
+
+[feature.strata.tasks]
+# The port is `port` in strata.ini; `start-strata --port <n>` overrides it, and so does
+# STRATA_PORT. start-strata.sh asks scripts/strata-run.py which one that is, so its health
+# check polls the port Strata is about to listen on.
+start-strata = "bash scripts/start-strata.sh"
+stop-strata = "bash scripts/stop-strata.sh"
+restart-strata = { depends-on = ["stop-strata", "start-strata"] }
+strata-install = "bash scripts/strata-install.sh"
+strata-help = "python scripts/strata-help.py"
+
 [feature.pytools.dependencies]
 python = "=3.14"
 huggingface_hub = "*"
@@ -184,6 +214,7 @@ llama-benchy = ">=0.4.0"
 
 [feature.pytools.tasks]
 llama-benchy = "python -m llama_benchy --base-url http://localhost:8080/v1 --no-cache --runs 3 --tg 128"
+llama-benchy-strata = "python scripts/llama-benchy-strata.py"
 hf = "hf"
 context-bench = "python sample-data/context-bench/run_benchmark.py"
 aggregate-context-bench = "python sample-data/context-bench/aggregate_benchmark_results.py"
@@ -224,5 +255,6 @@ llamacpp-binary-cpu = ["llamacpp", "llamacpp-binary-cpu"]
 llamacpp-binary-cuda = ["llamacpp", "llamacpp-binary-cuda"]
 llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
+strata = { features = ["strata"] }
 agents = ["pi", "sandbox", "git", "herdr", "pytools"]
 lint = { features = ["lint"], no-default-feature = true }

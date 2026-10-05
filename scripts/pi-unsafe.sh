@@ -50,6 +50,7 @@ function cleanup {
 trap cleanup EXIT
 
 bash "$(dirname "$0")/inject-pi-extensions.sh"
+bash "$(dirname "$0")/inject-strata-model.sh"
 
 # Resolve the real pi binary before prepending ~/.local/bin to PATH,
 # otherwise the bare `pi` below would resolve to that wrapper and re-enter.

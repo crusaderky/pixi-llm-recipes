@@ -1,0 +1,98 @@
+context:
+  # Strata release to package (the git tag is v${version}).
+  version: "0.1.39"
+
+  # The llama.cpp commit Strata's own setup.py pins (LLAMA_CPP_COMMIT) and builds its
+  # engine against. It is a second git source here because the runtime tools
+  # (gguf_reader, iq_pack, pack_index, the tokenizer builder) read GGUFs through that
+  # commit's gguf-py, and because setup.py would otherwise download the archive itself at
+  # the first start. Keep the two in sync when bumping the version.
+  llama_cpp_commit: "3cf03257f219afbe7334045ff7c6a06ac68c627d"
+
+  # CUDA architectures the engine and the image encoder are compiled for
+  # (semicolon-separated CMake syntax). 86 = RTX 30 series.
+  # Another card may need e.g. `STRATA_CUDA_ARCHITECTURES=89,120 pixi install -e strata`
+  cuda_architectures: ${{ env.get("STRATA_CUDA_ARCHITECTURES", default="86") }}
+
+package:
+  name: strata
+  version: ${{ version }}
+
+source:
+  # Both sources land in <work>/<target_directory>; build.sh accepts either layout
+  # (rattler-build's SRC_DIR is the work dir for a multi-source recipe, but that has
+  # changed between versions).
+  - git: https://github.com/Niko1221/Strata
+    tag: v${{ version }}
+    target_directory: strata
+  - git: https://github.com/ggml-org/llama.cpp
+    rev: ${{ llama_cpp_commit }}
+    target_directory: llama.cpp
+
+build:
+  number: 0
+  script:
+    file: build.sh
+    env:
+      CUDA_ARCHITECTURES: ${{ cuda_architectures }}
+  # The engine and the image encoder link cuBLAS / cuRAND / cudart out of ${PREFIX}/lib
+  # from opt/strata/engine/, a directory no default RPATH covers, so rattler-build's DSO
+  # check reports them missing however the link was made. They are found at runtime the
+  # way the app already looks for them: BUILD.json records ${PREFIX}/lib as an engine
+  # library directory, which the server prepends to LD_LIBRARY_PATH when it starts the
+  # engine (and start-strata.sh sets the same path for anything run by hand).
+  dynamic_linking:
+    overlinking_behavior: ignore
+  skip:
+    - "not linux"
+    - "linux and aarch64" # the CUDA toolkit is x86-64 only
+
+requirements:
+  build:
+    - python # drives Strata's own setup.py, exactly as its Dockerfile does
+    - cmake
+    - ninja
+    - ${{ compiler('c') }}
+    - ${{ compiler('cxx') }}
+    - cuda-nvcc
+    - cuda-version =13.1
+  host:
+    - cuda-version =13.1
+    - cuda-cudart-dev
+    - libcublas-dev
+    - libcurand-dev
+  run:
+    # requirements.txt, resolved by conda instead of setup.py's pip step (the wrapper
+    # scripts/strata-run.py replaces that step with a check that these are importable)
+    - python >=3.12
+    - numpy
+    - jinja2
+    - regex
+    - pyyaml
+    - tqdm
+    - requests
+    - cmake
+    - ninja
+    - pillow
+    - psutil
+    # the CUDA libraries the engine links (the toolkit its build is pinned to)
+    - cuda-version =13.1
+    - cuda-cudart
+    - libcublas
+    - libcurand
+
+about:
+  homepage: https://github.com/Niko1221/Strata
+  repository: https://github.com/Niko1221/Strata
+  license: MIT
+  license_file: strata/LICENSE
+  summary: Qwen3.8-Flash-Next on one consumer GPU, with an OpenAI- and Anthropic-compatible API
+  description: |
+    Strata runs the Qwen3.8-Flash-Next mixture-of-experts model on one consumer GPU
+    (12 GB of VRAM or more) plus system RAM, and serves it on 127.0.0.1 with OpenAI-,
+    Anthropic- and Responses-compatible APIs. The listening port belongs to whoever starts
+    it, not to this package.
+
+    This package builds the C++/CUDA engine and the image encoder from the pinned
+    release. The model files are not part of it: they are read from the Hugging Face
+    cache (~/.cache/huggingface/hub), shared with llama-server.

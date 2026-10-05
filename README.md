@@ -40,16 +40,18 @@ pixi r stop-server
 
 ## llama.cpp variants
 
-This project builds [beellama.cpp](https://github.com/Anbeeld/beellama.cpp) by default.
+This project builds [BeeLLaMA.cpp](https://github.com/Anbeeld/beellama.cpp) by default.
 Mainline [llama.cpp](https://github.com/ggml-org/llama.cpp) is available as a
 commented-out variant in the recipes (`pixi-recipes/llama-cpp-*/recipe.yaml`); swap the
 active/commented `fork:` blocks to go back to upstream.
 
 There are eight pixi environments to choose from: four that compile llama.cpp from
-source, and four that just unpack the pre-built binaries from upstream releases:
+source, four that just unpack the pre-built binaries from upstream releases, and one that
+compiles Strata (read below).
 
 | Environment              | Build            | Backend  | Linux x64 | Linux ARM | Windows x64 |
 | ------------------------ | ---------------- | -------- | --------- | --------- | ----------- |
+| `strata`                 | from sources     | CUDA 13  | ✅        | 🔴        | 🔴          |
 | `llamacpp-source-cpu`    | from sources     | CPU only | ✅        | ✅        | 🔴          |
 | `llamacpp-source-cuda`   | from sources     | CUDA 13  | ✅        | 🔴        | 🔴          |
 | `llamacpp-source-vulkan` | from sources     | Vulkan   | ✅        | ✅        | 🔴          |
@@ -90,6 +92,36 @@ Alternatively, you can select an environment non-interactively:
 pixi r -e llamacpp-source-cuda start-server
 ```
 
+## Strata
+
+[Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next on one consumer GPU
+plus system RAM, and serves it with OpenAI-, Anthropic- and Responses-compatible APIs,
+vision included. Strata is configured by `strata.ini` and runs by default on port
+**8082**, so that it does not collide with llama-server (8080) or forge-proxy (8081, see
+below).
+
+```bash
+pixi install -e strata    # solve the environment and compile the engine
+pixi r strata-install     # (optional) prepare only: model files, pack, MTP layer
+pixi r start-strata       # first run calls strata-install
+pixi r stop-strata
+pixi r restart-strata
+pixi r strata-help        # everything you can put in strata.ini
+```
+
+Model files are downloaded into the Hugging Face cache (`~/.cache/huggingface/hub`),
+which is shared with llama-server.
+
+The server's output goes to `strata.log` in the project root directory.
+
+Both pi launchers (`pi` and the unsandboxed `pi-unsafe`) add it to
+`~/.pi/agent/models.json` as the **`strata` provider**. An existing `strata` provider is
+never overwritten, so hand edits stick.
+
+On Ubuntu 24.04, strata has been observed to cause random restarts in the whole X
+server. They are prevented by tweaking `systemd-oomd` through `pixi r install-oomd`
+(part of `pixi r install`).
+
 ## Forge guardrails proxy
 
 [forge](https://github.com/antoinezambelli/forge) is a transparent reliability layer for
@@ -112,31 +144,33 @@ Nothing else changes.
 
 ## Models
 
-Models are defined in `models.ini` (llama-server's native preset format) and are
+Strata is set up to run Qwen3.8-Flash. It is configured in `strata.ini`.
+
+Llama.cpp models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Model               | Variant       | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
-| ------------------- | ------------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
-| Qwen3.8-Flash       | IQ4_XS        | 89 GB        | 256k kvarn5         | 21.4 GB<sup>4</sup> | 160 tok/s           | 16 tok/s           | ✅     |
-| Qwen3.8-Flash-Coder | IQ3_XS REAP50 | 56 GB        | 256k kvarn4         | 21.3 GB<sup>4</sup> | 222 tok/s           | 26 tok/s           | ✅ CPU |
-| Qwen3.8-27B         | IQ4_XS MTP    | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
-| Occamy-1.0          | IQ4_XS MTP    | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
-| MiniCPM5-2B         | Q6_K DSpark   | 2.6 GB       | 128k q6/q6          | 6.4 GB              | 7,460 tok/s         | 200 tok/s          | 🔴     |
-| LFM2.5-230M         | Q4_K_M        | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴     |
-| LFM2.5-VL-3B        | Q8_0          | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅     |
+| Engine       | Model               | Variant        | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
+| ------------ | ------------------- | -------------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
+| Strata       | Qwen3.8-Flash       | IQ3_XXS        | 72 GB        | 256k int8/int8      | 21.0 GB<sup>4</sup> | 900 tok/s           | 77 tok/s           | ✅     |
+| BeeLLaMA.cpp | Qwen3.8-Flash       | IQ3_XXS        | 72 GB        | 256k kvarn5         | 19.8 GB<sup>4</sup> | 214 tok/s           | 20 tok/s           | ✅     |
+| BeeLLaMA.cpp | Qwen3.8-Flash-Coder | IQ3_XXS REAP50 | 56 GB        | 256k kvarn4         | 21.3 GB<sup>4</sup> | 222 tok/s           | 26 tok/s           | ✅ CPU |
+| BeeLLaMA.cpp | Qwen3.8-27B         | IQ4_XS MTP     | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
+| BeeLLaMA.cpp | Occamy-1.0          | IQ4_XS MTP     | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
+| BeeLLaMA.cpp | MiniCPM5-2B         | Q6_K DSpark    | 2.6 GB       | 128k q6/q6          | 6.4 GB              | 7,460 tok/s         | 200 tok/s          | 🔴     |
+| llama.cpp    | LFM2.5-230M         | Q4_K_M         | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴     |
+| llama.cpp    | LFM2.5-VL-3B        | Q8_0           | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅     |
 
 **Notes:**
 
 - <sup>1</sup>KV cache compression is set per-model via `cache-type-k`/`cache-type-v` in
   `models.ini`. The default fork
-  ([beellama.cpp](https://github.com/Anbeeld/beellama.cpp)) adds KVarN low-bit cache
+  ([BeeLLaMA.cpp](https://github.com/Anbeeld/beellama.cpp)) adds KVarN low-bit cache
   quants on top of upstream's standard quants.
 - <sup>2</sup>Process total measured by nvidia-smi. When sizing video card VRAM, you
   must add ~2 GiB for your desktop (unless you're running on an integrated video card
   and your discrete card is detached from the X server)
-- <sup>3</sup> Speed measured on the RTX 3090
-- <sup>4</sup> Experts partially offloaded to host RAM. Speed is capped by PCIe bandwidth
-  for prefill and by host RAM bandwidth for decode.
+- <sup>3</sup> Speed measured on RTX 3090
+- <sup>4</sup> Experts partially offloaded to host RAM
 
 ### Estimating model size and VRAM
 
@@ -220,6 +254,8 @@ Skills under `.agents/skills/` are available only when pi starts in this reposit
 - `update-herdr` — update [Herdr](https://herdr.dev/)
 - `update-llama-cpp` — update both llama.cpp recipes
 - `update-pi-extensions` — refresh pinned Pi extension versions
+- `update-strata` — update the Strata recipe (version pin, the llama.cpp commit its
+  engine builds against, requirements) and rebuild the engine
 
 Skills under `pixi-recipes/pi-home/skills/` are packaged into pi's environment and are
 available in every workspace:
@@ -396,6 +432,15 @@ To get the list, you can just run:
 
 ```bash
 pixi r llama-benchy
+```
+
+`llama-benchy-strata` does the same for Strata: it reads the model name off the live
+server's `/v1/models` and the port off `strata.ini`, so it always measures whatever is
+actually loaded.
+
+```bash
+pixi r llama-benchy-strata
+pixi r llama-benchy-strata -- --pp 4096 8192 --runs 5   # anything after -- goes to llama-benchy
 ```
 
 ### Model and KV cache quantization quality
