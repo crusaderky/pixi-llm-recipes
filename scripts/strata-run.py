@@ -67,7 +67,7 @@ DEFAULT_VISION = "gpu"
 #: does not retune it per start; `--context` on the command line still wins over the pin.
 DEFAULT_CONTEXT = "262144"
 #: VRAM the engine keeps free for other programs, in MiB.
-DEFAULT_VRAM_RESERVE_MIB = "2000"
+DEFAULT_VRAM_RESERVE_MIB = "2048"
 
 #: A pinned file URL as setup.py builds it: <endpoint>/<owner>/<repo>/resolve/<sha>/<path>
 RESOLVE_URL = re.compile(

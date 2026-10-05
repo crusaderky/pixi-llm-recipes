@@ -129,7 +129,7 @@ run config, and `settings.json`'s model cycle gets the model too. Once. An exist
 provider is never overwritten, so hand edits stick; a provider still pointing at an old port
 is reported instead.
 
-A 24 GB card is the target and gets filled: ~23.7 GiB with `--vram-reserve-mib 2000` — the start
+A 24 GB card is the target and gets filled: ~23.7 GiB with `--vram-reserve-mib 2048` — the start
 scripts pin that against the engine's own 700, which leaves a desktop on the same card without
 the VRAM it needs — and about 65 tokens/s decode on an RTX 3090 with the MTP draft head doing
 the guessing. The CUDA architectures default to `86` (RTX 30 series); another card wants

@@ -183,13 +183,13 @@ pixi run restart-strata
 `--port <n>` and `STRATA_PORT` override it (both halves: the health check and setup.py, which lets the CLI port win
 over the one recorded in the run config).
 
-A 24 GB card is the target and gets filled: 23.7 of 24.5 GiB, `--vram-reserve-mib 2000`, the expert cache and the
+A 24 GB card is the target and gets filled: 23.7 of 24.5 GiB, `--vram-reserve-mib 2048`, the expert cache and the
 prompt path sharing what is left, everything past that streamed from RAM and SSD. Decode is ~65 tok/s on a 3090
 (~380 tok/s prefill) with the MTP head drafting — `strata.log` reports the expert-cache hit rate per reply. The
 reserve is another **pin**, not the engine's own 700 MiB default: at 700 the expert cache (and the image encoder,
 on `--vision gpu`) holds the rest of the card, the driver evicts whatever the desktop had there, and the X server
 goes down mid-reply — upstream's advice for exactly that is 3072 (#560, #516). `DEFAULT_VRAM_RESERVE_MIB` in
-`scripts/strata-run.py` is 2000 (~1.3 GB back from the expert cache, a few percent of speed);
+`scripts/strata-run.py` is 2048 (~1.3 GB back from the expert cache, a few percent of speed);
 `STRATA_VRAM_RESERVE_MIB` or an explicit `--vram-reserve-mib` overrides it, and a config still carrying 700 is
 rewritten at the next start.
 
@@ -293,7 +293,7 @@ pinned** though: `scripts/strata-run.py` defaults `--context` to `DEFAULT_CONTEX
 trained window, no rope scaling) and rewrites `--max-context` in the run config before every start — setup.py's
 start path reads the config verbatim and ignores `--context`, and its setup path without `--gguf-dir` would want
 the shards re-downloaded. `STRATA_CONTEXT` overrides the pin; an explicit `--context` still wins. The **VRAM
-reserve is pinned the same way** (`DEFAULT_VRAM_RESERVE_MIB`, 2000 MiB — see above), and for a config, not just
+reserve is pinned the same way** (`DEFAULT_VRAM_RESERVE_MIB`, 2048 MiB — see above), and for a config, not just
 the first start: a run config that disagrees is what a start passes `--vram-reserve-mib` for, setup.py rewriting
 its `args` when it sees it.
 
