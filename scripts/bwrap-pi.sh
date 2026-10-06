@@ -220,6 +220,9 @@ for f in auth trust settings; do
     echo "{}" > ~/.pi/agent/$f.json
   fi
 done
+if [ ! -f ~/.pi/agent/caveman.json ]; then
+  echo '{"defaultLevel": "lite", "showStatus": true}' > ~/.pi/agent/caveman.json
+fi
 if [ ! -f ~/.pi/agent/models.json ]; then
   echo '{"providers": {}}' > ~/.pi/agent/models.json
 fi
@@ -271,6 +274,7 @@ bwrap \
   --bind "$HOME/.pi/agent/trust.json"     "$HOME/.pi/agent/trust.json" \
   --bind "$HOME/.pi/agent/settings.json"  "$HOME/.pi/agent/settings.json" \
   --bind "$HOME/.pi/agent/models.json"    "$HOME/.pi/agent/models.json" \
+  --bind "$HOME/.pi/agent/caveman.json"   "$HOME/.pi/agent/caveman.json" \
   --bind "$HOME/.pi/agent/sessions"       "$HOME/.pi/agent/sessions" \
   --tmpfs "$HOME/.pi/agent/intercom" \
   --ro-bind "$_PIXI_ROOT"                 "$_PIXI_ROOT" \
