@@ -107,13 +107,13 @@ jobs:
         run: pixi r -e llamacpp-${{ matrix.backend }} llama-hello
 
       - name: Start server
-        run: pixi r -e llamacpp-${{ matrix.backend }} start-server
+        run: pixi r -e llamacpp-${{ matrix.backend }} start-llamacpp
 
       - name: pi Hello world
         run: pixi r pi-unsafe -- --model LFM2.5-230M -p 'Hello world'
 
       - name: Restart server
-        run: pixi r -e llamacpp-${{ matrix.backend }} restart-server
+        run: pixi r -e llamacpp-${{ matrix.backend }} restart-llamacpp
 
       - name: Seed llama-benchy book cache
         # Avoid the flaky www.gutenberg.org download (intermittent connection
@@ -128,7 +128,7 @@ jobs:
         run: pixi r llama-benchy --model LFM2.5-230M --runs 1
 
       - name: Stop server
-        run: pixi r stop-server
+        run: pixi r stop-llamacpp
 
       - name: Dump server log
         if: always()

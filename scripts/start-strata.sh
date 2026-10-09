@@ -66,7 +66,7 @@ if server_is_up; then
         exit 0
     fi
     echo "Port ${PORT} is in use by another server (llama-server, the forge backend, another Strata)." >&2
-    echo "Stop it first (pixi run stop-server), then start Strata again." >&2
+    echo "Stop it first (pixi run stop-llamacpp), then start Strata again." >&2
     exit 1
 fi
 

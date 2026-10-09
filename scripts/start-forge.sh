@@ -3,7 +3,7 @@ set -o errexit
 set -o nounset
 
 # Start forge-proxy on port 8080, forwarding to the llama-server that the
-# start-server dependency task started on port 8081.
+# start-llamacpp dependency task started on port 8081.
 # Forge applies guardrails (response validation, rescue parsing, retry loops)
 # transparently — clients talk to 8080 as if it were a smarter model.
 PORT=8080

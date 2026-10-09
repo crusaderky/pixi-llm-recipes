@@ -47,7 +47,7 @@ jobs:
           key: huggingface-${{ matrix.os }}
 
       - name: Start server
-        run: pixi r -e llamacpp-binary-cpu start-server
+        run: pixi r -e llamacpp-binary-cpu start-llamacpp
 
       - name: pi-unsafe Hello world
         run: pixi r pi-unsafe -- --model LFM2.5-230M -p "Hello world"
@@ -112,7 +112,7 @@ jobs:
           grep hello123 out.txt
 
       - name: Stop server
-        run: pixi r stop-server
+        run: pixi r stop-llamacpp
 
       - name: Dump server log
         if: always()

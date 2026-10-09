@@ -22,10 +22,10 @@ If you have an RTX 3080 (10 GB), you can find the old `models.ini` from that era
 ```bash
 curl -fsSL https://pixi.sh/install.sh | sh  # One-off installation
 pixi r install  # One-off installation of several components
-pixi r start-server  # Start llama.cpp server for local models
+pixi r start-llamacpp  # Start llama.cpp server for local models
 cd /path/to/workspace && pi  # Just like regular pi, but managed by pixi and sandboxed
 herdr                              # Terminal multiplexer / agent orchestrator
-pixi r stop-server
+pixi r stop-llamacpp
 pixi r uninstall
 ```
 
@@ -33,9 +33,9 @@ pixi r uninstall
 
 ```bash
 powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | iex"  # One-off installation
-pixi r start-server  # Start llama.cpp server for local models
+pixi r start-llamacpp  # Start llama.cpp server for local models
 pixi r pi-unsafe /path/to/workspace  # Just like regular pi, but managed by pixi
-pixi r stop-server
+pixi r stop-llamacpp
 ```
 
 ## llama.cpp variants
@@ -81,15 +81,15 @@ To start llama-cpp interactively (you will be asked on which environment you wan
 pixi r llama-version       # llama-server --version
 pixi r llama-list-devices  # llama-server --list-devices (output changes with backend!)
 pixi r llama-hello         # Download a model, load it, prompt "Hello world" and exit
-pixi r start-server        # Start the llama-server router in the background on port 8080
-pixi r stop-server 
-pixi r restart-server
+pixi r start-llamacpp    # Start the llama-server router in the background on port 8080
+pixi r stop-llamacpp 
+pixi r restart-llamacpp
 ```
 
 Alternatively, you can select an environment non-interactively:
 
 ```bash
-pixi r -e llamacpp-source-cuda start-server
+pixi r -e llamacpp-source-cuda start-llamacpp
 ```
 
 ## Strata
@@ -97,7 +97,8 @@ pixi r -e llamacpp-source-cuda start-server
 [Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next on one consumer GPU
 plus system RAM, and serves it with OpenAI-, Anthropic- and Responses-compatible APIs,
 vision included. Strata is configured by `strata.ini` and runs by default on port
-**8082**, so that it does not collide with llama-server (8080) or forge-proxy (8081, see
+**8082**, so that it does not collide with llama-server (8080) or with the forge
+layout, which binds the proxy to 8080 and its llama-server backend to 8081 (see
 below).
 
 ```bash
@@ -128,18 +129,18 @@ server. They are prevented by tweaking `systemd-oomd` through `pixi r install-oo
 tool-calling: it validates every tool call in the model's response, rescue-parses
 malformed ones, and retries inference with corrective feedback when validation fails.
 
-`start-forge-server` starts the llama-server router on port **8081** and the forge
-proxy in front of it on port **8080** — the same port a bare `start-server` binds, so
+`start-forge` starts the llama-server router on port **8081** and the forge
+proxy in front of it on port **8080** — the same port a bare `start-llamacpp` binds, so
 agents and benchmarks pointing at `http://localhost:8080/v1` pick up the guardrails
 without any reconfiguration.
 
 ```bash
-pixi r start-forge-server    # Start llama-server on 8081 + forge on 8080
-pixi r stop-forge-server     # Stop both forge and llama-server
-pixi r restart-forge-server
+pixi r start-forge    # Start llama-server on 8081 + forge on 8080
+pixi r stop-forge     # Stop both forge and llama-server
+pixi r restart-forge
 ```
 
-It is a drop-in replacement for `start-server`, `stop-server`, and `restart-server`.
+It is a drop-in replacement for `start-llamacpp`, `stop-llamacpp`, and `restart-llamacpp`.
 Nothing else changes.
 
 ## Models
@@ -225,7 +226,7 @@ Caps the RAM **and page cache** llama-server gets, to see how a model behaves on
 a machine with less RAM than this one (Linux + systemd only; off by default):
 
 ```bash
-pixi r start-server --host-ram 16G  # cgroup v2 MemoryMax, swap disabled
+pixi r start-llamacpp --host-ram 16G  # cgroup v2 MemoryMax, swap disabled
 systemctl --user status llama-server-8080.scope  # prints "Memory: … (max: …)"
 ```
 
@@ -421,7 +422,7 @@ clutter — the push check is a `git push --dry-run`):
 ## Benchmarking
 
 `llama-benchy` measures tok/s throughput against a live llama-server, so start one first
-(e.g. `pixi r -e llamacpp-source-cuda start-server`). Then:
+(e.g. `pixi r -e llamacpp-source-cuda start-llamacpp`). Then:
 
 ```bash
 pixi r llama-benchy --model <model alias>

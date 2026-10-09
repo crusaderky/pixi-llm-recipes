@@ -8,10 +8,10 @@ platforms = [
 ]
 
 [tasks]
-stop-server = "bash scripts/stop-server.sh"
-stop-forge-server = "bash scripts/stop-forge-server.sh && bash scripts/stop-server.sh"
-restart-server = { depends-on = ["stop-server", "start-server"] }
-restart-forge-server = { depends-on = ["stop-forge-server", "start-forge-server"] }
+stop-llamacpp = "bash scripts/stop-llamacpp.sh"
+stop-forge = "bash scripts/stop-forge.sh && bash scripts/stop-llamacpp.sh"
+restart-llamacpp = { depends-on = ["stop-llamacpp", "start-llamacpp"] }
+restart-forge = { depends-on = ["stop-forge", "start-forge"] }
 
 [target.linux-64-glibc234.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
@@ -104,7 +104,7 @@ llama-version = "llama-server --version"
 llama-hello.cmd = "llama-cli -hf {{ model }} --reasoning off -st -p 'Hello world'"
 llama-hello.args = [{ arg = "model", default = "unsloth/LFM2.5-230M-GGUF:Q4_K_M" }]
 llama-list-devices = "llama-server --list-devices"
-start-server = "bash scripts/start-server.sh"
+start-llamacpp = "bash scripts/start-llamacpp.sh"
 
 # Quantitative benchmark on the degradation introduced by model and/or cache quantization.
 # Note: the measure is only significant between two variants/settings of the same model.
@@ -227,9 +227,9 @@ args = [
 ]
 cmd = "python scripts/openrouter_model_report.py {{ models }}"
 
-[feature.pytools.tasks.start-forge-server]
-depends-on = [{ task = "start-server", args = ["--port", "8081"] }]
-cmd = "bash scripts/start-forge-server.sh"
+[feature.pytools.tasks.start-forge]
+depends-on = [{ task = "start-llamacpp", args = ["--port", "8081"] }]
+cmd = "bash scripts/start-forge.sh"
 
 [feature.lint.dependencies]
 lefthook = "*"

@@ -29,13 +29,13 @@ sample-data/
   describe-me.jpg            # multimodal smoke test
   context-bench/             # long-context recall benchmark (books, answer keys, runner)
 scripts/
-  start-server.sh stop-server.sh                # llama-server lifecycle
+  start-llamacpp.sh stop-llamacpp.sh              # llama-server lifecycle
   start-strata.sh stop-strata.sh strata-install.sh   # Strata lifecycle (see "Strata" below)
   strata-run.py                                 # Strata's setup.py, with pixi owning the deps
   strata-help.py                                # every Strata parameter + how strata.ini feeds it
   llama-benchy-strata.py                        # llama-benchy against whatever Strata serves
   strata_common.py                              # strata.ini parsing, shared by all four
-  start-forge-server.sh stop-forge-server.sh    # forge guardrails proxy lifecycle
+  start-forge.sh stop-forge.sh                    # forge guardrails proxy lifecycle
   bwrap-pi.sh                                   # bubblewrap sandbox
   pi-unsafe.sh                                  # unsandboxed equivalent (dev/debug only)
   run-herdr.sh                                  # herdr launcher (PATH fixup + plugin inject)
@@ -59,17 +59,17 @@ pixi-recipes/
 
 ## Features & Environments (`pixi.toml`)
 
-| Feature                                           | Adds                                                                                                        | Tasks                                                                                                                                                                                                              |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `llamacpp`                                        | python + pydantic + pyyaml (for the sweeper); pairs with one backend feature                                | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-server`, `perplexity`                                                                                                                   |
-| `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` | pins `llama-cpp` to one recipe + backend flag                                                               | —                                                                                                                                                                                                                  |
-| `pi`                                              | `pi-coding-agent`, `pi-extensions`, `pi-home`                                                               | `pi` (Linux), `pi-unsafe`, `pi-export`                                                                                                                                                                             |
-| `sandbox`                                         | `bubblewrap` (Linux only)                                                                                   | —                                                                                                                                                                                                                  |
-| `herdr`                                           | `herdr`, `herdr-file-viewer` (linux-64 + win-64 only)                                                       | `herdr`                                                                                                                                                                                                            |
-| `git`                                             | `git`, `gh`                                                                                                 | `git`, `gh`                                                                                                                                                                                                        |
-| `strata`                                          | the `strata` recipe (app + compiled engine, linux-64 only) + `huggingface_hub` + `curl`                     | `start-strata`, `stop-strata`, `restart-strata`, `strata-install`                                                                                                                                                  |
-| `pytools`                                         | python 3.14, `llama-benchy`, `forge-guardrails`, huggingface_hub, transformers, openai, matplotlib, tomli-w | `llama-benchy`, `llama-benchy-strata`, `strata-help`, `hf`, `context-bench`, `aggregate-context-bench`, `perplexity-report`, `llama-cpp-changelog`, `gguf-meta-extract`, `openrouter-models`, `start-forge-server` |
-| `lint`                                            | lefthook, ruff, dprint, actionlint, shellcheck, pyflakes, codespell, blacken-docs                           | `lint`, `install-git-hooks`, `update-dprint`                                                                                                                                                                       |
+| Feature                                           | Adds                                                                                                        | Tasks                                                                                                                                                                                                       |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llamacpp`                                        | python + pydantic + pyyaml (for the sweeper); pairs with one backend feature                                | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-llamacpp`, `perplexity`                                                                                                          |
+| `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` | pins `llama-cpp` to one recipe + backend flag                                                               | —                                                                                                                                                                                                           |
+| `pi`                                              | `pi-coding-agent`, `pi-extensions`, `pi-home`                                                               | `pi` (Linux), `pi-unsafe`, `pi-export`                                                                                                                                                                      |
+| `sandbox`                                         | `bubblewrap` (Linux only)                                                                                   | —                                                                                                                                                                                                           |
+| `herdr`                                           | `herdr`, `herdr-file-viewer` (linux-64 + win-64 only)                                                       | `herdr`                                                                                                                                                                                                     |
+| `git`                                             | `git`, `gh`                                                                                                 | `git`, `gh`                                                                                                                                                                                                 |
+| `strata`                                          | the `strata` recipe (app + compiled engine, linux-64 only) + `huggingface_hub` + `curl`                     | `start-strata`, `stop-strata`, `restart-strata`, `strata-install`                                                                                                                                           |
+| `pytools`                                         | python 3.14, `llama-benchy`, `forge-guardrails`, huggingface_hub, transformers, openai, matplotlib, tomli-w | `llama-benchy`, `llama-benchy-strata`, `strata-help`, `hf`, `context-bench`, `aggregate-context-bench`, `perplexity-report`, `llama-cpp-changelog`, `gguf-meta-extract`, `openrouter-models`, `start-forge` |
+| `lint`                                            | lefthook, ruff, dprint, actionlint, shellcheck, pyflakes, codespell, blacken-docs                           | `lint`, `install-git-hooks`, `update-dprint`                                                                                                                                                                |
 
 Environments:
 
@@ -80,12 +80,12 @@ Environments:
 
 Platform gating: source-cuda and source-rocm are linux-64 only; binary-cuda and binary-rocm are linux-64 only; binary-vulkan is linux-64 + win-64 (beellama ships no arm64 vulkan asset). `strata` is linux-64 only — its engine is compiled CUDA, and the release's Windows engine would be a second recipe.
 
-Root `[tasks]` (present in every env): `stop-server`, `stop-forge-server`, `restart-server`, `restart-forge-server`.
+Root `[tasks]` (present in every env): `stop-llamacpp`, `stop-forge`, `restart-llamacpp`, `restart-forge`.
 Linux `[target.*.tasks]`: `install-apparmor`, `install-bin`, `install-clipboard`, `install-file-viewer-renderers`, `install-git`, `install-memlock`, `install-oomd`, `install` (= all seven), `uninstall`.
 
 **`-e <env>` is only required when a task exists in more than one environment** — in practice only the `llamacpp` feature's tasks, which exist in all eight `llamacpp-*` envs. Everything else (`pi`, `herdr`, `gh`, `llama-benchy`, `perplexity-report`, …) resolves on its own.
 
-> ⚠ **`start-forge-server` / `restart-forge-server` are currently broken.** `start-forge-server` lives in `pytools` (only in `agents`) but declares `depends-on start-server`, which lives in `llamacpp` (only in the `llamacpp-*` envs). No environment has both, so the task fails to resolve everywhere. Start llama-server on 8081 from a `llamacpp-*` env, then run the proxy manually, until the features are realigned.
+> ⚠ **`start-forge` / `restart-forge` are currently broken.** `start-forge` lives in `pytools` (only in `agents`) but declares `depends-on start-llamacpp`, which lives in `llamacpp` (only in the `llamacpp-*` envs). No environment has both, so the task fails to resolve everywhere. Start llama-server on 8081 from a `llamacpp-*` env, then run the proxy manually, until the features are realigned.
 
 ## llama-cpp recipes
 
@@ -489,10 +489,10 @@ pixi install -e llamacpp-source-cuda
 pixi install -e agents
 
 # Serving
-pixi run -e llamacpp-source-cuda start-server                  # background, logs to llama-server.log
-pixi run -e llamacpp-source-cuda start-server --host-ram 16G   # simulate a 16 GiB host (cgroup v2)
-pixi run -e llamacpp-source-cuda stop-server                   # SIGTERM, then SIGKILL
-pixi run -e llamacpp-source-cuda restart-server
+pixi run -e llamacpp-source-cuda start-llamacpp                  # background, logs to llama-server.log
+pixi run -e llamacpp-source-cuda start-llamacpp --host-ram 16G   # simulate a 16 GiB host (cgroup v2)
+pixi run -e llamacpp-source-cuda stop-llamacpp                   # SIGTERM, then SIGKILL
+pixi run -e llamacpp-source-cuda restart-llamacpp
 pixi run -e llamacpp-source-cuda llama-list-devices
 pixi run -e llamacpp-source-cuda llama-hello                   # smoke test with llama-cli
 
