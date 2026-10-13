@@ -1,11 +1,11 @@
 context:
   # Stable release (Linux — from latest.json)
-  version_stable: "0.9.3"
-  sha256_stable_x86_64: 18a8dc65f1c2fa485884344356dea1cfd911c6f06cf46fa78e193f4087f4dba7
-  sha256_stable_aarch64: 4de7aa3e25678812e92960de64f7c2aaa1bca1f0f80a3c5e559837e231e1f5c0
+  version_stable: "0.9.4"
+  sha256_stable_x86_64: 493304fbefb0ed0ea0455f373b47f48d24e8774bc7974f4c916ad2e937675b23
+  sha256_stable_aarch64: 9511cb70982c1ef115f232058e7ed7cf9640aa5a2c0ca78934cefda3aeb093fd
   # Preview release (Windows — from preview.json; Windows builds are preview-only)
-  version_preview: preview-2026-09-29-8e78f929d8f0
-  sha256_preview_win_64: bbebbd192fc6356228efdfb89ad1ce86813f3aff41ad48dbf5082fbe94e2485c
+  version_preview: preview-2026-10-12-6d697e1e75ff
+  sha256_preview_win_64: 768764b8c0a5b2e1262d337465c9490556f8ab490742acda06bff9e6ee18ea25
 
 package:
   name: herdr

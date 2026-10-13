@@ -1,6 +1,6 @@
 context:
   # Strata release to package (the git tag is v${version}).
-  version: "0.1.39"
+  version: "0.1.43.1"
 
   # The llama.cpp commit Strata's own setup.py pins (LLAMA_CPP_COMMIT) and builds its
   # engine against. It is a second git source here because the runtime tools
