@@ -812,6 +812,29 @@ MODEL_KV: dict[str, ModelKV] = {
             ),
         ),
     ),
+    # Same `bailingmoe3` hybrid one size up: block_count = 72, with
+    # `attention.head_count_kv` 1 on blocks 7, 15, 23, 31, 39, 47, 55,
+    # 63, 71 (every 8th block -- 9 MLA layers) and 0 on the other 63
+    # KDA blocks. No `nextn_predict_layers` in the GGUF, so unlike
+    # Ling-3.0-flash there is no MTP block passing the hybrid `!is_recr`
+    # filter: 9 cache layers, not 9+1. n_head = 64 doubles the flash
+    # recurrent state per layer: 3*(ssm.conv_kernel-1)*n_head*kda.head_dim
+    # (73728) + kda.head_dim^2*n_head (1048576) f32 elems. Same MLA
+    # latent (576, no V cache), same KVarN exclusion.
+    "Ling-3.1-flash": ModelKV(
+        full_attn_layers=9,
+        full_attn_kv_heads=1,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=576,  # kvarn not supported
+        value_dim=0,
+        compressed=(
+            CompressedKV(
+                "recurrent state", 63, 1, 73728, 1048576, fixed_rows=1, elem_bpw=32.0
+            ),
+        ),
+    ),
     # Looped transformer: block_count=22, num_loops=2 -> 44 cache layers.
     # Both values go in as-is; ModelKV does the multiplication.
     "Nanbeige4.2-3B": ModelKV(

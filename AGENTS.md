@@ -287,7 +287,7 @@ origins; `start-strata --port <n>` remains the escape hatch if one is ever run o
 The generated `strata-<tag>.json` / `run-<tag>.sh` / `.log` land **next to the packaged app**, inside
 `$CONDA_PREFIX/opt/strata`, and are not part of any package's file list: a recipe rebuild that merely relinks the package
 leaves them, and with them the pack and the MTP layer, alone — so the second start skips everything the first did. That
-is not a promise the env prefix keeps: one that is *recreated* rather than relinked (pixi re-extracting every package,
+is not a promise the env prefix keeps: one that is _recreated_ rather than relinked (pixi re-extracting every package,
 a `pixi clean`, an `rm -rf` of the env) takes `strata-data` and those configs with it, and the next start re-prepares
 from scratch — pack (~2 min), MTP layer (~787 MB `rt/` plus the ~5 GB of checkpoint tensors re-read to build it).
 

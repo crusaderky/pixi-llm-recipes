@@ -81,6 +81,7 @@ GGML_SIZES = {
     39: ("MXFP4", 32, 17),
     40: ("NVFP4", 64, 36),
     41: ("Q1_0", 128, 18),
+    42: ("Q2_0", 64, 18),  # mainline group-64, 2.25 bpw
     # --- ik-llama.cpp / DFlash quant types (ids >= 133) ---
     # Internal q8 vec-dot types (97-99, 136, 147-151) are included for
     # completeness; they normally never appear as a stored tensor ttype.
