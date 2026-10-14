@@ -30,7 +30,9 @@ from strata_common import flag_value, installed_ports, resolve_port, strata_args
 BASE_ARGS = [
     "--no-cache",
     "--runs",
-    "7",
+    "3",
+    "--pp",
+    "8192",
     "--tg",
     "128",
     "--tokenizer",
@@ -126,9 +128,9 @@ def main() -> int:
     if api_key:
         argv += ["--api-key", api_key]
     argv += extra
-    return subprocess.run(
-        [sys.executable, "-m", "llama_benchy", *argv], check=False
-    ).returncode
+    argv = ["python", "-m", "llama_benchy", *argv]
+    print(" ".join(argv))
+    return subprocess.run(argv, check=False).returncode
 
 
 if __name__ == "__main__":

@@ -43,8 +43,11 @@ setup.py's start path hands its run config's engine arguments to the engine verb
 flag read only by its setup path (``--kv``, ``--parallel``, ``--vision``, ...) does nothing on
 a start. The part of the command line it only reads when preparing is recorded in
 ``<data-dir>/strata-prepared.json``, and a change to it in strata.ini re-prepares the model
-once instead of being silently ignored. ``--context`` is the exception this wrapper can fix
-without a re-prepare: it rewrites ``--max-context`` in the run config before every start.
+once instead of being silently ignored. Two things this wrapper applies to the config itself
+instead, so they take effect on the next start with no re-prepare: the context (it rewrites
+``--max-context``, which setup.py's start path reads and its ``--context`` does not) and the
+sampling defaults (setup.py has no flag for them at all; they go into the config's ``sampling``
+block, where the server reads them as the answer to a request that names no temperature).
 """
 
 from __future__ import annotations
@@ -60,6 +63,7 @@ from types import ModuleType
 from strata_common import (
     INSTALL_FLAGS,
     PRINT_RESOLVERS,
+    SAMPLING_FLAGS,
     WRAPPER_FLAGS,
     app_dir,
     config_flag,
@@ -70,11 +74,13 @@ from strata_common import (
     load_setup,
     parse_args,
     pin_context,
+    pin_sampling,
     prepare_signature,
     prepared_args,
     record_prepared,
     render,
     run_setup,
+    sampling_values,
     signature_diff,
     strata_args,
     without,
@@ -282,7 +288,10 @@ def main() -> int:
     pairs = strata_args(cli)
     no_start = has_flag(pairs, "--no-start")
     keep_mtp = has_flag(pairs, "--keep-mtp-inputs")
-    pairs = without(pairs, WRAPPER_FLAGS)
+    # setup.py takes no sampling flag, so these are read out of the pairs and dropped before
+    # its argparse sees them: they belong to the run config, not to the command line.
+    sampling = sampling_values(pairs)
+    pairs = without(pairs, WRAPPER_FLAGS | SAMPLING_FLAGS)
 
     root = app_dir()
     prefix = os.environ.get("CONDA_PREFIX")
@@ -351,19 +360,26 @@ def main() -> int:
         record_prepared(data, tag, signature)
         if not keep_mtp:
             trim_mtp_inputs(setup, data)
-    if no_start:
-        return 0
-
     # Several models can be installed at once and setup.py starts the newest run config, so
     # the one strata.ini names has to be the newest by the time it looks.
     if config.is_file():
         config.touch()
 
-    # setup.py's start path ignores --context (it reads the config verbatim), so the context
-    # strata.ini asks for is applied to the config itself.
+    # setup.py's start path ignores --context (it reads the config verbatim) and has no flag at
+    # all for sampling, so both are applied to the config itself.  Before the `--no-start`
+    # return as well: `pixi run strata-install` leaves a config that already says what
+    # strata.ini says, so the next start rewrites nothing.
     ctx = flag_value(pairs, "--context")
     if ctx and pin_context(config, ctx):
         setup.ok(f"context: {ctx} tokens ({config.name})")
+    if sampling and pin_sampling(config, sampling):
+        pretty = ", ".join(f"{key}={value}" for key, value in sampling.items())
+        setup.ok(
+            f"sampling defaults for a request that names none: {pretty} ({config.name})"
+        )
+
+    if no_start:
+        return 0
 
     # The VRAM reserve setup.py does read on a start -- but passing it rewrites the config,
     # so a config that already agrees with strata.ini is left alone.

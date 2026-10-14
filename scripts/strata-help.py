@@ -17,16 +17,21 @@ from strata_common import (
     COMMAND_FLAGS,
     ENV_FLAGS,
     GGUF_DIR_FLAG,
+    SAMPLING_FLAGS,
     START_FLAGS,
     VALUELESS_FLAGS,
     WRAPPER_FLAGS,
     app_dir,
+    config_sampling,
     ini_path,
     load_setup,
+    model_configs,
     prepare_flags,
     render,
     run_setup,
+    sampling_values,
     strata_args,
+    without,
 )
 
 
@@ -58,9 +63,34 @@ def main() -> int:
         + f", {GGUF_DIR_FLAG} (set by scripts/strata-run.py)\n"
         "  this wrapper's own: " + ", ".join(sorted(WRAPPER_FLAGS))
     )
+    sampling = sampling_values(pairs)
+    print(
+        "  sampling defaults -- setup.py takes no sampling flag, because its start path runs "
+        "the\n  engine with whatever its run config already says.  These go into that config's\n"
+        "  `sampling` block (scripts/strata-run.py rewrites it before every start) and answer "
+        "only\n  what a request leaves out: a client's own temperature still wins, and Strata's "
+        "Chat\n  settings (POST /settings) sit on top of them: "
+        + ", ".join(sorted(SAMPLING_FLAGS))
+    )
+    if sampling:
+        print(
+            "  strata.ini sets: "
+            + ", ".join(f"{key}={value}" for key, value in sampling.items())
+        )
+    installed = model_configs(app_dir())
+    if installed:
+        block = config_sampling(installed[0])
+        print(
+            f"  {installed[0].name} says right now: "
+            + (
+                ", ".join(f"{key}={value}" for key, value in sorted(block.items()))
+                if block
+                else "no sampling block yet"
+            )
+        )
     print()
     print("this run would use:")
-    print("  " + " ".join(render(pairs)))
+    print("  " + " ".join(render(without(pairs, SAMPLING_FLAGS))))
     print()
     print(f"every parameter {app_dir() / 'setup.py'} accepts:")
     return run_setup(setup, ["--help"])

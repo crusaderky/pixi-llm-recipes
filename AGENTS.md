@@ -200,16 +200,23 @@ has no default for any of them and refuses to run without the file. Precedence, 
 or underscores, the leading `--` optional; a key with no value is a flag on its own (`no-browser =`) and `off`/`no`/
 `false` drops one. `STRATA_INI` points the wrapper at another copy.
 
+The sampling keys (`temperature`, `top-p`, `top-k`, `min-p`, `presence-penalty`, `frequency-penalty`,
+`repetition-penalty`, `penalty-last-n`, `seed`) are the one group that is **not** a setup.py argument — setup.py takes
+no sampling flag at all — so `scripts/strata-run.py` writes them into the run config's `sampling` block instead, where
+serve/server.py reads them as the answer to a request that names none. They are validated here with the server's own
+ranges, so a typo names `strata.ini` before the model loads.
+
 `pixi r strata-help` prints every parameter setup.py accepts **with setup.py's own explanation** — its argparse parser is
 read off the installed `setup.py`, so the list cannot drift from the packaged version — which of them a start applies,
-which are only read when the model is prepared, and the argument list the current file produces.
+which are only read when the model is prepared, what the file sets for sampling and what the installed run config says
+about it right now, and the argument list the current file produces.
 
 That split is the thing to know before editing the file. setup.py's start path hands its run config's engine arguments
 to the engine verbatim, so a `--kv` or a `--parallel` that only ever appears on a start changes nothing. The part of
 the command line setup.py reads only when preparing is recorded in `<data-dir>/strata-prepared.json`; when it moves, the
 next start re-prepares once (~2 min, no download) instead of quietly serving the old value, and `pixi r strata-install`
-re-prepares whatever the file says right now. `--context` is the exception the wrapper can fix without a re-prepare: it
-rewrites `--max-context` in the run config before every start.
+re-prepares whatever the file says right now. `--context` and the sampling keys are the exceptions the wrapper can
+apply without a re-prepare: it rewrites `--max-context` and the `sampling` block in the run config before every start.
 
 `setup`, `no-start`, `update`, `check` and `calibrate` are refused in the file — one-shot commands that would otherwise
 run on every start; give them after `--`. `gguf-dir` is refused too: the folder of symlinks into the Hub cache is the
@@ -325,11 +332,23 @@ a setting: `$CONDA_PREFIX/strata-data`, passed on both paths because setup.py's 
 next to the app and `data_folder()` moves model files between the two. Anything unknown on the command line still goes
 to setup.py, so `pixi run strata-install -- --calibrate` works as upstream documents it.
 
-Two settings the wrapper applies to the run config itself, because setup.py's start path reads that config verbatim: the
-**context** (`context` in `strata.ini` rewrites `--max-context` before every start — setup.py ignores `--context` on a
-start, and its setup path without `--gguf-dir` would want the shards re-downloaded) and the **VRAM reserve** (a config
+Three settings the wrapper applies to the run config itself, because setup.py's start path reads that config verbatim:
+the **context** (`context` in `strata.ini` rewrites `--max-context` before every start — setup.py ignores `--context` on a
+start, and its setup path without `--gguf-dir` would want the shards re-downloaded), the **VRAM reserve** (a config
 that disagrees with `vram-reserve-mib` is what a start passes the flag for, setup.py rewriting its `args` when it sees
-it; a config that agrees is left alone, so the steady state rewrites nothing). Every other flag the file changes moves
+it; a config that agrees is left alone, so the steady state rewrites nothing) and the **sampling defaults** (written
+into the config's `sampling` block, which is also why they are not part of the preparation signature). `strata.ini`
+pins Qwen's own recommendation for Qwen3.8-Flash-Next in **thinking mode** — temperature 1.0, top_p 0.95, top_k 20,
+min_p 0, presence_penalty 0, repetition_penalty 1 — the set its model card's "Best Practices" gives and the one its
+benchmark harnesses ran; thinking mode is how Strata serves it (the chat template thinks by default at xhigh effort),
+and 1.0 is also where Strata's coupled probabilistic drafting is measured to win (it loses below ~0.7, where the draft
+head's argmax is the better guess). The card's instruct-mode set (0.7 / 0.8 / 20 / 0 / 1.5 / 1) is kept commented in
+the file, since that mode is chosen per request (`enable_thinking: false`) and not in the file. Without the block the
+engine is **greedy**. These answer only what a request leaves out: a client's own `temperature` — an explicit 0 stays
+greedy — wins, and Strata's own Chat settings (`POST /settings`) sit on top of the block. A key the file does not name
+is left as it is (a block written from Strata's Settings page survives), and llama.cpp's alias of a key it does name
+(`repeat_penalty`, `repeat_last_n`) is dropped, because the server refuses to start with both spellings in one config.
+Every other flag the file changes moves
 the preparation signature, and that re-prepares instead.
 
 The pin to watch is `llama_cpp_commit` in `pixi-recipes/strata/recipe.yaml`: it must equal `LLAMA_CPP_COMMIT` in the
