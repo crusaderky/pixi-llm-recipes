@@ -30,7 +30,7 @@ from strata_common import flag_value, installed_ports, resolve_port, strata_args
 BASE_ARGS = [
     "--no-cache",
     "--runs",
-    "3",
+    "7",
     "--pp",
     "8192",
     "--tg",

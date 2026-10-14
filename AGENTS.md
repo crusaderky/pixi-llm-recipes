@@ -200,6 +200,19 @@ has no default for any of them and refuses to run without the file. Precedence, 
 or underscores, the leading `--` optional; a key with no value is a flag on its own (`no-browser =`) and `off`/`no`/
 `false` drops one. `STRATA_INI` points the wrapper at another copy.
 
+Which `family` and `model` exist is **setup.py's own tables, read live** — `scripts/strata-run.py`
+copies nothing. `FAMILIES` is Qwen3.8-Flash-Next's releases (`qwen`, `swift`, `coder`, `unsloth`,
+`nvfp4`), whose sizes are listed in `MODELS` with the families that ship each; `OWN_PATH_FAMILIES`
+(added in 0.1.44, still offered under its old name `PREVIEW_FAMILIES`) is a family with an engine
+path of its own — `qwen36`, Qwen3.6-35B-A3B, whose `UD-Q4_K_XL` / `UD-Q6_K_XL` / `Q8_0` live in the
+family entry and **not** in `MODELS`, and whose `UD-Q4_K_XL` is therefore another repository's file
+than `unsloth`'s of the same name. Such a family is read from the GGUF as it is: no expert pack
+(`strata-data/packs/<tag>` holds only the tokenizer), no expert profile, no MTP fetch — the file's
+own MTP block drafts (`--mtp 2` in the run config means draft count, not a layer folder), no image
+encoder yet (the wrapper drops `vision` for it), and `vram-reserve-mib` is applied at prepare as
+`--expert-vram` rather than on a start — which is why it counts as a preparation key there, so a
+change re-derives it instead of being logged by the engine as "not an option of this engine".
+
 The sampling keys (`temperature`, `top-p`, `top-k`, `min-p`, `presence-penalty`, `frequency-penalty`,
 `repetition-penalty`, `penalty-last-n`, `seed`) are the one group that is **not** a setup.py argument — setup.py takes
 no sampling flag at all — so `scripts/strata-run.py` writes them into the run config's `sampling` block instead, where
@@ -272,9 +285,11 @@ response was (`curl -s localhost:8080 | head -3` shows `<title>Strata</title>` e
 origins; `start-strata --port <n>` remains the escape hatch if one is ever run on llama-server's port.
 
 The generated `strata-<tag>.json` / `run-<tag>.sh` / `.log` land **next to the packaged app**, inside
-`$CONDA_PREFIX/opt/strata`, and are not part of any package's file list: a recipe rebuild (which `pixi install`
-triggers on any edit under `pixi-recipes/strata/`) replaces the engine but leaves them, and with them the pack and the
-MTP layer, alone — so the second start skips everything the first did.
+`$CONDA_PREFIX/opt/strata`, and are not part of any package's file list: a recipe rebuild that merely relinks the package
+leaves them, and with them the pack and the MTP layer, alone — so the second start skips everything the first did. That
+is not a promise the env prefix keeps: one that is *recreated* rather than relinked (pixi re-extracting every package,
+a `pixi clean`, an `rm -rf` of the env) takes `strata-data` and those configs with it, and the next start re-prepares
+from scratch — pack (~2 min), MTP layer (~787 MB `rt/` plus the ~5 GB of checkpoint tensors re-read to build it).
 
 ### Why the recipe builds the engine
 
@@ -286,13 +301,21 @@ CMake command line, so the flags cannot drift from upstream; it then writes `eng
 Dockerfile does (`source: "local"` plus `source_hash(ENGINE_SOURCES)`), and ships the pinned `llama.cpp` checkout, so
 `get_llama_cpp()` returns it instead of downloading the archive and the pack tools read GGUFs through its `gguf-py`.
 
+**Every part `ENGINE_SOURCES` names must be in the installed app tree, byte for byte** — `CMakeLists.txt`, `cmake`,
+`src`, `include`, `third_party/ggml` — because `setup.py` recomputes that hash over `${APPDIR}` at the first start and a
+missing part makes the engine look stale. It then wants to compile it, finds no `nvcc` (the env has the CUDA libraries,
+not a compiler), and offers to `apt-get install cuda-toolkit-13-0` with **sudo**, which blocks on a password when a
+terminal is on stdin. `cmake/` (`cmake/hip_backend.cmake`, build-time only, ~7.5 KB) is read for no other reason than
+this hash and was the one the copy loop missed; `scripts/strata-run.py` now also replaces `install_build_tools` with a
+message that names the drift, so the prompt cannot be reached from the pixi tasks at all.
+
 `cuda_architectures` (context var, `STRATA_CUDA_ARCHITECTURES` in the environment)
 defaults to `86`, i.e. RTX 30 series. Another card may need e.g.
 `STRATA_CUDA_ARCHITECTURES=89,120 pixi install -e strata`.
 
 ### `scripts/strata-run.py` — what differs from `./setup.sh`
 
-The wrapper loads Strata's `setup.py` as a module and replaces four things:
+The wrapper loads Strata's `setup.py` as a module and replaces several things:
 
 - **Dependencies.** Step 3, and `pip_cuda_libs()` for a ready-made engine, run
   `python -m pip install <pinned wheels>` into whatever interpreter runs them — a `.venv` upstream, **the conda
@@ -307,6 +330,11 @@ The wrapper loads Strata's `setup.py` as a module and replaces four things:
   `main` when a repository has dropped it — upstream's `hf_unpinned`), and hands over a folder of symlinks as
   `--gguf-dir`. `pixi install -e strata` therefore downloads no model, and the first start reuses whatever the
   quant `strata.ini` names that `llama-server -hf` has already fetched.
+- **The compile.** `build_engine` compiles the engine whenever the installed one does not match `ENGINE_SOURCES`, and
+  without an `nvcc` it installs the CUDA Toolkit through apt and **sudo** (see "Why the recipe builds the engine").
+  `install_build_tools` is replaced with `fail(...)`, so the pixi tasks never reach a password prompt: the start path
+  catches the `SystemExit` and starts the installed engine (its usual answer to a compile that failed), and a prepare
+  stops with the message naming the drift between the recipe's app tree and setup.py's hash.
 
 The MTP draft layer is the one download that cannot go through the Hub cache: `tools/mtp_fetch.py` reads ~5 GB of
 _byte ranges_ out of 28 shards of the 360 GB BF16 checkpoint (`Qwen/Qwen3.8-Flash-Next`, pinned revision — no GGUF

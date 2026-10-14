@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Start Strata out of the conda package, with pixi owning the dependencies.
 
-The upstream installer (setup.py) assumes a plain ``./setup.sh`` checkout; three of the
+The upstream installer (setup.py) assumes a plain ``./setup.sh`` checkout; several of the
 things it does there are replaced here:
 
 * **Its command line.** What Strata runs with is ``strata.ini`` in the project root -- every
@@ -27,6 +27,11 @@ things it does there are replaced here:
   they are checked against the pinned SHA256s (upstream's #327 check) and deleted once the
   layer is built. ``keep-mtp-inputs`` in strata.ini (or ``STRATA_KEEP_MTP_INPUTS=1``) keeps
   them.
+* **The compile at the first start.** setup.py compiles the engine itself when the one it
+  finds does not match the sources it hashes (``ENGINE_SOURCES``), installing NVIDIA's CUDA
+  Toolkit with apt and sudo when there is no ``nvcc`` -- the recipe compiles it here, and
+  the runtime env has the CUDA libraries but no compiler. ``install_build_tools`` is replaced
+  with the message that says so, so a mismatch can never reach a password prompt (see below).
 
 Everything else stays setup.py's: the expert pack, the MTP draft layer, the run config.
 What it writes is all inside ``$CONDA_PREFIX`` -- the pack, the MTP layer and the config
@@ -134,37 +139,99 @@ def replace_pip(setup: ModuleType) -> None:
     setup.pip_install = pip_install
 
 
+def replace_build_tools(setup: ModuleType) -> None:
+    """setup.py's CUDA-toolkit step, replaced: this integration never compiles at runtime.
+
+    ``build_engine`` reaches it the moment the installed engine does not match the sources
+    setup.py hashes, and its own answer is to install NVIDIA's toolkit -- ``sudo dpkg -i
+    /tmp/cuda-keyring.deb`` and ``sudo apt-get install cuda-toolkit-13-0`` -- after a "Install
+    them now? [y]" that blocks on the password when a terminal is on stdin (see
+    ``strata.log``). The engine comes from the recipe, so a mismatch is the packaging's
+    problem, not something to fix by installing a compiler: ``fail`` names it instead. The
+    start path catches the SystemExit and starts the installed engine, exactly as it did for
+    a compile that failed.
+    """
+
+    def install_build_tools(gpu, yes):
+        setup.fail(
+            "the installed engine does not match its sources, and compiling it here needs "
+            "the CUDA Toolkit this env does not carry",
+            "rebuild the recipe (`pixi install -e strata`): the sources the recipe installs "
+            "and the ones setup.py's ENGINE_SOURCES hashes have drifted apart",
+        )
+
+    setup.install_build_tools = install_build_tools
+
+
+def own_path_table(setup: ModuleType) -> dict:
+    """The families setup.py gives an engine path of their own: ``OWN_PATH_FAMILIES``, empty for
+    a setup.py that has none (0.1.43.1 and older).  ``PREVIEW_FAMILIES`` is upstream's own alias
+    for the same table, so either name is accepted.
+    """
+    return (
+        getattr(setup, "OWN_PATH_FAMILIES", None)
+        or getattr(setup, "PREVIEW_FAMILIES", None)
+        or {}
+    )
+
+
+def family_table(setup: ModuleType) -> dict:
+    """Every family setup.py can prepare, as one `{name: entry}` table.
+
+    ``FAMILIES`` is Qwen3.8-Flash-Next's releases: the same architecture, weights packed into
+    ``<data-dir>/packs/<tag>``. ``OWN_PATH_FAMILIES`` (0.1.44's Qwen3.6-35B-A3B) is the family
+    with an engine path of its own: no pack, no expert profile, no separate MTP draft layer --
+    the engine reads the GGUF as it is and drafts with the file's own MTP block. setup.py
+    routes it to its own ``install_own_path``, whose ``--family`` choices are
+    ``list(FAMILIES) + list(PREVIEW_FAMILIES)``, so both tables are read.
+    """
+    return {**setup.FAMILIES, **own_path_table(setup)}
+
+
 def resolve_family(setup: ModuleType, family: str) -> str:
     """The family as setup.py spells it, or the choices it would have offered."""
-    known = {name.lower(): name for name in setup.FAMILIES}
+    known = {name.lower(): name for name in family_table(setup)}
     if family.lower() not in known:
-        sys.exit(f"family {family!r}: setup.py knows {', '.join(setup.FAMILIES)}")
+        sys.exit(f"family {family!r}: setup.py knows {', '.join(family_table(setup))}")
     return known[family.lower()]
 
 
 def resolve_model(setup: ModuleType, family: str, model: str) -> str:
-    """The quant, checked against the family that ships it (`MODELS[...]['families']`)."""
-    known = {name.lower(): name for name in setup.MODELS}
+    """The quant, checked against the family that ships it.
+
+    A pack family lists its sizes in ``MODELS``, each with the ``families`` that ship it. An
+    own-path family is in ``MODELS`` not at all -- it carries its own ``models`` table (its
+    ``UD-Q4_K_XL`` is another repository's single file, not Unsloth's Flash-Next file of the
+    same name), which is what its own ``install_own_path`` reads.
+    """
+    fam = family_table(setup)[family]
+    table = fam.get("models") or setup.MODELS
+    known = {name.lower(): name for name in table}
     if model.lower() not in known:
-        sys.exit(f"model {model!r}: setup.py knows {', '.join(setup.MODELS)}")
+        sys.exit(f"model {model!r}: {family} offers {', '.join(table)}")
     model = known[model.lower()]
-    families = setup.MODELS[model].get("families", ("qwen", "swift"))
-    if family not in families:
-        sys.exit(
-            f"model {model!r} exists only for {', '.join(families)}, not {family!r}"
-        )
+    if table is setup.MODELS:
+        families = setup.MODELS[model].get("families", ("qwen", "swift"))
+        if family not in families:
+            sys.exit(
+                f"model {model!r} exists only for {', '.join(families)}, not {family!r}"
+            )
     return model
 
 
 def model_files(setup: ModuleType, family: str, model: str, vision: str) -> list[str]:
     """The files setup.py downloads for this model: every shard, and the image encoder."""
-    fam = setup.FAMILIES[family]
-    shards = [
-        setup.model_file(fam, model, i)
-        for i in range(1, setup.model_shards(fam, model) + 1)
-    ]
+    fam = family_table(setup)[family]
+    if family in own_path_table(setup):
+        # an own-path family: one GGUF, no shard pattern to walk (`fam["file"]` has no {i})
+        shards = [fam["file"].format(q=model)]
+    else:
+        shards = [
+            setup.model_file(fam, model, i)
+            for i in range(1, setup.model_shards(fam, model) + 1)
+        ]
     urls = [fam["hf"].format(q=model) + name for name in shards]
-    if vision not in ("no", "none", "off"):
+    if vision not in ("no", "none", "off") and fam.get("vision") is not False:
         urls.append(fam["mmproj_hf"] + fam["mmproj"])
     return urls
 
@@ -194,7 +261,9 @@ def gguf_dir(setup: ModuleType, family: str, model: str, vision: str) -> Path:
     from huggingface_hub.constants import HF_HUB_CACHE
 
     prefix = Path(os.environ["CONDA_PREFIX"])
-    where = prefix / "strata-models" / (setup.FAMILIES[family]["tag"] + model).lower()
+    where = (
+        prefix / "strata-models" / (family_table(setup)[family]["tag"] + model).lower()
+    )
     where.mkdir(parents=True, exist_ok=True)
     print(f"  model files from {HF_HUB_CACHE}", flush=True)
     for url in model_files(setup, family, model, vision):
@@ -306,6 +375,7 @@ def main() -> int:
     os.environ.setdefault("XDG_CONFIG_HOME", str(prefix / ".config"))
     setup = load_setup(root)
     replace_pip(setup)
+    replace_build_tools(setup)
 
     family = flag_value(pairs, "--family")
     model = flag_value(pairs, "--model")
@@ -323,14 +393,33 @@ def main() -> int:
     # and data_folder() moves model files between whatever it and the remembered one are.
     data = Path(flag_value(pairs, "--data-dir") or prefix / "strata-data")
     data_dir = ["--data-dir", str(data)]
-    tag = (setup.FAMILIES[family]["tag"] + model).lower()
+    fam = family_table(setup)[family]
+    own = family in own_path_table(setup)
+    tag = (fam["tag"] + model).lower()
     config = root / f"strata-{tag}.json"
     # Only decides whether the image encoder is fetched beside the shards. Without a
     # `vision` in strata.ini the choice is setup.py's, and its recommended answer is the GPU
     # encoder -- so fetching it is the assumption that cannot waste a later start.
     vision = flag_value(pairs, "--vision", "gpu")
+    if fam.get("vision") is False and has_flag(pairs, "--vision"):
+        # An own-path family whose image encoder is not wired up yet: setup.py accepts the flag
+        # and says "images are not available with it yet", so dropping it here is the same
+        # answer given before the download instead of after it.
+        pairs = without(pairs, {"--vision"})
+        vision = "no"
+        setup.ok(
+            f"images: {fam['title']} has no image encoder yet ({ini_path()}'s vision ignored)"
+        )
 
     signature = prepare_signature(pairs)
+    if own and has_flag(pairs, "--vram-reserve-mib"):
+        # For a Flash-Next model the reserve is a start-path flag (setup.py rewrites it in the
+        # config). `install_own_path` instead translates it once into `--expert-vram`, so here
+        # it belongs to the preparation: changing it re-prepares, which re-derives that figure.
+        signature = sorted(
+            signature
+            + [["--vram-reserve-mib", flag_value(pairs, "--vram-reserve-mib") or ""]]
+        )
     prepared = prepared_args(data)  # what this data folder was last prepared with
     reason = None
     if not config.is_file():
@@ -386,6 +475,12 @@ def main() -> int:
     start = without(pairs, WRAPPER_FLAGS | INSTALL_FLAGS)
     reserve = flag_value(pairs, "--vram-reserve-mib")
     if reserve and config_flag(config, "--vram-reserve-mib") == reserve:
+        start = without(start, {"--vram-reserve-mib"})
+    if own:
+        # An own-path engine reads no `--vram-reserve-mib` at all (its arguments are
+        # `--expert-vram`, `--expert-slots`, `--hybrid-rows`, `--cpu-threads`) and logs
+        # "ignoring --vram-reserve-mib (not an option of this engine)" on every start that
+        # carries one. `install_own_path` already turned the reserve into that `--expert-vram`.
         start = without(start, {"--vram-reserve-mib"})
 
     # Let the server replace this process: the pid start-strata.sh records is then the

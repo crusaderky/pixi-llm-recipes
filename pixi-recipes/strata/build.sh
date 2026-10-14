@@ -81,6 +81,17 @@ engine = setup.ROOT / "engine"
 engine.mkdir(exist_ok=True)
 shutil.copy2(setup.ROOT / "build" / setup.EXE, engine / setup.EXE)
 shutil.copy2(setup.ROOT / "build-vision" / "bin" / setup.VEXE, engine / setup.VEXE)
+# 0.1.44: on CUDA the K-quant MMQ prompt kernels are a library of their own, and the engine
+# opens it out of its own folder (/proc/self/exe's directory -- src/prefill/mmq_kq_loader.cpp),
+# so it has to sit beside the executable, not in ${PREFIX}/lib. It is what the K-quant experts
+# of Unsloth's UD-Q4/Q5/Q6_K_XL use for prompts, and every Qwen3.6-35B-A3B expert is one (its
+# engine path sets STRATA_MMQ_KQ=1 by default): without it those experts fall back to the FP16
+# prompt path and the engine says so once. CMake builds it only where those formats have CUDA
+# kernels, so a missing file is not an error here.
+kq = setup.ROOT / "build" / setup.KQ_LIB
+if kq.is_file():
+    shutil.copy2(kq, engine / setup.KQ_LIB)
+    print(f"  K-quant prompt kernels: {setup.KQ_LIB}", flush=True)
 
 # BUILD.json is what setup.py reads at the first start to decide whether the engine is
 # current: source=local plus a matching src hash means it compiles nothing again, so the
@@ -101,12 +112,15 @@ print(f"  engine: {meta}", flush=True)
 PYEOF
 
 # The runtime tree: the application, the two executables and the llama.cpp checkout its
-# GGUF tools read through STRATA_GGUF_PY. src/, include/ and third_party/ggml are not dead
-# weight -- setup.py's source_hash() reads exactly those to verify BUILD.json.
+# GGUF tools read through STRATA_GGUF_PY. Every part setup.py's ENGINE_SOURCES names must be
+# here byte for byte: source_hash() fingerprints them at the first start and a missing one
+# makes the engine look stale, which sends setup.py to a compile it cannot do (no CUDA
+# Toolkit in the env) and then to an apt/sudo prompt. `cmake/` is only used at build time and
+# is the one that was easy to forget -- it is read for no other reason than this hash.
 APPDIR="${PREFIX}/opt/strata"
 rm -rf "${APPDIR}"
 mkdir -p "${APPDIR}/third_party"
-for item in serve tools data src include CMakeLists.txt setup.py requirements.txt; do
+for item in serve tools data src include cmake CMakeLists.txt setup.py requirements.txt; do
     cp -a "${STRATA_SRC}/${item}" "${APPDIR}/${item}"
 done
 cp -a "${STRATA_SRC}/third_party/ggml" "${APPDIR}/third_party/ggml"
