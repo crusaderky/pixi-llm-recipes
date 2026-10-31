@@ -2,9 +2,10 @@
 set -o errexit
 set -o nounset
 
-# Parse --port (default 8080) and --host-ram (default: off, no cap);
-# everything else is passed verbatim to llama-server.
-PORT=8080
+# Parse --port (default 9931, which is llama-server's own default since upstream
+# moved it off 8080) and --host-ram (default: off, no cap); everything else is
+# passed verbatim to llama-server.
+PORT=9931
 HOST_RAM=
 LLAMA_EXTRA_ARGS=()
 while [[ $# -gt 0 ]]; do

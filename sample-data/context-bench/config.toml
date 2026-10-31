@@ -4,11 +4,11 @@
 #
 # Each table is one "model tag". Only `ctx-size` is required: it lists the
 # books to evaluate, each matching an available book (16k, 32k, 64k, 128k, 256k).
-# `url` defaults to http://localhost:8080/v1 (the project's llama-server).
+# `url` defaults to http://localhost:9931/v1 (the project's llama-server).
 #
 # Apply defaults to all models; can override per-model below
 ["*"]
-url = "http://localhost:8080/v1"
+url = "http://localhost:9931/v1"
 
 # It's a bad idea to set temperature = 0 - see README.md.
 # temperature = 0.3

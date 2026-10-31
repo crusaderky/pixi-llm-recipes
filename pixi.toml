@@ -213,7 +213,7 @@ forge-guardrails = { git = "https://github.com/crusaderky/forge.git", branch = "
 llama-benchy = ">=0.4.0"
 
 [feature.pytools.tasks]
-llama-benchy = "python -m llama_benchy --base-url http://localhost:8080/v1 --no-cache --runs 3 --tg 128"
+llama-benchy = "python -m llama_benchy --base-url http://localhost:9931/v1 --no-cache --runs 3 --tg 128"
 llama-benchy-strata = "python scripts/llama-benchy-strata.py"
 hf = "hf"
 context-bench = "python sample-data/context-bench/run_benchmark.py"
@@ -228,7 +228,7 @@ args = [
 cmd = "python scripts/openrouter_model_report.py {{ models }}"
 
 [feature.pytools.tasks.start-forge]
-depends-on = [{ task = "start-llamacpp", args = ["--port", "8081"] }]
+depends-on = [{ task = "start-llamacpp" }]
 cmd = "bash scripts/start-forge.sh"
 
 [feature.lint.dependencies]

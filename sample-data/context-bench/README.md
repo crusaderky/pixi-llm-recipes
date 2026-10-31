@@ -34,7 +34,7 @@ a correct-but-off-format answer can score `WRONG`; the verbatim `raw_answers`
 are preserved in the report for inspection.
 
 ```bash
-# llama-server must be running on :8080 (see ../../models.ini)
+# llama-server must be running on :9931 (see ../../models.ini)
 pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 ```
 
@@ -126,7 +126,7 @@ required.
 
 ```toml
 [*]
-url = "http://localhost:8080/v1"   # OpenAI endpoint; default localhost:8080
+url = "http://localhost:9931/v1"   # OpenAI endpoint; default localhost:9931
 # seed = 42                        # optional; default: server picks a random seed per request
 max_tokens = 9000                  # cap total decode tokens (reasoning + output)
 

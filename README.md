@@ -24,7 +24,7 @@ curl -fsSL https://pixi.sh/install.sh | sh  # One-off installation
 pixi r install  # One-off installation of several components
 pixi r start-llamacpp  # Start llama.cpp server for local models
 cd /path/to/workspace && pi  # Just like regular pi, but managed by pixi and sandboxed
-herdr                              # Terminal multiplexer / agent orchestrator
+herdr  # Terminal multiplexer / agent orchestrator
 pixi r stop-llamacpp
 pixi r uninstall
 ```
@@ -81,7 +81,7 @@ To start llama-cpp interactively (you will be asked on which environment you wan
 pixi r llama-version       # llama-server --version
 pixi r llama-list-devices  # llama-server --list-devices (output changes with backend!)
 pixi r llama-hello         # Download a model, load it, prompt "Hello world" and exit
-pixi r start-llamacpp    # Start the llama-server router in the background on port 8080
+pixi r start-llamacpp    # Start the llama-server router in the background on port 9931
 pixi r stop-llamacpp 
 pixi r restart-llamacpp
 ```
@@ -97,9 +97,8 @@ pixi r -e llamacpp-source-cuda start-llamacpp
 [Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next on one consumer GPU
 plus system RAM, and serves it with OpenAI-, Anthropic- and Responses-compatible APIs,
 vision included. Strata is configured by `strata.ini` and runs by default on port
-**8082**, so that it does not collide with llama-server (8080) or with the forge
-layout, which binds the proxy to 8080 and its llama-server backend to 8081 (see
-below).
+**8082**, so that it does not collide with llama-server (9931) or with the forge
+proxy (8080, see below).
 
 ```bash
 pixi install -e strata    # solve the environment and compile the engine
@@ -129,19 +128,19 @@ server. They are prevented by tweaking `systemd-oomd` through `pixi r install-oo
 tool-calling: it validates every tool call in the model's response, rescue-parses
 malformed ones, and retries inference with corrective feedback when validation fails.
 
-`start-forge` starts the llama-server router on port **8081** and the forge
-proxy in front of it on port **8080** — the same port a bare `start-llamacpp` binds, so
-agents and benchmarks pointing at `http://localhost:8080/v1` pick up the guardrails
-without any reconfiguration.
+`start-forge` starts the llama-server router on port **9931** — the port a bare
+`start-llamacpp` binds — and the forge proxy in front of it on port **8080**, so
+agents pointed at `http://localhost:8080/v1` pick up the guardrails. `9931` still
+answers unguarded, which is what `llama-benchy` and `context-bench` measure.
 
 ```bash
-pixi r start-forge    # Start llama-server on 8081 + forge on 8080
+pixi r start-forge    # Start llama-server on 9931 + forge proxy on 8080
 pixi r stop-forge     # Stop both forge and llama-server
 pixi r restart-forge
 ```
 
-It is a drop-in replacement for `start-llamacpp`, `stop-llamacpp`, and `restart-llamacpp`.
-Nothing else changes.
+It takes over the `start-llamacpp` / `stop-llamacpp` / `restart-llamacpp` lifecycle
+(`stop-forge` stops both processes, `restart-forge` restarts both).
 
 ## Models
 
@@ -229,7 +228,7 @@ a machine with less RAM than this one (Linux + systemd only; off by default):
 
 ```bash
 pixi r start-llamacpp --host-ram 16G  # cgroup v2 MemoryMax, swap disabled
-systemctl --user status llama-server-8080.scope  # prints "Memory: … (max: …)"
+systemctl --user status llama-server-9931.scope  # prints "Memory: … (max: …)"
 ```
 
 Use it with `load-mode = mmap`: mlock'd weights can't be evicted, so the server

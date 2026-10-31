@@ -16,8 +16,8 @@ set -o pipefail
 # later starts only load the model (~40 s) -- unless strata.ini changed something setup.py
 # only reads when preparing, which re-prepares once (see scripts/strata-run.py).
 #
-# Strata listens on the port strata.ini says (`port`): llama-server owns 8080 and the forge
-# layout gives its own llama-server backend 8081, so none of the three collides. A port
+# Strata listens on the port strata.ini says (`port`): llama-server owns 9931 (also the
+# backend forge fronts) and the forge proxy owns 8080, so none of these collide. A port
 # someone else owns is refused rather than taken over.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

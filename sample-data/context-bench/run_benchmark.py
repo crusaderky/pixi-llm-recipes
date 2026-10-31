@@ -12,7 +12,7 @@ Usage:
 Config format (one table per model; the table name is the "model tag")::
 
     [my-model]
-    url = "http://localhost:8080/v1"   # OpenAI endpoint; defaults to localhost
+    url = "http://localhost:9931/v1"   # OpenAI endpoint; defaults to localhost
     api_key = "sk-..."                 # optional, literal key
     api_key_env = "OPENAI_API_KEY"     # optional, name of env var holding key
     model_name = "Qwen3.6-35B"         # optional; defaults to the table name
@@ -96,7 +96,7 @@ def parse_size(value: int | str) -> int:
 class ModelConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    url: str = "http://localhost:8080/v1"
+    url: str = "http://localhost:9931/v1"
     api_key: str | None = None
     api_key_env: str | None = None
     model_name: str | None = None

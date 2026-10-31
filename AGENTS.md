@@ -76,7 +76,7 @@ Environments:
 - Eight `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` = `llamacpp` + the matching backend feature.
 - `agents` = `pi` + `sandbox` + `git` + `herdr` + `pytools`. There is no standalone `herdr` env.
 - `lint` = `lint` alone (`no-default-feature`).
-- `strata` = `strata` alone (`no-default-feature`); it serves on the port `strata.ini` sets (8082), so the three ports stay apart: 8080 is llama-server's, 8081 the forge layout's llama-server backend, 8082 Strata's (VRAM, not the port, keeps llama-server and Strata from running together). `strata-help` and `llama-benchy-strata` are in `pytools` instead: a help command must not trigger the `strata` env's engine compile, and the benchmark runs where `llama-benchy` does.
+- `strata` = `strata` alone (`no-default-feature`); it serves on the port `strata.ini` sets (8082), so the ports stay apart: 9931 is llama-server's (also forge's backend), 8080 the forge proxy, 8082 Strata's (VRAM, not the port, keeps llama-server and Strata from running together). A bare `start-llamacpp` pins 9931 because that is llama-server's own `--port` default since upstream moved it off 8080. `strata-help` and `llama-benchy-strata` are in `pytools` instead: a help command must not trigger the `strata` env's engine compile, and the benchmark runs where `llama-benchy` does.
 
 Platform gating: source-cuda and source-rocm are linux-64 only; binary-cuda and binary-rocm are linux-64 only; binary-vulkan is linux-64 + win-64 (beellama ships no arm64 vulkan asset). `strata` is linux-64 only — its engine is compiled CUDA, and the release's Windows engine would be a second recipe.
 
@@ -85,7 +85,7 @@ Linux `[target.*.tasks]`: `install-apparmor`, `install-bin`, `install-clipboard`
 
 **`-e <env>` is only required when a task exists in more than one environment** — in practice only the `llamacpp` feature's tasks, which exist in all eight `llamacpp-*` envs. Everything else (`pi`, `herdr`, `gh`, `llama-benchy`, `perplexity-report`, …) resolves on its own.
 
-> ⚠ **`start-forge` / `restart-forge` are currently broken.** `start-forge` lives in `pytools` (only in `agents`) but declares `depends-on start-llamacpp`, which lives in `llamacpp` (only in the `llamacpp-*` envs). No environment has both, so the task fails to resolve everywhere. Start llama-server on 8081 from a `llamacpp-*` env, then run the proxy manually, until the features are realigned.
+> ⚠ **`start-forge` / `restart-forge` are currently broken.** `start-forge` lives in `pytools` (only in `agents`) but declares `depends-on start-llamacpp`, which lives in `llamacpp` (only in the `llamacpp-*` envs). No environment has both, so the task fails to resolve everywhere. Start llama-server from a `llamacpp-*` env (9931), then run the proxy on 8080 manually, until the features are realigned.
 
 ## llama-cpp recipes
 
@@ -171,8 +171,7 @@ Version bumps for `herdr`, `herdr-file-viewer`, `pi-extensions`, `strata` and `l
 
 [Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next — a 125B MoE — on one GPU plus system RAM and
 serves it on `127.0.0.1`, on the port `strata.ini` sets (8082), with OpenAI-, Anthropic- and
-Responses-compatible APIs (`/v1/chat/completions`, `/v1/models`, `/v1/messages`). 8080 is llama-server's and 8081 the
-forge layout's llama-server backend, so no two of the three collide — whether llama-server and Strata can run at the
+Responses-compatible APIs (`/v1/chat/completions`, `/v1/models`, `/v1/messages`). 9931 is llama-server's — the port forge also fronts as its backend — and 8080 is the forge proxy's, so no two of them collide — whether llama-server and Strata can run at the
 same time is a VRAM question, not a port one. `start-strata.sh` still refuses a port someone else owns, and tells Strata's `/health` (which carries
 `"loaded"`) from llama-server's (which does not), so the check cannot mistake one for the other.
 
@@ -280,7 +279,7 @@ writes `~/.config/strata/settings.json`.
 
 Serving on its own port means its own browser origin, which is also what ended an earlier confusion worth knowing
 about: llama-server's webui is a PWA (`/sw.js`, `/manifest.webmanifest`, `/_app/version.json` — its own security test
-requests them) and a service worker belongs to the _origin_, not the server, so while the two shared 8080 a browser
+requests them) and a service worker belongs to the _origin_, not the server, so while the two shared 8080 (llama-server's port then; its default is 9931 now) a browser
 that had opened llama-server's UI kept rendering that cached page on `localhost:8080` however correct Strata's own
 response was (`curl -s localhost:8080 | head -3` shows `<title>Strata</title>` either way). Distinct ports, distinct
 origins; `start-strata --port <n>` remains the escape hatch if one is ever run on llama-server's port.
@@ -547,7 +546,7 @@ pixi run -e llamacpp-source-cuda restart-llamacpp
 pixi run -e llamacpp-source-cuda llama-list-devices
 pixi run -e llamacpp-source-cuda llama-hello                   # smoke test with llama-cli
 
-# Strata (its port is `port` in strata.ini; llama-server keeps 8080 and the forge backend 8081 --
+# Strata (its port is `port` in strata.ini; llama-server keeps 9931, the forge proxy 8080 --
 # VRAM, not the port, is what limits running both at once)
 pixi install -e strata        # solves the env and compiles the engine (~8 min, once)
 pixi run start-strata         # prepares the model on the first run, then serves on strata.ini's port

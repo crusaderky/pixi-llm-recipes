@@ -3,11 +3,13 @@ set -o errexit
 set -o nounset
 
 # Start forge-proxy on port 8080, forwarding to the llama-server that the
-# start-llamacpp dependency task started on port 8081.
+# start-llamacpp dependency task started on its default port (9931). Clients
+# reach the guardrails at 8080; 9931 still answers unguarded, which is what
+# the benchmarks point at.
 # Forge applies guardrails (response validation, rescue parsing, retry loops)
 # transparently — clients talk to 8080 as if it were a smarter model.
 PORT=8080
-BACKEND_PORT=8081
+BACKEND_PORT=9931
 
 # Test if something is listening on the port; any HTTP response (even an
 # error) means the server is up. Don't use nc, which doesn't exist on Windows.
