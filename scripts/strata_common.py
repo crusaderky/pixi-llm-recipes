@@ -11,11 +11,6 @@ how it is sized: every key in it becomes an argument for ``setup.py``, exactly a
 command line, the ``STRATA_*`` environment, ``strata.ini``.  The file is required -- the
 settings live there and not in this code, so there is nothing here to keep in step with it.
 
-The sampling keys (``SAMPLING_KEYS``) are the one group that is not an argument for setup.py:
-it takes no sampling flag at all, because its start path runs the engine with whatever its run
-config already says.  They are written into that config's ``sampling`` block instead, by
-``pin_sampling``.
-
 The scripts that import this live in the same directory and are invoked as
 ``python scripts/<name>.py``, so ``sys.path[0]`` is ``scripts/`` and a plain
 ``import strata_common`` resolves.  (Their own file names are hyphenated and therefore not
@@ -64,60 +59,20 @@ OFF_VALUES = frozenset({"false", "off", "no", "none", "0"})
 #: flag of that name, so they are never forwarded
 WRAPPER_FLAGS = frozenset({"--keep-mtp-inputs"})
 
-# ---------------------------------------------------------------------------
-#  sampling defaults: strata.ini -> the run config's `sampling` block
-# ---------------------------------------------------------------------------
-# setup.py takes no sampling flag at all: its start path hands the run config's engine
-# arguments to the engine verbatim, and the sampling defaults live in that config's `sampling`
-# block (serve/server.py's `sampling_defaults_from_config`).  So these are the wrapper's own
-# keys -- strata.ini names them and scripts/strata-run.py writes them into the config before
-# every start, exactly as it rewrites ``--max-context`` there.  They never re-prepare a model:
-# nothing here changes what the engine is loaded with.
-#
-# They answer a request that leaves a field out, and nothing else.  A client's own
-# ``temperature`` still wins -- an explicit 0 is still greedy -- and Strata's own Chat settings
-# (POST /settings) sit on top of this block.
-SAMPLING_KEYS = {
-    "--temperature": "temperature",
-    "--top-p": "top_p",
-    "--top-k": "top_k",
-    "--min-p": "min_p",
-    "--presence-penalty": "presence_penalty",
-    "--frequency-penalty": "frequency_penalty",
-    "--repetition-penalty": "repetition_penalty",
-    "--penalty-last-n": "penalty_last_n",
-    "--seed": "seed",
-}
-SAMPLING_FLAGS = frozenset(SAMPLING_KEYS)
-
-#: llama.cpp's spellings of two of them (#1819).  serve/server.py reads either as the same
-#: setting and refuses to start when a config carries both, so writing the canonical one drops
-#: the alias.
-SAMPLING_ALIASES = {
-    "repetition_penalty": "repeat_penalty",
-    "penalty_last_n": "repeat_last_n",
-}
-
-#: each key's range, copied from the checks serve/server.py applies to the block.  Checked
-#: here instead: a typo should stop this wrapper and name strata.ini, not refuse the server
-#: start after the model has already loaded.
-SAMPLING_RANGES = {
-    "--temperature": {"lo": 0.0},
-    "--top-p": {"lo": 0.0, "hi": 1.0, "lo_open": True},
-    "--top-k": {"lo": 1, "hi": 64, "whole": True},
-    "--min-p": {"lo": 0.0, "hi": 1.0},
-    "--presence-penalty": {"lo": 0.0},
-    "--frequency-penalty": {"lo": 0.0},
-    "--repetition-penalty": {"lo": 0.0, "lo_open": True},  # 1 = off
-    "--penalty-last-n": {"lo": 0, "whole": True},
-    "--seed": {"lo": 0, "lo_open": True, "whole": True},
-}
-
-#: setup.py's switches that mean "install or reconfigure" instead of "start what is already
-#: installed".  They are one-shot commands, so they belong on a command line and not in
-#: strata.ini, where they would re-run on every start
+#: setup.py's switches that mean "install or reconfigure, then stop" instead of "start what
+#: is already installed".  They are one-shot commands, so they belong on a command line and not
+#: in strata.ini, where they would re-run on every start (--inspect prints and exits,
+#: --rollback-engine swaps the engine)
 COMMAND_FLAGS = frozenset(
-    {"--setup", "--no-start", "--update", "--check", "--calibrate"}
+    {
+        "--setup",
+        "--no-start",
+        "--update",
+        "--check",
+        "--calibrate",
+        "--inspect",
+        "--rollback-engine",
+    }
 )
 
 #: setup.py's start path reads these from the command line and applies them to an installed
@@ -129,6 +84,7 @@ START_FLAGS = frozenset(
         "--port",
         "--gpu",
         "--gpus",
+        "--gpu-roles",
         "--layer-split",
         "--host",
         "--api-key",
@@ -332,12 +288,9 @@ def prepare_signature(pairs: Sequence[Pair]) -> list[list[str]]:
     setup.py's start path hands its `cfg["args"]` to the engine verbatim, so a `--kv` or a
     `--parallel` that only ever appears on a start changes nothing: the run config already
     says what the engine runs with.  Recording this next to the data makes a change in
-    strata.ini visible, and scripts/strata-run.py re-prepares when it moves.  The sampling
-    keys are skipped for the opposite reason from the rest: scripts/strata-run.py applies them
-    to the run config itself, which is where setup.py's start path reads them, so changing one
-    takes effect on the next start and is no reason to rebuild the pack.
+    strata.ini visible, and scripts/strata-run.py re-prepares when it moves.
     """
-    skip = START_FLAGS | WRAPPER_FLAGS | SAMPLING_FLAGS | COMMAND_FLAGS | INSTALL_FLAGS
+    skip = START_FLAGS | WRAPPER_FLAGS | COMMAND_FLAGS | INSTALL_FLAGS
     return sorted(
         [flag, value if value is not None else ""]
         for flag, value in dedupe(pairs)
@@ -490,87 +443,6 @@ PRINT_RESOLVERS = {
     "--port": resolve_port,
     "--context": resolve_context,
 }
-
-
-def sampling_values(pairs: Sequence[Pair]) -> dict[str, int | float]:
-    """The sampling defaults strata.ini asks for, as ``{config key: number}``.
-
-    A key that is not in the file is not written, so the engine's own default keeps its place.
-    Unlike a valueless flag, `off`/`no`/`false` means nothing here: these are numbers, and
-    `temperature = 0` (greedy) is a real setting.
-    """
-    out: dict[str, int | float] = {}
-    for flag, key in SAMPLING_KEYS.items():
-        value = flag_value(pairs, flag)
-        if value is None:
-            continue
-        spec = SAMPLING_RANGES[flag]
-        whole = bool(spec.get("whole"))
-        try:
-            got = float(value)
-        except ValueError:
-            sys.exit(f"{ini_path()}: {flag} = {value!r} is not a number")
-        if whole and got != int(got):
-            sys.exit(f"{ini_path()}: {flag} = {value!r}: expected a whole number")
-        lo, hi = spec["lo"], spec.get("hi")
-        if (
-            got < lo
-            or (got == lo and spec.get("lo_open"))
-            or (hi is not None and got > hi)
-        ):
-            bounds = f"{'above' if spec.get('lo_open') else 'at least'} {lo:g}"
-            if hi is not None:
-                bounds += f" and at most {hi:g}"
-            sys.exit(f"{ini_path()}: {flag} = {value!r}: expected a number {bounds}")
-        out[key] = int(got) if whole else got
-    return out
-
-
-def config_sampling(config: Path) -> dict[str, object]:
-    """A run config's `sampling` block as it stands, or {} when it has none."""
-    cfg = read_config(config)
-    block = cfg.get("sampling") if cfg else None
-    return dict(block) if isinstance(block, dict) else {}
-
-
-def _same_number(old: object, new: object) -> bool:
-    if isinstance(old, bool) or isinstance(new, bool):
-        return False
-    return (
-        isinstance(old, (int, float))
-        and isinstance(new, (int, float))
-        and float(old) == float(new)
-    )
-
-
-def pin_sampling(config: Path, sampling: dict[str, int | float]) -> bool:
-    """Write the sampling defaults into a run config's `sampling` block; True when it changed.
-
-    serve/server.py reads that block once, at start, and only as the answer to a request that
-    leaves a field out -- so the block is the difference between a plain client getting the
-    model's recommended sampling and getting the engine's greedy default.
-
-    A key strata.ini does not name is left as it is (a block written from Strata's own Settings
-    page survives), and llama.cpp's alias of a key it does name is dropped, because
-    serve/server.py refuses to start with both spellings in one file (#1819).
-    """
-    cfg = read_config(config)
-    if cfg is None or not sampling:
-        return False
-    before = config_sampling(config)
-    after = dict(before)
-    for key, value in sampling.items():
-        after[key] = value
-        alias = SAMPLING_ALIASES.get(key)
-        if alias:
-            after.pop(alias, None)
-    if set(after) == set(before) and all(
-        _same_number(before[key], after[key]) for key in after
-    ):
-        return False
-    cfg["sampling"] = after
-    write_config(config, cfg)
-    return True
 
 
 def pin_context(config: Path, ctx: str) -> bool:

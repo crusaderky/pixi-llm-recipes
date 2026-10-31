@@ -68,6 +68,19 @@ into the prefix. Requirements carrying a marker that does not apply on Linux (e.
 `colorama; sys_platform == "win32"`) need **no** conda counterpart: the wrapper evaluates markers
 before checking, so it never reports them missing.
 
+The list the wrapper checks is `runtime_packages()`: `requirements.txt` **plus**
+`requirements-monitor.txt` when that file is in the app tree (0.2: the Terminal's `textual`). So a
+bump also asks which requirements files exist, and `build.sh`'s copy list must carry all of them —
+a file that is not installed is silently skipped by `exists()` instead of checked. 0.2.9's three:
+`requirements.txt`, `requirements-monitor.txt`, `requirements-build.txt` (cmake/ninja, which moved
+out of `requirements.txt` there and stay in the recipe's run list so `ensure_build_tools()` finds
+the binaries).
+
+Also diff the app tree build.sh copies against what `setup.py` and `serve/server.py` import at
+module level. 0.2 moved a lot of code into a `strata_control/` package (stdlib only) and imports it
+from both, so an app tree without it cannot even be loaded: `pixi install -e strata` succeeds,
+`import setup` does not, and every start fails. That is a Phase 3 edit to `build.sh`, not a pin.
+
 ## Phase 3 — edit the recipe
 
 `version:` (no `v`), `llama_cpp_commit:`, and the `run:` list if it changed. Leave `build.number`
@@ -143,6 +156,7 @@ setup.py "--data-dir"
 setup.py "--draft-vocab"
 setup.py "--no-browser"
 setup.py "--yes"
+setup.py def install_build_tools
 CMakeLists.txt STRATA_ENABLE_CUDA
 tools/vision/CMakeLists.txt STRATA_VISION_CUDA
 tools/mtp_fetch.py def verify
@@ -150,14 +164,25 @@ tools/mtp_pack.py --experts
 tools/mtp_rt.py --gguf
 serve/server.py "loaded": self.loaded()
 EOF
-for d in serve tools data src include engine third_party/ggml third_party/llama.cpp/gguf-py; do
+for d in serve tools data src include cmake strata_control engine third_party/ggml third_party/llama.cpp/gguf-py; do
   [ -e "$APP/$d" ] || echo "MISSING: $d/"
 done
+# the two Python entry points that must load the tree, not just the flags in it
+python -c "import sys; sys.path.insert(0, '$APP'); import setup, serve.server" || echo "MISSING: import"
+# the first start must find the engine current, or it offers to compile it (see AGENTS.md)
+python - "$APP" <<'EOF'
+import json, sys; sys.path.insert(0, sys.argv[1]); import setup
+meta = json.load(open(sys.argv[1] + "/engine/BUILD.json"))
+assert meta["src"] == setup.source_hash(setup.ENGINE_SOURCES), "engine src hash drifted"
+assert meta["vision_src"] == setup.source_hash(setup.VISION_SOURCES), "vision hash drifted"
+print("engine current:", meta["version"])
+EOF
 ```
 
 The engine binaries matter too: `engine/strata` and `engine/strata-vision` must exist and be
 executable (Phase 4's smoke test proves they run — `strata-run.py` also depends on setup.py's
-`EXE`/`VEXE` names matching what `build.sh` copied).
+`EXE`/`VEXE` names matching what `build.sh` copied; `engine/strata --version` prints the engine
+package number, which is not the app version — 0.2.9 ships the 0.1.55 engine).
 
 ## Phase 6 — report
 

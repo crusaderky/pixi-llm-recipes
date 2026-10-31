@@ -117,10 +117,19 @@ PYEOF
 # makes the engine look stale, which sends setup.py to a compile it cannot do (no CUDA
 # Toolkit in the env) and then to an apt/sudo prompt. `cmake/` is only used at build time and
 # is the one that was easy to forget -- it is read for no other reason than this hash.
+#
+# `strata_control/` is not a build-time part but is just as fatal to leave out: 0.2 imports it
+# from setup.py itself (`acquisition`, `tls`, `atomic`, `draft_layer`, `dsv41_context`,
+# `engine_component`, `user_args`) and from serve/server.py (`engine_component`, `tls`,
+# `hipblaslt_tuning`, `vision_reader`, `draft_layer`, `drafting`, `user_args`, `gpu_roles`), so
+# a tree without it cannot even be loaded. It is stdlib-only, so it needs no dependency here.
+# The three requirements files are what setup.py reads to build its own package list -- the
+# wrapper turns that list into a check of this env instead of a pip install.
 APPDIR="${PREFIX}/opt/strata"
 rm -rf "${APPDIR}"
 mkdir -p "${APPDIR}/third_party"
-for item in serve tools data src include cmake CMakeLists.txt setup.py requirements.txt; do
+for item in serve tools data src include cmake strata_control CMakeLists.txt setup.py \
+    requirements.txt requirements-build.txt requirements-monitor.txt; do
     cp -a "${STRATA_SRC}/${item}" "${APPDIR}/${item}"
 done
 cp -a "${STRATA_SRC}/third_party/ggml" "${APPDIR}/third_party/ggml"

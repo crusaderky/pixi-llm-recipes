@@ -1,6 +1,6 @@
 context:
   # Strata release to package (the git tag is v${version}).
-  version: "0.1.44.1"
+  version: "0.2.9"
 
   # The llama.cpp commit Strata's own setup.py pins (LLAMA_CPP_COMMIT) and builds its
   # engine against. It is a second git source here because the runtime tools
@@ -62,8 +62,10 @@ requirements:
     - libcublas-dev
     - libcurand-dev
   run:
-    # requirements.txt, resolved by conda instead of setup.py's pip step (the wrapper
-    # scripts/strata-run.py replaces that step with a check that these are importable)
+    # requirements.txt and requirements-monitor.txt, resolved by conda instead of setup.py's pip
+    # step (the wrapper scripts/strata-run.py replaces that step with a check that these are
+    # importable). cmake and ninja are upstream's requirements-build.txt since 0.2: kept here
+    # so the env can never be short of what setup.py looks for.
     - python >=3.12
     - numpy
     - jinja2
@@ -75,6 +77,12 @@ requirements:
     - ninja
     - pillow
     - psutil
+    # requirements-monitor.txt: the Terminal's screens (setup.py's runtime_packages() adds it
+    # to the check the wrapper makes instead of installing it)
+    - textual
+    # their dependencies. truststore is upstream's own (#3722): without it Strata falls back
+    # to certifi, so it is a run requirement rather than an optional nicety
+    - truststore
     # the CUDA libraries the engine links (the toolkit its build is pinned to)
     - cuda-version =13.1
     - cuda-cudart

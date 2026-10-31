@@ -202,45 +202,46 @@ or underscores, the leading `--` optional; a key with no value is a flag on its 
 
 Which `family` and `model` exist is **setup.py's own tables, read live** — `scripts/strata-run.py`
 copies nothing. `FAMILIES` is Qwen3.8-Flash-Next's releases (`qwen`, `swift`, `coder`, `unsloth`,
-`nvfp4`), whose sizes are listed in `MODELS` with the families that ship each; `OWN_PATH_FAMILIES`
+`gyro`, `nvfp4`), whose sizes are listed in `MODELS` with the families that ship each; `OWN_PATH_FAMILIES`
 (added in 0.1.44, still offered under its old name `PREVIEW_FAMILIES`) is a family with an engine
 path of its own — `qwen36`, Qwen3.6-35B-A3B, whose `UD-Q4_K_XL` / `UD-Q6_K_XL` / `Q8_0` live in the
 family entry and **not** in `MODELS`, and whose `UD-Q4_K_XL` is therefore another repository's file
 than `unsloth`'s of the same name. Such a family is read from the GGUF as it is: no expert pack
 (`strata-data/packs/<tag>` holds only the tokenizer), no expert profile, no MTP fetch — the file's
-own MTP block drafts (`--mtp 2` in the run config means draft count, not a layer folder), no image
-encoder yet (the wrapper drops `vision` for it), and `vram-reserve-mib` is applied at prepare as
-`--expert-vram` rather than on a start — which is why it counts as a preparation key there, so a
-change re-derives it instead of being logged by the engine as "not an option of this engine".
+own MTP block drafts (`--mtp 2` in the run config means draft count, not a layer folder) — and
+`vram-reserve-mib` is applied at prepare as `--expert-vram` rather than on a start, which is why it
+counts as a preparation key there, so a change re-derives it instead of being logged by the engine as
+"not an option of this engine". Its own `mmproj` (`Qwen3.6-35B-A3B-MTP-GGUF`'s `mmproj-F16.gguf`,
+reached through `strata-vision`) means `vision` applies to it as to any other family; the wrapper
+still drops `vision` for a family whose entry says `"vision": false`, which none does today.
 
-The sampling keys (`temperature`, `top-p`, `top-k`, `min-p`, `presence-penalty`, `frequency-penalty`,
-`repetition-penalty`, `penalty-last-n`, `seed`) are the one group that is **not** a setup.py argument — setup.py takes
-no sampling flag at all — so `scripts/strata-run.py` writes them into the run config's `sampling` block instead, where
-serve/server.py reads them as the answer to a request that names none. They are validated here with the server's own
-ranges, so a typo names `strata.ini` before the model loads.
+Two upstream tables are deliberately **not** offered by the wrapper, which is why `strata.ini` does not list them:
+`nvfp4` (`FAMILIES`) ships ready-made Strata packs rather than GGUF shards, so there is nothing for the wrapper's
+Hub-cache-plus-`--gguf-dir` fetch to do — `resolve_family` refuses it with that reason — and `MULTI_FILE_FAMILIES`
+(`deepseek41`, DeepSeek-V4.1-Flash, 239-508 GB across 9 shards plus an engine package of its own) is a third install
+path the wrapper does not implement.
 
 `pixi r strata-help` prints every parameter setup.py accepts **with setup.py's own explanation** — its argparse parser is
 read off the installed `setup.py`, so the list cannot drift from the packaged version — which of them a start applies,
-which are only read when the model is prepared, what the file sets for sampling and what the installed run config says
-about it right now, and the argument list the current file produces.
+which are only read when the model is prepared, and the argument list the current file produces.
 
 That split is the thing to know before editing the file. setup.py's start path hands its run config's engine arguments
 to the engine verbatim, so a `--kv` or a `--parallel` that only ever appears on a start changes nothing. The part of
 the command line setup.py reads only when preparing is recorded in `<data-dir>/strata-prepared.json`; when it moves, the
 next start re-prepares once (~2 min, no download) instead of quietly serving the old value, and `pixi r strata-install`
-re-prepares whatever the file says right now. `--context` and the sampling keys are the exceptions the wrapper can
-apply without a re-prepare: it rewrites `--max-context` and the `sampling` block in the run config before every start.
+re-prepares whatever the file says right now. `--context` is the exception the wrapper can apply without a re-prepare:
+it rewrites `--max-context` in the run config before every start.
 
 `setup`, `no-start`, `update`, `check` and `calibrate` are refused in the file — one-shot commands that would otherwise
 run on every start; give them after `--`. `gguf-dir` is refused too: the folder of symlinks into the Hub cache is the
 wrapper's own.
 
-A 24 GB card is the target and gets filled: 23.7 of 24.5 GiB, `--vram-reserve-mib 2000`, the expert cache and the
+A 24 GB card is the target and gets filled: 23.7 of 24.5 GiB, `--vram-reserve-mib 2048`, the expert cache and the
 prompt path sharing what is left, everything past that streamed from RAM and SSD. Decode is ~65 tok/s on a 3090
 (~380 tok/s prefill) with the MTP head drafting — `strata.log` reports the expert-cache hit rate per reply. The
 reserve is another **pin**, not the engine's own 700 MiB default: at 700 the expert cache (and the image encoder,
 on `--vision gpu`) holds the rest of the card, the driver evicts whatever the desktop had there, and the X server
-goes down mid-reply — upstream's advice for exactly that is 3072 (#560, #516). `vram-reserve-mib = 2000` in
+goes down mid-reply — upstream's advice for exactly that is 3072 (#560, #516). `vram-reserve-mib = 2048` in
 `strata.ini` is that pin (~1.3 GB back from the expert cache, a few percent of speed);
 `STRATA_VRAM_RESERVE_MIB` or an explicit `--vram-reserve-mib` overrides it, and a config that disagrees with the file is
 rewritten at the next start.
@@ -309,6 +310,12 @@ terminal is on stdin. `cmake/` (`cmake/hip_backend.cmake`, build-time only, ~7.5
 this hash and was the one the copy loop missed; `scripts/strata-run.py` now also replaces `install_build_tools` with a
 message that names the drift, so the prompt cannot be reached from the pixi tasks at all.
 
+`strata_control/` is the same kind of trap for a different reason. It is stdlib-only and never compiled, but since 0.2
+`setup.py` imports it at module level (`acquisition`, `tls`, `atomic`, `draft_layer`, `dsv41_context`,
+`engine_component`, `user_args`) and so does `serve/server.py` (those plus `gpu_roles`, `drafting`, `hipblaslt_tuning`,
+`vision_reader`), so an app tree without it cannot be loaded at all — not by the wrapper, not by the server. It is in
+`build.sh`'s copy list for that reason alone.
+
 `cuda_architectures` (context var, `STRATA_CUDA_ARCHITECTURES` in the environment)
 defaults to `86`, i.e. RTX 30 series. Another card may need e.g.
 `STRATA_CUDA_ARCHITECTURES=89,120 pixi install -e strata`.
@@ -360,24 +367,21 @@ a setting: `$CONDA_PREFIX/strata-data`, passed on both paths because setup.py's 
 next to the app and `data_folder()` moves model files between the two. Anything unknown on the command line still goes
 to setup.py, so `pixi run strata-install -- --calibrate` works as upstream documents it.
 
-Three settings the wrapper applies to the run config itself, because setup.py's start path reads that config verbatim:
+Two settings the wrapper applies to the run config itself, because setup.py's start path reads that config verbatim:
 the **context** (`context` in `strata.ini` rewrites `--max-context` before every start — setup.py ignores `--context` on a
-start, and its setup path without `--gguf-dir` would want the shards re-downloaded), the **VRAM reserve** (a config
+start, and its setup path without `--gguf-dir` would want the shards re-downloaded) and the **VRAM reserve** (a config
 that disagrees with `vram-reserve-mib` is what a start passes the flag for, setup.py rewriting its `args` when it sees
-it; a config that agrees is left alone, so the steady state rewrites nothing) and the **sampling defaults** (written
-into the config's `sampling` block, which is also why they are not part of the preparation signature). `strata.ini`
-pins Qwen's own recommendation for Qwen3.8-Flash-Next in **thinking mode** — temperature 1.0, top_p 0.95, top_k 20,
-min_p 0, presence_penalty 0, repetition_penalty 1 — the set its model card's "Best Practices" gives and the one its
-benchmark harnesses ran; thinking mode is how Strata serves it (the chat template thinks by default at xhigh effort),
-and 1.0 is also where Strata's coupled probabilistic drafting is measured to win (it loses below ~0.7, where the draft
-head's argmax is the better guess). The card's instruct-mode set (0.7 / 0.8 / 20 / 0 / 1.5 / 1) is kept commented in
-the file, since that mode is chosen per request (`enable_thinking: false`) and not in the file. Without the block the
-engine is **greedy**. These answer only what a request leaves out: a client's own `temperature` — an explicit 0 stays
-greedy — wins, and Strata's own Chat settings (`POST /settings`) sit on top of the block. A key the file does not name
-is left as it is (a block written from Strata's Settings page survives), and llama.cpp's alias of a key it does name
-(`repeat_penalty`, `repeat_last_n`) is dropped, because the server refuses to start with both spellings in one config.
-Every other flag the file changes moves
+it; a config that agrees is left alone, so the steady state rewrites nothing). Every other flag the file changes moves
 the preparation signature, and that re-prepares instead.
+
+**Sampling is not the file's at all.** setup.py has no sampling flag, and since 0.1.45 serve/server.py applies the model
+card's own recommended set to a request that names none: `MODEL_CARD_SAMPLING` gives Qwen3.8-Flash-Next temperature 1.0,
+top_p 0.95, top_k 20 in **thinking mode** (how Strata serves it — the chat template thinks by default at xhigh effort)
+and 0.7 / 0.8 / 20 / presence_penalty 1.5 in **instruct mode** (a request asking for `enable_thinking: false`);
+Qwen3.6 and DeepSeek get their own card's set. A request's own fields still win (an explicit 0 stays greedy) and
+Strata's Chat settings (`POST /settings`) sit on top. Before 0.2 the engine was greedy without help, which is why
+`scripts/strata-run.py` used to write a `sampling` block into the run config — that block outranks the card's set for
+_both_ modes, so it is gone: the wrapper carries no sampling keys, and `strata.ini` sets none.
 
 The pin to watch is `llama_cpp_commit` in `pixi-recipes/strata/recipe.yaml`: it must equal `LLAMA_CPP_COMMIT` in the
 `setup.py` of the packaged version, since the engine links against that ggml and the runtime tools read GGUFs with its
