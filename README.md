@@ -152,7 +152,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 | Engine       | Model               | Variant        | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
 | ------------ | ------------------- | -------------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
-| Strata       | Qwen3.8-Flash       | IQ3_XXS        | 72 GB        | 256k int8/int8      | 21.0 GB<sup>4</sup> | 2,114 tok/s         | 79 tok/s           | ✅     |
+| Strata       | Qwen3.8-Flash       | Gyro-M         | 86 GB        | 256k int8/int8      | 20.4 GB<sup>4</sup> | 2,076 tok/s         | 105 tok/s          | ✅     |
 | BeeLLaMA.cpp | Qwen3.8-Flash       | IQ3_XXS        | 72 GB        | 256k kvarn5         | 19.8 GB<sup>4</sup> | 214 tok/s           | 20 tok/s           | ✅     |
 | BeeLLaMA.cpp | Qwen3.8-Flash-Coder | IQ3_XXS REAP50 | 56 GB        | 256k kvarn4         | 21.3 GB<sup>4</sup> | 222 tok/s           | 26 tok/s           | ✅ CPU |
 | BeeLLaMA.cpp | Qwen3.8-27B         | IQ4_XS MTP     | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
