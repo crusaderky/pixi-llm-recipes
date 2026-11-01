@@ -151,9 +151,8 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 | Engine       | Model               | Variant        | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
 | ------------ | ------------------- | -------------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
-| Strata       | Qwen3.8-Flash       | Gyro-M         | 86 GB        | 256k int8/int8      | 20.4 GB<sup>4</sup> | 2,076 tok/s         | 105 tok/s          | ✅     |
-| BeeLLaMA.cpp | Qwen3.8-Flash       | IQ3_XXS        | 72 GB        | 256k kvarn5         | 19.8 GB<sup>4</sup> | 214 tok/s           | 20 tok/s           | ✅     |
-| BeeLLaMA.cpp | Qwen3.8-Flash-Coder | IQ3_XXS REAP50 | 56 GB        | 256k kvarn4         | 21.3 GB<sup>4</sup> | 222 tok/s           | 26 tok/s           | ✅ CPU |
+| Strata       | Qwen3.8-Flash       | Gyro-M         | 86 GB        | 256k int8/int8      | 19.3 GB<sup>4</sup> | 2,076 tok/s         | 105 tok/s          | ✅     |
+| BeeLLaMA.cpp | Qwen3.8-Flash       | IQ3_XXS        | 72 GB        | 256k kvarn4         | 21.6 GB<sup>4</sup> | 225 tok/s           | 39 tok/s           | ✅     |
 | BeeLLaMA.cpp | Qwen3.8-27B         | IQ4_XS MTP     | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
 | BeeLLaMA.cpp | Ternary-Bonsai-2    | PQ2            | 7.3 GB       | 256k kvarn4         | 12.9 GB             | 949 tok/s           | 55 tok/s           | ✅     |
 | BeeLLaMA.cpp | Occamy-1.0          | IQ4_XS MTP     | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
@@ -172,7 +171,7 @@ served on demand. All models were carefully cherry-picked and tuned.
   must add ~2 GiB for your desktop (unless you're running on an integrated video card
   and your discrete card is detached from the X server)
 - <sup>3</sup> Speed measured on RTX 3090
-- <sup>4</sup> Experts partially offloaded to host RAM
+- <sup>4</sup> Experts offloaded to host RAM; frequently used ones are cached on GPU
 
 ### Estimating model size and VRAM
 
