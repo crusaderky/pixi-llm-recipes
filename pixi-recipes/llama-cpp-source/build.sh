@@ -49,6 +49,17 @@ case "${BACKEND}" in
         # Compile exotic KV quantization combinations
         # faster runtime, slower compile time
         EXTRA_CMAKE_ARGS+=(-DGGML_CUDA_FA_ALL_QUANTS=ON)
+        # CUDA_ARCHS (LLAMA_CUDA_ARCHS in recipe.yaml) selects which compute
+        # capabilities to compile device code for. It defaults to "native":
+        #   "native" (default) -> the build host's own GPUs (CMake's label)
+        #   "all"              -> ggml's own portable list, i.e. what a naked
+        #                         cmake build compiles: don't override it
+        #   anything else      -> passed through as CMAKE_CUDA_ARCHITECTURES, so
+        #                         CI can pin one arch, e.g. LLAMA_CUDA_ARCHS=39
+        case "${CUDA_ARCHS:-native}" in
+            all) ;;
+            *)   EXTRA_CMAKE_ARGS+=(-DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHS:-native}") ;;
+        esac
         ;;
     vulkan)
         EXTRA_CMAKE_ARGS+=(-DGGML_VULKAN=ON)

@@ -40,6 +40,20 @@ context:
   # backend; harmless for the others.
   gpu_targets: ${{ env.get("LLAMA_GPU_TARGETS", default="gfx1150") }}
 
+  # Which compute capabilities to compile CUDA device code for:
+  #   "native" (default) -> the build host's own GPUs, autodetected by CMake;
+  #                         on the RTX 3090 host that is sm_86
+  #   "all"              -> ggml's own portable list, i.e. what a naked cmake
+  #                         build compiles: every supported GPU, ~10 device
+  #                         targets per file, a multi-hour build
+  #   anything else      -> used verbatim as CMAKE_CUDA_ARCHITECTURES, e.g.
+  #                         "native", "86", "86-real", "90a-real;120a-real", or
+  #                         a single arch pinned on CI such as "39"
+  # Override at solve time, e.g.
+  # `LLAMA_CUDA_ARCHS=all pixi install -e llamacpp-source-cuda`.
+  # Only consumed by the cuda backend; harmless for the others.
+  cuda_archs: ${{ env.get("LLAMA_CUDA_ARCHS", default="native") }}
+
   # ccache comes from conda-forge (see requirements.build) — the build never
   # depends on a system-wide ccache install. Its cache directory has to be
   # passed in explicitly: rattler-build points HOME at the throwaway work dir
@@ -86,6 +100,7 @@ build:
     env:
       BACKEND: ${{ backend }}
       GPU_TARGETS: ${{ gpu_targets }}
+      CUDA_ARCHS: ${{ cuda_archs }}
       ROCM_PATH: ${{ rocm_path }}
       CCACHE_DIR: ${{ ccache_dir }}
       CCACHE_MAXSIZE: ${{ ccache_maxsize }}
