@@ -149,17 +149,17 @@ Strata is set up to run Qwen3.8-Flash. It is configured in `strata.ini`.
 Llama.cpp models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Engine       | Model               | Variant        | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
-| ------------ | ------------------- | -------------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
-| Strata       | Qwen3.8-Flash       | Gyro-M         | 86 GB        | 256k int8/int8      | 19.3 GB<sup>4</sup> | 2,076 tok/s         | 105 tok/s          | ✅     |
-| BeeLLaMA.cpp | Qwen3.8-Flash       | IQ3_XXS        | 72 GB        | 256k kvarn4         | 21.6 GB<sup>4</sup> | 225 tok/s           | 39 tok/s           | ✅     |
-| BeeLLaMA.cpp | Qwen3.8-27B         | IQ4_XS MTP     | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
-| BeeLLaMA.cpp | Ternary-Bonsai-2    | PQ2            | 7.3 GB       | 256k kvarn4         | 12.9 GB             | 949 tok/s           | 55 tok/s           | ✅     |
-| BeeLLaMA.cpp | Occamy-1.0          | IQ4_XS MTP     | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
-| BeeLLaMA.cpp | MiniCPM5-2B         | Q6_K DSpark    | 2.6 GB       | 128k q6/q6          | 6.4 GB              | 7,460 tok/s         | 200 tok/s          | 🔴     |
-| llama.cpp    | LFM2.5-230M         | Q4_K_M         | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴     |
-| llama.cpp    | LFM2.5-VL-3B        | Q8_0           | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅     |
-| BeeLLaMA.cpp | LFM2.5-24B-A3B      | QAD-Q4_0       | 13 GB        | 128k kvarn5         | 14.6 GB             | 4,687 tok/s         | 186 tok/s          | 🔴     |
+| Engine       | Model            | Variant     | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
+| ------------ | ---------------- | ----------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
+| Strata       | Qwen3.8-Flash    | Gyro-M      | 86 GB        | 256k int8/int8      | 19.3 GB<sup>4</sup> | 2,076 tok/s         | 105 tok/s          | ✅     |
+| BeeLLaMA.cpp | Qwen3.8-Flash    | IQ3_XXS     | 72 GB        | 256k kvarn4         | 21.6 GB<sup>4</sup> | 225 tok/s           | 39 tok/s           | ✅     |
+| BeeLLaMA.cpp | Qwen3.8-27B      | IQ4_XS MTP  | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
+| BeeLLaMA.cpp | Ternary-Bonsai-2 | PQ2         | 7.3 GB       | 256k kvarn4         | 12.9 GB             | 949 tok/s           | 55 tok/s           | ✅     |
+| BeeLLaMA.cpp | Occamy-1.0       | IQ4_XS MTP  | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
+| BeeLLaMA.cpp | MiniCPM5-2B      | Q6_K DSpark | 2.6 GB       | 128k q6/q6          | 6.4 GB              | 7,460 tok/s         | 200 tok/s          | 🔴     |
+| llama.cpp    | LFM2.5-230M      | Q4_K_M      | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴     |
+| llama.cpp    | LFM2.5-VL-3B     | Q8_0        | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅     |
+| BeeLLaMA.cpp | LFM2.5-24B-A3B   | QAD-Q4_0    | 13 GB        | 128k kvarn5         | 14.6 GB             | 4,687 tok/s         | 186 tok/s          | 🔴     |
 
 **Notes:**
 

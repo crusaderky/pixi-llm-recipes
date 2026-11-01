@@ -1812,10 +1812,11 @@ def generate_html(
             '<p class="note">On disk (MiB) is the part of those shards llama.cpp '
             "never makes resident: an n-gram / per-layer embedding table it "
             "registers as a range in the mmap and reads a row at a time as tokens "
-            "need it. It is <em>not</em> in Weights, VRAM or the x axis — but it "
-            "only stays on disk under <code>--load-mode "
-            "auto/mmap/mmap+mlock</code>, and "
-            "<code>--tensor-read-lazy off</code> makes it resident.</p>\n"
+            "need it. It is <em>not</em> in Weights, VRAM or the x axis — and it "
+            "stays that way under any <code>--load-mode</code>, mlock included "
+            "(that mode refuses to lock the lazy ranges). "
+            "<code>--lazy-mode off</code> makes it resident, as does "
+            "<code>auto</code> on a device without mmap support.</p>\n"
         )
     html += HTML_TAIL
     return html
@@ -2875,9 +2876,10 @@ def generate_markdown(
             "> On disk (MiB) is the part of those shards llama.cpp never makes "
             "resident: an n-gram / per-layer embedding table it registers as a "
             "range in the mmap and reads a row at a time as tokens need it. It is "
-            "*not* in Weights, VRAM or the x axis -- but it only stays on disk "
-            "under `--load-mode auto/mmap/mmap+mlock`, and `--tensor-read-lazy "
-            "off` makes it resident."
+            "*not* in Weights, VRAM or the x axis -- and it stays that way under "
+            "any `--load-mode`, mlock included (that mode refuses to lock the "
+            "lazy ranges). `--lazy-mode off` makes it resident, as does `auto` on "
+            "a device without mmap support."
         )
         lines.append("")
 

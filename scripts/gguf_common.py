@@ -337,13 +337,14 @@ def read_header(path, start=HEADER_START, growth=4, cap=HEADER_CAP):
 # Tensors llama.cpp reads from disk on demand instead of keeping resident
 # --------------------------------------------------------------------------- #
 # Tensor names an architecture marks `TENSOR_READ_LAZY` in its `create_tensor`
-# call, per arch -> tuple of names (`src/models/<arch>.cpp`). Both entries are
-# the same tensor: an n-gram / per-layer hash-embedding table, gathered a handful
-# of rows at a time, so llama.cpp registers its byte range in
+# call, per arch -> tuple of names (`src/models/<arch>.cpp`). All three entries
+# are the same tensor name: an n-gram / per-layer hash-embedding table, gathered
+# a handful of rows at a time, so llama.cpp registers its byte range in
 # `lazy_tensor_ranges` and reads those rows out of the mmap when a token needs
 # them (llama-model-loader.cpp). It is never copied into the resident weights and
 # therefore never into VRAM -- which matters here because on Qwen3.8-Flash-Next
-# it is a *quarter* of the file (26.8 GiB of 103.7 GiB at UD-Q4_K_XL).
+# it is a *quarter* of the file (26.8 GiB of 103.7 GiB at UD-Q4_K_XL), and on
+# DeepSeek-V4.1-Flash two fifths (125.9 GiB of 311.8 GiB at UD-Q2_K_XL).
 #
 # The flag is a property of the arch, not of the GGUF, so it cannot be derived
 # from a header -- hence this table. Keep it in step with llama.cpp:
@@ -356,34 +357,45 @@ ARCH_LAZY_TENSORS = {
     # `ple.heads_per_ngram` hash heads, ~20M n-gram rows each (320,001,536 rows
     # of 160 on Qwen3.8-Flash-Next), of which 16 are gathered per token.
     "qwen4exp": ("per_layer_token_embd.weight",),
-    # `{engram.head_dim, rows}` per Engram layer -- DeepSeek-V4.1-Flash's
-    # conditional n-gram memory: `{engram.layer_ids}` = two hash-embedding
-    # tables of ~384M rows x 256 dims (196.6B params total, ~183 GiB at the
-    # checkpoint's fp8 / ~195 GiB at Q8_0 -- two fifths of the file), gathered
-    # a few rows per token by 2- to 4-gram hashes of the surrounding tokens.
+    # `{ple_head_dim, n_rows}` under the *same* name -- DeepSeek-V4.1-Flash's
+    # Engram memory is the qwen4exp n-gram hash with one set of hash constants
+    # per Engram layer, and `deepseek41.cpp` keeps them "all in one lazily read
+    # tensor, like the qwen4exp n-gram table" rather than one per layer:
+    # `n_rows` is the largest `head_offset + head_vocab` over `ple.layers` x
+    # (`ple.ngram_size` - 1) x `ple.heads_per_ngram` hash heads. On
+    # DeepSeek-V4.1-Flash-1017 that is 2 Engram layers x 24 heads x ~16M buckets
+    # = 768,022,850 rows of 256 (196.6B params, ~183 GiB at the checkpoint's fp8
+    # / ~195 GiB at Q8_0), gathered a few rows per token by 2- to 4-gram hashes
+    # of the surrounding tokens. There is no `engram_embd.weight` to look for:
+    # the arch's own tensors are the small `blk.N.engram_kv` / `engram_gate`
+    # projections, which are ordinary resident weights.
     # Looked up row-at-a-time like the PLE table above; the reference
     # implementation keeps them in pinned host memory even on 288 GiB GPUs, and
     # llama-model-loader.h's TENSOR_READ_LAZY comment names "PLE / engrams
     # embd" as the use case. Never resident weights.
-    "deepseek41": ("engram_embd.weight",),
+    "deepseek41": ("per_layer_token_embd.weight",),
 }
 
-# `auto_lazy_min_size` in llama-model-loader.cpp: under the default
-# `--tensor-read-lazy auto` a marked tensor is read lazily only above this size,
-# because a small one is cheap enough to keep resident. `--tensor-read-lazy on`
-# drops the threshold; `off` keeps everything resident.
+# `auto_min_size` in llama-model-loader.cpp's `lazy_read::add`: under the default
+# lazy mode a marked tensor is read lazily only above this size, because a small
+# one is cheap enough to keep resident. The mode flag is `-lzm` / `--lazy-mode`
+# (`on` drops the threshold, `off` keeps everything resident) -- not the older
+# `--tensor-read-lazy` spelling, which this fork's binary does not accept.
 LAZY_AUTO_MIN_BYTES = 4 << 30
+LAZY_MODE_FLAG = "--lazy-mode"
 
 # Strips the `blk.N.` prefix of a per-layer tensor name, for matching lazy-tensor
 # entries that are written arch-relative (the create_tensor call has no layer in
 # its name).
 _RE_BLK_LAYER = re.compile(r"^blk\.\d+\.(.+)$")
 
-# Lazy reading needs the mmap the rows are read from, and `use_mmap` is set for
-# exactly these `--load-mode` values (llama-model-loader.cpp). Under `mlock`
-# (this project's own models.ini) or `dio` there is no mapping, so a marked
-# tensor is loaded in full and is resident like any other weight.
-LAZY_LOAD_MODES = ("auto", "mmap", "mmap+mlock")
+# Whether `--load-mode` decides the answer: it does not. `init_mappings` maps a
+# file when `use_mmap || lazy.any()`, so a marked tensor is read from the mapping
+# even under `mlock` -- which deliberately skips locking lazy ranges ("locking a
+# lazy tensor would fault all of it in") -- and under `dio`. What does turn lazy
+# reading off is `--lazy-mode off`, the size threshold above, and a device
+# without `mmap_support`: `load_tensors` resolves `auto` to `off` there (iGPUs,
+# llama-model.cpp / upstream #28160), which makes the table resident.
 
 
 def lazy_tensors(metadata, tensors, threshold=LAZY_AUTO_MIN_BYTES):
@@ -391,11 +403,11 @@ def lazy_tensors(metadata, tensors, threshold=LAZY_AUTO_MIN_BYTES):
 
     Yields (name, nbytes) for every tensor its architecture marks
     `TENSOR_READ_LAZY` and that clears *threshold* (pass 0 for
-    `--tensor-read-lazy on`, which has none). Empty for every architecture not in
+    `--lazy-mode on`, which has none). Empty for every architecture not in
     `ARCH_LAZY_TENSORS`, and for a shard that does not happen to hold the tensor
     -- the caller sums over a model's shards. Names match on the
-    `blk.N.`-stripped form, so a per-layer tensor (`blk.N.engram_embd.weight`)
-    hits the same entry as a global one.
+    `blk.N.`-stripped form, so a per-layer tensor
+    (`blk.N.per_layer_token_embd.weight`) hits the same entry as a global one.
     """
     arch = metadata.get("general.architecture")
     names = ARCH_LAZY_TENSORS.get(arch, ())

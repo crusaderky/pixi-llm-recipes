@@ -66,6 +66,7 @@ _ALIAS_GROUPS: dict[str, tuple[str, ...]] = {
     "direct-io": ("dio",),
     "no-direct-io": ("ndio",),
     "load-mode": ("lm",),
+    "lazy-mode": ("lzm",),
     "prefetch-weights": ("pw",),
     # `-fit` / `--fit` strip to the same bare name, so only the abbreviated
     # long forms need listing.
@@ -172,6 +173,7 @@ PLACEMENT_KEYS = frozenset(
         "no-repack",
         # Model loading
         "load-mode",
+        "lazy-mode",
         "mlock",
         "mmap",
         "no-mmap",

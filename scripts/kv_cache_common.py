@@ -900,19 +900,28 @@ MODEL_KV: dict[str, ModelKV] = {
     # layers -- the 4 blocks that carry `attn_compressor_kv` (layers 2, 8, 14 at
     # ratio 2, layer 20 at ratio 1) -- pool their attention into latents that
     # every ratio-carrying layer then attends, so the compressed history is ONE
-    # cache per source layer. The indexer is likewise 4 index-key caches on the
-    # same 4 layers at `indexer.key_length` (128); the remaining
-    # `indexer.proj`/`attn_q_b` layers reuse them. Together, at fp4 with the
-    # checkpoint's scale formats, that reproduces DeepSeek's published 890
-    # bytes/token global KV exactly -- the cross-check that pins this geometry.
+    # cache per source layer. The lightning-indexer keys are stored inside that
+    # same row: the V4.1 branch of `llama_kv_cache_dsv4` sets the compressed
+    # caches' head dim to `n_embd_head_k + indexer_head_size` (512 + 128 = 640)
+    # with one kv head, so a row is `[kv | index K]` and V4.1's `kv_lid` cache is
+    # filtered out entirely (`filter_lid` is V4-only). The tensor table says the
+    # same -- `indexer.attn_k`/`indexer.k_norm` live only on those 4 layers, and
+    # the extra `attention.indexer.source_layers` (24, 28, 32, 36) own no rows.
+    # Together, at fp4 with the checkpoint's scale formats (288 B of latents +
+    # 68 B of index keys per row), that reproduces DeepSeek's published 890
+    # bytes/token global KV exactly -- 3 x 178 + 356 -- the cross-check that
+    # pins this geometry. Rows are padded to 256 cells as in DSV4. Each ratio also
+    # owns a compressor ring of `ratio` rows x two f32 tensors of `key_length`:
+    # `csa_state_size` and HCA's `state_size` are both the ratio on V4.1, so the
+    # ratio-1 source has a 1-row ring, not none.
     # Raw cache: all 40 blocks are sliding-window at 128 (K-only fused latent,
     # `attention.value_length` never allocated).
     #
-    # Same two caveats as V4-Flash, plus one: KVarN never reaches these caches
-    # (see KVARN_FALLBACK), the tail reaches only the raw window (clamped to
-    # 128), and -- llama.cpp has no deepseek41 loader yet -- the sizing follows
-    # the architecture as DeepSeek's reference implementation allocates it,
-    # at the run's K quant rather than the checkpoint's fp4.
+    # Same two caveats as V4-Flash: KVarN never reaches these caches (V4.1 shares
+    # the `LLM_ARCH_DEEPSEEK4` branch of `create_memory`, whose cache is built
+    # with `llama_kvarn_default_params()` -- see KVARN_FALLBACK), and the tail
+    # reaches only the raw window (clamped to 128), because the compressed caches
+    # are built with tail 0.
     "DeepSeek-V4.1-Flash": ModelKV(
         full_attn_layers=0,
         full_attn_kv_heads=0,
@@ -922,11 +931,10 @@ MODEL_KV: dict[str, ModelKV] = {
         key_dim=512,
         value_dim=0,
         compressed=(
-            CompressedKV("comp kv r1", 1, 1, 512, 0, ratio=1),
-            CompressedKV("comp kv r2", 3, 1, 512, 0, ratio=2),
+            CompressedKV("comp kv r1", 1, 1, 640, 0, ratio=1, pad=256),
+            CompressedKV("comp kv r2", 3, 1, 640, 0, ratio=2, pad=256),
+            CompressedKV("comp state r1", 1, 1, 512, 512, fixed_rows=1, elem_bpw=32.0),
             CompressedKV("comp state r2", 3, 1, 512, 512, fixed_rows=2, elem_bpw=32.0),
-            CompressedKV("index k r1", 1, 1, 128, 0, ratio=1),
-            CompressedKV("index k r2", 3, 1, 128, 0, ratio=2),
         ),
     ),
     # Hy4-preview (`AngelSlim/Hy4-preview-GGUF`). Note the spelling: these

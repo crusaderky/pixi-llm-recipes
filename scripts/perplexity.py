@@ -831,15 +831,15 @@ def file_provenance(path: pathlib.Path, lazy: int = 0) -> str:
 def lazy_bytes_by_shard(files: list[pathlib.Path]) -> dict[pathlib.Path, int]:
     """Bytes of each shard that llama.cpp reads from disk on demand.
 
-    A `TENSOR_READ_LAZY` tensor -- today the n-gram / per-layer embedding table of
-    `gemma4` / `qwen4exp` and DeepSeek-V4.1-Flash's two Engram tables (`deepseek41`)
-    -- is registered as a byte range in the mmap and its
-    rows are gathered per token; it never joins the resident weights and never
-    reaches VRAM. On Qwen3.8-Flash-Next that is a quarter of the file, so the
-    report has to be able to take it out of the cost axis, and only a header read
-    can say how much it is: the table's quant is the publisher's choice (IQ4_NL in
-    most of unsloth's variants, Q8_0 in two) and follows from neither the file name
-    nor the hparams.
+    A `TENSOR_READ_LAZY` tensor -- today `per_layer_token_embd.weight`, the
+    n-gram / per-layer embedding table of `gemma4` and `qwen4exp` and the one
+    fused Engram table of DeepSeek-V4.1-Flash (`deepseek41`) -- is registered as a
+    byte range in the mmap and its rows are gathered per token; it never joins the
+    resident weights and never reaches VRAM. On Qwen3.8-Flash-Next that is a
+    quarter of the file, so the report has to be able to take it out of the cost
+    axis, and only a header read can say how much it is: the table's quant is the
+    publisher's choice (IQ4_NL in most of unsloth's variants, Q8_0 in two) and
+    follows from neither the file name nor the hparams.
 
     The architecture lives in the **first** shard's metadata and nowhere else -- a
     later split carries only its `split.*` keys -- while the tensor itself may sit
