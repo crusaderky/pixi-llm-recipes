@@ -102,7 +102,7 @@ import urllib.request
 from typing import Any
 
 import yaml
-from gguf_common import lazy_tensor_bytes, read_header
+from gguf_common import lazy_tensor_names, read_header
 from kv_cache_common import BPW
 from perplexity_common import (
     IGNORED_KEYS,
@@ -847,21 +847,33 @@ def lazy_bytes_by_shard(files: list[pathlib.Path]) -> dict[pathlib.Path, int]:
     tensor table. Returns {} for every model with no such tensor, and on any
     failure: provenance must never abort a multi-day sweep, and a missing `lazy=`
     only costs the report its split.
+
+    The byte count is the tensor's payload off the header's own **offset column**
+    (`GgufHeader.lazy_bytes`), never a block-size derivation, so a publisher that
+    re-numbered the ggml type ids -- Agention's Gyro trellis types occupy
+    ik_llama.cpp's 144-149 -- still reports the right `lazy=`, and a lazy table
+    that is a shard's only tensor still has a size (the file's total bounds it).
+    It follows that `size=` minus `lazy=` stays the resident weight bytes however
+    the ids are numbered: `size=` is the file's size, which no type table can lie
+    about.
     """
     headers = []
     metadata: dict[str, object] = {}
     for path in files:
         try:
-            md, tensors = read_header(path)
+            hdr = read_header(path)
         except (OSError, ValueError):
             return {}
         # First file wins, as in gguf-meta-extract: split 0 has the full hparams.
-        for k, v in md.items():
+        for k, v in hdr.metadata.items():
             metadata.setdefault(k, v)
-        headers.append((path, tensors))
+        headers.append((path, hdr))
+    names = lazy_tensor_names(metadata)
+    if not names:
+        return {}
     out = {}
-    for path, tensors in headers:
-        if nbytes := lazy_tensor_bytes(metadata, tensors):
+    for path, hdr in headers:
+        if nbytes := sum(hdr.lazy_bytes(names).values()):
             out[path] = nbytes
     return out
 

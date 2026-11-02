@@ -19,12 +19,22 @@ GGUF header is fully self-describing (name + shape + dtype for every tensor live
 before the data section), so a tiny direct parser reads everything we need from
 the first few MB. Validated to produce byte-identical name/shape/dtype output to
 GGUFReader on complete files.
+
+The **sizes** come from the header's offset column, not from ``GGML_SIZES``
+(``GgufHeader.sizes``). A ggml type id is only an integer: a quantization fork
+can re-number its enum and the id then means a different format than this table
+says, which a byte total derived from the table would silently report as that
+other format's size. The offsets are what the writer actually stored, so they are
+authoritative, and the type table survives as the cross-check that names the
+collision (``GgufHeader.renumbered_types``).
 """
 
 import math
+import os
 import re
 import struct
 import sys
+from dataclasses import dataclass
 
 # Optional: only used to give a human-readable name to an UNKNOWN ggml type id.
 try:
@@ -171,8 +181,8 @@ def quant_info(ttype):
             except ValueError:
                 pass
         sys.stderr.write(
-            f"WARNING: unknown ggml type id {ttype} ({nm}); "
-            f"sizes left blank for these tensors\n"
+            f"WARNING: unknown ggml type id {ttype} ({nm}); no block size is known, "
+            "so only a tensor whose offsets could not be read is left without a size\n"
         )
     name = "?"
     if _GGUFType:
@@ -181,6 +191,58 @@ def quant_info(ttype):
         except ValueError:
             pass
     return (f"UNKNOWN_{ttype}_{name}", None, None, 0)
+
+
+# --------------------------------------------------------------------------- #
+# Sizes: the offsets are authoritative, the type table is the cross-check
+# --------------------------------------------------------------------------- #
+# GGUF aligns every tensor's offset up to ``{general.alignment}`` (32 by default)
+# and counts offsets from the start of the data section -- the first aligned byte
+# after the tensor-info table. So the gap between two consecutive offsets is the
+# earlier tensor's payload plus at most ``alignment - 1`` bytes of padding, and
+# the gap past the last tensor is its payload plus the header-to-data padding.
+ALIGN_DEFAULT = 32
+
+
+@dataclass(frozen=True)
+class TensorSize:
+    """One tensor, its size settled against both sources."""
+
+    name: str
+    dims: list
+    ttype: int
+    offset: int
+    nbytes: int | None
+    """On-disk payload bytes -- the number every byte total here is built from."""
+    table_bytes: int | None
+    """What ``tensor_nbytes`` derives from ``GGML_SIZES``; None for an unknown id."""
+    source: str
+    """``table``: the two agree within the alignment padding, so ``nbytes`` is the
+    exact payload a loader allocates. ``offsets``: they disagree, or the id is
+    unknown, so ``nbytes`` is the gap between the offsets (and carries up to
+    ``alignment - 1`` bytes of padding -- at most tens of KB across a whole file,
+    against GiB-scale totals). ``table-unverified``: no usable offset, e.g. the
+    last tensor of a file whose total size the server never reported."""
+
+
+@dataclass(frozen=True)
+class RenumberedType:
+    """One ggml type id whose bytes-per-point in this file contradicts the table."""
+
+    ttype: int
+    table_name: str
+    tensors: int
+    points: int
+    table_bytes: int
+    offset_bytes: int
+
+    @property
+    def table_bpw(self) -> float:
+        return self.table_bytes * 8 / self.points
+
+    @property
+    def offset_bpw(self) -> float:
+        return self.offset_bytes * 8 / self.points
 
 
 # --------------------------------------------------------------------------- #
@@ -255,8 +317,10 @@ def _read_value(c, vtype):
 
 
 def parse_header(buf):
-    """Parse a GGUF header from bytes. Returns (metadata_dict, tensor_list)
-    where tensor_list is a list of (name, dims, ttype).
+    """Parse a GGUF header from bytes. Returns a :class:`GgufHeader` (defined at
+    the bottom of this module) whose ``tensors`` is a list of
+    ``(name, dims, ttype, offset)`` and whose ``file_size`` is None -- the size of
+    the whole file is the caller's to supply, and only the *last* tensor needs it.
     Raises Truncated if more bytes are needed."""
     c = _Cur(buf)
     if c.take(4) != b"GGUF":
@@ -274,9 +338,15 @@ def parse_header(buf):
         ndim = c.u32()
         dims = [c.u64() for _ in range(ndim)]
         ttype = c.u32()
-        c.u64()  # data offset -- unused for our needs
-        out.append((name, dims, ttype))
-    return metadata, out
+        offset = c.u64()
+        out.append((name, dims, ttype, offset))
+    # A writer that emits the table in offset order is what makes consecutive
+    # offsets differ by a tensor's size. Anything else and the gaps are junk, so
+    # `GgufHeader.sizes` stays on the type table and says it did not verify.
+    ordered = all(out[i][3] < out[i + 1][3] for i in range(len(out) - 1))
+    return GgufHeader(
+        metadata=metadata, tensors=out, header_len=c.i, offsets_ordered=ordered
+    )
 
 
 def tensor_nbytes(dims, ttype):
@@ -320,11 +390,14 @@ def read_header(path, start=HEADER_START, growth=4, cap=HEADER_CAP):
     """
     n = start
     with open(path, "rb") as fh:
+        file_size = os.fstat(fh.fileno()).st_size
         while True:
             fh.seek(0)
             buf = fh.read(n)
             try:
-                return parse_header(buf)
+                hdr = parse_header(buf)
+                hdr.file_size = file_size
+                return hdr
             except Truncated:
                 if len(buf) < n:  # got the whole file, still short
                     raise ValueError("file ended before header finished parsing")
@@ -398,31 +471,121 @@ _RE_BLK_LAYER = re.compile(r"^blk\.\d+\.(.+)$")
 # llama-model.cpp / upstream #28160), which makes the table resident.
 
 
-def lazy_tensors(metadata, tensors, threshold=LAZY_AUTO_MIN_BYTES):
-    """The tensors of one GGUF file that llama.cpp reads lazily from disk.
+def lazy_tensor_names(metadata):
+    """The tensor names this model's architecture marks `TENSOR_READ_LAZY`.
 
-    Yields (name, nbytes) for every tensor its architecture marks
-    `TENSOR_READ_LAZY` and that clears *threshold* (pass 0 for
-    `--lazy-mode on`, which has none). Empty for every architecture not in
-    `ARCH_LAZY_TENSORS`, and for a shard that does not happen to hold the tensor
-    -- the caller sums over a model's shards. Names match on the
-    `blk.N.`-stripped form, so a per-layer tensor
-    (`blk.N.per_layer_token_embd.weight`) hits the same entry as a global one.
+    Empty for every architecture not in `ARCH_LAZY_TENSORS`. Pass the **merged**
+    metadata of a split model, not one shard's: `general.architecture` lives only
+    in split 0 while the lazy tensor may sit in any shard. Whether a given tensor
+    is actually read lazily is `GgufHeader.lazy_bytes`'s answer -- the size
+    threshold and `--lazy-mode` are properties of the tensor and the run, not of
+    the arch.
     """
-    arch = metadata.get("general.architecture")
-    names = ARCH_LAZY_TENSORS.get(arch, ())
-    if not names:
-        return
-    for name, dims, ttype in tensors:
-        m = _RE_BLK_LAYER.match(name)
-        base = m.group(1) if m else name
-        if base not in names:
-            continue
-        nbytes = tensor_nbytes(dims, ttype)
-        if nbytes and nbytes > threshold:
-            yield base, nbytes
+    return ARCH_LAZY_TENSORS.get(metadata.get("general.architecture"), ())
 
 
-def lazy_tensor_bytes(metadata, tensors, threshold=LAZY_AUTO_MIN_BYTES):
-    """Total bytes of one GGUF file's lazily-read tensors; 0 when it has none."""
-    return sum(nbytes for _, nbytes in lazy_tensors(metadata, tensors, threshold))
+@dataclass
+class GgufHeader:
+    """A parsed GGUF header: metadata, tensor table, and the two numbers that make
+    the offsets yield byte sizes (`header_len`, `file_size`).
+
+    `tensors` is a list of `(name, dims, ttype, offset)`; `offset` counts from the
+    start of the data section. `file_size` is the whole file, or None when nobody
+    reported it -- then every tensor but the last still has an exact size.
+    """
+
+    metadata: dict
+    tensors: list
+    header_len: int
+    file_size: int | None = None
+    offsets_ordered: bool = True
+
+    @property
+    def alignment(self) -> int:
+        a = self.metadata.get("general.alignment")
+        return a if isinstance(a, int) and a > 0 else ALIGN_DEFAULT
+
+    def sizes(self):
+        """`TensorSize` per tensor, in table order.
+
+        The offset gap is the authoritative size: a ggml type id is just an
+        integer, and a fork that re-numbered its enum makes `GGML_SIZES` describe
+        a format the file does not hold. When the table and the gap agree within
+        the alignment padding the table's value wins -- it excludes the padding, so
+        it is exactly what a loader allocates -- and only a disagreement takes the
+        gap.
+
+        The last tensor's gap needs `file_size`; without it its size is the table's
+        and `source` says `table-unverified`, which keeps `renumbered_types` from
+        claiming a collision it never saw.
+        """
+        align = self.alignment
+        out = []
+        for i, (name, dims, ttype, offset) in enumerate(self.tensors):
+            table = tensor_nbytes(dims, ttype)
+            gap = None
+            if self.offsets_ordered:
+                if i + 1 < len(self.tensors):
+                    gap = self.tensors[i + 1][3] - offset
+                elif self.file_size is not None:
+                    gap = self.file_size - self.header_len - offset
+                if gap is not None and gap < 0:
+                    gap = None  # truncated file, or a table not in file order
+            if gap is None:
+                nbytes, source = table, "table-unverified"
+            elif table is None:
+                nbytes, source = gap, "offsets"
+            elif 0 <= gap - table < align:
+                nbytes, source = table, "table"
+            else:
+                nbytes, source = gap, "offsets"
+            out.append(TensorSize(name, dims, ttype, offset, nbytes, table, source))
+        return out
+
+    def renumbered_types(self):
+        """Type ids whose bytes-per-point in this file contradicts `GGML_SIZES`.
+
+        One `RenumberedType` per id, summed over the file's tensors. Only a
+        disagreement counts: an unknown id is a missing entry, not a re-numbering,
+        and a tensor whose size could not be verified is no evidence either way.
+        """
+        found = {}
+        for ts in self.sizes():
+            if ts.source != "offsets" or ts.table_bytes is None or ts.nbytes is None:
+                continue
+            points = math.prod(ts.dims)
+            if not points:
+                continue
+            row = found.setdefault(ts.ttype, [0, 0, 0, 0])
+            row[0] += 1
+            row[1] += points
+            row[2] += ts.table_bytes
+            row[3] += ts.nbytes
+        return [
+            RenumberedType(ttype, quant_info(ttype)[0], n, points, table, offsets)
+            for ttype, (n, points, table, offsets) in found.items()
+        ]
+
+    def lazy_bytes(self, names, threshold=None):
+        """This file's lazily-read tensors: base name -> bytes, empty when it holds
+        none.
+
+        *names* comes from `lazy_tensor_names` (see that function for why the
+        caller's merged metadata, not this header's, decides it). *threshold* is
+        `LAZY_AUTO_MIN_BYTES` unless given -- pass 0 for `--lazy-mode on`, which
+        drops the threshold. Names match on the `blk.N.`-stripped form, so a
+        per-layer tensor (`blk.N.per_layer_token_embd.weight`) hits the same entry
+        as a global one.
+        """
+        if threshold is None:
+            threshold = LAZY_AUTO_MIN_BYTES
+        out = {}
+        if not names:
+            return out
+        for ts in self.sizes():
+            m = _RE_BLK_LAYER.match(ts.name)
+            base = m.group(1) if m else ts.name
+            if base not in names or ts.nbytes is None or ts.nbytes <= threshold:
+                continue
+            out[base] = out.get(base, 0) + ts.nbytes
+        return out

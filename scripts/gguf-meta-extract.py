@@ -7,7 +7,16 @@ every .gguf file (or just the one named), downloads ONLY the header of each
 (via HTTP Range requests -- a few MB, never the multi-GB tensor payload), parses
 the tensor-info table, and writes a CSV with one row per tensor:
 
-    layer, tensor_name, geometry, n_points, quant, bytes_per_point, total_bytes
+    layer, tensor_name, geometry, n_points, quant, bytes_per_point, total_bytes,
+    size_source
+
+`total_bytes` is the tensor's payload as the header's **offset column** records
+it, which is what every byte figure this script prints is summed from -- see
+`gguf_common.GgufHeader.sizes` for why not the quant's block size. `size_source`
+says which of the two sources settled it: `table` (the block size agrees, so the
+number excludes GGUF's alignment padding), `offsets` (they disagree, or the type
+id is unknown here -- the file's own bytes won), or `table-unverified` (no usable
+offset, i.e. the last tensor of a file whose total size went unreported).
 
 Usage
 -----
@@ -39,6 +48,7 @@ records the same lazily-read byte count this script reports.
 import argparse
 import csv
 import fnmatch
+import math
 import re
 import sys
 import textwrap
@@ -50,11 +60,11 @@ from gguf_common import (
     HEADER_START,
     LAZY_AUTO_MIN_BYTES,
     LAZY_MODE_FLAG,
+    RenumberedType,
     Truncated,
-    lazy_tensors,
+    lazy_tensor_names,
     parse_header,
     quant_info,
-    tensor_nbytes,
 )
 from kv_cache_common import KVARN_FALLBACK, CompressedKV, ModelKV, resolve_bpw
 
@@ -82,38 +92,53 @@ def parse_hf_url(url):
 
 
 def fetch_prefix(url, n, headers, timeout=120):
-    """Download at most n bytes from the start of url. Streams and stops at n,
-    so it is safe even if the server ignores the Range header."""
+    """Download at most n bytes from the start of url, plus the file's total size
+    when the server reported it.
+
+    Streams and stops at n, so it is safe even if the server ignores the Range
+    header. The total comes from `Content-Range` and is what lets the *last*
+    tensor's size be read off its offset; it is None when the response carried
+    none (a server that ignored the Range, or said `*/?`).
+    """
     h = dict(headers)
     h["Range"] = f"bytes=0-{n - 1}"
     with requests.get(
         url, headers=h, stream=True, timeout=timeout, allow_redirects=True
     ) as r:
         r.raise_for_status()
+        cr = r.headers.get("Content-Range", "")
+        total = None
+        if "/" in cr:
+            try:
+                total = int(cr.rsplit("/", 1)[1])
+            except ValueError:
+                total = None
         buf = bytearray()
         for chunk in r.iter_content(1 << 16):
             buf.extend(chunk)
             if len(buf) >= n:
                 break
-    return bytes(buf[:n])
+    return bytes(buf[:n]), total
 
 
 def read_gguf_tensors(
     url, headers, start=HEADER_START, growth=4, cap=HEADER_CAP, quiet=False
 ):
     """Fetch increasing prefixes until the header parses.
-    Returns (metadata_dict, tensor_list)."""
+    Returns a `gguf_common.GgufHeader` with `file_size` set when the server
+    reported the total (see `fetch_prefix`)."""
     n = start
     while True:
-        buf = fetch_prefix(url, n, headers)
+        buf, total = fetch_prefix(url, n, headers)
         try:
-            metadata, tensors = parse_header(buf)
+            hdr = parse_header(buf)
+            hdr.file_size = total
             if not quiet:
                 sys.stderr.write(
                     f"    header parsed from first {len(buf) / 1e6:.1f} MB "
-                    f"({len(tensors)} tensors)\n"
+                    f"({len(hdr.tensors)} tensors)\n"
                 )
-            return metadata, tensors
+            return hdr
         except Truncated:
             if len(buf) < n:  # got the whole file, still short
                 raise ValueError("file ended before header finished parsing")
@@ -159,27 +184,107 @@ _VALUE_EXPERTS = "attn_v_exps"
 _CPU_MOE_RE = re.compile(r"\.ffn_(up|down|gate|gate_up)_(ch|)exps")
 
 
-def build_row(name, dims, ttype):
-    m = _BLK.match(name)
+def build_row(ts):
+    """One CSV row for a `gguf_common.TensorSize`.
+
+    `bytes_per_point` keeps the block-payload meaning when the type table settled
+    the size (the ik-llama per-row scale overhead is folded into `total_bytes` and
+    is not expressible per point), and becomes the measured payload/point when the
+    offsets settled it -- which is the only number that means anything for a type
+    id this table does not describe, or for an unknown one.
+    """
+    m = _BLK.match(ts.name)
     if m:
         layer, tname = m.group(1), m.group(2)
     else:
-        layer, tname = "", name
+        layer, tname = "", ts.name
 
-    geometry = "x".join(str(d) for d in dims)
-    n_points = 1
-    for d in dims:
-        n_points *= d
+    geometry = "x".join(str(d) for d in ts.dims)
+    n_points = math.prod(ts.dims)
 
-    qname, block, tsize, _row_meta = quant_info(ttype)
-    if block is None:  # unknown type: no size info
+    qname, block, tsize, _row_meta = quant_info(ts.ttype)
+    if ts.nbytes is None:  # unknown type and no usable offset: no size info
         bpp, total = "", ""
-    else:
-        # bytes-per-point is the block payload only; the per-row scale overhead
-        # (ik-llama row_meta) is folded into total_bytes, not expressible per-point.
+    elif ts.source == "table" and block:
         bpp = f"{tsize / block:.6g}"
-        total = tensor_nbytes(dims, ttype)
-    return [layer, tname, geometry, n_points, qname, bpp, total]
+        total = ts.nbytes
+    else:
+        bpp = f"{ts.nbytes / n_points:.6g}" if n_points else ""
+        total = ts.nbytes
+    return [layer, tname, geometry, n_points, qname, bpp, total, ts.source]
+
+
+def _size_source_note(gguf_headers, unverified, metadata, gib):
+    """stderr note about where each tensor's byte size came from.
+
+    A ggml type id is an integer with no registry behind it, so a quantization
+    fork that re-numbered its enum makes `GGML_SIZES` -- and with it the CSV's
+    `quant` column and any total derived from block sizes -- describe a format the
+    file does not hold. Agention's Gyro trellis types, for instance, occupy ids
+    144-149, which ik_llama.cpp spells IQ4_KS / IQ2_KS / IQ4_KSS / Q8_K16 /
+    Q8_K32 / Q8_KR8 at 2.25-9.25 bpw, and hold 1.625-3.625 bpw instead.
+
+    The offsets cannot be wrong about their own file, so sizes come from there and
+    this note names the ids where the two sources disagreed.
+    """
+    renumbered = {}
+    for hdr in gguf_headers:
+        for rt in hdr.renumbered_types():
+            prev = renumbered.get(rt.ttype)
+            if prev is None:
+                renumbered[rt.ttype] = rt
+                continue
+            # A split model can put the same id in several shards; one line per id.
+            renumbered[rt.ttype] = RenumberedType(
+                rt.ttype,
+                rt.table_name,
+                prev.tensors + rt.tensors,
+                prev.points + rt.points,
+                prev.table_bytes + rt.table_bytes,
+                prev.offset_bytes + rt.offset_bytes,
+            )
+    note = ""
+    if renumbered:
+        maker = metadata.get("general.quantized_by")
+        note += (
+            textwrap.fill(
+                "note: the byte totals below are tensor payloads read from the header's "
+                "offset column, not derived from a quant's block size, because these "
+                "ggml type ids do not mean what this project's type table says -- the "
+                "file's own bytes disagree about how many they hold. The `quant` column "
+                "keeps this table's name for the id, so on those rows it names the wrong "
+                "format, and they carry `size_source=offsets`. A runtime built against "
+                "the ids this table knows expects a different payload size than the file "
+                "has, so it cannot read these tensors: upstream llama.cpp included."
+                + (f" The file names '{maker}' as its quantizer." if maker else ""),
+                width=88,
+                initial_indent="  ",
+                subsequent_indent=" " * 8,
+            )
+            + "\n"
+        )
+        for rt in sorted(
+            renumbered.values(), key=lambda r: -abs(r.offset_bytes - r.table_bytes)
+        ):
+            note += (
+                f'    id {rt.ttype} "{rt.table_name}" in {rt.tensors} tensor(s): '
+                f"table {rt.table_bpw:.3f} bpw -> offsets {rt.offset_bpw:.3f} bpw"
+                f"  ({rt.table_bytes / gib:.2f} -> {rt.offset_bytes / gib:.2f} GiB)\n"
+            )
+    if unverified:
+        note += (
+            textwrap.fill(
+                "note: the offsets could not be checked for every tensor ("
+                + "; ".join(sorted(set(unverified)))
+                + "); those rows say `size_source=table-unverified` and keep the "
+                "type table's size.",
+                width=88,
+                initial_indent="  ",
+                subsequent_indent=" " * 8,
+            )
+            + "\n"
+        )
+    return note
 
 
 # --------------------------------------------------------------------------- #
@@ -1618,22 +1723,38 @@ def main():
         sys.stderr.write(f"found {len(ggufs)} GGUF file(s)\n")
 
     rows = []
-    all_tensors = []
+    all_tensors = []  # gguf_common.TensorSize, in file order
+    gguf_headers = []
     metadata = {}
     for f in ggufs:
         if not args.quiet:
             sys.stderr.write(f"  {f}\n")
         url = hf_hub_url(repo_id, f, revision=revision)
-        md, tensors = read_gguf_tensors(
+        hdr = read_gguf_tensors(
             url, headers, start=args.start_bytes, cap=args.max_bytes, quiet=args.quiet
         )
         # Split 0 carries the full hparams; later splits repeat only a subset.
         # First file wins so we keep the complete set.
-        for k, v in md.items():
+        for k, v in hdr.metadata.items():
             metadata.setdefault(k, v)
-        for name, dims, ttype in tensors:
-            rows.append(build_row(name, dims, ttype))
-            all_tensors.append((name, dims, ttype))
+        gguf_headers.append(hdr)
+
+    # Sizes are settled per file (its own offsets and total size), and the lazy
+    # tensors by the *merged* architecture -- which split 0 supplies while the
+    # table itself may sit in any shard.
+    lazy_names = lazy_tensor_names(metadata)
+    lazy = {}
+    unverified = []
+    for hdr in gguf_headers:
+        if not hdr.offsets_ordered:
+            unverified.append("tensor table not in offset order")
+        elif hdr.file_size is None:
+            unverified.append("no Content-Range, so the last tensor is unverified")
+        for ts in hdr.sizes():
+            rows.append(build_row(ts))
+            all_tensors.append(ts)
+        for base, nbytes in hdr.lazy_bytes(lazy_names).items():
+            lazy[base] = lazy.get(base, 0) + nbytes
 
     # Stable ordering: by layer number (blanks last), then tensor name.
     def sort_key(r):
@@ -1652,6 +1773,7 @@ def main():
                 "quant",
                 "bytes_per_point",
                 "total_bytes",
+                "size_source",
             ]
         )
         w.writerows(rows)
@@ -1671,18 +1793,17 @@ def main():
     # "everything else" would put a quarter of Qwen3.8-Flash-Next's file -- its
     # 26.8 GiB n-gram PLE table at UD-Q4_K_XL -- into a figure the reader takes
     # for the memory the model needs to run.
-    lazy = dict(lazy_tensors(metadata, all_tensors))
     exps = vexps = shexp = ffn = other = 0
-    lazy_bytes = 0
+    lazy_total = 0
     for r in rows:
         if not isinstance(r[6], int):
             continue
         parts = r[1].split(".")
         base = parts[0]
-        # `blk.N.` is stripped from r[1], and `lazy_tensors` yields stripped
-        # names too, so the bare names match directly.
+        # `blk.N.` is stripped from r[1], and the lazy names are stripped too
+        # (`lazy_tensor_names`), so the bare names match directly.
         if r[1] in lazy:
-            lazy_bytes += r[6]
+            lazy_total += r[6]
             continue
         # `ffn_gate.<i>.weight` is the pre-merge per-expert spelling (grok and
         # early Mixtral conversions); it is a routed expert, not a dense FFN.
@@ -1717,14 +1838,14 @@ def main():
     v_used = metadata.get(f"{arch}.attention.value_expert_used_count") if arch else None
     v_experts = metadata.get(f"{arch}.attention.value_expert_count") if arch else None
     activated_exps = activated_vexps = 0
-    for name, dims, ttype in all_tensors:
+    for ts in all_tensors:
+        name, dims, nb = ts.name, ts.dims, ts.nbytes
         if "_exps." not in name or not dims:
             continue
         is_value = name.split(".")[-2] == _VALUE_EXPERTS
         used_k = v_used if is_value else used
         if used_k is None:
             continue
-        nb = tensor_nbytes(dims, ttype)
         n_expert = dims[-1]  # routed experts are the last (slowest) axis
         if not nb or not n_expert:
             continue
@@ -1742,6 +1863,7 @@ def main():
     # Empty buckets are omitted: a dense model has no expert lines to show, and
     # an MoE without dense-FFN or shared-expert layers has none of those.
     summary = f"\nwrote {len(rows)} rows -> {args.output}\n"
+    summary += _size_source_note(gguf_headers, unverified, metadata, gib)
     if exps:
         summary += weight_line("routed-expert tensors (*_exps.*)", exps)
     if activated_exps:
@@ -1779,14 +1901,14 @@ def main():
         summary += weight_line("dense FFN (ffn_{gate,up,down})", ffn)
     summary += weight_line("everything else (attn/embd/norm)", other)
     resident = exps + vexps + shexp + ffn + other
-    if lazy_bytes:
+    if lazy_total:
         summary += weight_line("total (resident weights)", resident)
         summary += weight_line(
             "lazy tensors (read from disk)",
-            lazy_bytes,
+            lazy_total,
             f"({', '.join(sorted(lazy))})",
         )
-        summary += weight_line("total (all weights, on disk)", resident + lazy_bytes)
+        summary += weight_line("total (all weights, on disk)", resident + lazy_total)
         summary += (
             textwrap.fill(
                 "note: the lazy line is NOT part of the resident total above it. "
@@ -1799,7 +1921,9 @@ def main():
                 f"{LAZY_AUTO_MIN_BYTES >> 30} GiB size threshold that the default "
                 "`auto` -- and this line -- applies, and `auto` resolves to `off` "
                 "where a device has no mmap support (iGPUs), which makes it "
-                "resident as well.",
+                "resident as well. Both totals are tensor payloads read from the "
+                "header's offset column, so a publisher that re-numbered the ggml "
+                "type ids cannot move them (see the note above the weight lines).",
                 width=88,
                 initial_indent="  ",
                 subsequent_indent=" " * 8,
@@ -1811,7 +1935,10 @@ def main():
     sys.stderr.write(summary)
 
     # Educated guess of non-weight VRAM (KV cache + fixed scratch/overhead).
-    kv_by_quant, overhead_bytes, info = estimate_context_vram(all_tensors, metadata)
+    # It needs shapes and type ids only -- never byte sizes.
+    kv_by_quant, overhead_bytes, info = estimate_context_vram(
+        [(ts.name, ts.dims, ts.ttype) for ts in all_tensors], metadata
+    )
     if all(v == 0 for v in kv_by_quant.values()):
         sys.stderr.write(
             "\ncontext/scratch VRAM estimate: SKIPPED -- could not derive KV "
@@ -1929,7 +2056,7 @@ def main():
     # `\.ffn_(up|down|gate|gate_up)_(ch|)exps` (LLM_FFN_EXPS_REGEX), so a MoVA
     # `attn_v_exps` is never staged -- it stays resident in VRAM instead.
     expert_scratch = max(
-        (tensor_nbytes(d, t) or 0 for n, d, t in all_tensors if _CPU_MOE_RE.search(n)),
+        (ts.nbytes or 0 for ts in all_tensors if _CPU_MOE_RE.search(ts.name)),
         default=0,
     )
     if expert_scratch:
