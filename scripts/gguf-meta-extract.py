@@ -8,7 +8,7 @@ every .gguf file (or just the one named), downloads ONLY the header of each
 the tensor-info table, and writes a CSV with one row per tensor:
 
     layer, tensor_name, geometry, n_points, quant, bytes_per_point, total_bytes,
-    size_source
+    bits_per_weight, size_source
 
 `total_bytes` is the tensor's payload as the header's **offset column** records
 it, which is what every byte figure this script prints is summed from -- see
@@ -17,6 +17,12 @@ says which of the two sources settled it: `table` (the block size agrees, so the
 number excludes GGUF's alignment padding), `offsets` (they disagree, or the type
 id is unknown here -- the file's own bytes won), or `table-unverified` (no usable
 offset, i.e. the last tensor of a file whose total size went unreported).
+
+`bits_per_weight` is `total_bytes * 8 / n_points`, the measured figure whatever
+settled the size, and the one a quant name is quoted at. It equals
+`bytes_per_point * 8` except where ik-llama's per-row scale overhead is part of
+the payload, and it is the only bpw that means anything for a type id this table
+does not describe.
 
 Usage
 -----
@@ -192,6 +198,11 @@ def build_row(ts):
     is not expressible per point), and becomes the measured payload/point when the
     offsets settled it -- which is the only number that means anything for a type
     id this table does not describe, or for an unknown one.
+
+    `bits_per_weight` is measured off the settled payload in both cases, so it is
+    `bytes_per_point * 8` plus exactly that row-scale overhead -- and for an id
+    with no entry in `GGML_SIZES`, it is the only bits-per-weight this file can
+    report at all.
     """
     m = _BLK.match(ts.name)
     if m:
@@ -211,7 +222,11 @@ def build_row(ts):
     else:
         bpp = f"{ts.nbytes / n_points:.6g}" if n_points else ""
         total = ts.nbytes
-    return [layer, tname, geometry, n_points, qname, bpp, total, ts.source]
+    # Both operands come from the settled size and the header's own dims, so a
+    # re-numbered type id still yields a real bpw; `n_points == 0` (a tensor with
+    # an empty shape) has no bits per weight to report.
+    bpw = f"{ts.nbytes * 8 / n_points:.6g}" if ts.nbytes and n_points else ""
+    return [layer, tname, geometry, n_points, qname, bpp, total, bpw, ts.source]
 
 
 def _size_source_note(gguf_headers, unverified, metadata, gib):
@@ -1773,6 +1788,7 @@ def main():
                 "quant",
                 "bytes_per_point",
                 "total_bytes",
+                "bits_per_weight",
                 "size_source",
             ]
         )
@@ -1795,35 +1811,61 @@ def main():
     # for the memory the model needs to run.
     exps = vexps = shexp = ffn = other = 0
     lazy_total = 0
+    # Points per bucket, alongside the bytes, because a byte total is only a
+    # bits-per-weight figure when it is divided by the weights it covers. A row
+    # with no settled size was skipped above, so it is in neither total, and a
+    # tensor with an empty shape contributes bytes but no points.
+    pts = {"exps": 0, "vexps": 0, "shexp": 0, "ffn": 0, "other": 0, "lazy": 0}
     for r in rows:
         if not isinstance(r[6], int):
             continue
+        n_points = r[3]
         parts = r[1].split(".")
         base = parts[0]
         # `blk.N.` is stripped from r[1], and the lazy names are stripped too
         # (`lazy_tensor_names`), so the bare names match directly.
         if r[1] in lazy:
             lazy_total += r[6]
+            pts["lazy"] += n_points
             continue
         # `ffn_gate.<i>.weight` is the pre-merge per-expert spelling (grok and
         # early Mixtral conversions); it is a routed expert, not a dense FFN.
         legacy_exp = base in _DENSE_FFN and len(parts) > 1 and parts[1].isdigit()
         if base == _VALUE_EXPERTS:
             vexps += r[6]
+            pts["vexps"] += n_points
         elif base.endswith("_exps") or legacy_exp:
             exps += r[6]
+            pts["exps"] += n_points
         elif "_shexp" in base:
             shexp += r[6]
+            pts["shexp"] += n_points
         elif base in _DENSE_FFN:
             ffn += r[6]
+            pts["ffn"] += n_points
         else:
             other += r[6]
+            pts["other"] += n_points
+    resident_pts = pts["exps"] + pts["vexps"] + pts["shexp"] + pts["ffn"] + pts["other"]
     gib = 1 << 30  # binary gibibyte (2^30); HF web UI reports decimal GB (10^9)
     gb = 10**9
 
-    def weight_line(label, nbytes, note=""):
-        line = f"  {label:<32}: {nbytes / gib:8.2f} GiB  {nbytes / gb:8.2f} GB"
-        return f"{line}  {note}\n" if note else f"{line}\n"
+    def weight_line(label, nbytes, note="", points=None):
+        """Weight-class line: bytes in GiB and GB, then the bits per weight those
+        bytes imply over `points`, then any note.
+
+        The bpw column is this class's own `bytes * 8 / points`, which is what a
+        quant name is quoted at and what includes ik-llama's per-row scale
+        overhead (it is part of the payload, not of the block). It is a property
+        of the class, so the activated-per-token line shows its bucket's bpw too,
+        and the lazy line's is the n-gram table's own quant -- which a publisher
+        picks independently of the model's.
+        """
+        bpw = f"{nbytes * 8 / points:.2f} bpw" if points else ""
+        line = (
+            f"  {label:<32}: {nbytes / gib:8.2f} GiB  {nbytes / gb:8.2f} GB  {bpw:>10}"
+        )
+        return f"{line}  {note}\n" if note else f"{line}".rstrip() + "\n"
 
     # Size of the routed experts actually activated per token: top-k of the
     # routed experts fire (expert_used_count of expert_count), so only that
@@ -1838,6 +1880,7 @@ def main():
     v_used = metadata.get(f"{arch}.attention.value_expert_used_count") if arch else None
     v_experts = metadata.get(f"{arch}.attention.value_expert_count") if arch else None
     activated_exps = activated_vexps = 0
+    activated_pts = activated_vpts = 0
     for ts in all_tensors:
         name, dims, nb = ts.name, ts.dims, ts.nbytes
         if "_exps." not in name or not dims:
@@ -1855,17 +1898,22 @@ def main():
             if not m or int(m.group(1)) >= len(used_k):
                 continue
             u = used_k[int(m.group(1))]
+        n_points = math.prod(dims)
         if is_value:
             activated_vexps += nb // n_expert * u
+            activated_vpts += n_points // n_expert * u
         else:
             activated_exps += nb // n_expert * u
+            activated_pts += n_points // n_expert * u
 
     # Empty buckets are omitted: a dense model has no expert lines to show, and
     # an MoE without dense-FFN or shared-expert layers has none of those.
     summary = f"\nwrote {len(rows)} rows -> {args.output}\n"
     summary += _size_source_note(gguf_headers, unverified, metadata, gib)
     if exps:
-        summary += weight_line("routed-expert tensors (*_exps.*)", exps)
+        summary += weight_line(
+            "routed-expert tensors (*_exps.*)", exps, points=pts["exps"]
+        )
     if activated_exps:
         k_desc = (
             f"top-{used} of {n_experts}"
@@ -1876,6 +1924,7 @@ def main():
             "of which activated per token",
             activated_exps,
             f"({k_desc} routed experts/token; excludes dense/shared/attn weights)",
+            points=activated_pts,
         )
     if vexps:
         k_desc = (
@@ -1887,28 +1936,42 @@ def main():
             "value-expert tensors (MoVA)",
             vexps,
             "(replaces attn_v; NOT offloadable by --cpu-moe)",
+            points=pts["vexps"],
         )
         summary += weight_line(
             "of which activated per token",
             activated_vexps,
             f"({k_desc} value experts/token)",
+            points=activated_vpts,
         )
     if shexp:
         summary += weight_line(
-            "shared-expert tensors (*_shexp*)", shexp, "(activated on every token)"
+            "shared-expert tensors (*_shexp*)",
+            shexp,
+            "(activated on every token)",
+            points=pts["shexp"],
         )
     if ffn:
-        summary += weight_line("dense FFN (ffn_{gate,up,down})", ffn)
-    summary += weight_line("everything else (attn/embd/norm)", other)
+        summary += weight_line("dense FFN (ffn_{gate,up,down})", ffn, points=pts["ffn"])
+    summary += weight_line(
+        "everything else (attn/embd/norm)", other, points=pts["other"]
+    )
     resident = exps + vexps + shexp + ffn + other
     if lazy_total:
-        summary += weight_line("total (resident weights)", resident)
+        summary += weight_line(
+            "total (resident weights)", resident, points=resident_pts
+        )
         summary += weight_line(
             "lazy tensors (read from disk)",
             lazy_total,
             f"({', '.join(sorted(lazy))})",
+            points=pts["lazy"],
         )
-        summary += weight_line("total (all weights, on disk)", resident + lazy_total)
+        summary += weight_line(
+            "total (all weights, on disk)",
+            resident + lazy_total,
+            points=resident_pts + pts["lazy"],
+        )
         summary += (
             textwrap.fill(
                 "note: the lazy line is NOT part of the resident total above it. "
@@ -1923,7 +1986,10 @@ def main():
                 "where a device has no mmap support (iGPUs), which makes it "
                 "resident as well. Both totals are tensor payloads read from the "
                 "header's offset column, so a publisher that re-numbered the ggml "
-                "type ids cannot move them (see the note above the weight lines).",
+                "type ids cannot move them (see the note above the weight lines). "
+                "Each line's bpw column is its own bytes x 8 / points, so the "
+                "lazy line's is the n-gram table's quant, which the publisher "
+                "chooses independently of the model's.",
                 width=88,
                 initial_indent="  ",
                 subsequent_indent=" " * 8,
@@ -1931,7 +1997,7 @@ def main():
             + "\n"
         )
     else:
-        summary += weight_line("total (model weights)", resident)
+        summary += weight_line("total (model weights)", resident, points=resident_pts)
     sys.stderr.write(summary)
 
     # Educated guess of non-weight VRAM (KV cache + fixed scratch/overhead).
