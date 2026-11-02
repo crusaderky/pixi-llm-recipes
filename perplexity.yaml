@@ -1,7 +1,7 @@
 # YAML config for scripts/perplexity.py
 #
 # Usage:
-# pixi r perplexity
+# pixi r -e llamacpp-source-cuda perplexity   # the task exists in all eight llamacpp-* envs
 # pixi r perplexity-report
 
 # Common flags prepended to every llama-perplexity invocation.
@@ -21,7 +21,10 @@ common: >
 
 # Baseline combo that creates the logits dump (no --kl-divergence).
 # Exempt from `exclude` and from the auto-skips: without it there is no sweep.
-baseline: {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:BF16, cache-type-k: f16, cache-type-v: f16}
+# The BF16 reference is also listed in the model list below, so the reference
+# weights ride the whole KV sweep as its topmost accuracy point; the one combo
+# that would repeat the baseline itself (f16/f16) is skipped by its signature.
+baseline: {hf-repo: LiquidAI/LFM3-1.7B-GGUF:BF16, cache-type-k: f16, cache-type-v: f16}
 
 # Cartesian product of lists of llama-perplexity option dicts, expanded into every union
 # of one dict per list.  Keys are flag names without the leading dashes, emitted as
@@ -32,23 +35,67 @@ baseline: {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:BF16, cache-type-k: f16, cache-typ
 # Auto-skipped: every combo whose V quant is finer than its K quant, every asymmetric
 # KVarN pair, and a non-zero tail on an exact f16/f16 cache.
 cross-product:
-  - - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q8_0}
-    - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q6_K}
-    - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q5_K_M}
-    - {hf-repo: LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M}
-    - {hf-repo: bartowski/LiquidAI_LFM2.5-2.6B-GGUF:Q4_K_M}
+  - 
+    - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q8_0}
+    - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q6_K}
+  # - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q5_K_M}
+  # - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q4_K_M}
+  # - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:QAD-Q4_0}
+
+  # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-Q6_K}
+  # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-Q5_K_M}
+  # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-Q4_K_M}
+  # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-IQ4_XS}
+  # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-IQ3_S}
+
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q6_K}  # Identical to LiquidAI
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q5_K_M}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q5_K_S}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q4_K_M}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q4_K_S}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ4_NL}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ4_XS}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q3_K_L}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q3_K_M}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q3_K_S}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ3_M}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ3_S}
+  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ3_XS}
+
+  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q6_K_L}
+  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q6_K}
+    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q6_K_S}
+    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q5_K_M}
+    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q5_K_S}
+  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q4_K_L}
+    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q4_K_M}
+    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q4_K_S}
+  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ4_XS}
+    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q3_K_L}
+  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q3_K_M}
+  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q3_K_S}
+  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ3_M}
+  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ3_XS}
+  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ3_XXS}
+
 
   - - {cache-type-k: f16, cache-type-v: f16}
     - {cache-type-k: q8_0, cache-type-v: q8_0}
+    - {cache-type-k: q8_0, cache-type-v: q6_0}
+    - {cache-type-k: q8_0, cache-type-v: q5_0}
+    - {cache-type-k: q6_0, cache-type-v: q6_0}
+    - {cache-type-k: q6_0, cache-type-v: q5_0}
+    - {cache-type-k: q6_0, cache-type-v: q4_0}
     - {cache-type-k: q5_0, cache-type-v: q5_0}
+    - {cache-type-k: q5_0, cache-type-v: q4_0}
+    - {cache-type-k: q5_0, cache-type-v: q3_0}
     - {cache-type-k: q4_0, cache-type-v: q4_0}
-    - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 512}
+    - {cache-type-k: q4_0, cache-type-v: q3_0}
+
+    - {cache-type-k: q5_0, cache-type-v: q4_0, kv-tail-tokens: 1024}
+    - {cache-type-k: q5_0, cache-type-v: q3_0, kv-tail-tokens: 1024}
     - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 1024}
-    - {cache-type-k: q4_0, cache-type-v: q4_0, kv-tail-tokens: 2048}
-    - {cache-type-k: q3_0, cache-type-v: q3_0}
-    - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 512}
-    - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 1024}
-    - {cache-type-k: q3_0, cache-type-v: q3_0, kv-tail-tokens: 2048}
+    - {cache-type-k: q4_0, cache-type-v: q3_0, kv-tail-tokens: 1024}
 
 # Extra combos beyond the cross-product, in the same syntax.
 # Unlike the cross-product these are never auto-skipped -- an explicit request

@@ -754,6 +754,36 @@ MODEL_KV: dict[str, ModelKV] = {
             ),
         ),
     ),
+    # LFM3 (block_count=24) reads differently from LFM2.5 above: `head_count_kv` is 4
+    # on the 11 even blocks 2..22 and 0 on the other 13, which are shortconv blocks,
+    # and it does not stop there -- this arch also carries a real SWA half. Its own
+    # `attention.sliding_window_pattern` marks blocks 4, 8, 12, 16 and 20, so 5 of the
+    # 11 cache layers hold 256 tokens rather than the whole context and the other 6
+    # hold all of it. That key is present (LFM3-1.7B publishes it per layer), so the
+    # pattern needs no entry in gguf-meta-extract's table.
+    #
+    # The recurrent state is LFM2's, one dimension wider: `(shortconv.l_cache - 1) *
+    # n_embd` = 6 * 2048 = 12288 f32 per layer per sequence, no `n_embd_s` half (LFM
+    # has no SSM state). 13 shortconv blocks, context-independent, so it rides along
+    # as a `CompressedKV` like every other recurrent group.
+    #
+    # Both head dims are 128, which is a KVarN tile, so unlike the LFM2 family this one
+    # passes `support_kvarn`; whether llama.cpp hands LFM3 the KVarN params at all is
+    # the arch-level question the docstring above leaves to its caller.
+    "LFM3-1.7B": ModelKV(
+        full_attn_layers=6,
+        full_attn_kv_heads=4,
+        sliding_window_layers=5,
+        sliding_window_kv_heads=4,
+        sliding_window_size=256,
+        key_dim=128,
+        value_dim=128,
+        compressed=(
+            CompressedKV(
+                "recurrent state", 13, 1, 12288, 0, fixed_rows=1, elem_bpw=32.0
+            ),
+        ),
+    ),
     # `bailingmoe3` hybrid: `attention.head_count_kv` is 1 on the 7 MLA blocks
     # and 0 on the other 35, which are KDA (Kimi delta-net) linear-attention
     # blocks holding a fixed-size recurrent state instead of a KV cache. That
