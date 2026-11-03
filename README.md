@@ -149,16 +149,16 @@ Strata is set up to run Qwen3.8-Flash. It is configured in `strata.ini`.
 Llama.cpp models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Engine       | Model            | Variant     | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
-| ------------ | ---------------- | ----------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
-| Strata       | Qwen3.8-Flash    | Gyro-M      | 88 GB        | 256k int8/int8      | 19.3 GB<sup>4</sup> | 2,076 tok/s         | 105 tok/s          | ✅     |
-| BeeLLaMA.cpp | Qwen3.8-Flash    | IQ3_XXS     | 72 GB        | 256k kvarn4         | 21.6 GB<sup>4</sup> | 225 tok/s           | 39 tok/s           | ✅     |
-| BeeLLaMA.cpp | Qwen3.8-27B      | IQ4_XS MTP  | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
-| BeeLLaMA.cpp | Ternary-Bonsai-2 | PQ2         | 7.3 GB       | 256k kvarn4         | 12.9 GB             | 949 tok/s           | 55 tok/s           | ✅     |
-| BeeLLaMA.cpp | Occamy-1.0       | IQ4_XS MTP  | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
-| BeeLLaMA.cpp | LFM3-1.7B        | Q6_K_S      | 1.5 GB       | 256k q6/q5          | 3.6 GB              | 14,012 tok/s        | 251 tok/s          | 🔴     |
-| BeeLLaMA.cpp | LFM3-VL-2B       | Q6_K        | 1.6 GB       | 128k q6/q5          | 3.2 GB              | 14,287 tok/s        | 249 tok/s          | ✅     |
-| llama.cpp    | LFM2.5-VL-3B     | Q8_0        | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅     |
+| Engine       | Model            | Variant    | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
+| ------------ | ---------------- | ---------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
+| Strata       | Qwen3.8-Flash    | Gyro-M     | 88 GB        | 256k int8/int8      | 19.3 GB<sup>4</sup> | 2,076 tok/s         | 105 tok/s          | ✅     |
+| BeeLLaMA.cpp | Qwen3.8-Flash    | IQ3_XXS    | 72 GB        | 256k kvarn4         | 21.6 GB<sup>4</sup> | 225 tok/s           | 39 tok/s           | ✅     |
+| BeeLLaMA.cpp | Qwen3.8-27B      | IQ4_XS MTP | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
+| BeeLLaMA.cpp | Ternary-Bonsai-2 | PQ2        | 7.3 GB       | 256k kvarn4         | 12.9 GB             | 949 tok/s           | 55 tok/s           | ✅     |
+| BeeLLaMA.cpp | Occamy-1.0       | IQ4_XS MTP | 20 GB        | 256k kvarn4         | 21.5 GB             | 2,345 tok/s         | 134 tok/s          | ✅ CPU |
+| BeeLLaMA.cpp | LFM3-1.7B        | Q6_K_S     | 1.5 GB       | 256k q6/q5          | 3.6 GB              | 14,012 tok/s        | 251 tok/s          | 🔴     |
+| BeeLLaMA.cpp | LFM3-VL-2B       | Q6_K       | 1.6 GB       | 128k q6/q5          | 3.2 GB              | 14,287 tok/s        | 249 tok/s          | ✅     |
+| llama.cpp    | LFM2.5-VL-3B     | Q8_0       | 3.3 GB       | 32k q8/q8           | 4.0 GB              | 11,664 tok/s        | 211 tok/s          | ✅     |
 
 **Notes:**
 
@@ -296,6 +296,7 @@ This is the recommended way to run it (Linux only).
 pixi r install                        # One-off (also sets up limited GitHub access)
 cd /path/to/workspace && pi           # Sandboxed
 pi --bind /data                       # Bind extra directories into the sandbox
+pi --ro-bind ../shared                # Bind extra directories read-only
 pi --no-git                           # No GitHub credentials (untrusted prompts)
 ```
 

@@ -7,7 +7,10 @@
 # (/dev/nvidia* are dev-bound through the fresh --dev /dev), so CUDA builds
 # and llama.cpp GPU runs work from inside the sandbox.
 #
-# Usage: bwrap-pi.sh <dir|-> [--no-git] [--bind <dir>] ... [-- pi-args...]
+# Usage: bwrap-pi.sh <dir|-> [--no-git] [--bind <dir>] [--ro-bind <dir>] ... [-- pi-args...]
+#   --bind <dir>    exposes the directory read-write; --ro-bind <dir> the same
+#   directory read-only. Both take a host path and are applied as both the
+#   source and the destination, so the sandbox path matches the host path.
 #   Git/GitHub access is ON by default under a non-destructive policy: fetch/pull,
 #   fast-forward pushes and gh reads/creation work, as does editing an issue or PR
 #   in place (gh issue edit / gh pr edit) and your own last comment
@@ -52,17 +55,40 @@ elif [ $# -ge 2 ]; then
   FWD_ARGS=("${@:2}")
 fi
 
-# Parse --bind <dir> pairs and --no-git flags from forwarded args
-EXTRA_BINDS=""
+# Parse --bind / --ro-bind <dir> pairs and --no-git flags from forwarded args.
+# Accumulated as arrays, not strings, so a bound path may contain spaces.
+EXTRA_BINDS=()
+EXTRA_RO_BINDS=()
 NO_GIT=false
 PI_ARGS=()
 i=0
 while [ $i -lt ${#FWD_ARGS[@]} ]; do
   arg="${FWD_ARGS[$i]}"
-  if [ "$arg" = "--bind" ]; then
-    bind_dir="${FWD_ARGS[$((i+1))]}"
-    ABS_BIND="$(realpath "$bind_dir")"
-    EXTRA_BINDS="$EXTRA_BINDS --bind $ABS_BIND $ABS_BIND"
+  if [ "$arg" = "--bind" ] || [ "$arg" = "--ro-bind" ]; then
+    if [ $((i + 1)) -ge ${#FWD_ARGS[@]} ]; then
+      echo "bwrap-pi.sh: $arg needs a directory" >&2
+      exit 2
+    fi
+    ABS_BIND="$(realpath "${FWD_ARGS[$((i + 1))]}" 2>/dev/null)" || {
+      echo "bwrap-pi.sh: $arg: no such path: ${FWD_ARGS[$((i + 1))]}" >&2
+      exit 2
+    }
+    if [ "$arg" = "--ro-bind" ]; then
+      EXTRA_RO_BINDS+=(--ro-bind "$ABS_BIND" "$ABS_BIND")
+      # The workspace bind is applied after these and wins inside itself, so a
+      # read-only request pointing at the workspace or something inside it comes
+      # out read-write. Warn rather than let that pass silently.
+      if [ -n "${DIR:-}" ]; then
+        case "$ABS_BIND/" in
+          "$DIR"/*)
+            echo "WARNING: --ro-bind $ABS_BIND is the workspace or inside it; the workspace bind" >&2
+            echo "makes it read-write again. --ro-bind is for paths outside the workspace." >&2
+            ;;
+        esac
+      fi
+    else
+      EXTRA_BINDS+=(--bind "$ABS_BIND" "$ABS_BIND")
+    fi
     i=$((i + 2))
   elif [ "$arg" = "--no-git" ]; then
     NO_GIT=true
@@ -248,6 +274,14 @@ unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 # independent sandboxes or unsandboxed pi instances on the host cannot be reached.
 # Parallel sandboxes don't conflict: each has its own broker on its own private socket.
 # Note: --ro-bind $_CONDA_PREFIX must be after --bind $1.
+# The caller's read-only binds ($EXTRA_RO_BINDS) go BEFORE $ARGS, like
+# --bind does: the workspace bind is applied last, so it stays writable even
+# when a --ro-bind path is its ancestor — `--ro-bind ..` exposes sibling
+# directories read-only while the project stays writable. Read-only requests
+# inside the workspace are therefore shadowed (warned about above).
+# The flip side, for both flags: binding an ancestor of something the sandbox
+# already binds detaches that earlier mount, so bind the directory you want,
+# never the parent of $HOME or of $CONDA_PREFIX.
 # When setting pixi-llm-recipes as the project root for the bind,
 # re-bind $CONDA_PREFIX as read-only after it's bound as read-write.
 # Same for $GUARD_BIN: after $ARGS, so the policy files stay read-only even
@@ -278,7 +312,8 @@ bwrap \
   --bind "$HOME/.pi/agent/sessions"       "$HOME/.pi/agent/sessions" \
   --tmpfs "$HOME/.pi/agent/intercom" \
   --ro-bind "$_PIXI_ROOT"                 "$_PIXI_ROOT" \
-  $EXTRA_BINDS \
+  "${EXTRA_BINDS[@]}" \
+  "${EXTRA_RO_BINDS[@]}" \
   $HERDR_WORKTREE_BINDS \
   $WORKTREE_BINDS \
   $GIT_BINDS \

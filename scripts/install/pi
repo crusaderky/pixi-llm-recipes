@@ -10,6 +10,8 @@
 #   --bind <dir>       Bind an extra directory read-write. Relative paths are
 #                      made absolute against your cwd BEFORE forwarding, because
 #                      the sandbox task runs with the repo as its cwd.
+#   --ro-bind <dir>    Same as --bind, but read-only inside the sandbox. Takes
+#                      any number of either flag, mixed.
 #   --no-sandbox       Skip the bubblewrap sandbox; route to the `pi-unsafe` task
 #                      (full host access, for development/debugging — no
 #                      GitHub policy applies there, including --no-git).
@@ -26,7 +28,7 @@ TASK=pi
 TASK_UNSAFE=pi-unsafe
 
 # --no-sandbox routes to pi-unsafe
-# --bind paths made absolute (sandbox runs with the repo as its cwd).
+# --bind / --ro-bind paths made absolute (sandbox runs with the repo as its cwd).
 # Consumed args are stripped, rest forwarded verbatim.
 ARGS=()
 i=1
@@ -35,11 +37,15 @@ while [ "$i" -le $# ]; do
   if [ "$arg" = "--no-sandbox" ]; then
     TASK=$TASK_UNSAFE
     i=$((i + 1))
-  elif [ "$arg" = "--bind" ]; then
+  elif [ "$arg" = "--bind" ] || [ "$arg" = "--ro-bind" ]; then
     next=$((i + 1))
+    if [ "$next" -gt "$#" ]; then
+      echo "pi: $arg needs a directory" >&2
+      exit 2
+    fi
     bd="${!next}"
     case "$bd" in /*) ;; *) bd="$PWD/$bd" ;; esac
-    ARGS+=("--bind" "$bd")
+    ARGS+=("$arg" "$bd")
     i=$((i + 2))
   else
     ARGS+=("$arg")
