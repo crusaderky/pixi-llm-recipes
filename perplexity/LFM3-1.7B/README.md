@@ -1,21 +1,20 @@
 # LFM3-1.7B quantization report
 
-This report measures various quants of [LFM3-1.7B](https://www.liquid.ai/blog/lfm3), together with KV cache quantization, to determine the least possible degradation at each size in VRAM.
+This report measures various quants of [LFM3-1.7B](https://www.liquid.ai/blog/lfm3),
+together with KV cache quantization, to determine the least possible degradation at each
+size in VRAM.
 
 ## Highlights
 
-- **This model fits in 3.6 GiB VRAM** (1.4 GiB weights + 1.1 GiB context + 1.1 GiB
+- **This model fits in 3.7 GiB VRAM** (1.4 GiB weights + 1.2 GiB context + 1.1 GiB
   scratch buffers), with 256k context and no discernible degradation from the
-  unquantized version.
-- **It can be crammed down to 2.2 GiB VRAM** with contained degradation and a 128k
-  context. Beyond that, quality falls off a cliff.
-- I tested quants from [LiquidAI](https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF),
-  [Bartowski](https://huggingface.co/bartowski/LFM3-1.7B-GGUF),
-  [AtomicChat](https://huggingface.co/AtomicChat/LFM3-1.7B-GGUF) and
-  [NANI-Nithin](https://huggingface.co/NANI-Nithin/LFM3-1.7B-GGUF). Bartowski turned out
-  to be better, at all rungs, than the other quants.
-- LiquidAI's QAD-Q4_0 quant shows metrics that are strictly worse than Bartowski's
-  Q4_K_S, which in turn is already off the edge of the quality cliff.
+  unquantized version, or **3.1 GiB** with minimal degradation, unlikely to be
+  noticeable in benchmarks.
+- **It can be crammed down to 1.9 GiB VRAM** with contained degradation and a 128k
+  context. Beyond that, quality falls off a cliff.  
+- LiquidAI's QAD-Q4_0 scores strictly worse than other quants, but it is a *distilled*
+  checkpoint, so its KL divergence against the BF16 model overstates what it actually
+  loses.
 - KV cache quantisation resists nicely until `k=q5_0 v=q4_0`, after which it falls off a
   cliff.
 - [BeeLLaMA.cpp](https://github.com/Anbeeld/beellama.cpp) allows pushing it further to
@@ -31,15 +30,12 @@ This report measures various quants of [LFM3-1.7B](https://www.liquid.ai/blog/lf
 |---|---|---|---|---|---|---|---|---|---|
 | LiquidAI:BF16\|f16 | 32.00 | 3,306 | 3,075 | 6,381 | 0.000000 | 0.000048 | 99.993 ± 0.003 | 36.390 ± 0.111 | 99.98 |
 | LiquidAI:Q8_0\|q8_0 | 17.00 | 1,761 | 1,634 | 3,395 | 0.006607 | 0.746117 | 96.855 ± 0.061 | 36.381 ± 0.111 | 99.85 |
-| bartowski:Q6_K_S\|q8_0/q5_0 | 14.00 | 1,389 | 1,346 | 2,735 | 0.023014 | 2.702538 | 93.921 ± 0.083 | 36.368 ± 0.111 | 99.55 |
-| bartowski:Q6_K_S\|q6_0<sup>2</sup> | 13.00 | 1,389 | 1,250 | 2,639 | 0.019834 | 2.143442 | 94.378 ± 0.080 | 36.352 ± 0.111 | 99.63 |
-| bartowski:Q6_K_S\|q6_0/q5_0<sup>2</sup> | 12.00 | 1,389 | 1,154 | 2,543 | 0.023287 | 2.678904 | 93.938 ± 0.083 | 36.338 ± 0.111 | 99.55 |
-| bartowski:Q6_K_S\|q5_0 | 11.00 | 1,389 | 1,057 | 2,447 | 0.032119 | 3.286549 | 92.730 ± 0.091 | 36.275 ± 0.111 | 99.41 |
-| bartowski:Q6_K_S\|q5_0/q4_0 | 10.00 | 1,389 | 961 | 2,351 | 0.040071 | 3.511644 | 91.779 ± 0.096 | 36.191 ± 0.111 | 99.28 |
-| bartowski:Q5_K_M\|q5_0/q4_0 | 10.00 | 1,290 | 961 | 2,251 | 0.051227 | 3.926834 | 90.226 ± 0.104 | 35.980 ± 0.111 | 99.09 |
-| bartowski:Q5_K_S\|q5_0/q4_0 | 10.00 | 1,209 | 961 | 2,171 | 0.065467 | 4.323977 | 88.816 ± 0.110 | 35.774 ± 0.111 | 98.85 |
-| bartowski:Q4_K_M\|q5_0/q4_0 | 10.00 | 1,064 | 961 | 2,025 | 0.102118 | 6.292465 | 85.962 ± 0.121 | 35.692 ± 0.111 | 98.25 |
-| bartowski:Q4_K_M\|q4_0/q3_0 t1024<sup>2</sup> | 8.00 | 1,064 | 783 | 1,847 | 0.105738 | 6.428101 | 85.724 ± 0.122 | 35.666 ± 0.111 | 98.16 |
+| Arki05:6.56bpw\|q6_0<sup>2</sup> | 13.00 | 1,361 | 1,250 | 2,611 | 0.014416 | 1.445824 | 95.127 ± 0.075 | 36.209 ± 0.111 | 99.74 |
+| Arki05:5.78bpw\|q6_0<sup>2</sup> | 13.00 | 1,200 | 1,250 | 2,450 | 0.026997 | 2.876014 | 93.308 ± 0.087 | 36.227 ± 0.111 | 99.49 |
+| Arki05:5.01bpw\|q5_0/q4_0 | 10.00 | 1,042 | 961 | 2,003 | 0.060257 | 4.222301 | 89.205 ± 0.108 | 35.840 ± 0.111 | 98.91 |
+| Arki05:4.22bpw\|q4_0/q3_0 t1024<sup>2</sup> | 8.00 | 879 | 783 | 1,662 | 0.116855 | 7.150463 | 85.107 ± 0.124 | 35.266 ± 0.111 | 97.89 |
+| Arki05:3.57bpw\|q4_0/q3_0 t1024<sup>2</sup> | 8.00 | 745 | 783 | 1,528 | 0.204673 | 7.757783 | 79.523 ± 0.141 | 34.504 ± 0.110 | 96.67 |
+| Arki05:2.97bpw\|q4_0/q3_0 t1024<sup>2</sup> | 8.00 | 621 | 783 | 1,405 | 0.387414 | 9.050275 | 71.843 ± 0.157 | 32.063 ± 0.109 | 93.97 |
 
 <sup>1</sup>Does not include scratch buffers
 
@@ -55,10 +51,11 @@ readability.
 The Pareto frontier highlights the lowest Mean KLD (across all plots). A few observations:
 
 - all measures are affected by noise, whether they have error bars or not;
-- highlighting the Mean KLD frontier on other plots highlights non-linearity on other measures, e.g. 99% KLD;
-- The Pareto frontier runs lower than the cherry-picked "best" quants. This is because
-  it selects the points with an exact tail (`--kv-tail-tokens 1024`), which however are
-  not recommended except in extreme cases, due to poor performance, as explained  above.
+- highlighting the Mean KLD frontier on other plots highlights non-linearity on other
+  measures, e.g. 99.9% KLD;
+- The frontier runs lower than the cherry-picked "best" quants. This is because it
+  selects the points with an exact tail (`--kv-tail-tokens 1024`), which however are not
+  recommended except in extreme cases, due to poor performance, as explained  above.
 
 ![Mean KLD](report.mean-kld.png)
 
@@ -77,7 +74,8 @@ and incorporates behaviour seen in both the Mean KLD and the 99% KLD plots.
 
 ## Presets
 
-Indistinguishable from the unquantized model; 3.6 GiB VRAM:
+No compromises: indistinguishable from the unquantized model; 3.7 GiB VRAM measured:
+
 ```ini
 
 version = 1
@@ -87,21 +85,20 @@ jinja = true
 parallel = 1
 
 [LFM3-1.7B]
-hf = bartowski/LFM3-1.7B-GGUF:Q6_K_S
+hf = Arki05/LFM3-1.7B-GGUF:6.56bpw
 
 flash-attn = on
 kv-unified = true
 ctx-size = 262144
 cache-type-k = q6_0  # q8_0 if BeeLLaMA.cpp is not an option
-cache-type-v = q5_0
+cache-type-v = q6_0  # q5_0 if BeeLLaMA.cpp is not an option
 
 temperature = 0.1
 top-k = 50
 repeat-penalty = 1.1
 ```
 
-Bare minimum quality before the cliff edge, half context; 2.2 GiB VRAM (slower; requires
-BeeLLaMA.cpp):
+Minimum size with minimal degradation, full context; 3.0 GiB VRAM measured:
 
 ```ini
 
@@ -112,11 +109,36 @@ jinja = true
 parallel = 1
 
 [LFM3-1.7B]
-hf = bartowski/LFM3-1.7B-GGUF:Q4_K_M
+hf = Arki05/LFM3-1.7B-GGUF:5.01bpw
 
 flash-attn = on
 kv-unified = true
-ctx-size = 131072
+ctx-size = 262144
+cache-type-k = q5_0
+cache-type-v = q4_0
+
+temperature = 0.1
+top-k = 50
+repeat-penalty = 1.1
+```
+
+Minimum size before the cliff edge; 2.6 GiB VRAM measured, or 1.8 GiB with `ctx-size = 131072`.
+Slower; requires BeeLLaMA.cpp:
+
+```ini
+
+version = 1
+
+[*]
+jinja = true
+parallel = 1
+
+[LFM3-1.7B]
+hf = Arki05/LFM3-1.7B-GGUF:3.57bpw
+
+flash-attn = on
+kv-unified = true
+ctx-size = 262144
 cache-type-k = q4_0
 cache-type-v = q3_0
 kv-tail-tokens = 1024

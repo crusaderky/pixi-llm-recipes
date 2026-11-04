@@ -35,49 +35,59 @@ baseline: {hf-repo: LiquidAI/LFM3-1.7B-GGUF:BF16, cache-type-k: f16, cache-type-
 # Auto-skipped: every combo whose V quant is finer than its K quant, every asymmetric
 # KVarN pair, and a non-zero tail on an exact f16/f16 cache.
 cross-product:
-  - 
-    - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q8_0}
-    - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q6_K}
-  # - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q5_K_M}
-  # - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q4_K_M}
-  # - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:QAD-Q4_0}
+  - - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q8_0}
+    # - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q6_K}
+    # - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q5_K_M}
+    # - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:Q4_K_M}
+    # - {hf-repo: LiquidAI/LFM3-1.7B-GGUF:QAD-Q4_0}
 
-  # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-Q6_K}
-  # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-Q5_K_M}
-  # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-Q4_K_M}
-  # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-IQ4_XS}
-  # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-IQ3_S}
+    # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-Q6_K}
+    # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-Q5_K_M}
+    # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-Q4_K_M}
+    # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-IQ4_XS}
+    # - {hf-repo: AtomicChat/LFM3-1.7B-GGUF:AD-IQ3_S}
 
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q6_K}  # Identical to LiquidAI
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q5_K_M}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q5_K_S}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q4_K_M}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q4_K_S}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ4_NL}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ4_XS}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q3_K_L}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q3_K_M}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q3_K_S}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ3_M}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ3_S}
-  # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ3_XS}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q6_K}  # Identical to LiquidAI
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q5_K_M}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q5_K_S}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q4_K_M}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q4_K_S}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ4_NL}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ4_XS}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q3_K_L}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q3_K_M}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:Q3_K_S}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ3_M}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ3_S}
+    # - {hf-repo: NANI-Nithin/LFM3-1.7B-GGUF:IQ3_XS}
 
-  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q6_K_L}
-  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q6_K}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q6_K_L}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q6_K}
     - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q6_K_S}
-    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q5_K_M}
-    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q5_K_S}
-  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q4_K_L}
-    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q4_K_M}
-    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q4_K_S}
-  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ4_XS}
-    - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q3_K_L}
-  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q3_K_M}
-  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q3_K_S}
-  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ3_M}
-  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ3_XS}
-  # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ3_XXS}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q5_K_M}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q5_K_S}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q4_K_L}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q4_K_M}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q4_K_S}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ4_XS}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q3_K_L}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q3_K_M}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:Q3_K_S}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ3_M}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ3_XS}
+    # - {hf-repo: bartowski/LFM3-1.7B-GGUF:IQ3_XXS}
 
+    # - {hf-repo: kaitchup/LFM3-1.7B-SLQ-GGUF:Q6_K}
+    # - {hf-repo: kaitchup/LFM3-1.7B-GSQ-GGUF:IQ4_XS_RCO}
+    # - {hf-repo: kaitchup/LFM3-1.7B-GSQ-GGUF:Q6_K_RCO}
+    - {hf-repo: kaitchup/LFM3-1.7B-GSQ-GGUF:Q6_K_SLQ}
+    # - {hf-repo: turintech/LFM3-1.7B-Artemis-GGUF:Q4_K_M}
+    - {hf-repo: Arki05/LFM3-1.7B-GGUF:2.97bpw}
+    - {hf-repo: Arki05/LFM3-1.7B-GGUF:3.57bpw}
+    - {hf-repo: Arki05/LFM3-1.7B-GGUF:4.22bpw}
+    - {hf-repo: Arki05/LFM3-1.7B-GGUF:5.01bpw}
+    - {hf-repo: Arki05/LFM3-1.7B-GGUF:5.78bpw}
+    - {hf-repo: Arki05/LFM3-1.7B-GGUF:6.56bpw}
 
   - - {cache-type-k: f16, cache-type-v: f16}
     - {cache-type-k: q8_0, cache-type-v: q8_0}
