@@ -27,6 +27,13 @@ things it does there are replaced here:
   they are checked against the pinned SHA256s (upstream's #327 check) and deleted once the
   layer is built. ``keep-mtp-inputs`` in strata.ini (or ``STRATA_KEEP_MTP_INPUTS=1``) keeps
   them.
+* **The DFlash2 drafter.** setup.py fetches the MTP layer but leaves the alternative drafter
+  to the Terminal's ``strata drafting fetch`` -- a subcommand of a CLI this recipe does not
+  package -- so ``drafter = dflash2`` prepared a model with no drafter on disk at all and it
+  started with "DFlash2 ... no drafter is downloaded" in its log. The pack, its draft
+  vocabulary and the smaller Q4_0 selector this engine reads are downloaded here instead
+  (``drafting_fetch``), on ``strata-install`` and on a start, once: the pinned SHA-256 is
+  checked and an interrupted download resumes.
 * **The compile at the first start.** setup.py compiles the engine itself when the one it
   finds does not match the sources it hashes (``ENGINE_SOURCES``), installing NVIDIA's CUDA
   Toolkit with apt and sudo when there is no ``nvcc`` -- the recipe compiles it here, and
@@ -56,6 +63,7 @@ set (``MODEL_CARD_SAMPLING``) to a request that names none.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -314,6 +322,82 @@ def verify_mtp(setup: ModuleType, mtp: Path) -> bool:
     return done.returncode == 0
 
 
+def fetch_dflash2(
+    setup: ModuleType,
+    pairs: list[tuple[str, str | None]],
+    data: Path,
+    config: Path,
+    family: str,
+) -> None:
+    """The DFlash2 drafter, which no task of this project would otherwise download.
+
+    setup.py fetches the MTP draft layer as part of preparing a model and leaves DFlash2 to
+    ``strata drafting fetch``, a subcommand of a CLI this recipe does not package: a
+    ``drafter = dflash2`` install prepared with no drafter on disk and then served
+    "Drafting: off (no drafter is downloaded yet)". The pack, the draft vocabulary the engine
+    reads it with and the smaller Q4_0 selector this recipe's engine knows are fetched here
+    instead, on both paths (``strata-install`` and a start that had nothing to prepare).
+    ``drafting_fetch.ensure`` keeps a pack that is already there, checks the pinned SHA-256
+    and resumes an interrupted download, so a second run costs one ``stat``.
+
+    Only an explicit choice of DFlash2 fetches anything -- ``drafter = dflash2`` in
+    strata.ini, or ``"drafting": "dflash2"`` in the run config. ``auto`` keeps the MTP as its
+    fallback and downloads nothing; it says "the DFlash2 drafter isn't downloaded yet" and
+    starts the MTP instead.
+    """
+    from strata_control import drafting, drafting_fetch
+
+    asked = (flag_value(pairs, "--drafter") or "").lower()
+    chosen = ""
+    try:
+        record = json.loads(config.read_text(encoding="utf-8"))
+        chosen = str(record.get("drafting") or "").lower()
+    except (OSError, ValueError):
+        pass  # no run config yet, or one this wrapper cannot read
+    if asked != "dflash2" and chosen != "dflash2":
+        return
+    if not drafting.supported_model(None, family):
+        setup.warn(
+            f"DFlash2 is for Qwen3.8-Flash-Next only (qwen, gyro, unsloth), not {family}: "
+            "no drafter is fetched"
+        )
+        return
+
+    # A MiB at a time is how `transfer` reports, so a tenth is what is worth printing.
+    state = {"step": "", "tenth": -1}
+
+    def report(step: str, done: int, total: int) -> None:
+        tenth = 10 * done // total if total else 10
+        if step == state["step"] and (tenth == state["tenth"] or done >= total):
+            return
+        state["step"], state["tenth"] = step, tenth
+        if done < total and total > 1_000_000:  # a byte count, not a packing step
+            print(
+                f"  {step} {done / 1e9:.2f} / {total / 1e9:.2f} GB "
+                f"({100 * done / total:.0f}%)",
+                flush=True,
+            )
+        else:
+            print(f"  {step}", flush=True)
+
+    engine = Path(setup.ROOT) / "engine" / setup.EXE
+    try:
+        drafting_fetch.ensure(data, progress=report)
+        if drafting.engine_reads_selector_q4(engine):
+            drafting_fetch.convert_selector(data, progress=report)
+    except Exception as exc:  # noqa: BLE001 - a download must not lose a prepared model
+        setup.warn(f"the DFlash2 drafter could not be fetched: {exc}")
+        setup.warn(
+            "the model still starts; `pixi run strata-install` fetches it again, and a "
+            "partial download resumes"
+        )
+        return
+    setup.ok(
+        f"DFlash2 drafter: {drafting.pack_path(data, engine)} "
+        f"({drafting.vram_gb(data, engine):.2f} GB of VRAM)"
+    )
+
+
 def trim_mtp_inputs(setup: ModuleType, data: Path) -> None:
     """Reclaim the MTP layer's build inputs, once `rt/` is built and they check out."""
     mtp = data / "mtp"
@@ -452,6 +536,10 @@ def main() -> int:
         record_prepared(data, tag, signature)
         if not keep_mtp:
             trim_mtp_inputs(setup, data)
+
+    # The drafter setup.py does not fetch, on both paths (`strata-install` as well as a
+    # start): a model prepared by an earlier run has to get its pack too (fetch_dflash2).
+    fetch_dflash2(setup, pairs, data, config, family)
     # Several models can be installed at once and setup.py starts the newest run config, so
     # the one strata.ini names has to be the newest by the time it looks.
     if config.is_file():
