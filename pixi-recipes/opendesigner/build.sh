@@ -40,8 +40,7 @@ mkdir -p "${PNPM_HOME}"
 
 export CI=true
 export NODE_ENV=production
-# node-gyp: use the conda Python/toolchain, build the native modules from
-# source (no prebuilt download), and never reach for a system compiler.
+# node-gyp: use the conda Python/toolchain and never reach for a system compiler.
 export npm_config_python="${PYTHON:-$(command -v python3)}"
 # The Electron binary is a build-time-only dependency of apps/desktop, which
 # this headless recipe never builds or deploys. Skipping its ~150 MB download
@@ -53,6 +52,15 @@ export NODE_OPTIONS="--max-old-space-size=4096"
 
 echo "=== pnpm install --frozen-lockfile ==="
 pnpm install --frozen-lockfile
+
+# better-sqlite3's install script prefers prebuild-install, whose Debian-built
+# Node-ABI tarball is not covered by the lockfile's package integrity hash. Replace
+# it with the pinned package source, compiled by the conda toolchain, before the
+# production deploy copies the addon. Scope build_from_source to this one command:
+# sharp treats any non-empty value as a request to compile sharp as well.
+echo "=== rebuild better-sqlite3 from pinned source ==="
+rm -rf "${SRC}/.npm-cache/_prebuilds"
+npm_config_build_from_source=true pnpm --filter @open-design/daemon rebuild better-sqlite3
 
 echo "=== build @open-design/daemon ==="
 pnpm --filter @open-design/daemon build
@@ -182,6 +190,17 @@ find "${APP}/apps/daemon/dist" -type f \( \
     -name "*.map" -o -name "*.tsbuildinfo" \
     \) -delete
 find "${APP}/apps/daemon" -maxdepth 1 -type f -name "*.tsbuildinfo" -delete
+
+# Verify the exact deployed addon, after all cleanup, under the build's Node 24 ABI.
+# This catches both a broken production deploy and accidental removal of native files.
+echo "=== smoke-test deployed better-sqlite3 ==="
+node - "${DM}/better-sqlite3" <<'JS'
+const Database = require(process.argv[2]);
+const db = new Database(":memory:");
+const row = db.prepare("SELECT sqlite_version() AS version").get();
+db.close();
+console.log(`better-sqlite3 loaded; SQLite ${row.version}`);
+JS
 
 # Relative symlink so `od` is on PATH in an activated env (prefix-portable).
 mkdir -p "${PREFIX}/bin"
