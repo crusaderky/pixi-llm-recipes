@@ -63,7 +63,8 @@ about:
   homepage: https://open-design.dev
   repository: https://github.com/nexu-io/open-design
   license: Apache-2.0
-  license_file: LICENSE
+  # Relative to the work dir; the source extracts under open-design/ (target_directory).
+  license_file: open-design/LICENSE
   summary: OpenDesigner headless daemon serving its static web UI on loopback
   description: |
     OpenDesigner is a local-first design product: an Express daemon plus a
