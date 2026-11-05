@@ -2,7 +2,7 @@
 
 ## Status and decisions
 
-Design only; no OpenDesigner implementation is included in this change.
+Slice 1 implements the Linux x86-64 source recipe and `designer` environment; its measurements and verification evidence are in [BUILD-NOTES.md](pixi-recipes/opendesigner/BUILD-NOTES.md). The launchers, Windows path, CI, and update skill remain later-slice design work.
 
 The requested product choices are:
 

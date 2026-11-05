@@ -44,8 +44,8 @@ build:
 
 requirements:
   build:
-    # The native npm modules (better-sqlite3, node-pty) are compiled through
-    # node-gyp, which needs a C/C++ toolchain, make and Python at build time.
+    # better-sqlite3 is compiled through node-gyp, which needs a C/C++
+    # toolchain, make and Python at build time.
     - ${{ compiler('c') }}
     - ${{ compiler('cxx') }}
     - make

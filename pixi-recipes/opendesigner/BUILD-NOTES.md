@@ -127,6 +127,26 @@ siblings — which is the layout upstream's Docker image uses instead.
    `onnxruntime-node/bin/napi-v3/linux/arm64` (34 MiB, equally unloadable on an
    x86_64-only package), left in because the tree is already under the guardrail.
 
+## better-sqlite3 source build
+
+Upstream's `better-sqlite3` install script runs `prebuild-install || node-gyp rebuild
+--release`, and the initial `pnpm install` downloads a Debian-built Node-ABI tarball.
+That prebuilt addon is not covered by the npm package integrity hash in `pnpm-lock.yaml`.
+The recipe therefore deletes `.npm-cache/_prebuilds` and immediately runs a targeted
+`pnpm --filter @open-design/daemon rebuild better-sqlite3` with
+`npm_config_build_from_source=true` before the production deploy. The variable is scoped
+to that command rather than exported: Sharp treats any non-empty value as a request to
+compile Sharp too. `node-gyp` fetches the headers for the lockfile-selected Node 24.22.1
+and verifies them against Node's published SHA-256 list at build time; nothing downloads
+or compiles at runtime.
+
+The deployed addon's `.comment` section reads `GCC: (conda-forge gcc 16.2.0-7) 16.2.0`,
+confirming that the conda toolchain produced the packaged binary. The source rebuild
+adds about two minutes to the cold build. Its Makefiles, object files, static libraries,
+test extension and duplicate linker outputs are stripped after deployment, leaving only
+`build/Release/better_sqlite3.node`; the build script then executes a SQLite query
+against that exact deployed addon.
+
 ## Build-time deviations (do not affect the packaged tree)
 
 - `ELECTRON_SKIP_BINARY_DOWNLOAD=1` / `npm_config_electron_skip_binary_download=1`:
@@ -139,17 +159,17 @@ siblings — which is the layout upstream's Docker image uses instead.
 
 ## Measurements (reference host: 32 cores, ~9 GiB free RAM, fast net)
 
-Figures below are **after** the native-payload/path-strip fixes of this slice; the
-first-spike numbers are kept for comparison.
+Figures below are **after** the native-payload/path-strip and SQLite source-build
+cleanup fixes of this slice; the first-spike numbers are kept for comparison.
 
-| Metric                       | Before (spike)    | After (this slice)                                  |
-| ---------------------------- | ----------------- | --------------------------------------------------- |
-| Cold build wall time         | 2:31.97 (152 s)   | **~2 min** — well under the 30 min guardrail        |
-| Peak RSS (whole build)       | 5.17 GB           | ~5 GB (dominated by the `next build` 4 GiB heap)    |
-| Installed files              | 18 383            | **15 936**                                          |
-| Compressed `.conda`          | 431 / 713 MiB†    | **590 MiB** (install rebuild)†                      |
-| Installed `opt/opendesigner` | 1.2 GB (1201 MiB) | **960 MiB — under the ~1 GiB (1024 MiB) guardrail** |
-| Total `designer` env         | 1.9 GB            | 1.7 GB (hardlinked; under-counts, see below)        |
+| Metric                       | Before (spike)    | After (this slice)                                     |
+| ---------------------------- | ----------------- | ------------------------------------------------------ |
+| Cold build wall time         | 2:31.97 (152 s)   | **~4 min** (4:19.74) — well under the 30 min guardrail |
+| Peak RSS (whole build)       | 5.17 GB           | ~5 GB (dominated by the `next build` 4 GiB heap)       |
+| Installed files              | 18 383            | **15 936**                                             |
+| Compressed `.conda`          | 431 / 713 MiB†    | **590 MiB** (install rebuild)†                         |
+| Installed `opt/opendesigner` | 1.2 GB (1201 MiB) | **960 MiB — under the ~1 GiB (1024 MiB) guardrail**    |
+| Total `designer` env         | 1.9 GB            | 1.7 GB (hardlinked; under-counts, see below)           |
 
 † The compressed `.conda` is **not a stable number**: content is byte-identical
 between `pixi build` and the install-triggered build, only the zstd level differs.
@@ -170,28 +190,29 @@ clear the guardrail.
 
 All run against `.pixi/envs/designer` (abbreviated `$P`).
 
-| Check                                               | Result                                                                                                             |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `$P/bin/node --version`                             | `v24.22.1` ✅                                                                                                      |
-| `$P/bin/pi --version`                               | `1.5.0` ✅ (Pi runs on Node 24)                                                                                    |
-| `$P/bin/pi --list-models`                           | exit 0, lists openrouter providers/models ✅                                                                       |
-| `node .../od.mjs --help` (pnpm/gyp/compiler absent) | prints usage, exit 0 ✅ (starts offline)                                                                           |
-| daemon start + `GET /api/health`                    | HTTP 200, `{"ok":true,"version":"0.25.1",...}` ✅                                                                  |
-| listening socket                                    | `127.0.0.1:7456` only (loopback, not `0.0.0.0`) ✅                                                                 |
-| `OD_DATA_DIR` state                                 | `app.sqlite`, `memory/`, `diagnostics/`, `artifacts/`, managed project dirs under `/tmp/od-test-data` ✅           |
-| key files                                           | `apps/daemon/bin/od.mjs`, `apps/daemon/dist/cli.js`, `apps/web/out/index.html`, `bin/od` (relative) ✅             |
-| no pnpm in env                                      | `$P/bin/pnpm` absent ✅                                                                                            |
-| no compilers in env                                 | no `gcc/g++/cc/make/node-gyp/python` in `$P/bin` ✅                                                                |
-| no Electron / Chromium browser                      | no `*electron*` dirs; only `chromium-bidi` JS + posthog `chrome.ts` parser, no browser binary ✅                   |
-| no host absolute paths                              | `grep -rl home/crusaderky opt/opendesigner` = **0** (`.modules.yaml` + 15 `.bin` dirs removed) ✅                  |
-| TS sources / binding.gyp stripped                   | 0 `*.d.ts`, 0 `binding.gyp` under daemon `node_modules`; **0** `.d.ts` / **0** `.map` under app `dist` ✅          |
-| licenses/notices preserved                          | 321 license/notice/third-party/copying files kept (was 295 before the `*.md` exclusion) ✅                         |
-| native payload trimmed                              | `napi-v3/` = `linux` only (darwin/win32 gone); `node-pty/prebuilds/` absent (no linux-x64 to keep) ✅              |
-| native modules kept (linux)                         | `better_sqlite3.node`, `onnxruntime` linux `.so`, `sharp-linux-x64` ✅ (**node-pty: no linux binary — see below**) |
-| resource trees                                      | all 10 installed and non-empty; drift tripwire asserts count == `BUNDLED_RESOURCE_TREES` (10) ✅                   |
-| `bin/od` symlink                                    | relative → `../opt/opendesigner/apps/daemon/bin/od.mjs` ✅                                                         |
-| `pixi r lint`                                       | passes ✅                                                                                                          |
-| `pixi lock`                                         | not regenerated (no dependency declaration changed this slice) —                                                   |
+| Check                                               | Result                                                                                                                    |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `$P/bin/node --version`                             | `v24.22.1` ✅                                                                                                             |
+| `$P/bin/pi --version`                               | `1.5.0` ✅ (Pi runs on Node 24)                                                                                           |
+| `$P/bin/pi --list-models`                           | exit 0, lists openrouter providers/models ✅                                                                              |
+| `node .../od.mjs --help` (pnpm/gyp/compiler absent) | prints usage, exit 0 ✅ (starts offline)                                                                                  |
+| daemon start + `GET /api/health`                    | HTTP 200, `{"ok":true,"version":"0.25.1",...}` ✅                                                                         |
+| listening socket                                    | `127.0.0.1:7456` only (loopback, not `0.0.0.0`) ✅                                                                        |
+| `OD_DATA_DIR` state                                 | `app.sqlite`, `memory/`, `diagnostics/`, `artifacts/`, managed project dirs under `/tmp/od-test-data` ✅                  |
+| key files                                           | `apps/daemon/bin/od.mjs`, `apps/daemon/dist/cli.js`, `apps/web/out/index.html`, `bin/od` (relative) ✅                    |
+| no pnpm in env                                      | `$P/bin/pnpm` absent ✅                                                                                                   |
+| no compilers in env                                 | no `gcc/g++/cc/make/node-gyp/python` in `$P/bin` ✅                                                                       |
+| no Electron / Chromium browser                      | no `*electron*` dirs; only `chromium-bidi` JS + posthog `chrome.ts` parser, no browser binary ✅                          |
+| no host absolute paths                              | `grep -rl home/crusaderky opt/opendesigner` = **0** (`.modules.yaml` + 15 `.bin` dirs removed) ✅                         |
+| TS sources / binding.gyp stripped                   | 0 `*.d.ts`, 0 `binding.gyp` under daemon `node_modules`; **0** `.d.ts` / **0** `.map` under app `dist` ✅                 |
+| licenses/notices preserved                          | 321 license/notice/third-party/copying files kept (was 295 before the `*.md` exclusion) ✅                                |
+| native payload trimmed                              | `napi-v3/` = `linux` only (darwin/win32 gone); `node-pty/prebuilds/` absent (no linux-x64 to keep) ✅                     |
+| native modules kept (linux)                         | `better_sqlite3.node`, `onnxruntime` linux `.so`, `sharp-linux-x64` ✅ (**node-pty: no linux binary — see below**)        |
+| better-sqlite3 source build + cleanup               | conda GCC 16.2.0 in `.comment`; deployed SQLite query returns 3.53.1; only `build/Release/better_sqlite3.node` remains ✅ |
+| resource trees                                      | all 10 installed and non-empty; drift tripwire asserts count == `BUNDLED_RESOURCE_TREES` (10) ✅                          |
+| `bin/od` symlink                                    | relative → `../opt/opendesigner/apps/daemon/bin/od.mjs` ✅                                                                |
+| `pixi r lint`                                       | passes ✅                                                                                                                 |
+| `pixi lock`                                         | not regenerated (no dependency declaration changed this slice) —                                                          |
 
 The daemon started with a PATH containing **only** `node` (no pnpm, node-gyp, or
 compiler), proving the tree starts offline except for the user's chosen model traffic.
