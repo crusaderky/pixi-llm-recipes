@@ -142,6 +142,11 @@ find "${DM}" -type d -name .bin -prune -exec rm -rf '{}' +
 # lib/utils.js loadNativeModule() picks prebuilds/${platform}-${arch}. node-pty ships
 # no linux-x64 prebuild at all, so its whole prebuilds/ tree is dead here. Nothing
 # under linux is touched.
+#
+# napi-v3/linux/arm64 (34 MiB) is equally unloadable on an x86_64-only package, but it
+# is deliberately left in: the installed tree is already under DESIGN.md's ~1 GiB
+# guardrail at 960 MiB, so this stays the first lever to pull if that changes rather
+# than widening this pass's diff for 3%.
 rm -rf "${DM}"/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v3/darwin
 rm -rf "${DM}"/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v3/win32
 rm -rf "${DM}"/.pnpm/node-pty@*/node_modules/node-pty/prebuilds/darwin-*
@@ -153,8 +158,11 @@ find "${DM}" -type d \( \
     -name ".github" \
     \) -prune -exec rm -rf '{}' +
 # READMEs/changelogs go; licenses and third-party notices stay (DESIGN.md step 7
-# "Preserve licenses and bundled third-party notices" -- e.g. the LGPL libvips
-# NOTICE shipped with @img/sharp-libvips-linux-x64).
+# "Preserve licenses and bundled third-party notices") -- the exclusion keeps the 28
+# license/notice markdown files the sweep would otherwise take, e.g. tar's, jose's and
+# pdf-lib's LICENSE.md and lie's and express-rate-limit's license.md. (@img/sharp-
+# libvips-linux-x64 ships no root notice at all -- only lib/, package.json and
+# versions.json -- so it is not an example of this, only of the README going.)
 find "${DM}" -type f \( -name "*.md" -o -name "*.markdown" \) \
     ! -iname 'licen[cs]e*' ! -iname 'notice*' ! -iname '*third*party*' ! -iname 'copying*' \
     -delete

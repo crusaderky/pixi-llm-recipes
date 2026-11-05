@@ -119,7 +119,13 @@ siblings — which is the layout upstream's Docker image uses instead.
    channel list, so pixi rebuilds it from the recipe at install), which makes trimming
    the only size lever. Third-party `*.ts` sources under `node_modules` are kept
    deliberately (upstream fidelity: a dep's published `src/*.ts` can be its entry
-   point); only the app's own `dist` declaration files/sourcemaps are stripped.
+   point); only the app's own `dist` declaration files/sourcemaps are stripped. That
+   strip leaves `apps/daemon/package.json`'s `types` / `exports["."].types` pointing at
+   the deleted `dist/cli.d.ts` — cosmetic only: Node resolves through the `default`
+   condition (`dist/cli.js`, shipped) and `types` is read by TypeScript/bundlers, which
+   never consume this private leaf app. The remaining measured lever is
+   `onnxruntime-node/bin/napi-v3/linux/arm64` (34 MiB, equally unloadable on an
+   x86_64-only package), left in because the tree is already under the guardrail.
 
 ## Build-time deviations (do not affect the packaged tree)
 
@@ -218,6 +224,11 @@ win32 entries, it has no `build/Release` (pnpm never ran its install script —
 upstream's `pnpm.onlyBuiltDependencies` allowlist omits `node-pty`, and
 `.modules.yaml` `ignoredBuilds` listed `node-pty@1.1.0`; upstream's own Docker image
 has the same gap). So the whole `prebuilds/` tree was dead weight here and is removed.
+The `ignoredBuilds` line is a **build-time** observation only: `build.sh` deletes
+`.modules.yaml` from the package (DESIGN step 8), so a reader re-checking this against
+an installed tree must use upstream's `package.json` allowlist in the tag archive, not
+the shipped tree. The 58 MiB removed is measured, not inferred — the pre-fix installed
+tree held `prebuilds/{win32-arm64 28 MiB, win32-x64 30 MiB, darwin-* 0.2 MiB}`.
 
 The consequence is a confined feature loss, **not** a core-scope regression: the
 interactive Terminal feature cannot load its PTY native module. The failure is
