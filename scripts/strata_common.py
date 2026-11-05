@@ -339,8 +339,9 @@ def app_dirs() -> list[Path]:
     strata env itself, a sibling env of it (the layout of an `agents` env, which ships no
     strata package of its own), or this repo's own .pixi/envs/strata."""
     prefix = os.environ.get("CONDA_PREFIX")
+    root = os.environ.get("STRATA_ROOT")
     candidates = [
-        os.environ.get("STRATA_ROOT"),
+        Path(root) if root else None,
         Path(prefix) / "opt" / "strata" if prefix else None,
         Path(prefix).parent / "strata" / "opt" / "strata" if prefix else None,
         repo_root() / ".pixi" / "envs" / "strata" / "opt" / "strata",

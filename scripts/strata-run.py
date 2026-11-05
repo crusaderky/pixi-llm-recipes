@@ -222,7 +222,15 @@ def resolve_model(setup: ModuleType, family: str, model: str) -> str:
     table = fam.get("models") or setup.MODELS
     known = {name.lower(): name for name in table}
     if model.lower() not in known:
-        sys.exit(f"model {model!r}: {family} offers {', '.join(table)}")
+        # only the family's own sizes: MODELS holds every family's (Q2_0 … Q8_0, the Gyro and NVFP4 files),
+        # and a message that lists them all reads as if the family shipped them
+        offered = [
+            name
+            for name, meta in table.items()
+            if table is not setup.MODELS
+            or family in meta.get("families", ("qwen", "swift"))
+        ]
+        sys.exit(f"model {model!r}: {family} offers {', '.join(offered)}")
     model = known[model.lower()]
     if table is setup.MODELS:
         families = setup.MODELS[model].get("families", ("qwen", "swift"))

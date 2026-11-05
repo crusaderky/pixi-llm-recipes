@@ -1,0 +1,311 @@
+--- a/setup.py
++++ b/setup.py
+@@ -97,9 +97,9 @@
+     "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF": "ed59f92082b1e93c0e96d60a8b11aab089b52f09",        # 2026-09-29
+     "ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF": "99bb8f7f95c7aa7b24a36a7786a4f657b30f5d3d",   # 2026-10-07 (adds IQ3_S)
+     "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-Coder-GGUF": "5348543e0147355ac9cbcb031184a3546350988e",  # 2026-09-29
+-    "unsloth/Qwen3.8-Flash-Next-GGUF": "38bb39ee97821de2c9009abb7e93950eec396e66",                   # 2026-09-30
++    "unsloth/Qwen3.8-Flash-Next-GGUF": "d96201194f103c906994f283f504209dc8d2a10c",                   # 2026-11-04 (UD-IQ1_S … UD-Q3_K_XL, four-way re-split)
+     "unsloth/Qwen3.6-35B-A3B-MTP-GGUF": "5bc3e238d916f48a861bac2f8a1990a0e9b7e98d",                  # 2026-10-12
+-    "agentionai/Qwen3.8-Flash-Next-Gyro-GGUF": "1ada08422e404aca51ab9df665f089f34c419c6b",           # 2026-10-13
++    "agentionai/Qwen3.8-Flash-Next-Gyro-GGUF": "05892758a67efff0895d23c6df10a6fdb6be8cf4",           # 2026-10-25 (adds Gyro-L; S and M byte-identical)
+     "unsloth/DeepSeek-V4.1-Flash-1017-GGUF": "8a6ec9cf118e785a362ea94ee123c61c70553be6",             # 2026-10-30 (adds UD-IQ1_S / UD-IQ1_M; every file pinned from the 2026-10-20 commit has the same size and SHA-256 here)
+     "ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-GGUF": "cb02422c900df489cea5833e8a92171224059b3c",    # 2026-10-24 (ISTA-DASLab's final 1.75 / 2.00 / 2.25 bpw sets and Engram)
+ }
+@@ -353,8 +353,9 @@
+ # the first engine that reads NVIDIA's NVFP4 n-gram table (strata.ple.format = nvfp4x16); a source build of this checkout has it
+ FP4LOCAL_ENGINE = (0, 1, 45)
+ 
+-# agentionai's Gyro files (Qwen3.8-Flash-Next with trellis-coded, Hadamard-rotated experts, TQ2_T / TQK6 / TQK7): one
+-# GGUF per size, the n-gram table inside it (hence the 58 / 92 GB downloads for 27.6 / 35 GB of memory).  The engine
++# agentionai's Gyro files (Qwen3.8-Flash-Next with trellis-coded, Hadamard-rotated experts: TQ2_T / TQK6 / TQK7 for S
++# and M, the pair-trellis TQP5 / TQP6 / TQP7 for L): one GGUF per size, the n-gram table inside it (hence the 58 / 92 /
++# 108 GB downloads for 27.6 / 35 / 50.2 GB of memory).  The engine
+ # reads them from 0.1.45.1 on: the experts are native_experts.txt v5 (Hadamard-folded, hadamard.txt), which the engine reads since the
+ # APR port (commit f47b0385f, 2026-10-02, first in the 0.2.0 line).  The released 0.1.45 engine reads only up to v4 and refuses a
+ # Gyro pack, so 0.1.45 is NOT enough: 0.1.45.1 is the first engine package built after the reader was merged (checked: the
+@@ -367,6 +368,8 @@
+         (58487015808, "c6ea1b08ca312f99095b27588ba35976b53f948268e7f91e7761926aa01d9c87"),
+     "Qwen3.8-Flash-Next-Gyro-M-TQ2_0.gguf":
+         (91965774272, "7aa36d15131d255179ab6c87fa9c9f81a0b541fc9e81e959d4c3e29eb20feb5f"),
++    "Qwen3.8-Flash-Next-Gyro-L-TQ3_0.gguf":
++        (108323559808, "5428a5646eaeaa56cc00a892f92e7546aeadb255233503969ad25cf48c7f359b"),
+ }
+ 
+ # ISTA-DASLab's Qwen3.8-Flash-Next shards (Q2_0, IQ2_XS, IQ3_XXS, IQ3_S) and the picture reader at the revision pinned in HF_REVISIONS: name -> (bytes, sha256),
+@@ -436,15 +439,52 @@
+     # the Coder release: 256 of the 512 experts kept (the ones code, tools and vision use), IQ2_S-IQ4_XS like IQ3_S
+     "IQ1_M": {"about": "the Coder's only size: half the experts, stored like IQ3_S (3.5 bits)", "download_gb": 58.4,
+               "ram_gb": 32, "arena_gb": 23.4, "families": ("coder",)},
+-    # #621: Unsloth's UD-IQ4_XS - IQ3_S gate/up experts with IQ4_NL (43 layers) or Q8_0 (5) downs, the dense side as
+-    # UD-Q4_K_XL's; three shards.  A regular choice from 0.1.39 (no longer experimental).  Its 59.5 GB of experts: a
+-    # RAM budget of them, like UD-Q4_K_XL, but far fewer read from the SSD on a 64 GB PC and none from ~80 GB of RAM.
+-    # Images: the vision path has no restriction for this pack (the same base model and image encoder), so setup asks
++    # Unsloth's low-bit sizes, from the 2026-11-04 revision: the same GGUF-in-place mode as UD-Q4_K_XL, and in the
++    # three- and four-shard files the 28.8 GB PLE table (IQ4_NL) is a shard of its own - the same bytes ISTA's shard 2
++    # carries, read natively by the engine.  Below UD-Q4_K_XL the routed experts are an i-quant mix (gate/up IQ2_XXS /
++    # IQ2_XS / IQ2_S / IQ3_XXS / IQ4_XS, down Q2_0 / IQ4_NL / Q5_0), which tools/iq_pack.py keeps as the GGUF stores
++    # them - no conversion - so the engine's native expert kernels (src/kernels/cuda/iq_kernels.cu's Fmt<>) do the
++    # arithmetic.  Q5_0 expert downs are the newest of those formats (GPU since 0.1.38, #473), and that is every
++    # new size's floor: 0.1.44's K-quant expert kernels are not involved - these files' "K_XL" names are about
++    # their dense tensors.  "ram_gb" is UNSLOTH_MIN_RAM_GB for these RAM-budget sizes, as for UD-IQ4_XS and
++    # UD-Q4_K_XL.  Images: the vision path has no restriction for any of them (the same base model and image
++    # encoder), so setup asks.
++    "UD-IQ1_S": {"about": "the smallest Unsloth size: a ~1.5-bit dynamic mix, the fastest and the least precise",
++                 "download_gb": 66.4, "ram_gb": 48, "arena_gb": 33.4, "families": ("unsloth",), "budget": True,
++                 "shards": 3, "file": "Qwen3.8-Flash-Next-{q}-0000{i}-of-00003.gguf", "engine": (0, 1, 38),
++                 "vision": True},
++    "UD-IQ1_M": {"about": "a ~1.75-bit dynamic mix: between UD-IQ1_S and UD-IQ2_XS in quality and speed",
++                 "download_gb": 68.0, "ram_gb": 48, "arena_gb": 34.8, "families": ("unsloth",), "budget": True,
++                 "shards": 3, "file": "Qwen3.8-Flash-Next-{q}-0000{i}-of-00003.gguf", "engine": (0, 1, 38),
++                 "vision": True},
++    "UD-IQ2_XS": {"about": "2-bit i-quant mix (Unsloth Dynamic), close to ISTA-DASLab's IQ2_XS",
++                  "download_gb": 75.8, "ram_gb": 48, "arena_gb": 42.3, "families": ("unsloth",), "budget": True,
++                  "shards": 3, "file": "Qwen3.8-Flash-Next-{q}-0000{i}-of-00003.gguf", "engine": (0, 1, 38),
++                  "vision": True},
++    "UD-IQ3_XXS": {"about": "3-bit i-quant mix (Unsloth Dynamic), about ISTA-DASLab's IQ3_XXS in quality",
++                   "download_gb": 83.6, "ram_gb": 48, "arena_gb": 50.3, "families": ("unsloth",), "budget": True,
++                   "shards": 4, "file": "Qwen3.8-Flash-Next-{q}-0000{i}-of-00004.gguf", "engine": (0, 1, 38),
++                   "vision": True},
++    # #621: Unsloth's UD-IQ4_XS - i-quant experts, the dense side as UD-Q4_K_XL's; four shards again since the
++    # 2026-11-04 revision.  A regular choice from 0.1.39 (no longer experimental).  Its 60.4 GB of experts: a RAM
++    # budget of them, like UD-Q4_K_XL, but far fewer read from the SSD on a 64 GB PC and none from ~80 GB of RAM.
+     "UD-IQ4_XS": {"about": "~4-bit i-quant (Unsloth Dynamic), between IQ3_S and UD-Q4_K_XL in quality; on a PC with "
+                            "less than ~80 GB of RAM part of its experts are read from the SSD",
+-                  "download_gb": 93.7, "ram_gb": 48, "arena_gb": 59.5, "families": ("unsloth",), "budget": True,
+-                  "shards": 3, "file": "Qwen3.8-Flash-Next-{q}-0000{i}-of-00003.gguf", "engine": (0, 1, 38),
++                  "download_gb": 93.7, "ram_gb": 48, "arena_gb": 60.4, "families": ("unsloth",), "budget": True,
++                  "shards": 4, "file": "Qwen3.8-Flash-Next-{q}-0000{i}-of-00004.gguf", "engine": (0, 1, 38),
+                   "vision": True},
++    "UD-Q2_0": {"about": "2-bit, the routed experts as Q2_0 and IQ2_XXS with IQ4_NL downs; the fastest of the 2-bit set",
++                "download_gb": 70.5, "ram_gb": 48, "arena_gb": 37.4, "families": ("unsloth",), "budget": True,
++                "shards": 3, "file": "Qwen3.8-Flash-Next-{q}-0000{i}-of-00003.gguf", "engine": (0, 1, 38),
++                "vision": True},
++    "UD-Q2_K_XL": {"about": "2-bit (Unsloth Dynamic), between UD-Q2_0 and UD-Q3_K_XL in quality",
++                   "download_gb": 79.6, "ram_gb": 48, "arena_gb": 46.0, "families": ("unsloth",), "budget": True,
++                   "shards": 4, "file": "Qwen3.8-Flash-Next-{q}-0000{i}-of-00004.gguf", "engine": (0, 1, 38),
++                   "vision": True},
++    "UD-Q3_K_XL": {"about": "3-bit (Unsloth Dynamic), between UD-Q2_K_XL and UD-Q4_K_XL in quality",
++                   "download_gb": 89.5, "ram_gb": 48, "arena_gb": 56.2, "families": ("unsloth",), "budget": True,
++                   "shards": 4, "file": "Qwen3.8-Flash-Next-{q}-0000{i}-of-00004.gguf", "engine": (0, 1, 38),
++                   "vision": True},
+     # Unsloth's 4-bit file (docs/UNSLOTH_Q4.md); experimental until MODEL-UPDATE Phase 2.  Its 77 GB of experts stay in
+     # RAM from ~94 GB of RAM (unsloth_budget); on a 64 GB PC the engine keeps a RAM budget of them
+     # (--resident-budget-gib, chosen below) and reads the rest from the GGUF on the SSD.  It runs on AMD too (R9700:
+@@ -477,10 +517,10 @@
+     # original's image encoder (ISTA's mmproj, the same file as for every Flash-Next model) reads pictures for them;
+     # checked end to end on an RTX 5070 and an RTX 3060 against IQ3_XXS's answers on the same picture.
+     # Gyro (agentionai): "ram_gb" is the memory the weights need in total, VRAM and RAM together ("mem_total"): Gyro-S
+-    # 27.6 GB, Gyro-M 35 GB (the rest of the download is the n-gram table, read from the SSD).  Neither is anyone's
+-    # default: setup and the MCP server mention them where the other sizes do not fit.  Images: the same mmproj as every
+-    # Flash-Next model; strata-vision reads only the vocabulary and header of the Gyro GGUF (tools/vision/gguf_meta.h),
+-    # whose TQK6 / TQK7 tensors llama.cpp does not know.
++    # 27.6 GB, Gyro-M 35 GB, Gyro-L 50.2 GB (the rest of the download is the n-gram table, read from the SSD).  None is
++    # anyone's default: setup and the MCP server mention them where the other sizes do not fit.  Images: the same mmproj
++    # as every Flash-Next model; strata-vision reads only the vocabulary and header of the Gyro GGUF
++    # (tools/vision/gguf_meta.h), whose trellis tensors llama.cpp does not know.
+     "Gyro-S": {"about": "the smallest option, for PCs with little memory (27.6 GB of VRAM + RAM together); lower quality "
+                         "than the 2-3-bit sizes, and the 2-bit Q2_0 decodes faster",
+                "download_gb": 58.5, "ram_gb": 27.6, "arena_gb": 25.8, "families": ("gyro",), "mem_total": True,
+@@ -489,6 +529,9 @@
+                         "about 16-21% slower than Q2_0 on 12 GB cards",
+                "download_gb": 92.0, "ram_gb": 35.0, "arena_gb": 32.1, "families": ("gyro",), "mem_total": True,
+                "file": "Qwen3.8-Flash-Next-Gyro-M-TQ2_0.gguf", "shards": 1, "engine": GYRO_ENGINE, "vision": True},
++    "Gyro-L": {"about": "the largest Gyro file (50.2 GB of VRAM + RAM together), the closest to the 4-bit sizes",
++               "download_gb": 108.3, "ram_gb": 50.2, "arena_gb": 48.4, "families": ("gyro",), "mem_total": True,
++               "file": "Qwen3.8-Flash-Next-Gyro-L-TQ3_0.gguf", "shards": 1, "engine": GYRO_ENGINE, "vision": True},
+     "NVFP4": {"about": "best quality of the NVFP4 versions (GPTQ, sergqwer's strata-nvfp4 pack); RTX 50 has FP4 tensor cores, "
+                        "other NVIDIA cards run it at 8-bit precision", "download_gb": 128.0, "ram_gb": 80, "arena_gb": 68.0,
+               "families": ("nvfp4",), "nvidia_only": True, "vision": True, "repo": NVFP4_GPTQ_REPO,
+@@ -511,30 +554,85 @@
+                              "Agreement) with Qwen3.8-Flash-Next's Qwen Community License 1.0: "
+                              "https://huggingface.co/nvidia/Qwen3.8-Flash-Next-FP4-Local"},
+ }
+-# The experimental Unsloth file's four shards at the pinned revision: name -> (bytes, sha256), checked after the
+-# download (setup trusts no other model file by name and size alone either: check_shards reads their directories).
+-UNSLOTH_SHARDS = {
++# Every shard of every Unsloth size at the revision pinned in HF_REVISIONS: name -> (bytes, sha256), the Hub's LFS
++# pointers (tools/hf_pin_fetch.py).  setup.py's own download() checks a shard against this as soon as it is whole,
++# and stops before the download when the server's size is not the pinned one.  A --gguf-dir folder
++# (scripts/strata-run.py) is checked for length instead, against each shard's own tensor table (check_shards).
++UNSLOTH_FILES = {
++    # UD-IQ1_S: 3 shards, 66.4 GB, 33.4 GB of experts
++    "Qwen3.8-Flash-Next-UD-IQ1_S-00001-of-00003.gguf":
++        (10946618, "df6ba2c00267aa4853231fdb203ba76b67b7eadcfb372df65842760b9efa1a8d"),
++    "Qwen3.8-Flash-Next-UD-IQ1_S-00002-of-00003.gguf":
++        (37568095648, "7101e65fb6084e65c9e2c678291d8b6b62dfcce89c422958633cf5585a68cbb6"),
++    "Qwen3.8-Flash-Next-UD-IQ1_S-00003-of-00003.gguf":
++        (28800138432, "05716382c280d999b81afff92b2d527fadbfd926ac225ffdc273f2d1d13331c6"),
++    # UD-IQ1_M: 3 shards, 68.0 GB, 34.8 GB of experts
++    "Qwen3.8-Flash-Next-UD-IQ1_M-00001-of-00003.gguf":
++        (10946618, "b0d883bb9464021f31074145af74bfc2aa2d4bf0cf506f26f6f5107f4ca6ce17"),
++    "Qwen3.8-Flash-Next-UD-IQ1_M-00002-of-00003.gguf":
++        (39196009888, "bddcd79634ccddbb2e0951345c73c6ae8bd7b12594f55a2a529474701757391e"),
++    "Qwen3.8-Flash-Next-UD-IQ1_M-00003-of-00003.gguf":
++        (28800138432, "05716382c280d999b81afff92b2d527fadbfd926ac225ffdc273f2d1d13331c6"),
++    # UD-IQ2_XS: 3 shards, 75.8 GB, 42.3 GB of experts
++    "Qwen3.8-Flash-Next-UD-IQ2_XS-00001-of-00003.gguf":
++        (10946618, "91e8dc8f1428ce25d48fd1f711e4bf1f42215c5bac0f32eeb5608e6ec7ae91e9"),
++    "Qwen3.8-Flash-Next-UD-IQ2_XS-00002-of-00003.gguf":
++        (47021008288, "11a67c82f54a9edf683d6b708062de78d803921a18a6cb2bf1dd55949b4ef9bd"),
++    "Qwen3.8-Flash-Next-UD-IQ2_XS-00003-of-00003.gguf":
++        (28800138432, "05716382c280d999b81afff92b2d527fadbfd926ac225ffdc273f2d1d13331c6"),
++    # UD-IQ3_XXS: 4 shards, 83.6 GB, 50.3 GB of experts
++    "Qwen3.8-Flash-Next-UD-IQ3_XXS-00001-of-00004.gguf":
++        (10946618, "9d5644b371ffac921427c8021cc7242dab8e3ba37d7b48d1e79fe3770fbf9915"),
++    "Qwen3.8-Flash-Next-UD-IQ3_XXS-00002-of-00004.gguf":
++        (49946027488, "aacaff3bdb9032c2c3be428167930809735f65d3cfb204eba07d85e421e7ddf4"),
++    "Qwen3.8-Flash-Next-UD-IQ3_XXS-00003-of-00004.gguf":
++        (4869325888, "ef8f14e790ab471b363f146d5e8664eefbaf03e5776f317a1fb96a2bc7707b07"),
++    "Qwen3.8-Flash-Next-UD-IQ3_XXS-00004-of-00004.gguf":
++        (28800138432, "5de8b5dbf89409acc39468decafd4a4a95b13c29d88a14b0356107897829ec36"),
++    # UD-IQ4_XS: 4 shards, 93.7 GB, 60.4 GB of experts
++    "Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf":
++        (10946618, "93ff23a08e5cd7501f24fa16f5b415d5807d0175e04edd3ed6a7a41b601a4eef"),
++    "Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00004.gguf":
++        (49604491008, "13d5dc8b93d039e4cfade5a9af7037f10c97f7ec4e53f75bd2e9ae34aae54aeb"),
++    "Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00004.gguf":
++        (15256783680, "f6b9b5934908a2043732269dd740155d0f921d0763a1dcdd3452246311651f87"),
++    "Qwen3.8-Flash-Next-UD-IQ4_XS-00004-of-00004.gguf":
++        (28800138432, "5de8b5dbf89409acc39468decafd4a4a95b13c29d88a14b0356107897829ec36"),
++    # UD-Q2_0: 3 shards, 70.5 GB, 37.4 GB of experts
++    "Qwen3.8-Flash-Next-UD-Q2_0-00001-of-00003.gguf":
++        (10946618, "38803c4e8d13077165aa9854502b3d4e7fef750e72a21d27a38ee42089f96ad6"),
++    "Qwen3.8-Flash-Next-UD-Q2_0-00002-of-00003.gguf":
++        (41738806688, "57af20207d5f18fa72fba503806d98d65f58ba3982fe55c89c6ed6e691471acc"),
++    "Qwen3.8-Flash-Next-UD-Q2_0-00003-of-00003.gguf":
++        (28800138432, "05716382c280d999b81afff92b2d527fadbfd926ac225ffdc273f2d1d13331c6"),
++    # UD-Q2_K_XL: 4 shards, 79.6 GB, 46.0 GB of experts
++    "Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00004.gguf":
++        (10946618, "297e174dc185f2bf3ab1856461059cb8a05aa741bc27edf42461cde87e5420af"),
++    "Qwen3.8-Flash-Next-UD-Q2_K_XL-00002-of-00004.gguf":
++        (49732486272, "a4782511810bb61bd6b3236607a0aad05b1bfa04b90356defd202bb17e7db16d"),
++    "Qwen3.8-Flash-Next-UD-Q2_K_XL-00003-of-00004.gguf":
++        (1037181344, "4dffc4a1cea7ad484f2d5c711b747840e459b040b636cc8ddaa524d01e60662e"),
++    "Qwen3.8-Flash-Next-UD-Q2_K_XL-00004-of-00004.gguf":
++        (28800138432, "5de8b5dbf89409acc39468decafd4a4a95b13c29d88a14b0356107897829ec36"),
++    # UD-Q3_K_XL: 4 shards, 89.5 GB, 56.2 GB of experts
++    "Qwen3.8-Flash-Next-UD-Q3_K_XL-00001-of-00004.gguf":
++        (10946618, "7666000ba91eb5527f8e12e0414de36766dc82a082876337f7827c2caa859143"),
++    "Qwen3.8-Flash-Next-UD-Q3_K_XL-00002-of-00004.gguf":
++        (49742117248, "e954cb3044ae087a003ce8cc1631c9d40fe15ae64a8befcf4aa06457848c647c"),
++    "Qwen3.8-Flash-Next-UD-Q3_K_XL-00003-of-00004.gguf":
++        (10911746208, "fcce26b1e5e6e54559a7e7c2f8d6e37067ec695ff1f14bce662810bde78abe1f"),
++    "Qwen3.8-Flash-Next-UD-Q3_K_XL-00004-of-00004.gguf":
++        (28800138432, "5de8b5dbf89409acc39468decafd4a4a95b13c29d88a14b0356107897829ec36"),
++    # UD-Q4_K_XL: 4 shards, 111.3 GB, 77.0 GB of experts
+     "Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf":
+-        (10946624, "4448186216b3af4cc558bbce2c3213f01608f8f8b2e5267a9767971dd3ec8082"),
++        (10946618, "acc44040f74d0e55fb89c3967056cce5dbda1bcc52e909c3ba6fc72b5e9c0858"),
+     "Qwen3.8-Flash-Next-UD-Q4_K_XL-00002-of-00004.gguf":
+-        (49859583136, "3f342f1c1580473f1ee94ddd5b28206e8c07a70fa1a366f59d1d6c922919a6c9"),
++        (49720539552, "45792ae869072d8229384c51c7c73dd959e191505252b41dd71852d9746f5ce4"),
+     "Qwen3.8-Flash-Next-UD-Q4_K_XL-00003-of-00004.gguf":
+-        (49376141504, "56758f40269cad5cd9b0d3d6fbae0f40f6d5be6de49e4ab392dbe83157d9cbd3"),
++        (32803030176, "8c76e79d444b16a663d9c8db54e585ed3b1da13eebd2619c37b0c355da803c82"),
+     "Qwen3.8-Flash-Next-UD-Q4_K_XL-00004-of-00004.gguf":
+-        (12087983520, "753bda48b98ba4f1636134a90a967de1b2d3908a236c026e464777342e53510a"),
+-}
+-# #621: UD-IQ4_XS's three shards at the same revision (sizes and SHA-256: the Hub's LFS pointers)
+-UNSLOTH_IQ4_XS_SHARDS = {
+-    "Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf":
+-        (10946624, "5ce89370720f8bf90890f439361282104c1aa1482d4013bb9a50923e758e71a4"),
+-    "Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00003.gguf":
+-        (49835229856, "577a38a2392b40ca2193cea502e1d92f60b8cd370675d308e0ec21885d9daaa7"),
+-    "Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00003.gguf":
+-        (43836407744, "d4634e6d84f0ebb0940be15c90d3790bf6464e3dea3a1cddc567dc0e83ad8833"),
+-}
+-# MODEL-UPDATE: UD-Q5_K_XL, UD-Q6_K_XL and Q8_0 at the same revision (sizes and SHA-256: the Hub's LFS pointers; shards
+-# 2 and 3 are byte-identical across the three)
+-UNSLOTH_BIG_SHARDS = {
++        (28800138432, "5de8b5dbf89409acc39468decafd4a4a95b13c29d88a14b0356107897829ec36"),
++    # UD-Q5_K_XL: 6 shards, 158.3 GB, 98.4 GB of experts
+     "Qwen3.8-Flash-Next-UD-Q5_K_XL-00001-of-00006.gguf":
+         (10946618, "610922cdb1afe1094e95d7a3e86b12ee33317ebbf7320ac9344e21b6ae4bb69f"),
+     "Qwen3.8-Flash-Next-UD-Q5_K_XL-00002-of-00006.gguf":
+@@ -547,6 +645,7 @@
+         (49882416192, "0b2437f661f584030cb5aeb8fb1bb70f6422518a6746bfcc0304167c7b6b8beb"),
+     "Qwen3.8-Flash-Next-UD-Q5_K_XL-00006-of-00006.gguf":
+         (3320101792, "55dd96c5ad0863b06b6393151b9ad0ac727b8d58a62e02a296ca5d5ddbfee4a3"),
++    # UD-Q6_K_XL: 6 shards, 169.2 GB, 109.2 GB of experts
+     "Qwen3.8-Flash-Next-UD-Q6_K_XL-00001-of-00006.gguf":
+         (10946624, "8bdc6bad55b6699f46f60708829932ff4018d7ac9bd309c388534fa31753bdb7"),
+     "Qwen3.8-Flash-Next-UD-Q6_K_XL-00002-of-00006.gguf":
+@@ -559,6 +658,7 @@
+         (49419317344, "9948e81ae8368144b135a7403d8c0f2cf9a6c2f9f692313865855b2832e696c9"),
+     "Qwen3.8-Flash-Next-UD-Q6_K_XL-00006-of-00006.gguf":
+         (14838313984, "e4ae255234f42b18012f6d6eec5bf615b57479b7e0a0233c47436a321ffeec3f"),
++    # Q8_0: 6 shards, 188.2 GB, 128.3 GB of experts
+     "Qwen3.8-Flash-Next-Q8_0-00001-of-00006.gguf":
+         (10946624, "2dabcbb53ca537a7947bc7d20414fd464eeaf4d66d43021b5b2556cc87544ad2"),
+     "Qwen3.8-Flash-Next-Q8_0-00002-of-00006.gguf":
+@@ -607,23 +707,23 @@
+               "mmproj_hf": hf("ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-Coder-GGUF"),
+               "mmproj": "mmproj-Qwen3.8-Flash-Next-BF16.gguf", "name": "qwen3.8-flash-next-coder",
+               "profile": "expert-profile-coder.bin"},
+-    # Unsloth's UD-IQ4_XS (three shards, #621), UD-Q4_K_XL (four), UD-Q5_K_XL, UD-Q6_K_XL and Q8_0 (six) of the original
+-    # model (docs/QUANTS.md): regular choices since f-quants; the shard count and "vision" are per model (MODELS)
+-    "unsloth": {"title": "Qwen3.8-Flash-Next (Unsloth)", "by": "Unsloth's 4- to 8-bit quantizations",
+-                "about": "UD-IQ4_XS, UD-Q4_K_XL, UD-Q5_K_XL, UD-Q6_K_XL or Q8_0 (94 to 188 GB downloads): every expert in "
+-                         "RAM from ~80 GB (UD-IQ4_XS) to ~136 GB (Q8_0) of RAM, else part of them read from the SSD",
++    # Unsloth's files of the original model (docs/QUANTS.md): UD-IQ1_S … UD-Q6_K_XL and Q8_0, three, four or six shards
++    # each at the 2026-11-04 revision; the shard count and "vision" are per model (MODELS)
++    "unsloth": {"title": "Qwen3.8-Flash-Next (Unsloth)", "by": "Unsloth's 1.5- to 8-bit quantizations",
++                "about": "UD-IQ1_S to UD-Q6_K_XL and Q8_0 (66 to 188 GB downloads): every expert in RAM from ~48 GB "
++                         "(UD-IQ1_S) to ~136 GB (Q8_0) of RAM, else part of them read from the SSD",
+                 "hf": hf("unsloth/Qwen3.8-Flash-Next-GGUF") + "{q}/",
+                 "file": "Qwen3.8-Flash-Next-{q}-0000{i}-of-00004.gguf", "shards": 4, "tag": "unsloth-",
+                 "mmproj_hf": hf("ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"),
+                 "mmproj": "mmproj-Qwen3.8-Flash-Next-BF16.gguf", "name": "qwen3.8-flash-next-unsloth",
+                 "vision": True, "pack_args": ["--compat-bf16"],
+-                "sha256": {**UNSLOTH_SHARDS, **UNSLOTH_IQ4_XS_SHARDS, **UNSLOTH_BIG_SHARDS}},
++                "sha256": UNSLOTH_FILES},
+     # MODEL-UPDATE Phase 4: the original model with NVFP4 experts, as ready-made packs (NVFP4_REPOS): the files come
+     # as the engine reads them (no GGUF to pack), each size has its own repository ("repo" in MODELS)
+     # agentionai's Gyro quantizations (see GYRO_FILES): after the regular families, never the default
+     "gyro": {"title": "Qwen3.8-Flash-Next (Gyro)", "by": "Gyro quantizations by agentionai",
+-             "about": "Gyro-S (27.6 GB of memory) and Gyro-M (35 GB): the smallest sizes, for PCs with little memory; "
+-                      "58 and 92 GB downloads (the files include the n-gram table)",
++             "about": "Gyro-S (27.6 GB of memory), Gyro-M (35 GB) and Gyro-L (50.2 GB): 58, 92 and 108 GB downloads; "
++                      "the smallest sizes, for PCs whose memory is short of the 2-3-bit files",
+              "hf": hf("agentionai/Qwen3.8-Flash-Next-Gyro-GGUF"), "file": "Qwen3.8-Flash-Next-{q}.gguf", "shards": 1,
+              "tag": "gyro-", "name": "qwen3.8-flash-next-gyro", "vision": True, "pack_args": ["--compat-bf16"],
+              "mmproj_hf": hf("ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"), "mmproj": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+@@ -923,7 +1023,7 @@
+     "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF": ISTA_FILES,
+     "ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF": SWIFT_FILES,
+     "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-Coder-GGUF": CODER_FILES,
+-    "unsloth/Qwen3.8-Flash-Next-GGUF": {**UNSLOTH_SHARDS, **UNSLOTH_IQ4_XS_SHARDS, **UNSLOTH_BIG_SHARDS},
++    "unsloth/Qwen3.8-Flash-Next-GGUF": UNSLOTH_FILES,
+     "unsloth/Qwen3.6-35B-A3B-MTP-GGUF": QWEN36_FILES,
+     "agentionai/Qwen3.8-Flash-Next-Gyro-GGUF": GYRO_FILES,
+     "unsloth/DeepSeek-V4.1-Flash-1017-GGUF": DSV41_FILES,
+@@ -3246,8 +3346,8 @@
+ GGUF_QUANT = re.compile(r"(?<![A-Za-z0-9])((?:UD-)?(?:I?Q\d+(?:_[A-Za-z0-9]+)*|BF16|F16|F32))"
+                         r"(?=-\d{5}-of-\d{5}\.gguf$|\.gguf$)", re.I)
+ SUPPORTED_GGUFS = ("Strata runs ISTA-DASLab's GSQ-RCO files (Qwen3.8-Flash-Next Q2_0, IQ2_XS, IQ3_XXS, IQ3_S; Swift "
+-                   "1.5's; the Coder's IQ1_M) and Unsloth's UD-IQ4_XS, UD-Q4_K_XL, UD-Q5_K_XL, UD-Q6_K_XL and Q8_0 "
+-                   "only: other GGUFs (Unsloth's UD-IQ3_XXS or UD-Q2_K_XL, other K-quant files) cannot be used")
++                   "1.5's; the Coder's IQ1_M), Unsloth's UD-IQ1_S to UD-Q6_K_XL and Q8_0, and agentionai's Gyro-S, "
++                   "Gyro-M and Gyro-L: other GGUFs (other fine-tunes, other K-quant files) cannot be used")
+ 
+ 
+ def gguf_unsupported(name: str) -> str | None:
+@@ -9681,7 +9781,7 @@
+                          "this mode the experts the GPU does not hold are copied into RAM once when they fit (resident), "
+                          "else read through the OS file cache (mmap); resident / mmap force one of the two")
+     ap.add_argument("--resident-budget-gib", type=float, metavar="N",
+-                    help="UD-Q4_K_XL, UD-IQ4_XS: the GiB of its experts kept in RAM (default: the RAM less 24 GB, 40 on 64 GB; "
++                    help="the Unsloth files (UD-IQ1_S … Q8_0): the GiB of its experts kept in RAM (default: the RAM less 24 GB, 40 on 64 GB; "
+                          "more is kept as you choose, with a note)")
+     ap.add_argument("--vram-reserve-mib", type=int, metavar="N",
+                     help="VRAM in MiB the engine leaves free for other programs (a game, another model; the engine's "
+@@ -10214,7 +10314,7 @@
+         if a.low_ram not in ("auto", "off"):
+             warn(f"--low-ram {a.low_ram} does not apply to {model}: it always reads part of its experts from the files")
+     elif a.resident_budget_gib is not None:
+-        warn(f"--resident-budget-gib is for UD-Q4_K_XL and UD-IQ4_XS: {model} keeps all of its experts in RAM or in "
++        warn(f"--resident-budget-gib is for the Unsloth files: {model} keeps all of its experts in RAM or in "
+              "the low-RAM mode")
+     low_ram = low_ram_wanted(model, ram, a.low_ram)
+     # #642: the engines from RESIDENT_SPLIT_ENGINE run the low-RAM mode on the chosen cards as on one (decided below)

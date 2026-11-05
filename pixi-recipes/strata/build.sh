@@ -24,6 +24,14 @@ if [ ! -f "${STRATA_SRC}/setup.py" ] || [ ! -d "${LLAMA_SRC}/ggml" ]; then
     echo "expected the Strata and llama.cpp sources in ${WORK}" >&2
     exit 1
 fi
+# recipe.yaml's `patches:` (0001-unsloth-sizes-and-gyro-l) has to be in the source by now: it is what puts the
+# Unsloth sizes this project pins and Gyro-L into setup.py's MODELS, and what refreshes the SHA-256 of every
+# shard. A rattler-build that skipped it would ship an app tree that refuses those sizes by name, so the build
+# stops here instead -- and a `version` bump that moves setup.py past the patch stops it here too.
+if ! grep -q '^UNSLOTH_FILES = {' "${STRATA_SRC}/setup.py"; then
+    echo "the strata patch was not applied to ${STRATA_SRC}/setup.py (see recipe.yaml's source.patches)" >&2
+    exit 1
+fi
 export STRATA_SRC LLAMA_SRC
 export CUDA_ARCHITECTURES="${CUDA_ARCHITECTURES:-86}"
 
