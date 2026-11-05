@@ -76,9 +76,13 @@ siblings — which is the layout upstream's Docker image uses instead.
 ## Divergences between DESIGN.md and upstream at the tag
 
 1. **Marketing version ≠ tag.** Root `package.json` is `0.25.1`; the daemon reports
-   `"version":"0.25.1"` at `/api/health`. The release tag is `open-design-v0.27.0`.
-   The recipe pins `version: "0.27.0"` (the tag, the design's choice) and derives the
-   archive URL from it. The tag is the source of truth, as DESIGN.md already notes.
+   `"version":"0.25.1"` at `/api/health` (verified below). The release tag is
+   `open-design-v0.27.0`. The recipe pins `version: "0.27.0"` (the tag, the design's
+   choice) and derives the archive URL from it. The tag is the source of truth, as
+   DESIGN.md already notes. The marketing version is recorded as the commented
+   `upstream_reported_version: "0.25.1"` context field in `recipe.yaml`, which the
+   future `opendesigner-help` / `update-opendesigner` skill read instead of
+   re-deriving the tag→version mapping.
 2. **Resource layout is the Electron-pack model, not the Docker model.** DESIGN.md
    step 5–6 (and the launcher's `OD_RESOURCE_ROOT`) describe a `resources/` subtree.
    Upstream's production **Dockerfile** instead lays resources out as _siblings of
@@ -96,14 +100,26 @@ siblings — which is the layout upstream's Docker image uses instead.
    --no-open`, which starts the daemon _and_ serves the static UI by default. The
    launcher slice should confirm the exact flag spelling against `od --help`.
 5. **Production closure carries ML/media deps.** The daemon's prod graph pulls
-   `onnxruntime-node` (with macOS `.dylib` and Windows `.node` binaries),
-   `@ffmpeg-installer/ffmpeg` (~65 MiB), `@img/sharp-linux-x64`, and the puppeteer
-   `chromium-bidi` _JS_ (no actual Chromium browser binary), `pdf-lib`, `pptxgenjs`.
-   These are upstream's own production dependencies (the Docker image ships them);
-   there is **no Electron, no Chromium browser, no pnpm store, and no compiler** in the
-   package. The cross-platform native prebuilds (darwin/win `onnxruntime` + `node-pty`,
-   ~130 MiB) are dead weight on this linux-64 package and are the obvious future size
-   lever, but stripping them diverges from upstream, so they are left in for now.
+   `onnxruntime-node`, `@ffmpeg-installer/ffmpeg` (~65 MiB), `@img/sharp-linux-x64`,
+   and the puppeteer `chromium-bidi` _JS_ (no actual Chromium browser binary),
+   `pdf-lib`, `pptxgenjs`. These are upstream's own production dependencies (the Docker
+   image ships them); there is **no Electron, no Chromium browser, no pnpm store, and
+   no compiler** in the package.
+
+   `build.sh` now trims the native payload that cannot load on this package's only
+   platform (it is linux-x86_64-only via `build.skip` + the feature's `platforms`, so
+   the loaders can never select the others): `onnxruntime-node/bin/napi-v3/{darwin,
+   win32}` (65 + 68 = 133 MiB; `onnxruntime` loads `bin/napi-v3/<platform>/<arch>`) and
+   the whole `node-pty/prebuilds/` tree (58 MiB; `node-pty`'s `lib/utils.js`
+   `loadNativeModule()` loads `prebuilds/${platform}-${arch}`, and node-pty ships **no
+   linux-x64 prebuild at all**). ~191 MiB removed; nothing under `linux` is touched.
+   Per-platform payload scoping is already this repo's convention (herdr,
+   llama-cpp-binary), and the design's "publish/reuse the conda artifact" lever is not
+   available here (`opendesigner` is a `path =` build dep with a conda-forge-only
+   channel list, so pixi rebuilds it from the recipe at install), which makes trimming
+   the only size lever. Third-party `*.ts` sources under `node_modules` are kept
+   deliberately (upstream fidelity: a dep's published `src/*.ts` can be its entry
+   point); only the app's own `dist` declaration files/sourcemaps are stripped.
 
 ## Build-time deviations (do not affect the packaged tree)
 
@@ -117,53 +133,99 @@ siblings — which is the layout upstream's Docker image uses instead.
 
 ## Measurements (reference host: 32 cores, ~9 GiB free RAM, fast net)
 
-| Metric                         | Value                                                 |
-| ------------------------------ | ----------------------------------------------------- |
-| Cold build wall time           | **2:31.97** (152 s) — well under the 30 min guardrail |
-| Peak RSS (whole build)         | 5.17 GB (dominated by the `next build` 4 GiB heap)    |
-| CPU                            | 407 %                                                 |
-| Package content (uncompressed) | 1125 MiB, 18 383 files                                |
-| Compressed `.conda`            | 431 MiB (`pixi build`) / 713 MiB (install rebuild)†   |
-| Installed `opt/opendesigner`   | **1.2 GB — over the ~1 GiB guardrail**                |
-| Total `designer` env           | 1.9 GB                                                |
+Figures below are **after** the native-payload/path-strip fixes of this slice; the
+first-spike numbers are kept for comparison.
 
-† Both builds produce **byte-identical content** (18 383 files, 1125 MiB
-uncompressed); only the zstd compression level differs between `pixi build` and the
-install-triggered build. Content is reproducible; the compressed figure is not a
-stable number.
+| Metric                       | Before (spike)    | After (this slice)                                  |
+| ---------------------------- | ----------------- | --------------------------------------------------- |
+| Cold build wall time         | 2:31.97 (152 s)   | **~2 min** — well under the 30 min guardrail        |
+| Peak RSS (whole build)       | 5.17 GB           | ~5 GB (dominated by the `next build` 4 GiB heap)    |
+| Installed files              | 18 383            | **15 936**                                          |
+| Compressed `.conda`          | 431 / 713 MiB†    | **590 MiB** (install rebuild)†                      |
+| Installed `opt/opendesigner` | 1.2 GB (1201 MiB) | **960 MiB — under the ~1 GiB (1024 MiB) guardrail** |
+| Total `designer` env         | 1.9 GB            | 1.7 GB (hardlinked; under-counts, see below)        |
 
-**Guardrail status:** the ~1 GiB installed guardrail is **exceeded** (1.2 GB). The
-cold-build / 30 min guardrail is comfortably met. Per DESIGN.md, the lever is to
-**publish/reuse the conda build artifact** rather than weaken reproducibility or merge
-environments; pixi's package cache already avoids duplicating the shared Node/Pi
-packages between `agents` and `designer`. A faithful ~130 MiB trim is available by
-dropping the non-linux `onnxruntime`/`node-pty` prebuilds, but that diverges from
-upstream's closure and was intentionally not done in this spike.
+† The compressed `.conda` is **not a stable number**: content is byte-identical
+between `pixi build` and the install-triggered build, only the zstd level differs.
+
+**Guardrail status:** the ~1 GiB installed guardrail is now **met** — `opt/opendesigner`
+is **960 MiB** (`du -sm`), down from 1201 MiB, after removing ~191 MiB of native
+payload that cannot load on linux-x86_64 (divergence 5). The cold-build / 30 min
+guardrail remains comfortably met. `du -sh` on `.pixi/envs/designer` reports **1.7 GB**,
+but that **under-counts**: pixi hardlinks every extracted package from its shared
+cache, so bytes shared with `agents` (Node, Pi, libraries) are counted once across both
+envs rather than per-env. The design's "publish/reuse the conda artifact" lever is
+unavailable here (`opendesigner` is a `path =` build dep on a conda-forge-only channel
+list, so pixi rebuilds from the recipe at install); per-platform trimming is the repo's
+own convention (herdr, llama-cpp-binary) and the only size lever, and it was enough to
+clear the guardrail.
 
 ## Verification commands and results
 
 All run against `.pixi/envs/designer` (abbreviated `$P`).
 
-| Check                                               | Result                                                                                                   |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `$P/bin/node --version`                             | `v24.22.1` ✅                                                                                            |
-| `$P/bin/pi --version`                               | `1.5.0` ✅ (Pi runs on Node 24)                                                                          |
-| `$P/bin/pi --list-models`                           | exit 0, lists openrouter providers/models ✅                                                             |
-| `node .../od.mjs --help` (pnpm/gyp/compiler absent) | prints usage, exit 0 ✅ (starts offline)                                                                 |
-| daemon start + `GET /api/health`                    | HTTP 200, `{"ok":true,"version":"0.25.1",...}` ✅                                                        |
-| listening socket                                    | `127.0.0.1:7456` only (loopback, not `0.0.0.0`) ✅                                                       |
-| `OD_DATA_DIR` state                                 | `app.sqlite`, `memory/`, `diagnostics/`, `artifacts/`, managed project dirs under `/tmp/od-test-data` ✅ |
-| key files                                           | `apps/daemon/bin/od.mjs`, `apps/daemon/dist/cli.js`, `apps/web/out/index.html`, `bin/od` (relative) ✅   |
-| no pnpm in env                                      | `$P/bin/pnpm` absent ✅                                                                                  |
-| no compilers in env                                 | no `gcc/g++/cc/make/node-gyp/python` in `$P/bin` ✅                                                      |
-| no Electron / Chromium browser                      | no `*electron*` dirs; only `chromium-bidi` JS + posthog `chrome.ts` parser, no browser binary ✅         |
-| TS sources / binding.gyp stripped                   | 0 `*.d.ts`, 0 `binding.gyp` under daemon `node_modules` ✅                                               |
-| native modules kept                                 | `better_sqlite3.node`, `node-pty` prebuilds, `onnxruntime`, `sharp-linux-x64` ✅                         |
-| `pixi r lint`                                       | passes ✅                                                                                                |
-| `pixi lock`                                         | regenerated; `designer` env resolves on `nodejs 24.22.1` ✅                                              |
+| Check                                               | Result                                                                                                             |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `$P/bin/node --version`                             | `v24.22.1` ✅                                                                                                      |
+| `$P/bin/pi --version`                               | `1.5.0` ✅ (Pi runs on Node 24)                                                                                    |
+| `$P/bin/pi --list-models`                           | exit 0, lists openrouter providers/models ✅                                                                       |
+| `node .../od.mjs --help` (pnpm/gyp/compiler absent) | prints usage, exit 0 ✅ (starts offline)                                                                           |
+| daemon start + `GET /api/health`                    | HTTP 200, `{"ok":true,"version":"0.25.1",...}` ✅                                                                  |
+| listening socket                                    | `127.0.0.1:7456` only (loopback, not `0.0.0.0`) ✅                                                                 |
+| `OD_DATA_DIR` state                                 | `app.sqlite`, `memory/`, `diagnostics/`, `artifacts/`, managed project dirs under `/tmp/od-test-data` ✅           |
+| key files                                           | `apps/daemon/bin/od.mjs`, `apps/daemon/dist/cli.js`, `apps/web/out/index.html`, `bin/od` (relative) ✅             |
+| no pnpm in env                                      | `$P/bin/pnpm` absent ✅                                                                                            |
+| no compilers in env                                 | no `gcc/g++/cc/make/node-gyp/python` in `$P/bin` ✅                                                                |
+| no Electron / Chromium browser                      | no `*electron*` dirs; only `chromium-bidi` JS + posthog `chrome.ts` parser, no browser binary ✅                   |
+| no host absolute paths                              | `grep -rl home/crusaderky opt/opendesigner` = **0** (`.modules.yaml` + 15 `.bin` dirs removed) ✅                  |
+| TS sources / binding.gyp stripped                   | 0 `*.d.ts`, 0 `binding.gyp` under daemon `node_modules`; **0** `.d.ts` / **0** `.map` under app `dist` ✅          |
+| licenses/notices preserved                          | 321 license/notice/third-party/copying files kept (was 295 before the `*.md` exclusion) ✅                         |
+| native payload trimmed                              | `napi-v3/` = `linux` only (darwin/win32 gone); `node-pty/prebuilds/` absent (no linux-x64 to keep) ✅              |
+| native modules kept (linux)                         | `better_sqlite3.node`, `onnxruntime` linux `.so`, `sharp-linux-x64` ✅ (**node-pty: no linux binary — see below**) |
+| resource trees                                      | all 10 installed and non-empty; drift tripwire asserts count == `BUNDLED_RESOURCE_TREES` (10) ✅                   |
+| `bin/od` symlink                                    | relative → `../opt/opendesigner/apps/daemon/bin/od.mjs` ✅                                                         |
+| `pixi r lint`                                       | passes ✅                                                                                                          |
+| `pixi lock`                                         | not regenerated (no dependency declaration changed this slice) —                                                   |
 
 The daemon started with a PATH containing **only** `node` (no pnpm, node-gyp, or
 compiler), proving the tree starts offline except for the user's chosen model traffic.
+
+### Runtime acceptance evidence (`OD_RESOURCE_ROOT` set)
+
+The DESIGN acceptance test "bundled skill/design-system/template listings are
+non-empty and packaged plugin-preview/resource paths resolve" holds only with
+`OD_RESOURCE_ROOT` set. Launched the packaged daemon with `OD_DATA_DIR` in `/tmp`,
+`OD_RESOURCE_ROOT=$P/opt/opendesigner/resources`, `OD_BIND_HOST=127.0.0.1`, then:
+
+| Endpoint                                 | Result                                                                                          |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `GET /api/health`                        | HTTP 200, `{"ok":true,"version":"0.25.1",...}`                                                  |
+| `GET /` (static UI)                      | HTTP 200, `<!DOCTYPE html>` + `<title>OpenDesign</title>`                                       |
+| `GET /api/skills`                        | HTTP 200, 170 KB, `{"skills":[...]}` non-empty                                                  |
+| `GET /api/design-systems`                | HTTP 200, 49 KB, `{"designSystems":[...]}` non-empty                                            |
+| `GET /api/design-templates`              | HTTP 200, 195 KB, `{"designTemplates":[...]}` non-empty                                         |
+| `GET /api/craft`                         | HTTP 200, `{"craft":[...]}` non-empty                                                           |
+| `GET /api/prompt-templates`              | HTTP 200, 88 KB, `{"promptTemplates":[...]}` non-empty                                          |
+| `GET /api/plugins`                       | HTTP 200, 3.6 MB; bundled plugin `source` paths resolve under `resources/plugins/_official/...` |
+| `GET /api/plugin-previews/manifest.json` | HTTP 200, 54 KB baked-preview manifest (route `PLUGIN_PREVIEWS_ROUTE = /api/plugin-previews`)   |
+| listening socket (`ss -ltnp`)            | `127.0.0.1:7456` only — not `0.0.0.0`                                                           |
+| after `kill`                             | process gone, port 7456 free, `/api/health` no response                                         |
+
+## Runtime boundary: node-pty / interactive Terminal
+
+node-pty ships **no linux-x86_64 binary**: its `prebuilds/` held only darwin and
+win32 entries, it has no `build/Release` (pnpm never ran its install script —
+upstream's `pnpm.onlyBuiltDependencies` allowlist omits `node-pty`, and
+`.modules.yaml` `ignoredBuilds` listed `node-pty@1.1.0`; upstream's own Docker image
+has the same gap). So the whole `prebuilds/` tree was dead weight here and is removed.
+
+The consequence is a confined feature loss, **not** a core-scope regression: the
+interactive Terminal feature cannot load its PTY native module. The failure is
+confined there — `dist/services/node-pty.js` loads it lazily via
+`await import('node-pty')` and `dist/routes/terminal.js` explicitly handles the
+missing-native case — and the Pi RPC agent path (`dist/agent-protocol/pi-rpc/`) does
+not use a PTY. Every DESIGN-certified core workflow (daemon + static UI, Pi over RPC,
+bundled resources, managed projects/persistence, HTML/ZIP export) is unaffected.
 
 ## Not done (later slices)
 
