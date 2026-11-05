@@ -6,6 +6,11 @@ context:
   # the source archive sha256 and revalidates the pnpm/Node constraints.
   version: "0.27.0"
 
+  # upstream_reported_version: "0.25.1"  # root package.json / /api/health at this tag;
+  # the future opendesigner-help / update-opendesigner skill read THIS line, not the
+  # conda `version` above (which is the git tag). Documents the tag->version mapping
+  # so it is not re-derived. See BUILD-NOTES.md divergence 1.
+
   # pnpm version pinned by the tag's root package.json `packageManager` field.
   # The build must use this exact pnpm so `pnpm install --frozen-lockfile`
   # accepts the committed pnpm-lock.yaml.
@@ -20,6 +25,9 @@ source:
   # GitHub-generated tarball fetched at build time; re-derive on every bump.
   url: https://github.com/nexu-io/open-design/archive/refs/tags/open-design-v${{ version }}.tar.gz
   sha256: 6fb2dedea9fc5d1bf01cd158fd7597b62a171aad60ae344716b5a9ed4a1c4987
+  # Extract into <work>/open-design so build.sh locates the repo root by a fixed
+  # name instead of scanning for the workspace manifest (mirrors the strata recipe).
+  target_directory: open-design
 
 build:
   number: 0
@@ -27,8 +35,6 @@ build:
     # Extension-less: resolves to build.sh on Linux and build.bat on Windows,
     # following the existing cross-platform recipe convention.
     file: build
-    env:
-      PNPM_VERSION: ${{ pnpm_version }}
   skip:
     # Linux x86-64 is the only validated platform for the packaging spike.
     # aarch64 and win-64 stay gated until their build paths are implemented
