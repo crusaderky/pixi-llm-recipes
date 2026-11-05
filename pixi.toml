@@ -137,6 +137,15 @@ pi.args = [{ arg = "root_dir", default = "-" }]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
 
+# OpenDesigner source-built recipe. Gated to linux-64 for now: the aarch64 and
+# win-64 build paths are not implemented/validated yet (the Windows path is the
+# deliberately unsafe launcher slice). Same gating pattern as
+# llamacpp-source-cuda and herdr-file-viewer.
+[feature.opendesigner]
+platforms = ["linux-64-glibc234"]
+[feature.opendesigner.dependencies]
+opendesigner = { path = "pixi-recipes/opendesigner" }
+
 [feature.herdr.dependencies]
 herdr = { path = "pixi-recipes/herdr" }
 
@@ -257,4 +266,8 @@ llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
 strata = { features = ["strata"] }
 agents = ["pi", "sandbox", "git", "herdr", "pytools"]
+# OpenDesigner reuses the exact pi/sandbox/git features (same Pi binary,
+# extensions, home, bubblewrap and git guards) plus the new recipe. No pytools
+# or herdr here; `agents` is deliberately left untouched.
+designer = { features = ["opendesigner", "pi", "sandbox", "git"] }
 lint = { features = ["lint"], no-default-feature = true }
