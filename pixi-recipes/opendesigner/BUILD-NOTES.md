@@ -239,6 +239,16 @@ non-empty and packaged plugin-preview/resource paths resolve" holds only with
 | listening socket (`ss -ltnp`)            | `127.0.0.1:7456` only — not `0.0.0.0`                                                           |
 | after `kill`                             | process gone, port 7456 free, `/api/health` no response                                         |
 
+## Pi and Git task ownership
+
+Sharing the original `pi` and `git` features with `designer` also exported their
+task aliases into that environment, making the existing unqualified `pi`,
+`pi-unsafe`, `git`, and `gh` commands ambiguous. `pixi.toml` therefore keeps the
+package dependencies in `pi` and `git`, but moves those aliases into `pi-launcher`
+and `git-launcher`, which only `agents` includes. The package set is unchanged,
+existing commands resolve in `agents` again, and CI invokes designer binaries
+explicitly with `pixi run -e designer ...`.
+
 ## CI build and smoke coverage
 
 `.github/workflows/opendesigner.yml` installs `designer` through `setup-pixi`

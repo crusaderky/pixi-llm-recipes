@@ -124,16 +124,19 @@ pi-coding-agent = "*"
 pi-extensions = { path = "pixi-recipes/pi-extensions" }
 pi-home = { path = "pixi-recipes/pi-home" }
 
-[feature.pi.tasks]
+# Pi's packages are shared with designer, but its tasks belong only to agents.
+# Keeping the task surface in a separate feature prevents unqualified pi commands
+# from becoming ambiguous when designer is present.
+[feature.pi-launcher.tasks]
 pi-unsafe.cmd = "bash scripts/pi-unsafe.sh {{ root_dir }}"
 pi-unsafe.args = [{ arg = "root_dir", default = "-" }]
 pi-export = "pi --export"
 
-[feature.pi.target.linux-64-glibc234.tasks]
+[feature.pi-launcher.target.linux-64-glibc234.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
 
-[feature.pi.target.linux-aarch64-glibc234.tasks]
+[feature.pi-launcher.target.linux-aarch64-glibc234.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
 
@@ -170,7 +173,9 @@ herdr = "bash scripts/run-herdr.sh"
 git = "*"
 gh = "*"
 
-[feature.git.tasks]
+# As with pi-launcher, expose the task aliases only in agents; the packages
+# remain shared with designer through the git feature.
+[feature.git-launcher.tasks]
 git = "git"
 gh = "gh"
 
@@ -265,9 +270,10 @@ llamacpp-binary-cuda = ["llamacpp", "llamacpp-binary-cuda"]
 llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
 strata = { features = ["strata"] }
-agents = ["pi", "sandbox", "git", "herdr", "pytools"]
-# OpenDesigner reuses the exact pi/sandbox/git features (same Pi binary,
+agents = ["pi", "pi-launcher", "sandbox", "git", "git-launcher", "herdr", "pytools"]
+# OpenDesigner reuses the exact pi/sandbox/git dependencies (same Pi binary,
 # extensions, home, bubblewrap and git guards) plus the new recipe. No pytools
-# or herdr here; `agents` is deliberately left untouched.
+# or herdr here. Launcher tasks stay agents-only so existing unqualified pi/git/gh
+# commands do not become ambiguous; the agents package set is unchanged.
 designer = { features = ["opendesigner", "pi", "sandbox", "git"] }
 lint = { features = ["lint"], no-default-feature = true }

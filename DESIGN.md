@@ -159,8 +159,13 @@ opendesigner = { path = "pixi-recipes/opendesigner" }
 
 [environments]
 designer = ["opendesigner", "pi", "sandbox", "git"]
-# agents remains exactly ["pi", "sandbox", "git", "herdr", "pytools"]
+agents = ["pi", "pi-launcher", "sandbox", "git", "git-launcher", "herdr", "pytools"]
 ```
+
+The `pi` and `git` features own shared dependencies only. The `pi-launcher` and
+`git-launcher` features contain the existing Pi and Git task aliases and are
+included only in `agents`; otherwise adding `designer` makes every unqualified
+`pi`, `pi-unsafe`, `git`, and `gh` task ambiguous. This changes no package set.
 
 The OpenDesigner recipe's Node 24 constraint will solve the whole `designer` environment on Node 24. The current `agents` environment uses a newer Node, so Pi and every packaged extension need an explicit smoke test on Node 24. If a future Pi release requires a newer Node, fail the solve visibly; do not hide the conflict with an unpinned runtime. A two-prefix launcher is a later fallback, not the initial design because it couples environments and makes installation/lifecycle harder.
 
