@@ -173,7 +173,7 @@ find "${APP}/apps/daemon/dist" -type f \( \
     -name "*.d.ts" -o -name "*.d.cts" -o -name "*.d.mts" -o \
     -name "*.map" -o -name "*.tsbuildinfo" \
     \) -delete
-find "${APP}/apps/daemon" -path "${DM}" -prune -o -type f -name "*.tsbuildinfo" -print -delete
+find "${APP}/apps/daemon" -maxdepth 1 -type f -name "*.tsbuildinfo" -delete
 
 # Relative symlink so `od` is on PATH in an activated env (prefix-portable).
 mkdir -p "${PREFIX}/bin"
