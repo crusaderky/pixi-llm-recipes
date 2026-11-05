@@ -1,9 +1,10 @@
 # opendesigner packaging spike — build notes
 
 Slice 1 of the OpenDesigner integration (DESIGN.md): the Linux x86-64 source
-recipe and the `designer` environment. The bubblewrap launcher, pixi tasks,
-`scripts/install/open-designer`, the real Windows `build.bat`, CI and the
-`update-opendesigner` skill are **later slices** and are not implemented here.
+recipe, the `designer` environment, and Linux CI build/smoke coverage. The
+bubblewrap launcher, pixi tasks, `scripts/install/open-designer`, the real
+Windows `build.bat`, and the `update-opendesigner` skill are **later slices**
+and are not implemented here.
 
 ## Pin
 
@@ -238,6 +239,20 @@ non-empty and packaged plugin-preview/resource paths resolve" holds only with
 | listening socket (`ss -ltnp`)            | `127.0.0.1:7456` only — not `0.0.0.0`                                                           |
 | after `kill`                             | process gone, port 7456 free, `/api/health` no response                                         |
 
+## CI build and smoke coverage
+
+`.github/workflows/opendesigner.yml` installs `designer` through `setup-pixi`
+with `locked: true`, which builds the local recipe from the pinned source archive.
+It then checks Node 24, Pi, model discovery and `od --help`, and runs
+`scripts/smoke-opendesigner.sh`.
+
+The smoke script launches the installed `od` with `env -i` and a PATH containing
+only the packaged Node and `od` symlinks. It verifies the static UI, health and
+all bundled resource APIs, every absolute bundled plugin source path, the
+plugin-preview manifest, SQLite state below `OD_DATA_DIR`, no writes to the
+empty HOME, an exclusive `127.0.0.1` listener, and a clean SIGTERM shutdown. The
+same command passes locally: `pixi run -e designer bash scripts/smoke-opendesigner.sh`.
+
 ## Runtime boundary: node-pty / interactive Terminal
 
 node-pty ships **no linux-x86_64 binary**: its `prebuilds/` held only darwin and
@@ -263,5 +278,5 @@ bundled resources, managed projects/persistence, HTML/ZIP export) is unaffected.
 
 Bubblewrap launcher (`scripts/`), `scripts/install/open-designer`, pixi
 `opendesigner` / `opendesigner-unsafe` / `opendesigner-help` tasks, real Windows
-`build.bat`, CI jobs, the `update-opendesigner` skill, and `.gitignore`/AGENTS.md
+`build.bat`, the `update-opendesigner` skill, and `.gitignore`/AGENTS.md
 documentation.

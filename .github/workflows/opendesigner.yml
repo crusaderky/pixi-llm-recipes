@@ -1,0 +1,43 @@
+name: opendesigner
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["*"]
+  workflow_dispatch:
+
+concurrency:
+  group: opendesigner-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+jobs:
+  build:
+    name: linux-64 build and smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Installing this environment builds the local opendesigner path recipe
+      # from the pinned source archive, then installs Pi and its extensions.
+      - uses: prefix-dev/setup-pixi@v0
+        with:
+          pixi-version: v0.81.0
+          environments: designer
+          cache: true
+          locked: true
+
+      - name: Check Node, Pi, and daemon startup
+        run: |
+          pixi run -e designer node --version
+          pixi run -e designer pi --version
+          pixi run -e designer pi --list-models
+          pixi run -e designer od --help
+
+      - name: Smoke-test packaged daemon and resources
+        run: pixi run -e designer bash scripts/smoke-opendesigner.sh
