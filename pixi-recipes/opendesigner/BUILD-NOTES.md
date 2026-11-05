@@ -213,7 +213,7 @@ All run against `.pixi/envs/designer` (abbreviated `$P`).
 | resource trees                                      | all 10 installed and non-empty; drift tripwire asserts count == `BUNDLED_RESOURCE_TREES` (10) ✅                          |
 | `bin/od` symlink                                    | relative → `../opt/opendesigner/apps/daemon/bin/od.mjs` ✅                                                                |
 | `pixi r lint`                                       | passes ✅                                                                                                                 |
-| `pixi lock`                                         | not regenerated (no dependency declaration changed this slice) —                                                          |
+| `pixi lock`                                         | regenerated with CI-pinned pixi 0.81.0; no unrelated package-version changes ✅                                           |
 
 The daemon started with a PATH containing **only** `node` (no pnpm, node-gyp, or
 compiler), proving the tree starts offline except for the user's chosen model traffic.
@@ -245,6 +245,12 @@ non-empty and packaged plugin-preview/resource paths resolve" holds only with
 with `locked: true`, which builds the local recipe from the pinned source archive.
 It then checks Node 24, Pi, model discovery and `od --help`, and runs
 `scripts/smoke-opendesigner.sh`.
+
+The lockfile is generated with the same pixi 0.81.0 that CI pins. A host pixi 0.84.1
+refresh had rewritten `__unix=0=0` to `__unix=0` and changed the path-recipe hashes,
+which made every 0.81.0 CI job reject the lockfile before building. Regenerating from
+the base lockfile with 0.81.0 restored compatibility without unrelated dependency
+updates; a fresh 0.81.0 `pixi install -e designer --locked` and the smoke test pass.
 
 The smoke script launches the installed `od` with `env -i` and a PATH containing
 only the packaged Node and `od` symlinks. It verifies the static UI, health and
