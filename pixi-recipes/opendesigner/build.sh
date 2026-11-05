@@ -135,6 +135,14 @@ rm -rf "${DM}/.cache" "${DM}/@types"
 rm -rf "${DM}"/.pnpm/@types+* || true
 rm -rf "${DM}"/.pnpm/better-sqlite3@*/node_modules/better-sqlite3/deps || true
 rm -rf "${DM}"/.pnpm/better-sqlite3@*/node_modules/better-sqlite3/src || true
+# The source rebuild leaves Makefiles, static libraries, object files, a test
+# extension and duplicate linker outputs under build/. Keep only the addon that
+# better-sqlite3 loads; prebuilt installs already have this exact minimal layout.
+for sqlite_build in "${DM}"/.pnpm/better-sqlite3@*/node_modules/better-sqlite3/build; do
+    [ -d "${sqlite_build}" ] || continue
+    find "${sqlite_build}" -mindepth 1 -maxdepth 1 ! -name Release -exec rm -rf '{}' +
+    find "${sqlite_build}/Release" -mindepth 1 -maxdepth 1 ! -name better_sqlite3.node -exec rm -rf '{}' +
+done
 
 # Remove host absolute paths from packaged content (DESIGN.md step 8). pnpm records
 # the build work area's store path in .modules.yaml and writes a NODE_PATH pointing
