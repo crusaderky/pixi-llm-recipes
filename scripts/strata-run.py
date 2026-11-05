@@ -278,14 +278,41 @@ def snapshot(setup: ModuleType, repo: str, revision: str, path: str) -> Path:
     return Path(root) / path
 
 
+def gguf_dir_path(setup: ModuleType, family: str, model: str) -> Path:
+    """Where the --gguf-dir folder of this model lives, whether or not it is there yet."""
+    prefix = Path(os.environ["CONDA_PREFIX"])
+    return (
+        prefix / "strata-models" / (family_table(setup)[family]["tag"] + model).lower()
+    )
+
+
+def missing_model_files(
+    setup: ModuleType, family: str, model: str, vision: str
+) -> list[str]:
+    """The files the --gguf-dir folder should hold that are not there.
+
+    setup.py is handed that folder, never the Hub cache, and it records the paths in the run
+    config it leaves behind, so the server starts the engine with whatever they say. A pruned
+    Hub cache takes the blobs and leaves these symlinks dangling, and nothing repairs them on
+    a start -- the vision encoder then dies on the first picture with "failed to open GGUF
+    file". Only a preparation rewrites the folder, which is what naming a missing file here
+    forces. An empty list is one stat per file.
+    """
+    where = gguf_dir_path(setup, family, model)
+    missing = []
+    for url in model_files(setup, family, model, vision):
+        match = RESOLVE_URL.match(url)
+        name = (match["path"] if match else url).rsplit("/", 1)[-1]
+        if not (where / name).exists():
+            missing.append(name)
+    return missing
+
+
 def gguf_dir(setup: ModuleType, family: str, model: str, vision: str) -> Path:
     """The folder of symlinks into the cache that setup.py is pointed at with --gguf-dir."""
     from huggingface_hub.constants import HF_HUB_CACHE
 
-    prefix = Path(os.environ["CONDA_PREFIX"])
-    where = (
-        prefix / "strata-models" / (family_table(setup)[family]["tag"] + model).lower()
-    )
+    where = gguf_dir_path(setup, family, model)
     where.mkdir(parents=True, exist_ok=True)
     print(f"  model files from {HF_HUB_CACHE}", flush=True)
     for url in model_files(setup, family, model, vision):
@@ -527,6 +554,10 @@ def main() -> int:
         reason = "nothing records how this model was prepared"
     elif prepared != signature:
         reason = f"strata.ini changed: {signature_diff(prepared, signature)}"
+    elif lost := missing_model_files(setup, family, model, vision):
+        # the run config points the engine at this folder, so a file pruned from the Hub cache
+        # behind these symlinks breaks the start (the vision encoder, if it is the mmproj)
+        reason = f"its model files are gone: {', '.join(lost)}"
 
     if reason:
         print(f"  preparing the model: {reason}", flush=True)

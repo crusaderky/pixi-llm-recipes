@@ -231,6 +231,13 @@ next start re-prepares once (~2 min, no download) instead of quietly serving the
 re-prepares whatever the file says right now. `--context` is the exception the wrapper can apply without a re-prepare:
 it rewrites `--max-context` in the run config before every start.
 
+A file the Hub cache no longer has re-prepares the same way. setup.py is handed the `--gguf-dir` folder and records
+those paths in the run config, so a pruned cache (`hf cache delete`, a freed-up `~/.cache/huggingface/hub`) leaves
+links into nothing and the engine starts with a `--mmproj` that is not there — the vision encoder then dies on the
+first picture with `failed to open GGUF file`, and the server reports it once per request while the text model serves
+on. `scripts/strata-run.py` stats the folder on every start and names what is missing, which forces the preparation
+that re-links (and re-downloads) it; before that only `strata.ini` moving ever rewrote the folder.
+
 `setup`, `no-start`, `update`, `check` and `calibrate` are refused in the file — one-shot commands that would otherwise
 run on every start; give them after `--`. `gguf-dir` is refused too: the folder of symlinks into the Hub cache is the
 wrapper's own.
