@@ -124,18 +124,41 @@ pi-coding-agent = "*"
 pi-extensions = { path = "pixi-recipes/pi-extensions" }
 pi-home = { path = "pixi-recipes/pi-home" }
 
-[feature.pi.tasks]
+# Pi's packages are shared with design, but its tasks belong only to agents.
+# Keeping the task surface in a separate feature prevents unqualified pi commands
+# from becoming ambiguous when design is present.
+[feature.pi-launcher.tasks]
 pi-unsafe.cmd = "bash scripts/pi-unsafe.sh {{ root_dir }}"
 pi-unsafe.args = [{ arg = "root_dir", default = "-" }]
 pi-export = "pi --export"
 
-[feature.pi.target.linux-64-glibc234.tasks]
+[feature.pi-launcher.target.linux-64-glibc234.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
 
-[feature.pi.target.linux-aarch64-glibc234.tasks]
+[feature.pi-launcher.target.linux-aarch64-glibc234.tasks]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
+
+# OpenDesign source-built recipe. Gated to linux-64 for now: the aarch64 and
+# win-64 build paths are not implemented/validated yet (the Windows path is the
+# deliberately unsafe launcher slice). Same gating pattern as
+# llamacpp-source-cuda and herdr-file-viewer.
+[feature.opendesign]
+platforms = ["linux-64-glibc234"]
+[feature.opendesign.dependencies]
+opendesign = { path = "pixi-recipes/opendesign" }
+
+# The launcher tasks live with the recipe that provides them: `opendesign`
+# exists only in the `design` environment, so unlike pi/git it cannot collide
+# with an `agents` task. Argument convention matches the pi tasks — one
+# positional workspace (`-` for a throwaway tmpfs), everything else after `--`.
+[feature.opendesign.tasks]
+opendesign.cmd = "bash scripts/opendesign-bwrap.sh {{ root_dir }}"
+opendesign.args = [{ arg = "root_dir", default = "-" }]
+opendesign-unsafe.cmd = "bash scripts/opendesign-unsafe.sh {{ root_dir }}"
+opendesign-unsafe.args = [{ arg = "root_dir", default = "-" }]
+opendesign-help = "bash scripts/opendesign-help.sh"
 
 [feature.herdr.dependencies]
 herdr = { path = "pixi-recipes/herdr" }
@@ -161,7 +184,9 @@ herdr = "bash scripts/run-herdr.sh"
 git = "*"
 gh = "*"
 
-[feature.git.tasks]
+# As with pi-launcher, expose the task aliases only in agents; the packages
+# remain shared with design through the git feature.
+[feature.git-launcher.tasks]
 git = "git"
 gh = "gh"
 
@@ -256,5 +281,10 @@ llamacpp-binary-cuda = ["llamacpp", "llamacpp-binary-cuda"]
 llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
 strata = { features = ["strata"] }
-agents = ["pi", "sandbox", "git", "herdr", "pytools"]
+agents = ["pi", "pi-launcher", "sandbox", "git", "git-launcher", "herdr", "pytools"]
+# OpenDesign reuses the exact pi/sandbox/git dependencies (same Pi binary,
+# extensions, home, bubblewrap and git guards) plus the new recipe. No pytools
+# or herdr here. Launcher tasks stay agents-only so existing unqualified pi/git/gh
+# commands do not become ambiguous; the agents package set is unchanged.
+design = { features = ["opendesign", "pi", "sandbox", "git"] }
 lint = { features = ["lint"], no-default-feature = true }

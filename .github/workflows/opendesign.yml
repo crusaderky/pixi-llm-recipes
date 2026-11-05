@@ -1,0 +1,77 @@
+name: opendesign
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["*"]
+  workflow_dispatch:
+
+concurrency:
+  group: opendesign-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+jobs:
+  build:
+    name: linux-64 build and smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Installing this environment builds the local opendesign path recipe
+      # from the pinned source archive, then installs Pi and its extensions.
+      - uses: prefix-dev/setup-pixi@v0
+        with:
+          pixi-version: v0.84.1
+          environments: design
+          cache: true
+          locked: true
+
+      - name: Check Node, Pi, and the packaged daemon
+        timeout-minutes: 10
+        run: |
+          pixi run -e design node --version
+          pixi run -e design pi --version
+          pixi run -e design pi --list-models
+          pixi run -e design opendesign-help
+
+      # The packaged tree alone: static UI, every resource endpoint, the SQLite
+      # database in OD_DATA_DIR, nothing written to HOME, a 127.0.0.1-only
+      # listener, and SIGTERM freeing the port. Runs under `env -i`, so it also
+      # proves no build tool or package manager leaked into the run closure.
+      - name: Smoke-test packaged daemon and resources
+        timeout-minutes: 10
+        run: pixi run -e design bash scripts/smoke-opendesign.sh
+
+      # Unprivileged user namespaces are AppArmor-restricted on Ubuntu 24.04+;
+      # this writes /etc/apparmor.d/bwrap (sudo is passwordless on runners).
+      - name: Install AppArmor profile for bubblewrap
+        timeout-minutes: 5
+        run: pixi r install-apparmor
+
+      # The real launcher: one bwrap namespace around the daemon and every
+      # agent it spawns, the workspace as its only persistent write target,
+      # state in <workspace>/.od, the design prefix and Git guards read-only,
+      # host /run and ~/.ssh absent, no GitHub credential under --no-git, and a
+      # SIGINT to the daemon freeing the port with no orphan left behind.
+      - name: Smoke-test sandboxed launcher
+        # Bounded like the pi steps: a launcher that wedges must fail in minutes
+        # with a named step, not sit until the job timeout.
+        timeout-minutes: 15
+        run: pixi run -e design bash scripts/smoke-opendesign-sandbox.sh
+
+      - name: opendesign-unsafe refuses --no-git
+        timeout-minutes: 5
+        run: |
+          # One positional workspace, everything else after `--`; the launcher
+          # must exit non-zero before it starts anything.
+          if pixi run -e design opendesign-unsafe - -- --no-git; then
+            echo "opendesign-unsafe accepted --no-git; it must refuse it" >&2
+            exit 1
+          fi
