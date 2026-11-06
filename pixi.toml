@@ -140,14 +140,25 @@ pi.args = [{ arg = "root_dir", default = "-" }]
 pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
 pi.args = [{ arg = "root_dir", default = "-" }]
 
-# OpenDesigner source-built recipe. Gated to linux-64 for now: the aarch64 and
+# OpenDesign source-built recipe. Gated to linux-64 for now: the aarch64 and
 # win-64 build paths are not implemented/validated yet (the Windows path is the
 # deliberately unsafe launcher slice). Same gating pattern as
 # llamacpp-source-cuda and herdr-file-viewer.
-[feature.opendesigner]
+[feature.opendesign]
 platforms = ["linux-64-glibc234"]
-[feature.opendesigner.dependencies]
-opendesigner = { path = "pixi-recipes/opendesigner" }
+[feature.opendesign.dependencies]
+opendesign = { path = "pixi-recipes/opendesign" }
+
+# The launcher tasks live with the recipe that provides them: `opendesign`
+# exists only in the `designer` environment, so unlike pi/git it cannot collide
+# with an `agents` task. Argument convention matches the pi tasks — one
+# positional workspace (`-` for a throwaway tmpfs), everything else after `--`.
+[feature.opendesign.tasks]
+opendesign.cmd = "bash scripts/opendesign-bwrap.sh {{ root_dir }}"
+opendesign.args = [{ arg = "root_dir", default = "-" }]
+opendesign-unsafe.cmd = "bash scripts/opendesign-unsafe.sh {{ root_dir }}"
+opendesign-unsafe.args = [{ arg = "root_dir", default = "-" }]
+opendesign-help = "bash scripts/opendesign-help.sh"
 
 [feature.herdr.dependencies]
 herdr = { path = "pixi-recipes/herdr" }
@@ -271,9 +282,9 @@ llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
 strata = { features = ["strata"] }
 agents = ["pi", "pi-launcher", "sandbox", "git", "git-launcher", "herdr", "pytools"]
-# OpenDesigner reuses the exact pi/sandbox/git dependencies (same Pi binary,
+# OpenDesign reuses the exact pi/sandbox/git dependencies (same Pi binary,
 # extensions, home, bubblewrap and git guards) plus the new recipe. No pytools
 # or herdr here. Launcher tasks stay agents-only so existing unqualified pi/git/gh
 # commands do not become ambiguous; the agents package set is unchanged.
-designer = { features = ["opendesigner", "pi", "sandbox", "git"] }
+designer = { features = ["opendesign", "pi", "sandbox", "git"] }
 lint = { features = ["lint"], no-default-feature = true }

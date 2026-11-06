@@ -1,15 +1,15 @@
 context:
-  # OpenDesigner stable release to package. The git tag is
+  # OpenDesign stable release to package. The git tag is
   # `open-design-v${version}`; the repo's own package.json carries a lower
   # marketing version (0.25.1 at this tag), so the tag is the source of truth.
-  # Bump through the update-opendesigner skill, which also refreshes the source
+  # Bump through the update-opendesign skill, which also refreshes the source
   # archive sha256 and revalidates the pnpm/Node constraints.
   version: "0.27.0"
 
   # upstream_reported_version: "0.25.1"  # root package.json / /api/health at this tag.
   # Recorded so the tag->version mapping is not re-derived on every bump: the conda
   # `version` above is the git tag, this is what the running daemon reports. The
-  # update-opendesigner skill moves both together.
+  # update-opendesign skill moves both together.
 
   # pnpm version pinned by the tag's root package.json `packageManager` field.
   # The build must use this exact pnpm so `pnpm install --frozen-lockfile`
@@ -17,7 +17,7 @@ context:
   pnpm_version: "10.33.2"
 
 package:
-  name: opendesigner
+  name: opendesign
   version: ${{ version }}
 
 source:
@@ -57,20 +57,20 @@ requirements:
     - nodejs >=24,<25
 
 about:
-  homepage: https://open-design.dev
+  homepage: https://opendesigner.io/
   repository: https://github.com/nexu-io/open-design
   license: Apache-2.0
   # Relative to the work dir; the source extracts under open-design/ (target_directory).
   license_file: open-design/LICENSE
-  summary: OpenDesigner headless daemon serving its static web UI on loopback
+  summary: OpenDesign headless daemon serving its static web UI on loopback
   description: |
-    OpenDesigner is a local-first design product: an Express daemon plus a
+    OpenDesign is a local-first design product: an Express daemon plus a
     static Next.js UI. This package builds the daemon and the static web export
     from the pinned release tag, deploys production-only npm dependencies, and
     installs them with the bundled skill/design/craft/prompt resources under
-    ${PREFIX}/opt/opendesigner. It does not build Electron, use Docker, or run
+    ${PREFIX}/opt/opendesign. It does not build Electron, use Docker, or run
     `pnpm install` at runtime.
 
-    The agent is not part of this package: OpenDesigner drives Pi, which comes
+    The agent is not part of this package: OpenDesign drives Pi, which comes
     from the separate pi-coding-agent / pi-extensions / pi-home packages in the
     `designer` environment.

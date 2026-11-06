@@ -4,14 +4,14 @@ platforms:
   subdir: linux-64
   virtual-packages:
   - __glibc=2.34
-  - __unix=0=0
+  - __unix=0
   - __linux=4.18
   - __archspec=0=x86_64
 - name: linux-aarch64-glibc234
   subdir: linux-aarch64
   virtual-packages:
   - __glibc=2.34
-  - __unix=0=0
+  - __unix=0
   - __linux=4.18
   - __archspec=0=aarch64
 - name: win-64
@@ -697,7 +697,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/rtk-cli-1.1.0-hf19af3b_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_7.conda
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.10.23-hbd8a1cb_0.conda
-      - conda_source: opendesigner[cfc7824e] @ pixi-recipes/opendesigner
+      - conda_source: opendesign[877bb3bf] @ pixi-recipes/opendesign
       - conda_source: pi-extensions[98173fb0] @ pixi-recipes/pi-extensions
       - conda_source: pi-home[77a9d247] @ pixi-recipes/pi-home
   lint:
@@ -3553,6 +3553,7 @@ packages:
   - __glibc >=2.17,<3.0.a0
   - libgcc >=15
   license: BSD-3-Clause
+  license_family: BSD
   run_exports:
     weak:
     - libuuid >=2.42.4,<3.0a0
@@ -11928,14 +11929,14 @@ packages:
   - conda: https://prefix.dev/conda-forge/win-64/vc-14.5-ha367084_42.conda
   - conda: https://prefix.dev/conda-forge/win-64/vc14_runtime-14.51.36247-habf1de7_42.conda
   - conda: https://prefix.dev/conda-forge/win-64/vcomp14-14.51.36247-habf1de7_42.conda
-- conda_source: opendesigner[cfc7824e] @ pixi-recipes/opendesigner
+- conda_source: opendesign[877bb3bf] @ pixi-recipes/opendesign
   variants:
     target_platform: linux-64
   depends:
-  - nodejs >=24,<25
   - libgcc >=16
   - libgcc >=16
   - libstdcxx >=16
+  - nodejs >=24,<25
   license: Apache-2.0
   build_packages:
   - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda

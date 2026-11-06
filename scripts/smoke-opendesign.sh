@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Smoke-test the installed Linux OpenDesigner package without build tools,
+# Smoke-test the installed Linux OpenDesign package without build tools,
 # ambient home configuration, or any runtime package manager. Run as:
-#   pixi run -e designer bash scripts/smoke-opendesigner.sh
+#   pixi run -e designer bash scripts/smoke-opendesign.sh
 set -euo pipefail
 
 PREFIX="${CONDA_PREFIX:?run through pixi run -e designer so CONDA_PREFIX is set}"
-APP="${PREFIX}/opt/opendesigner"
+APP="${PREFIX}/opt/opendesign"
 PORT="${OD_SMOKE_PORT:-7456}"
 BASE_URL="http://127.0.0.1:${PORT}"
 
 [ -x "${PREFIX}/bin/node" ]
-[ -x "${PREFIX}/bin/od" ]
+[ -x "${PREFIX}/bin/opendesign" ]
 [ -f "${APP}/apps/web/out/index.html" ]
-[ "$(readlink "${PREFIX}/bin/od")" = "../opt/opendesigner/apps/daemon/bin/od.mjs" ]
+[ "$(readlink "${PREFIX}/bin/opendesign")" = "../opt/opendesign/apps/daemon/bin/od.mjs" ]
 case "$("${PREFIX}/bin/node" --version)" in
     v24.*) ;;
-    *) echo "OpenDesigner requires Node 24, got $("${PREFIX}/bin/node" --version)" >&2; exit 1 ;;
+    *) echo "OpenDesign requires Node 24, got $("${PREFIX}/bin/node" --version)" >&2; exit 1 ;;
 esac
 for tool in pnpm node-gyp gcc g++ cc make python python3; do
     if [ -e "${PREFIX}/bin/${tool}" ]; then
@@ -29,7 +29,7 @@ if [ -n "$(ss -ltnH "( sport = :${PORT} )")" ]; then
     exit 1
 fi
 
-TMP="$(mktemp -d "${TMPDIR:-/tmp}/opendesigner-smoke.XXXXXX")"
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/opendesign-smoke.XXXXXX")"
 pid=""
 cleanup() {
     status=$?
@@ -39,7 +39,7 @@ cleanup() {
         wait "${pid}" 2>/dev/null || true
     fi
     if [ "${status}" -ne 0 ] && [ -f "${TMP}/daemon.log" ]; then
-        echo "OpenDesigner daemon log (${TMP}/daemon.log):" >&2
+        echo "OpenDesign daemon log (${TMP}/daemon.log):" >&2
         cat "${TMP}/daemon.log" >&2
     fi
     rm -rf "${TMP}"
@@ -49,7 +49,7 @@ trap cleanup EXIT
 
 mkdir -p "${TMP}/bin" "${TMP}/home" "${TMP}/data"
 ln -s "${PREFIX}/bin/node" "${TMP}/bin/node"
-ln -s "${PREFIX}/bin/od" "${TMP}/bin/od"
+ln -s "${PREFIX}/bin/opendesign" "${TMP}/bin/opendesign"
 
 env -i \
     PATH="${TMP}/bin" \
@@ -59,7 +59,7 @@ env -i \
     OD_BIND_HOST=127.0.0.1 \
     OD_PORT="${PORT}" \
     NODE_ENV=production \
-    "${TMP}/bin/od" --no-open >"${TMP}/daemon.log" 2>&1 &
+    "${TMP}/bin/opendesign" daemon start --serve-web --no-open >"${TMP}/daemon.log" 2>&1 &
 pid=$!
 
 export OD_SMOKE_BASE_URL="${BASE_URL}"
@@ -148,4 +148,4 @@ if [ -n "$(ss -ltnH "( sport = :${PORT} )")" ]; then
     exit 1
 fi
 
-echo "OpenDesigner empty-environment smoke test passed; daemon stopped cleanly."
+echo "OpenDesign empty-environment smoke test passed; daemon stopped cleanly."

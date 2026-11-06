@@ -1,0 +1,68 @@
+name: opendesign
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["*"]
+  workflow_dispatch:
+
+concurrency:
+  group: opendesign-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+jobs:
+  build:
+    name: linux-64 build and smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Installing this environment builds the local opendesign path recipe
+      # from the pinned source archive, then installs Pi and its extensions.
+      - uses: prefix-dev/setup-pixi@v0
+        with:
+          pixi-version: v0.81.0
+          environments: designer
+          cache: true
+          locked: true
+
+      - name: Check Node, Pi, and the packaged daemon
+        run: |
+          pixi run -e designer node --version
+          pixi run -e designer pi --version
+          pixi run -e designer pi --list-models
+          pixi run -e designer opendesign-help
+
+      # The packaged tree alone: static UI, every resource endpoint, the SQLite
+      # database in OD_DATA_DIR, nothing written to HOME, a 127.0.0.1-only
+      # listener, and SIGTERM freeing the port. Runs under `env -i`, so it also
+      # proves no build tool or package manager leaked into the run closure.
+      - name: Smoke-test packaged daemon and resources
+        run: pixi run -e designer bash scripts/smoke-opendesign.sh
+
+      # Unprivileged user namespaces are AppArmor-restricted on Ubuntu 24.04+;
+      # this writes /etc/apparmor.d/bwrap (sudo is passwordless on runners).
+      - name: Install AppArmor profile for bubblewrap
+        run: pixi r install-apparmor
+
+      # The real launcher: one bwrap namespace around the daemon and every
+      # agent it spawns, the workspace as its only persistent write target,
+      # state in <workspace>/.od, the designer prefix and Git guards read-only,
+      # host /run and ~/.ssh absent, no GitHub credential under --no-git, and
+      # Ctrl-C returning the port.
+      - name: Smoke-test sandboxed launcher
+        run: pixi run -e designer bash scripts/smoke-opendesign-sandbox.sh
+
+      - name: opendesign-unsafe refuses --no-git
+        run: |
+          if pixi run -e designer opendesign-unsafe - --no-git; then
+            echo "opendesign-unsafe accepted --no-git; it must refuse it" >&2
+            exit 1
+          fi

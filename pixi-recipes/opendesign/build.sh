@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Reproduce the daemon/static-web portion of OpenDesigner's own production
+# Reproduce the daemon/static-web portion of OpenDesign's own production
 # Dockerfile (deploy/Dockerfile at the pinned tag) with conda Node + pnpm
 # instead of an Alpine image. No Docker, no Electron, no runtime `pnpm install`.
 #
@@ -22,7 +22,7 @@ if [ ! -f "${SRC}/pnpm-workspace.yaml" ]; then
     SRC="${SRC_DIR}"
 fi
 if [ ! -f "${SRC}/pnpm-workspace.yaml" ] || [ ! -f "${SRC}/apps/daemon/package.json" ]; then
-    echo "could not find the OpenDesigner source root under ${SRC_DIR}" >&2
+    echo "could not find the OpenDesign source root under ${SRC_DIR}" >&2
     exit 1
 fi
 cd "${SRC}"
@@ -72,7 +72,7 @@ rm -rf "${DEPLOY}"
 echo "=== deploy production daemon ==="
 pnpm --filter @open-design/daemon deploy --legacy --prod "${DEPLOY}"
 
-APP="${PREFIX}/opt/opendesigner"
+APP="${PREFIX}/opt/opendesign"
 rm -rf "${APP}"
 mkdir -p "${APP}/apps/web"
 
@@ -209,9 +209,12 @@ db.close();
 console.log(`better-sqlite3 loaded; SQLite ${row.version}`);
 JS
 
-# Relative symlink so `od` is on PATH in an activated env (prefix-portable).
+# Relative symlink so `opendesign` is on PATH in an activated env
+# (prefix-portable). Upstream names this binary `od`, which inside a conda env
+# would shadow coreutils' octal dump; the launcher and the pixi task carry the
+# product's name instead, and the entry point keeps upstream's `od.mjs`.
 mkdir -p "${PREFIX}/bin"
 chmod +x "${APP}/apps/daemon/bin/od.mjs"
-ln -sf "../opt/opendesigner/apps/daemon/bin/od.mjs" "${PREFIX}/bin/od"
+ln -sf "../opt/opendesign/apps/daemon/bin/od.mjs" "${PREFIX}/bin/opendesign"
 
-echo "opendesigner installed to ${APP}"
+echo "opendesign installed to ${APP}"
