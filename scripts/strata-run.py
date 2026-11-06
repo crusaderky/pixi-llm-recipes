@@ -55,8 +55,12 @@ setup.py's start path hands its run config's engine arguments to the engine verb
 flag read only by its setup path (``--kv``, ``--parallel``, ``--vision``, ...) does nothing on
 a start. The part of the command line it only reads when preparing is recorded in
 ``<data-dir>/strata-prepared.json``, and a change to it in strata.ini re-prepares the model
-once instead of being silently ignored. The context is the exception this wrapper can fix
-without a re-prepare: it rewrites ``--max-context`` in the run config before every start.
+once instead of being silently ignored. Two keys the wrapper applies to the run config
+itself, so strata.ini can change them without that: ``context`` rewrites ``--max-context``
+before every start, and ``drafter`` writes the config's ``drafting`` key -- setup.py only
+reads ``--drafter`` to decide what to download, and the server's ``auto`` (what a config
+without the key means) swaps DFlash2 for the MTP as soon as ``parallel`` asks for more than
+one request slot, so a named DFlash2 has to be written down.
 Sampling is not this wrapper's at all: serve/server.py applies the model card's own recommended
 set (``MODEL_CARD_SAMPLING``) to a request that names none.
 """
@@ -85,6 +89,7 @@ from strata_common import (
     load_setup,
     parse_args,
     pin_context,
+    pin_drafting,
     prepare_signature,
     prepared_args,
     record_prepared,
@@ -393,9 +398,9 @@ def fetch_dflash2(
     and resumes an interrupted download, so a second run costs one ``stat``.
 
     Only an explicit choice of DFlash2 fetches anything -- ``drafter = dflash2`` in
-    strata.ini, or ``"drafting": "dflash2"`` in the run config. ``auto`` keeps the MTP as its
-    fallback and downloads nothing; it says "the DFlash2 drafter isn't downloaded yet" and
-    starts the MTP instead.
+    strata.ini, or ``"drafting": "dflash2"`` in the run config (``pin_drafting`` keeps the
+    second in step with the first). ``auto`` keeps the MTP as its fallback and downloads
+    nothing; it says "the DFlash2 drafter isn't downloaded yet" and starts the MTP instead.
     """
     from strata_control import drafting, drafting_fetch
 
@@ -608,6 +613,15 @@ def main() -> int:
     ctx = flag_value(pairs, "--context")
     if ctx and pin_context(config, ctx):
         setup.ok(f"context: {ctx} tokens ({config.name})")
+
+    # The drafter the same way: setup.py's `--drafter` only says whether the MTP layer is
+    # fetched, and the server reads the choice from the config's own `drafting` key.  `auto`
+    # (what a config without the key means) is DFlash2 for a single request and the MTP once
+    # `parallel` asks for more than one slot, so a `drafter = dflash2` that was never written
+    # down would stop meaning DFlash2 at the second request slot.
+    drafter = flag_value(pairs, "--drafter")
+    if drafter and pin_drafting(config, drafter.lower()):
+        setup.ok(f"drafter: {drafter} ({config.name})")
 
     if no_start:
         return 0

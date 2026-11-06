@@ -288,7 +288,8 @@ def prepare_signature(pairs: Sequence[Pair]) -> list[list[str]]:
     setup.py's start path hands its `cfg["args"]` to the engine verbatim, so a `--kv` or a
     `--parallel` that only ever appears on a start changes nothing: the run config already
     says what the engine runs with.  Recording this next to the data makes a change in
-    strata.ini visible, and scripts/strata-run.py re-prepares when it moves.
+    strata.ini visible, and scripts/strata-run.py re-prepares when it moves.  (The wrapper
+    can apply `context` and the drafter without that: see `pin_context` / `pin_drafting`.)
     """
     skip = START_FLAGS | WRAPPER_FLAGS | COMMAND_FLAGS | INSTALL_FLAGS
     return sorted(
@@ -471,6 +472,31 @@ def pin_context(config: Path, ctx: str) -> bool:
     else:
         args += ["--max-context", str(ctx)]
     cfg["args"] = args
+    write_config(config, cfg)
+    return True
+
+
+def pin_drafting(config: Path, choice: str) -> bool:
+    """Rewrite a run config's ``drafting`` key; True when it had to change.
+
+    ``drafting`` is serve/server.py's own key (``auto`` | ``mtp`` | ``dflash2`` | ``off``);
+    setup.py never writes it -- its ``--drafter`` only decides whether the MTP layer is
+    fetched -- so a config setup.py prepared runs ``auto``, which is DFlash2 while the start
+    serves one request and the MTP as soon as ``parallel`` gives it more than one slot
+    (``blocked_by``: Auto never names DFlash2, and only a named choice keeps it beside the
+    slots).  A ``drafter = dflash2`` in strata.ini therefore has to be written down, or the
+    second request slot silently swaps the drafter for the MTP.
+
+    Written the way setup.py writes the file (``write_config``), and only when a drafter was
+    asked for at all, so the config the app or ``strata launch --drafting`` shaped stays as
+    it is when strata.ini has nothing to say about it.
+    """
+    cfg = read_config(config)
+    if cfg is None:
+        return False
+    if str(cfg.get("drafting") or "") == choice:
+        return False
+    cfg["drafting"] = choice
     write_config(config, cfg)
     return True
 

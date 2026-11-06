@@ -373,6 +373,10 @@ verify`, upstream's #327 check) and deletes both once `rt/` is built — 6.1 GB 
 `--keep-mtp-inputs` / `STRATA_KEEP_MTP_INPUTS=1` keeps them; they are dead weight otherwise, since setup.py's only
 trigger to rebuild the layer is `rt/experts.bin` going missing, and that re-fetches everything anyway.
 
+The other drafter, DFlash2, is a pack the recipe's engine reads and setup.py does not fetch (`strata drafting fetch` is a
+subcommand of a CLI the recipe does not package), so `strata-run.py` fetches it, and writes the run config's `drafting`
+key so the choice survives a start — see the `strata.ini` note above.
+
 GGUF-published MTP heads do exist — `unsloth/Qwen3.8-Flash-Next-GGUF/MTP/mtp-Qwen3.8-Flash-Next-{shared-,}{Q8_0,Q4_K_M,BF16}.gguf`,
 1.8-7.8 GB, in the `mtp-` sidecar convention beellama resolves (`find_best_mtp()` in `common/download.cpp`, fed by
 `--spec-type draft-mtp` / `--mtp`) — and those belong in the Hub cache, where `llama-server` puts them by itself. They
@@ -387,12 +391,16 @@ a setting: `$CONDA_PREFIX/strata-data`, passed on both paths because setup.py's 
 next to the app and `data_folder()` moves model files between the two. Anything unknown on the command line still goes
 to setup.py, so `pixi run strata-install -- --calibrate` works as upstream documents it.
 
-Two settings the wrapper applies to the run config itself, because setup.py's start path reads that config verbatim:
+Three settings the wrapper applies to the run config itself, because setup.py's start path reads that config verbatim:
 the **context** (`context` in `strata.ini` rewrites `--max-context` before every start — setup.py ignores `--context` on a
-start, and its setup path without `--gguf-dir` would want the shards re-downloaded) and the **VRAM reserve** (a config
-that disagrees with `vram-reserve-mib` is what a start passes the flag for, setup.py rewriting its `args` when it sees
-it; a config that agrees is left alone, so the steady state rewrites nothing). Every other flag the file changes moves
-the preparation signature, and that re-prepares instead.
+start, and its setup path without `--gguf-dir` would want the shards re-downloaded), the **drafter** (`drafter` writes
+the config's `drafting` key, which serve/server.py reads and setup.py never writes — its `--drafter` only decides whether
+the MTP layer is fetched — so `dflash2` named here stays named), and the **VRAM reserve** (a config that disagrees with
+`vram-reserve-mib` is what a start passes the flag for, setup.py rewriting its `args` when it sees it; a config that
+agrees is left alone, so the steady state rewrites nothing). Every other flag the file changes moves the preparation
+signature, and that re-prepares instead — `parallel` among them, since setup.py reads it only while it writes the config
+(the key then becomes the engine's `--batch N`, "requests at once"; `auto` drafting is DFlash2 for one request and the
+MTP for several, which is why the named choice above is what carries DFlash2 past one slot).
 
 **Sampling is not the file's at all.** setup.py has no sampling flag, and since 0.1.45 serve/server.py applies the model
 card's own recommended set to a request that names none: `MODEL_CARD_SAMPLING` gives Qwen3.8-Flash-Next temperature 1.0,
