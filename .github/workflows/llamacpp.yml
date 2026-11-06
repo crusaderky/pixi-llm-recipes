@@ -110,15 +110,8 @@ jobs:
         run: pixi r -e llamacpp-${{ matrix.backend }} start-llamacpp
 
       - name: pi Hello world
-        # `-nt` (no tools) because this step proves one thing: pi reaches the
-        # server it was started against and completes a turn. Tools would put a
-        # 230M model's invented tool calls in the way, and a tool that blocks is
-        # one of the two ways print mode wedges upstream — the other is an
-        # extension handle left open after the answer, which is what actually ate
-        # the 6 h runner limit (earendil-works/pi#2677, #5944, #7734). Print mode
-        # is not exit-safe, so a wedged pi is a failure, and the timeout is what
-        # turns that into a named step instead of a six-hour cancellation. Tool
-        # use is covered by pi.yml's workspace steps.
+        # `-nt` (no tools) because this model is bad at tool calling; prevent it from
+        # calling tools if it tries.
         timeout-minutes: 10
         run: pixi r pi-unsafe -- --model LFM2.5-230M -nt -p 'Hello world'
 

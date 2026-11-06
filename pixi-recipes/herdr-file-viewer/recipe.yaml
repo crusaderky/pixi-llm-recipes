@@ -4,9 +4,7 @@ context:
   # Linux aarch64 has no prebuilt upstream (only x86_64-unknown-linux-musl), so
   # this recipe is gated to linux-64 + win-64 in pixi.toml.
   sha256_linux_x86_64: d87efee98e07f65daf3162d30c8cc5a5efeb6a8c992b7a9933a7cf5367e33186
-  # Upstream ships a SHA256SUMS asset on every release; both digests below are
-  # taken from it (`gh release download v<version> --pattern SHA256SUMS`), never
-  # from the build log or a hand-computed value.
+  # Taken from SHA256SUMS asset shipped on every release. Do not hand compute.
   sha256_win_64: 213ca1f476a6c49f33b7aeafc92ef9bdad02028c0b2a862625d5c8676f0e4eb1
 
 package:

@@ -54,15 +54,8 @@ jobs:
         run: pixi r -e llamacpp-binary-cpu start-llamacpp
 
       - name: pi-unsafe Hello world
-        # `-nt`: this step proves pi reaches the server and completes a turn. A
-        # 230M model's invented tool calls only get in the way of that, and a
-        # blocked tool is one of the two ways `pi -p` wedges upstream; the other
-        # is an extension handle left open after the answer, which is what ate
-        # the 6 h runner limit (earendil-works/pi#2677, #5944, #7734). Print mode
-        # is not exit-safe, so a wedged step is a failure here, and the timeout
-        # is what makes that visible: it names the step in minutes instead of
-        # leaving the job to be cancelled six hours later. The workspace steps
-        # below keep the tools, which is what they test.
+        # `-nt` (no tools) because this model is bad at tool calling; prevent it from
+        # calling tools if it tries.
         timeout-minutes: 10
         run: pixi r pi-unsafe -- --model LFM2.5-230M -nt -p "Hello world"
 
