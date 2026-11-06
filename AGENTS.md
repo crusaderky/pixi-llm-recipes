@@ -39,6 +39,7 @@ scripts/
   bwrap-pi.sh                                   # bubblewrap sandbox
   pi-unsafe.sh                                  # unsandboxed equivalent (dev/debug only)
   run-herdr.sh                                  # herdr launcher (PATH fixup + plugin inject)
+  ci-run-pi.sh                                  # CI watchdog: bounds a pi step, dumps why it hung
   inject-pi-extensions.sh inject-strata-model.sh inject-herdr-file-viewer.sh
   install-bin.sh uninstall-bin.sh               # ~/.local/bin wrappers + herdr desktop entry
   install-apparmor.sh install-memlock.sh install-oomd.sh install-clipboard.sh
@@ -430,6 +431,15 @@ The wrappers `cd` into the repo and call the matching pixi task with your cwd as
 Calling the pixi task directly is the awkward path: it takes exactly one positional argument (the workspace), so `--no-git`, `--bind`, `--ro-bind` and any agent flags must follow a `--` separator. `pixi run pi --no-git` does **not** work — `--no-git` is consumed as the workspace directory.
 
 `run-herdr.sh` backs the `herdr` task: it registers the file-viewer plugin, then **removes `$CONDA_PREFIX/bin` from PATH** so `pi` spawned inside a herdr pane resolves the `~/.local/bin` wrapper instead of the raw conda binaries (which would bypass the sandbox). It resolves the real herdr binary _before_ the reorder, or `exec herdr` would re-enter its own wrapper forever, and `cd $HOME` so new panes start in `~`.
+
+### CI
+
+`.github/workflows/{lint,llamacpp,pi}.yml`. Two things about the pi steps are load-bearing and easy to undo by accident:
+
+- **Every `pi` invocation is wrapped in `scripts/ci-run-pi.sh <seconds>`.** pi's print mode can finish its turn, print the answer, and then never exit, because an extension (or pi itself) left a handle on Node's event loop; upstream has open reports for exactly this (`earendil-works/pi` #2677, #2584, #3886, #5944, #7734 — the last names a spawned subagent as the trigger), and all of them read in CI as a step that hangs until Actions cancels it at the runner's 6 h limit. The watchdog kills the step at its deadline and first dumps the process tree with `wchan`, the wedged process's `/proc` fds and the connected sockets, so the log names what was blocking instead of just "cancelled".
+- **The pure-text steps pass `-nt` and the workspace steps pass `--tools bash`.** The model under test is LFM2.5-230M, chosen because it downloads in seconds — its tool calls are guesses, and a tool that blocks forever (anything waiting on stdin, a password prompt, or a network peer) is the other half of that hang class. `-nt` proves pi reaches the server and completes a turn with no tools at all; `--tools bash` is the narrowest surface that still proves tool use, the `~/.local/bin` wrappers, and the git guards.
+
+`llamacpp.yml` sets no job-level timeout because the source backends legitimately compile for a long time; `pi.yml` caps the job at 30 minutes on top of the per-step bounds.
 
 ## Python tooling
 
