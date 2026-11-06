@@ -201,10 +201,16 @@ or underscores, the leading `--` optional; a key with no value is a flag on its 
 
 Which `family` and `model` exist is **setup.py's own tables, read live** — `scripts/strata-run.py`
 copies nothing. `FAMILIES` is Qwen3.8-Flash-Next's releases (`qwen`, `swift`, `coder`, `unsloth`,
-`gyro`, `nvfp4`), whose sizes are listed in `MODELS` with the families that ship each; `OWN_PATH_FAMILIES`
-(added in 0.1.44, still offered under its old name `PREVIEW_FAMILIES`) is a family with an engine
-path of its own — `qwen36`, Qwen3.6-35B-A3B, whose `UD-Q4_K_XL` / `UD-Q6_K_XL` / `Q8_0` live in the
-family entry and **not** in `MODELS`, and whose `UD-Q4_K_XL` is therefore another repository's file
+`gyro`, `nvfp4`), whose sizes are listed in `MODELS` with the families that ship each. A `MODELS`
+entry can name a `revision` of its own and the `quant` its files carry on the Hub — Unsloth's
+v3.1 sizes sit at a commit `UD-Q4_K_XL` does not, and the catalog name `UD-IQ4_XS-v31` is a file
+called `UD-IQ4_XS` — which is why the wrapper takes the folder it fetches from setup.py's
+`model_hf()` rather than formatting `fam["hf"]` itself.
+
+`OWN_PATH_FAMILIES` (added in 0.1.44, still offered under its old name `PREVIEW_FAMILIES`) is a
+family with an engine path of its own — `qwen36`, Qwen3.6-35B-A3B, whose `UD-Q4_K_XL` /
+`UD-Q6_K_XL` / `Q8_0` live in the family entry and **not** in `MODELS`, and whose `UD-Q4_K_XL` is
+therefore another repository's file
 than `unsloth`'s of the same name. Such a family is read from the GGUF as it is: no expert pack
 (`strata-data/packs/<tag>` holds only the tokenizer), no expert profile, no MTP fetch — the file's
 own MTP block drafts (`--mtp 2` in the run config means draft count, not a layer folder) — and
@@ -267,6 +273,14 @@ Nothing about it is VRAM, so no reserve, quant or context setting avoids it: `sc
 `/etc/systemd/system/user@.service.d/90-oomd-user-session.conf` with `ManagedOOMMemoryPressure=auto`, which makes
 `systemd-oomd` neither monitor nor choose that unit — the kernel's own OOM killer stays the backstop, and it kills
 a process rather than the session. The script warns when another drop-in, or an ancestor slice, still reports `kill`.
+
+**A start from inside the pi sandbox loses its RAM budget**, which costs speed and nothing else.
+`bwrap --unshare-all` unshares the cgroup namespace too, so `/proc/self/cgroup` says `0::/` there;
+the engine's ancestor walk builds `/sys/fs/cgroup/` (trailing slash) from it, finds that unequal to
+its own root, and reports `FileExpertSource: cannot determine available memory for
+--resident-budget-gib`, then reads every expert the GPU does not hold through the OS file cache
+instead of copying them into RAM. The server answers correctly — that warning is the tell. Start
+from the host when the RAM budget matters.
 
 ### Where everything goes
 

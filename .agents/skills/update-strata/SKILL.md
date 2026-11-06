@@ -149,6 +149,7 @@ setup.py ^FAMILIES
 setup.py ^MODELS
 setup.py def model_file
 setup.py def model_shards
+setup.py def model_hf
 setup.py STRATA_EXECV
 setup.py "--gguf-dir"
 setup.py "--no-start"

@@ -241,6 +241,22 @@ def resolve_model(setup: ModuleType, family: str, model: str) -> str:
     return model
 
 
+def model_base(setup: ModuleType, fam: dict, model: str) -> str:
+    """The Hugging Face folder this model's shards come from: setup.py's own ``model_hf``.
+
+    A family's ``hf`` names one revision of its repository (``HF_REVISIONS``), but a model can
+    name a revision of its own (``MODELS[...]["revision"]``: Unsloth's v3.1 files sit at a
+    commit its UD-Q4_K_XL does not) and its files on the Hub may carry a name of their own
+    rather than the catalog name (``MODELS[...]["quant"]``: `UD-IQ4_XS-v31` is the catalog
+    name of a file called UD-IQ4_XS). Both substitutions are setup.py's, so a family's
+    ``{q}`` template alone would fetch the wrong revision -- a 404 for every v3.1 size.
+    """
+    model_hf = getattr(setup, "model_hf", None)
+    if model_hf is not None:
+        return model_hf(fam, model)
+    return fam["hf"].format(q=model)
+
+
 def model_files(setup: ModuleType, family: str, model: str, vision: str) -> list[str]:
     """The files setup.py downloads for this model: every shard, and the image encoder."""
     fam = family_table(setup)[family]
@@ -252,7 +268,8 @@ def model_files(setup: ModuleType, family: str, model: str, vision: str) -> list
             setup.model_file(fam, model, i)
             for i in range(1, setup.model_shards(fam, model) + 1)
         ]
-    urls = [fam["hf"].format(q=model) + name for name in shards]
+    base = model_base(setup, fam, model)
+    urls = [base + name for name in shards]
     if vision not in ("no", "none", "off") and fam.get("vision") is not False:
         urls.append(fam["mmproj_hf"] + fam["mmproj"])
     return urls

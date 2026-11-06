@@ -1,6 +1,6 @@
 context:
   # Strata release to package (the git tag is v${version}).
-  version: "0.2.10"
+  version: "0.2.11"
 
   # The llama.cpp commit Strata's own setup.py pins (LLAMA_CPP_COMMIT) and builds its
   # engine against. It is a second git source here because the runtime tools
@@ -22,15 +22,12 @@ source:
   # Both sources land in <work>/<target_directory>; build.sh accepts either layout
   # (rattler-build's SRC_DIR is the work dir for a multi-source recipe, but that has
   # changed between versions).
+  # setup.py is copied verbatim: 0.2.11 carries the Unsloth v3.1 sizes (UD-IQ1_M … UD-IQ4_XS-v31) in its own
+  # MODELS table, so the patch this recipe used to carry for them -- and for Gyro-L, which upstream never
+  # shipped -- is gone.
   - git: https://github.com/Niko1221/Strata
     tag: v${{ version }}
     target_directory: strata
-    patches:
-      # setup.py's own tables, which are what `--model` accepts: the Unsloth sizes added at the 2026-11-04
-      # revision (UD-IQ1_S … UD-Q3_K_XL, plus the refreshed SHA-256 of every shard it ships) and Gyro-L.
-      # They are a patch rather than a copy because setup.py also computes the engine's source hash and
-      # everything else it does stays upstream's; re-derive it when `version` moves.
-      - patches/0001-unsloth-sizes-and-gyro-l.patch
   - git: https://github.com/ggml-org/llama.cpp
     rev: ${{ llama_cpp_commit }}
     target_directory: llama.cpp
