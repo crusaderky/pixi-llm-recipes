@@ -1,14 +1,14 @@
 ---
-name: update-opendesigner
-description: Update the opendesigner conda recipe to the latest OpenDesigner release — bump the source tag pin and its archive SHA-256, re-sync the pnpm pin the lockfile demands, re-validate the bundled resource trees and the native/Node-24 boundary, rebuild the designer env and run the empty-environment smoke test. Use when asked to "update opendesigner", "bump OpenDesigner", "update the OpenDesigner recipe", or "update the designer environment".
+name: update-opendesign
+description: Update the opendesign conda recipe to the latest OpenDesign release — bump the source tag pin and its archive SHA-256, re-sync the pnpm pin the lockfile demands, re-validate the bundled resource trees and the native/Node-24 boundary, rebuild the designer env and run the empty-environment smoke test. Use when asked to "update opendesign", "bump OpenDesign", "update the OpenDesign recipe", or "update the designer environment".
 compatibility: Requires network access to github.com (git ls-remote, gh api) and codeload.github.com (the source archive, for its SHA-256). Rebuild and smoke test need Linux x86-64 and `ss` from iproute2. Designed for the pixi-llm-recipes project.
 allowed-tools: Bash Read Edit
 ---
 
-`pixi-recipes/opendesigner/` is a **source** recipe. It unpacks a release tag's tarball, runs
+`pixi-recipes/opendesign/` is a **source** recipe. It unpacks a release tag's tarball, runs
 `pnpm install --frozen-lockfile`, builds `@open-design/daemon` and the static Next.js export,
 compiles `better-sqlite3` from pinned source with the conda toolchain, and installs the daemon,
-`apps/web/out` and ten bundled resource trees under `${PREFIX}/opt/opendesigner` (960 MiB at
+`apps/web/out` and ten bundled resource trees under `${PREFIX}/opt/opendesign` (960 MiB at
 `open-design-v0.27.0`). That is upstream's own `deploy/Dockerfile` reproduced without Docker and
 without Electron, so **a version bump moves the build script's assumptions, not just a string**.
 Node 24 is the only runtime dependency; there is no `pnpm` at runtime and nothing is downloaded
@@ -18,7 +18,7 @@ when `od` starts.
 
 | pin                                   | where                                                 | new value from                                                                                                                             |
 | ------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `version`                             | `context:` in `pixi-recipes/opendesigner/recipe.yaml` | the newest `open-design-v<version>` tag, prefix stripped — **never** the root `package.json` `version` (which is `0.25.1` at tag `0.27.0`) |
+| `version`                             | `context:` in `pixi-recipes/opendesign/recipe.yaml` | the newest `open-design-v<version>` tag, prefix stripped — **never** the root `package.json` `version` (which is `0.25.1` at tag `0.27.0`) |
 | `sha256`                              | `source:`                                             | `sha256sum` of the archive at exactly the `source:` URL, computed after downloading                                                        |
 | `pnpm_version`                        | `context:`                                            | root `package.json` `packageManager` **at that tag** (must also satisfy that tag's `engines.pnpm` range)                                   |
 | `upstream_reported_version`           | the commented line in `context:`                      | root `package.json` `version` at that tag (documents the tag↔version mapping)                                                              |
@@ -53,7 +53,7 @@ Leave alone: `build.number` (stays `0`), `package.name`, `source.target_director
 > failure mode it catches is silent. Fix the recipe to match upstream; report the drift.
 
 > ⚠ **A version bump changes pins, not code.** Do not touch `build.sh`,
-> `scripts/smoke-opendesigner.sh` or `pixi.toml` unless Phase 2/4/5 shows a real interface break,
+> `scripts/smoke-opendesign.sh` or `pixi.toml` unless Phase 2/4/5 shows a real interface break,
 > and say what broke before rewriting anything.
 
 > ⚠ **`better-sqlite3` stays compiled from pinned source.** The
@@ -120,7 +120,7 @@ contract (`STATIC_DIR`, `OD_DATA_DIR`, `PLUGIN_PREVIEWS_ROUTE`, the `/api/*` rou
 hits) still holds, and the release notes are what explain anything that moved.
 
 Then run the **interface checklist** against the extracted tag. These are the exact names
-`build.sh` and `scripts/smoke-opendesigner.sh` depend on; anything it prints is a real break to be
+`build.sh` and `scripts/smoke-opendesign.sh` depend on; anything it prints is a real break to be
 fixed in Phase 4, not something to hope the build survives:
 
 ```bash
@@ -153,13 +153,13 @@ EOF
 sed -n '/const BUNDLED_RESOURCE_TREES = \[/,/^] as const;/p' \
   "$SRC/tools/pack/src/resources/index.ts" | grep -c '{ from:'
 sed -n '/declare -a RESOURCE_TREES=(/,/^)/p' \
-  "$REPO/pixi-recipes/opendesigner/build.sh" | grep -cE '^\s+"[^"]+:[^"]+"$'
+  "$REPO/pixi-recipes/opendesign/build.sh" | grep -cE '^\s+"[^"]+:[^"]+"$'
 ```
 
-`runtimes/defs/pi.ts` matters beyond the checklist: that is how OpenDesigner runs the agent — it
+`runtimes/defs/pi.ts` matters beyond the checklist: that is how OpenDesign runs the agent — it
 probes with `pi --version` + `pi --list-models` and drives the conversation with `pi --mode rpc`.
 If that file changes, the `pi --list-models` line in
-`.github/workflows/opendesigner.yml` and in Phase 5 still proves the wiring, so read the diff
+`.github/workflows/opendesign.yml` and in Phase 5 still proves the wiring, so read the diff
 rather than assuming it holds.
 
 ## Phase 3 — edit `recipe.yaml`
@@ -170,7 +170,7 @@ rather than assuming it holds.
 re-derived. Keep every comment and the field order.
 
 `pixi.lock` does **not** move for a path-recipe pin bump — verified: changing `version:` leaves
-`conda_source: opendesigner[cfc7824e] @ pixi-recipes/opendesigner` byte-identical, and `pixi lock`
+`conda_source: opendesign[cfc7824e] @ pixi-recipes/opendesign` byte-identical, and `pixi lock`
 answers "already up-to-date". Only a `pixi.toml` change re-locks, and then do it with the pixi
 version CI pins (`.github/workflows/*.yml`: `v0.81.0`) — a newer local pixi rewrites the whole
 lockfile, which the last lockfile regeneration had to undo.
@@ -183,14 +183,14 @@ lockfile, which the last lockfile regeneration had to undo.
 | `resolveDaemonResourceDir` / `OD_RESOURCE_ROOT` (`daemon-paths.ts`, `server.ts`) | the `resources/<to>` layout                                            |
 | `PROJECT_ROOT` + `STATIC_DIR = <root>/apps/web/out` (`server.ts`)                | the `apps/daemon` + `apps/web/out` copy layout                         |
 | `deploy/Dockerfile` cleanup list (`@types`, sqlite `deps`/`src`, test/docs dirs) | the strip block, kept in parity                                        |
-| `bin/od.mjs` (`apps/daemon/bin/od.mjs`)                                          | the relative `../opt/opendesigner/...` symlink into `${PREFIX}/bin/od` |
+| `bin/od.mjs` (`apps/daemon/bin/od.mjs`)                                          | the relative `../opt/opendesign/...` symlink into `${PREFIX}/bin/opendesign` |
 | `better-sqlite3`                                                                 | the source rebuild, the `build/Release` trim, the ABI probe            |
 | `node-pty`, `onnxruntime-node` (transitive)                                      | the `prebuilds/` and `bin/napi-v3/` dead-platform trims                |
 
 A **new** native module means all three of: trim its unloadable platform payload, keep whatever
 its loader needs, and extend the ABI probe so the shipped addon is proven under the build's Node.
 
-`scripts/smoke-opendesigner.sh` is the acceptance contract, so a renamed endpoint (`/api/skills`,
+`scripts/smoke-opendesign.sh` is the acceptance contract, so a renamed endpoint (`/api/skills`,
 `/api/design-systems`, `/api/design-templates`, `/api/craft`, `/api/prompt-templates`,
 `/api/plugins`, `/api/plugin-previews/manifest.json`), a changed `<title>`, or a daemon that
 starts writing into `HOME` shows up there. Update the script only for a genuine rename, and say so
@@ -203,17 +203,19 @@ cd "$REPO"
 pixi install -e designer                                     # a few minutes cold: install, both builds, node-gyp, deploy
 pixi run -e designer node --version                          # must print v24.x
 pixi run -e designer pi --version
-pixi run -e designer pi --list-models                        # OpenDesigner's own model probe
-pixi run -e designer od --help                               # upstream's bin name; shadows coreutils' od here
-pixi run -e designer bash scripts/smoke-opendesigner.sh      # needs port 7456 free; OD_SMOKE_PORT=7788 to move
-du -sh .pixi/envs/designer/opt/opendesigner                  # 960 MiB at 0.27.0, ~1 GiB guardrail
+pixi run -e designer pi --list-models                        # OpenDesign's own model probe
+pixi run -e designer opendesign-help                         # packaged versions + support boundary
+pixi run -e designer bash scripts/smoke-opendesign.sh      # needs port 7456 free; OD_SMOKE_PORT=7788 to move
+pixi r install-apparmor                                      # once per host, for the sandboxed launcher
+pixi run -e designer bash scripts/smoke-opendesign-sandbox.sh   # port 7466; OD_SMOKE_SANDBOX_PORT to move
+du -sh .pixi/envs/designer/opt/opendesign                  # 960 MiB at 0.27.0, ~1 GiB guardrail
 ```
 
 - `pixi install -e designer` **is safe from the bwrap sandbox**, unlike `-e agents`: the host
   `~/.pi` file binds land in the **agents** prefix only, so nothing inside `.pixi/envs/designer`
   is un-unlinkable during the env sync. Never run `-e agents` from the sandbox (see `update-all`).
 - The smoke test runs the daemon with `env -i`, an empty `HOME` and a fresh `OD_DATA_DIR`, so a
-  pass proves the package is self-sufficient: Node 24, the `od` symlink target, the static UI's
+  pass proves the package is self-sufficient: Node 24, the `opendesign` symlink target, the static UI's
   title, all six resource endpoints non-empty, every bundled plugin's absolute source path
   existing, a non-empty plugin-preview manifest, `OD_DATA_DIR/app.sqlite` created, nothing written
   into `HOME`, the listener bound to `127.0.0.1` only, and the port freed by `SIGTERM`.
@@ -224,17 +226,19 @@ du -sh .pixi/envs/designer/opt/opendesigner                  # 960 MiB at 0.27.0
   `…/onnxruntime-node/bin/napi-v3/linux/arm64` (34 MiB, unloadable on an x86-64-only package) —
   `build.sh` says so in its comment. Do not trim licenses/notices or anything under `linux`.
 - Native payload trim after install:
-  `ls .pixi/envs/designer/opt/opendesigner/apps/daemon/node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v3`
+  `ls .pixi/envs/designer/opt/opendesign/apps/daemon/node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v3`
   must list `linux` alone.
 
 ## Phase 6 — CI and report
 
-`.github/workflows/opendesigner.yml` runs the same four commands with `locked: true`, so CI is the
-referee. After pushing: `gh pr checks --watch` (or `gh run watch <id>`); on a designer failure read
+`.github/workflows/opendesign.yml` runs the same commands plus **both** smoke tests with `locked: true`,
+so CI is the referee: the packaged-tree one, and the sandboxed launcher one (after `install-apparmor`),
+which is also where a broken mount order, a missing `--no-git` unset or a launcher that leaks past
+Ctrl-C shows up. The job then checks that `opendesign-unsafe` refuses `--no-git`. After pushing: `gh pr checks --watch` (or `gh run watch <id>`); on a designer failure read
 the install step first — a lockfile or pixi-version mismatch looks exactly like a build failure.
 
 ```
-## OpenDesigner updated
+## OpenDesign updated
 - version: 0.27.0 → 0.28.0            (tag open-design-v0.28.0, confirmed in refs/tags; package.json says <marketing version>)
 - sha256: <old> → <new>               (computed from the recipe's own URL)
 - pnpm_version: <old> → <new> | unchanged   (from the tag's packageManager)

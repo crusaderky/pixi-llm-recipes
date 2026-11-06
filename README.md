@@ -252,7 +252,7 @@ Skills under `.agents/skills/` are available only when pi starts in this reposit
   [herdr-file-viewer](https://github.com/smarzban/herdr-file-viewer)
 - `update-herdr` — update [Herdr](https://herdr.dev/)
 - `update-llama-cpp` — update both llama.cpp recipes
-- `update-opendesigner` — update the OpenDesigner recipe
+- `update-opendesign` — update the OpenDesign recipe
   and rebuild the `designer` environment
 - `update-pi-extensions` — refresh pinned Pi extension versions
 - `update-strata` — update the Strata recipe (version pin, the llama.cpp commit its
@@ -311,18 +311,34 @@ pixi r pi-unsafe /path/to/workspace                # Windows
 pixi r pi-unsafe /path/to/workspace -- -p "Hello"  # Windows; pass arbitrary parameters (note --)
 ```
 
-## OpenDesigner
+## OpenDesign
 
-[OpenDesigner](https://open-design.dev) is a local-first design tool, integrated with
-[pi](https://pi.dev)
+[OpenDesign](https://opendesigner.io/) is a local-first design tool, integrated with
+[pi](https://pi.dev). It is packaged as a source-built conda recipe in
+`pixi-recipes/opendesign/` and runs in its own `designer` environment.
 
 ```bash
-pixi run od    # serve the UI on http://127.0.0.1:7456 (loopback only)
-pixi run -e designer od --help  # List launch options
+pixi install -e designer     # build the daemon + static web UI, once
+pixi r opendesign ~/my-designs   # serve the UI on http://127.0.0.1:7456 (loopback only)
+pixi r opendesign-help       # packaged versions and the support boundary
 ```
 
-Inside that environment `od` is OpenDesigner's daemon, not coreutils' octal dump — the
-same name upstream ships.
+Everything runs inside a bubblewrap sandbox: the daemon and every agent and shell it
+spawns see the workspace read-write and the rest of the host read-only, with host
+`/run`, SSH keys and Docker sockets hidden. Per-workspace state lives in
+`<workspace>/.od`; add it to your own `.gitignore`. The daemon drives the packaged Pi
+in RPC mode over `http://127.0.0.1:7456`, so your existing Pi login, providers and
+GitHub policy apply.
+
+```bash
+pixi r opendesign ~/my-designs -- --no-git           # no GitHub credential at all
+pixi r opendesign ~/my-designs -- --ro-bind ../ref   # extra read-only input
+pixi r opendesign ~/my-designs -- --port 7457        # different port
+opendesign                                           # same, from your cwd (after `pixi r install`)
+```
+
+`opendesign-unsafe` is the full-host debugging path; it prints a warning and refuses
+`--no-git`, because with no sandbox there is nothing to enforce it with.
 
 ## herdr
 
