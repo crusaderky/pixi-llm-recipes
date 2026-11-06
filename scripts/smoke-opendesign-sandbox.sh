@@ -104,7 +104,19 @@ if (!html.includes("<title>OpenDesign</title>")) throw new Error("static UI titl
 const skills = await (await get("/api/skills")).json();
 const entries = skills.skills;
 if (!Array.isArray(entries) || entries.length === 0) throw new Error("/api/skills: empty skills");
-console.log(`sandboxed daemon answered: health ok, UI title ok, ${entries.length} skills`);
+
+// Pi detection runs `pi --list-models` inside the namespace through PI_BIN, so
+// this is the end-to-end proof that the packaged Pi starts with the bound
+// PI_CODING_AGENT_DIR and the packaged extension set, with no host ~/.local/bin
+// wrapper anywhere on PATH.
+const agents = await (await get("/api/agents")).json();
+const pi = (agents.agents ?? []).find((agent) => agent.id === "pi");
+if (!pi) throw new Error("/api/agents: no pi entry");
+if (pi.available !== true) throw new Error(`/api/agents: pi is not available: ${JSON.stringify(pi.diagnostics ?? [])}`);
+console.log(
+  `sandboxed daemon answered: health ok, UI title ok, ${entries.length} skills, ` +
+    `pi available with ${(pi.models ?? []).length} models (${pi.modelsSource})`,
+);
 JS
 
 # 2. The workspace is the only persistent write target: OpenDesign's SQLite

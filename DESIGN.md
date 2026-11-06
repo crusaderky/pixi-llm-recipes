@@ -380,7 +380,8 @@ The source tree and bundled assets are substantial, and upstream allows a 4 GiB 
 What CI asserts today, on Linux: the recipe/environment items below, the daemon/persistence subset
 (`/api/health`, the static UI, all six resource endpoints, `app.sqlite` below
 `<workspace>/.od`, a `127.0.0.1`-only listener, `SIGTERM` freeing the port) and — via
-`scripts/smoke-opendesign-sandbox.sh` — the launcher's mount contract, the absence of any GitHub
+`scripts/smoke-opendesign-sandbox.sh` — the launcher's mount contract, Pi detection inside the
+namespace (`/api/agents` runs `pi --list-models` through `PI_BIN`), the absence of any GitHub
 credential under `--no-git`, and `SIGINT` tearing the whole tree down. The Pi workflow items (a real
 generated artifact, a resumed second turn) need a live model provider and stay manual.
 

@@ -541,10 +541,11 @@ What the launcher pins, and why each one is load-bearing:
   the design's rule is to add a mount only when a core workflow needs it.
 - It runs `inject-pi-extensions.sh` (Node only) but **not** `inject-strata-model.sh`, which needs
   Python: keeping the Strata provider entry in `models.json` is the normal Pi launcher's job.
-- **Not validated end-to-end yet**: a design run through the packaged Pi extension set. The daemon
-  detects Pi (`/api/agents`: `available: true`, `modelsSource: live`) and lists the host's models
-  inside the sandbox, but a real artifact/turn needs a live provider. If an interactive extension
-  misbehaves under RPC (upstream auto-answers extension UI requests), the design's fallback is a
+- **Not validated end-to-end yet**: a real design turn through the packaged Pi extension set. The
+  sandbox smoke test does assert `/api/agents` reports Pi `available` inside the namespace, which
+  runs `pi --list-models` through `PI_BIN` with the bound `PI_CODING_AGENT_DIR` and the packaged
+  extensions; a generated artifact needs a live provider. If an interactive extension misbehaves
+  under RPC (upstream auto-answers extension UI requests), the design's fallback is a
   designer-specific Pi settings/session profile sharing auth and models — not a Pi fork.
 - `pixi r opendesign-unsafe <workspace>` is the full-host path: prominent warning on every launch,
   `--bind`/`--ro-bind` accepted and ignored with a warning, and `--no-git` refused rather than
