@@ -41,24 +41,32 @@ The UI is served to your own browser on http://127.0.0.1:7456 (loopback only).
 
 What the sandbox gives you
 
-  read-write   the workspace only: projects, .od state, artifacts
-  read-only    the designer prefix, the packaged Pi tree, scripts/git-guards,
+  read-write   the workspace: projects, .od state, artifacts
+  read-write   the packaged Pi tree (~/.pi), which Pi writes npm/ and
+               models-store.json through, plus the host's
+               ~/.pi/agent/{auth,trust,settings,models,caveman}.json and
+               sessions/ (login, providers, preferences, resumable sessions)
+  read-only    everything else in the designer prefix, scripts/git-guards,
                ~/.gitconfig, ~/.config/git, ~/.config/gh
-  read-write   ~/.pi/agent/{auth,trust,settings,models,caveman}.json and sessions/
-               (host Pi login, providers, preferences and resumable sessions)
   hidden       the rest of \$HOME, host /tmp, host /run (ssh-agent and Docker
                sockets), SSH keys and credentials, GPU devices
   network      shared with the host, so model providers, web tools and a local
                llama-server/Strata stay reachable
   state        <workspace>/.od (add it to .gitignore)
 
-The daemon drives the squeezed-in Pi in RPC mode (PI_BIN points at the raw
+The daemon drives the packaged Pi in RPC mode (PI_BIN points at the raw
 packaged binary), so it inherits the same non-destructive GitHub policy: reads,
 fast-forward pushes, issues/PRs/comments work; force-push, remote branch
 deletion and API mutations stay blocked. --no-git is the enforcement of a
 credential-free session, not a flag the agent can drop.
 
-Not covered in this environment
+A guard layer, not a security boundary. The Git/gh wrappers are a policy
+layer on PATH: a determined process can reach the real binary by absolute
+path, the gh token is readable from the read-only ~/.config/gh (raw HTTP with
+it does anything the token can), and the network is shared with the host. A
+fine-grained GitHub token and server-side force-push rules remain advisable.
+
+Unsupported in this environment
 
   Electron/AppImage packaging, PDF/PPTX/screenshot exports (no headless
   browser), motion/video/browser automation, and third-party marketplace

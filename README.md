@@ -340,6 +340,10 @@ opendesign                                           # same, from your cwd (afte
 `opendesign-unsafe` is the full-host debugging path; it prints a warning and refuses
 `--no-git`, because with no sandbox there is nothing to enforce it with.
 
+The GitHub policy inside this sandbox is the same one described above — including that
+it is a safety layer, not a security boundary, and that `--no-git` is the option for
+prompts you do not trust.
+
 ## herdr
 
 [herdr](https://herdr.dev) is an agent-first terminal multiplexer and coding-agent
