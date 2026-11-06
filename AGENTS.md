@@ -478,6 +478,9 @@ fails silently:
   `run:` leak is detected. `scripts/smoke-opendesign-sandbox.sh` is the launcher's, and is the only
   way to assert a mount contract: from outside it reads `/proc/<pid>/mountinfo` and `/environ` of
   the listening daemon (the pid namespace is shared, the mount namespace is not).
+- Measured at 0.27.0: the installed application tree is **960 MiB** (inside the ~1 GiB
+  guardrail; the first lever if it grows is the 34 MiB `napi-v3/linux/arm64` payload), and a cold
+  `pixi install -e designer` is a few minutes — ~3 min on the CI runner.
 - `pixi install -e designer` **is** safe from the bwrap sandbox (unlike `-e agents`): the host
   `~/.pi` file binds land in the agents prefix only, so nothing in `.pixi/envs/designer` is
   un-unlinkable. A path-recipe pin bump does **not** move `pixi.lock` either — the
@@ -538,6 +541,11 @@ What the launcher pins, and why each one is load-bearing:
   the design's rule is to add a mount only when a core workflow needs it.
 - It runs `inject-pi-extensions.sh` (Node only) but **not** `inject-strata-model.sh`, which needs
   Python: keeping the Strata provider entry in `models.json` is the normal Pi launcher's job.
+- **Not validated end-to-end yet**: a design run through the packaged Pi extension set. The daemon
+  detects Pi (`/api/agents`: `available: true`, `modelsSource: live`) and lists the host's models
+  inside the sandbox, but a real artifact/turn needs a live provider. If an interactive extension
+  misbehaves under RPC (upstream auto-answers extension UI requests), the design's fallback is a
+  designer-specific Pi settings/session profile sharing auth and models — not a Pi fork.
 - `pixi r opendesign-unsafe <workspace>` is the full-host path: prominent warning on every launch,
   `--bind`/`--ro-bind` accepted and ignored with a warning, and `--no-git` refused rather than
   swallowed. `scripts/install/opendesign` (installed by `install-bin.sh` as `~/.local/bin/opendesign`)

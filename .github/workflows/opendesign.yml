@@ -69,7 +69,9 @@ jobs:
       - name: opendesign-unsafe refuses --no-git
         timeout-minutes: 5
         run: |
-          if pixi run -e designer opendesign-unsafe - --no-git; then
+          # One positional workspace, everything else after `--`; the launcher
+          # must exit non-zero before it starts anything.
+          if pixi run -e designer opendesign-unsafe - -- --no-git; then
             echo "opendesign-unsafe accepted --no-git; it must refuse it" >&2
             exit 1
           fi

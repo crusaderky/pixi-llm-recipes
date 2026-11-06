@@ -16,14 +16,14 @@ when `od` starts.
 
 ## What a bump touches
 
-| pin                                   | where                                                 | new value from                                                                                                                             |
-| ------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| pin                                   | where                                               | new value from                                                                                                                             |
+| ------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `version`                             | `context:` in `pixi-recipes/opendesign/recipe.yaml` | the newest `open-design-v<version>` tag, prefix stripped — **never** the root `package.json` `version` (which is `0.25.1` at tag `0.27.0`) |
-| `sha256`                              | `source:`                                             | `sha256sum` of the archive at exactly the `source:` URL, computed after downloading                                                        |
-| `pnpm_version`                        | `context:`                                            | root `package.json` `packageManager` **at that tag** (must also satisfy that tag's `engines.pnpm` range)                                   |
-| `upstream_reported_version`           | the commented line in `context:`                      | root `package.json` `version` at that tag (documents the tag↔version mapping)                                                              |
-| `nodejs >=24,<25` (build **and** run) | `requirements:`                                       | root, `apps/daemon` and `apps/web` `engines.node` (`~24` at the current pin)                                                               |
-| `RESOURCE_TREES` in `build.sh`        | only if Phase 2 shows the tree list moved             | upstream `tools/pack/src/resources/index.ts` → `BUNDLED_RESOURCE_TREES`                                                                    |
+| `sha256`                              | `source:`                                           | `sha256sum` of the archive at exactly the `source:` URL, computed after downloading                                                        |
+| `pnpm_version`                        | `context:`                                          | root `package.json` `packageManager` **at that tag** (must also satisfy that tag's `engines.pnpm` range)                                   |
+| `upstream_reported_version`           | the commented line in `context:`                    | root `package.json` `version` at that tag (documents the tag↔version mapping)                                                              |
+| `nodejs >=24,<25` (build **and** run) | `requirements:`                                     | root, `apps/daemon` and `apps/web` `engines.node` (`~24` at the current pin)                                                               |
+| `RESOURCE_TREES` in `build.sh`        | only if Phase 2 shows the tree list moved           | upstream `tools/pack/src/resources/index.ts` → `BUNDLED_RESOURCE_TREES`                                                                    |
 
 Leave alone: `build.number` (stays `0`), `package.name`, `source.target_directory`, the
 `build.skip` platform gate, `license_file`, and the `designer` environment's feature list in
@@ -177,15 +177,15 @@ lockfile, which the last lockfile regeneration had to undo.
 
 ## Phase 4 — `build.sh`, only where the interface moved
 
-| upstream name (at the tag)                                                       | what must follow in this recipe                                        |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `BUNDLED_RESOURCE_TREES` `from`→`to` pairs (`tools/pack/src/resources/index.ts`) | the `RESOURCE_TREES` array; the count check fails the build            |
-| `resolveDaemonResourceDir` / `OD_RESOURCE_ROOT` (`daemon-paths.ts`, `server.ts`) | the `resources/<to>` layout                                            |
-| `PROJECT_ROOT` + `STATIC_DIR = <root>/apps/web/out` (`server.ts`)                | the `apps/daemon` + `apps/web/out` copy layout                         |
-| `deploy/Dockerfile` cleanup list (`@types`, sqlite `deps`/`src`, test/docs dirs) | the strip block, kept in parity                                        |
+| upstream name (at the tag)                                                       | what must follow in this recipe                                              |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `BUNDLED_RESOURCE_TREES` `from`→`to` pairs (`tools/pack/src/resources/index.ts`) | the `RESOURCE_TREES` array; the count check fails the build                  |
+| `resolveDaemonResourceDir` / `OD_RESOURCE_ROOT` (`daemon-paths.ts`, `server.ts`) | the `resources/<to>` layout                                                  |
+| `PROJECT_ROOT` + `STATIC_DIR = <root>/apps/web/out` (`server.ts`)                | the `apps/daemon` + `apps/web/out` copy layout                               |
+| `deploy/Dockerfile` cleanup list (`@types`, sqlite `deps`/`src`, test/docs dirs) | the strip block, kept in parity                                              |
 | `bin/od.mjs` (`apps/daemon/bin/od.mjs`)                                          | the relative `../opt/opendesign/...` symlink into `${PREFIX}/bin/opendesign` |
-| `better-sqlite3`                                                                 | the source rebuild, the `build/Release` trim, the ABI probe            |
-| `node-pty`, `onnxruntime-node` (transitive)                                      | the `prebuilds/` and `bin/napi-v3/` dead-platform trims                |
+| `better-sqlite3`                                                                 | the source rebuild, the `build/Release` trim, the ABI probe                  |
+| `node-pty`, `onnxruntime-node` (transitive)                                      | the `prebuilds/` and `bin/napi-v3/` dead-platform trims                      |
 
 A **new** native module means all three of: trim its unloadable platform payload, keep whatever
 its loader needs, and extend the ABI probe so the shipped addon is proven under the build's Node.

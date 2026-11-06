@@ -327,8 +327,8 @@ Everything runs inside a bubblewrap sandbox: the daemon and every agent and shel
 spawns see the workspace read-write and the rest of the host read-only, with host
 `/run`, SSH keys and Docker sockets hidden. Per-workspace state lives in
 `<workspace>/.od`; add it to your own `.gitignore`. The daemon drives the packaged Pi
-in RPC mode over `http://127.0.0.1:7456`, so your existing Pi login, providers and
-GitHub policy apply.
+over RPC, so your existing Pi login, providers and GitHub policy apply; the UI itself
+is at `http://127.0.0.1:7456`.
 
 ```bash
 pixi r opendesign ~/my-designs -- --no-git           # no GitHub credential at all
