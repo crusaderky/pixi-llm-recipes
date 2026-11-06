@@ -58,8 +58,8 @@ jobs:
       # The real launcher: one bwrap namespace around the daemon and every
       # agent it spawns, the workspace as its only persistent write target,
       # state in <workspace>/.od, the designer prefix and Git guards read-only,
-      # host /run and ~/.ssh absent, no GitHub credential under --no-git, and
-      # Ctrl-C returning the port.
+      # host /run and ~/.ssh absent, no GitHub credential under --no-git, and a
+      # SIGINT to the daemon freeing the port with no orphan left behind.
       - name: Smoke-test sandboxed launcher
         # Bounded like the pi steps: a launcher that wedges must fail in minutes
         # with a named step, not sit until the job timeout.
