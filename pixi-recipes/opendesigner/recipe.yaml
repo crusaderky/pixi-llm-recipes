@@ -37,9 +37,6 @@ build:
     file: build
   skip:
     # Linux x86-64 is the only validated platform for the packaging spike.
-    # aarch64 and win-64 stay gated until their build paths are implemented
-    # and validated (the Windows path is the deliberately unsafe launcher
-    # slice; build.bat currently fails fast).
     - "not (linux and x86_64)"
 
 requirements:
