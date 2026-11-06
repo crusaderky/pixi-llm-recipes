@@ -252,6 +252,8 @@ Skills under `.agents/skills/` are available only when pi starts in this reposit
   [herdr-file-viewer](https://github.com/smarzban/herdr-file-viewer)
 - `update-herdr` — update [Herdr](https://herdr.dev/)
 - `update-llama-cpp` — update both llama.cpp recipes
+- `update-opendesigner` — update the OpenDesigner recipe
+  and rebuild the `designer` environment
 - `update-pi-extensions` — refresh pinned Pi extension versions
 - `update-strata` — update the Strata recipe (version pin, the llama.cpp commit its
   engine builds against, requirements) and rebuild the engine
@@ -308,6 +310,19 @@ pi --no-sandbox                                    # Linux
 pixi r pi-unsafe /path/to/workspace                # Windows
 pixi r pi-unsafe /path/to/workspace -- -p "Hello"  # Windows; pass arbitrary parameters (note --)
 ```
+
+## OpenDesigner
+
+[OpenDesigner](https://open-design.dev) is a local-first design tool, integrated with
+[pi](https://pi.dev)
+
+```bash
+pixi run od    # serve the UI on http://127.0.0.1:7456 (loopback only)
+pixi run -e designer od --help  # List launch options
+```
+
+Inside that environment `od` is OpenDesigner's daemon, not coreutils' octal dump — the
+same name upstream ships.
 
 ## herdr
 

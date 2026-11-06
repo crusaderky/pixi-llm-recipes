@@ -108,7 +108,7 @@ for pair in "${RESOURCE_TREES[@]}"; do
     cp -a "${SRC}/${from}" "${RES}/${to}"
 done
 
-# Resource-drift tripwire (DESIGN.md step 6): a renamed source already fails loudly
+# Resource-drift tripwire: a renamed source already fails loudly
 # (set -e + cp of a missing path), but an upstream-*added* tree would be dropped
 # silently and ship a different product. Assert every installed tree is non-empty
 # and that the number of trees declared upstream equals the number this script
@@ -144,7 +144,7 @@ for sqlite_build in "${DM}"/.pnpm/better-sqlite3@*/node_modules/better-sqlite3/b
     find "${sqlite_build}/Release" -mindepth 1 -maxdepth 1 ! -name better_sqlite3.node -exec rm -rf '{}' +
 done
 
-# Remove host absolute paths from packaged content (DESIGN.md step 8). pnpm records
+# Remove host absolute paths from packaged content. pnpm records
 # the build work area's store path in .modules.yaml and writes a NODE_PATH pointing
 # at the deploy work dir into every .bin shim. The prod daemon resolves modules
 # through dist/ (0 references to .bin/), so both are dead weight that would otherwise
@@ -160,7 +160,7 @@ find "${DM}" -type d -name .bin -prune -exec rm -rf '{}' +
 # under linux is touched.
 #
 # napi-v3/linux/arm64 (34 MiB) is equally unloadable on an x86_64-only package, but it
-# is deliberately left in: the installed tree is already under DESIGN.md's ~1 GiB
+# is deliberately left in: the installed tree is already under the ~1 GiB
 # guardrail at 960 MiB, so this stays the first lever to pull if that changes rather
 # than widening this pass's diff for 3%.
 rm -rf "${DM}"/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v3/darwin
@@ -173,9 +173,8 @@ find "${DM}" -type d \( \
     -name docs -o -name doc -o -name example -o -name examples -o \
     -name ".github" \
     \) -prune -exec rm -rf '{}' +
-# READMEs/changelogs go; licenses and third-party notices stay (DESIGN.md step 7
-# "Preserve licenses and bundled third-party notices") -- the exclusion keeps the 28
-# license/notice markdown files the sweep would otherwise take, e.g. tar's, jose's and
+# READMEs/changelogs go; licenses and third-party notices stay -- the exclusion keeps
+# the 28 license/notice markdown files the sweep would otherwise take, e.g. tar's, jose's and
 # pdf-lib's LICENSE.md and lie's and express-rate-limit's license.md. (@img/sharp-
 # libvips-linux-x64 ships no root notice at all -- only lib/, package.json and
 # versions.json -- so it is not an example of this, only of the README going.)
@@ -187,7 +186,7 @@ find "${DM}" -type f \( \
     -name "*.map" -o -name "*.tsbuildinfo" -o -name "binding.gyp" \
     \) -delete
 
-# DESIGN.md step 7 also names the app's own TypeScript sources/maps. The daemon's
+# The app's own TypeScript sources and maps go as well. The daemon's
 # compiled dist/ ships declaration files and sourcemaps it never loads at runtime;
 # strip them (keep the emitted .js/.cjs/.mjs and dist/ itself) and the tsc build
 # intermediates under apps/daemon. Third-party *.ts sources under node_modules are

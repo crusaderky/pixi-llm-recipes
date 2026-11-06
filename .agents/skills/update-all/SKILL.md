@@ -1,6 +1,6 @@
 ---
 name: update-all
-description: Update everything — llama.cpp (source + binary recipes), pi-extensions npm packages, herdr and herdr-file-viewer recipes, the strata recipe (pins + engine rebuild), then run `pixi update` to refresh the lockfile. Triggered by "update yourself", "update everything", or "do a full update".
+description: Update everything — llama.cpp (source + binary recipes), pi-extensions npm packages, herdr and herdr-file-viewer recipes, the strata recipe (pins + engine rebuild) and the opendesigner recipe (source tag + archive sha256 + pnpm pin + rebuild), then run `pixi update` to refresh the lockfile. Triggered by "update yourself", "update everything", or "do a full update".
 compatibility: Requires network access to api.github.com, registry.npmjs.org and herdr.dev. Designed for the pixi-llm-recipes project.
 allowed-tools: Bash, Read, Edit, WebFetch
 ---
@@ -22,7 +22,7 @@ is exposed rw as `~/.pi`, and the host's `~/.pi/agent/{auth,trust,settings}.json
 * **`pixi lock` / `pixi update` are lockfile-only.** They write `pixi.lock` (repo
   root is rw in the sandbox) and never sync an environment or rebuild local
   recipes — even when the lock changes, the env is left as-is. Safe from the
-  sandbox, and that is all phase 6 needs. Beware the two sub-commands differ:
+  sandbox, and that is all phase 7 needs. Beware the two sub-commands differ:
   `pixi lock` only checks lock validity and keeps the locked versions (it reports
   "already up-to-date" even when newer packages exist); `pixi update` bumps to the
   latest. Refreshing the lockfile means `pixi update`.
@@ -61,8 +61,12 @@ nothing moved.
    then `pixi install -e strata` (the engine is compiled, so the pin alone is a half-update; that
    env install is the one long phase, ~5-9 min, and — unlike `-e agents` — it is safe from the
    sandbox, whose bind mounts do not cover the strata prefix).
-6. **`pixi update`** from the project root, to refresh `pixi.lock`.
-7. **Report**:
+6. **update-opendesigner** — the `version` tag pin, the source archive `sha256` and the `pnpm_version`
+   the tag's lockfile demands, then `pixi install -e designer` and the empty-environment smoke test.
+   A pin bump does not move `pixi.lock` (path recipe), and `-e designer` is sandbox-safe because no
+   host file is bind-mounted over that prefix.
+7. **`pixi update`** from the project root, to refresh `pixi.lock`.
+8. **Report**:
 
 ```
 ## Update Complete
@@ -83,6 +87,11 @@ nothing moved.
 - Engine rebuilt via `pixi install -e strata`; smoke test: <health / decode / MTP draft>
 - Interface touch points: all present | MISSING <list>
 - pack/MTP re-prepared: no | yes (<why>)
+
+### opendesigner
+- Version: <old> → <new>        (pnpm pin: <old> → <new> | unchanged; sha256 refreshed)
+- Resource trees: unchanged (10/10) | <what moved>; interface touch points: all present | MISSING <list>
+- Rebuilt via `pixi install -e designer`; smoke test: <pass / why it failed>; installed tree <size>
 
 ### pixi.lock
 - Refreshed via `pixi update`.

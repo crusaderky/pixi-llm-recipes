@@ -23,7 +23,7 @@ chat-templates/              # Jinja chat templates referenced from models.ini
 neon-arena/                  # ad-hoc Reddit-style model comparison prompt
 perplexity/                  # archived KLD sweep outputs (logs + html/md/svg reports)
 .agents/skills/              # agent skills
-.github/workflows/           # lint.yml, llamacpp.yml, pi.yml
+.github/workflows/           # lint.yml, llamacpp.yml, pi.yml, opendesigner.yml
 sample-data/
   wiki.test.raw, wiki.test.head-2.4k.raw, wiki.train.head-10k.raw  # perplexity/KLD corpora
   describe-me.jpg            # multimodal smoke test
@@ -38,6 +38,7 @@ scripts/
   start-forge.sh stop-forge.sh                    # forge guardrails proxy lifecycle
   bwrap-pi.sh                                   # bubblewrap sandbox
   pi-unsafe.sh                                  # unsandboxed equivalent (dev/debug only)
+  smoke-opendesigner.sh                         # packaged OpenDesigner acceptance test (CI runs it)
   run-herdr.sh                                  # herdr launcher (PATH fixup + plugin inject)
   inject-pi-extensions.sh inject-strata-model.sh inject-herdr-file-viewer.sh
   install-bin.sh uninstall-bin.sh               # ~/.local/bin wrappers + herdr desktop entry
@@ -53,6 +54,7 @@ pixi-recipes/
   llama-cpp-source/    recipe.yaml variants.yaml build.sh patches/
   llama-cpp-binary/    recipe.yaml variants.yaml build.sh build.bat
   strata/              recipe.yaml build.sh   # app + engine + image encoder, compiled here
+  opendesigner/        recipe.yaml build.sh   # daemon + static web UI, built from the pinned tag
   pi-extensions/ pi-home/
   herdr/ herdr-file-viewer/
 ```
@@ -69,6 +71,7 @@ pixi-recipes/
 | `herdr`                                           | `herdr`, `herdr-file-viewer` (linux-64 + win-64 only)                                                       | `herdr`                                                                                                                                                                                                     |
 | `git`                                             | `git`, `gh`                                                                                                 | —                                                                                                                                                                                                           |
 | `git-launcher`                                    | no packages; included only in `agents` so `designer` can share `git` dependencies without duplicating tasks | `git`, `gh`                                                                                                                                                                                                 |
+| `opendesigner`                                    | the `opendesigner` recipe (source-built daemon + static web UI, linux-64 only)                              | —                                                                                                                                                                                                           |
 | `strata`                                          | the `strata` recipe (app + compiled engine, linux-64 only) + `huggingface_hub` + `curl`                     | `start-strata`, `stop-strata`, `restart-strata`, `strata-install`                                                                                                                                           |
 | `pytools`                                         | python 3.14, `llama-benchy`, `forge-guardrails`, huggingface_hub, transformers, openai, matplotlib, tomli-w | `llama-benchy`, `llama-benchy-strata`, `strata-help`, `hf`, `context-bench`, `aggregate-context-bench`, `perplexity-report`, `llama-cpp-changelog`, `gguf-meta-extract`, `openrouter-models`, `start-forge` |
 | `lint`                                            | lefthook, ruff, dprint, actionlint, shellcheck, pyflakes, codespell, blacken-docs                           | `lint`, `install-git-hooks`, `update-dprint`                                                                                                                                                                |
@@ -77,6 +80,7 @@ Environments:
 
 - Eight `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` = `llamacpp` + the matching backend feature.
 - `agents` = `pi` + `pi-launcher` + `sandbox` + `git` + `git-launcher` + `herdr` + `pytools`. There is no standalone `herdr` env.
+- `designer` = `opendesigner` + `pi` + `sandbox` + `git` — the same Pi, extensions, home, bubblewrap and git guards as `agents`, minus `pytools`/`herdr` and minus the launcher tasks (see [OpenDesigner](#opendesigner-designer-env-pixi-recipesopendesigner)).
 - `lint` = `lint` alone (`no-default-feature`).
 - `strata` = `strata` alone (`no-default-feature`); it serves on the port `strata.ini` sets (8082), so the ports stay apart: 9931 is llama-server's (also forge's backend), 8080 the forge proxy, 8082 Strata's (VRAM, not the port, keeps llama-server and Strata from running together). A bare `start-llamacpp` pins 9931 because that is llama-server's own `--port` default since upstream moved it off 8080. `strata-help` and `llama-benchy-strata` are in `pytools` instead: a help command must not trigger the `strata` env's engine compile, and the benchmark runs where `llama-benchy` does.
 
@@ -162,12 +166,13 @@ On Windows there is no `opt/llama` split and no symlinks: executables and DLLs a
 | `herdr`             | Downloads pre-built release binaries. Linux = stable (`https://herdr.dev/latest.json`, tag `v{version_stable}`); Windows = preview-only (`preview.json`, tag `{version_preview}`). Context pins `version_stable`, `sha256_stable_{x86_64,aarch64}`, `version_preview`, `sha256_preview_win_64`. |
 | `herdr-file-viewer` | Lays down a herdr plugin root under `${PREFIX}/home/.config/herdr/plugins/herdr-file-viewer/`: prebuilt binary at `target/release/`, plus manifest/scripts/example config fetched from the tagged source.                                                                                       |
 | `strata`            | Strata's app tree plus its C++/CUDA engine and image encoder, all compiled at install time (see [Strata](#strata-strata-env-strataini)).                                                                                                                                                        |
+| `opendesigner`      | OpenDesigner's daemon and static web UI, built from the pinned `open-design-v<version>` tag with conda Node + pnpm — no Electron, no Docker, no runtime `pnpm install` (see [OpenDesigner](#opendesigner-designer-env-pixi-recipesopendesigner)).                                               |
 
 Both `herdr` recipes set `dynamic_linking.binary_relocation: false` — the upstream Linux prebuilts are static-pie musl binaries, and rattler-build's default patchelf pass corrupts them (adds RPATH + PT_LOAD; the result segfaults).
 
 `herdr-file-viewer` also writes a portable `entry.json` (version, `min_herdr_version`, description — no absolute paths) next to the manifest. `scripts/inject-herdr-file-viewer.sh` reads it and merges the plugin into `~/.config/herdr/plugins.json`, filling `manifest_path`/`plugin_root` from `$CONDA_PREFIX`. It runs from `run-herdr.sh` before the PIXI/CONDA env is stripped, so nothing but the registry entry and the user's `config.toml` lands in `~/`.
 
-Version bumps for `herdr`, `herdr-file-viewer`, `pi-extensions`, `strata` and `llama-cpp` all have dedicated skills in `.agents/skills/`; `update-all` chains them and refreshes the lockfile.
+Version bumps for `herdr`, `herdr-file-viewer`, `pi-extensions`, `strata`, `opendesigner` and `llama-cpp` all have dedicated skills in `.agents/skills/`; `update-all` chains them and refreshes the lockfile.
 
 ## Strata (`strata` env, `strata.ini`)
 
@@ -418,6 +423,69 @@ The pin to watch is `llama_cpp_commit` in `pixi-recipes/strata/recipe.yaml`: it 
 `gguf-py`. Unlike `fork:` in the llama-cpp recipes it is safe to bump on its own — it is not a deliberate fork choice,
 it is upstream's own pin.
 
+## OpenDesigner (`designer` env, `pixi-recipes/opendesigner/`)
+
+[OpenDesigner](https://github.com/nexu-io/open-design) is a local-first design product: an Express
+daemon plus a static Next.js UI, serving `127.0.0.1:7456` by default (`--port`/`--host`,
+`OD_PORT`/`OD_BIND_HOST`). It runs a **code agent**, and the one it runs is Pi: it finds `pi` on
+`PATH`, probes `pi --version` / `pi --list-models` and drives the conversation over
+`pi --mode rpc` (upstream `apps/daemon/src/runtimes/defs/pi.ts`). The agent is not part of this
+recipe — `designer` gets it from `pi`/`pi-extensions`/`pi-home`.
+
+`build.sh` reproduces upstream's own `deploy/Dockerfile` build stage with conda Node + pnpm:
+`pnpm install --frozen-lockfile`, then `pnpm --filter @open-design/{daemon,web} build`, then
+`pnpm --filter @open-design/daemon deploy --legacy --prod`, then the Dockerfile's cleanup list.
+Everything it assumes about the tag is pinned or asserted, because every one of those assumptions
+fails silently:
+
+- `version:` is the **git tag** `open-design-v<version>`, not the version the tag's root
+  `package.json` carries (`0.25.1` at tag `0.27.0`); the commented `upstream_reported_version` line
+  records that mapping so nobody re-derives it. `source:` fetches the tag's archive with a `sha256`
+  computed from that exact URL.
+- `pnpm_version` must equal the tag's `packageManager`, or `--frozen-lockfile` refuses the committed
+  `pnpm-lock.yaml`. `engines.node: ~24` is a **run** requirement too — `nodejs >=24,<25` appears in
+  both lists, and nothing else is one: no pnpm, no Python, no compiler.
+- **`better-sqlite3` is compiled from pinned source**, with `npm_config_build_from_source=true`
+  scoped to that single `rebuild` command: `prebuild-install`'s Debian tarball is not covered by the
+  lockfile's integrity hash, and `sharp` treats any non-empty value of that variable as a request to
+  compile itself as well. The ABI of the deployed addon is then proven with a real
+  `require("better-sqlite3")` under the build's Node, after all cleanup has run.
+- The `RESOURCE_TREES` array **is** upstream's `BUNDLED_RESOURCE_TREES`
+  (`tools/pack/src/resources/index.ts`), source→dest, including the two that come from `assets/`
+  (`assets/frames` → `frames`) and the `plugins/` pair that keeps its subdirectory. The count is
+  asserted equal, and every installed tree is asserted non-empty, so an upstream addition cannot
+  ship as a missing resource.
+- The layout is the daemon's own resolution contract: daemon at `opt/opendesigner/apps/daemon`,
+  static UI at `apps/web/out` (`STATIC_DIR` is `<PROJECT_ROOT>/apps/web/out`), the ten trees under
+  `resources/` where `OD_RESOURCE_ROOT` points. `${PREFIX}/bin/od` is a **relative** symlink into it
+  — upstream's own binary name, so inside this env `od` shadows coreutils' octal dump.
+- Two cleanup passes have no upstream equivalent and both matter: host absolute paths are removed
+  (`node_modules/.modules.yaml`, every `.bin/` directory — pnpm bakes the build work dir into both),
+  and native payload that cannot load on this x86-64-only package is dropped (`onnxruntime-node`'s
+  `bin/napi-v3/{darwin,win32}`, all of `node-pty`'s `prebuilds/` but `linux`). The 34 MiB
+  `napi-v3/linux/arm64` stays deliberately: at 960 MiB installed the tree is inside the ~1 GiB
+  guardrail, and that payload is the recorded first lever if it stops being.
+- `scripts/smoke-opendesigner.sh` is the acceptance test CI runs: the installed daemon under
+  `env -i` with an empty `HOME`, a fresh `OD_DATA_DIR` and `OD_RESOURCE_ROOT`, asserting the static
+  UI, all six resource endpoints, every bundled plugin's absolute source path, the plugin-preview
+  manifest, `app.sqlite` in `OD_DATA_DIR`, nothing written to `HOME`, a `127.0.0.1`-only listener,
+  and that `SIGTERM` frees the port. It also fails if **any** build tool (`pnpm`, `node-gyp`, `gcc`,
+  `g++`, `cc`, `make`, `python`) is present in the env — the only way a `run:` leak is detected.
+- `pixi install -e designer` **is** safe from the bwrap sandbox (unlike `-e agents`): the host
+  `~/.pi` file binds land in the agents prefix only, so nothing in `.pixi/envs/designer` is
+  un-unlinkable. A path-recipe pin bump does **not** move `pixi.lock` either — the
+  `conda_source: opendesigner[…] @ pixi-recipes/opendesigner` entry is content-stable.
+- `designer` has no launcher tasks on purpose: `pi`/`pi-unsafe`/`pi-export` and `git`/`gh` stay in
+  `pi-launcher`/`git-launcher`, which only `agents` includes, so an unqualified `pixi run pi` is
+  never ambiguous. In `designer` you invoke the plain binaries (`pixi run -e designer od`,
+  `pixi run -e designer pi --list-models`) — the bubblewrap launcher is an `agents` thing.
+- linux-64 only, gated twice: `build.skip` in the recipe and `platforms` on the feature. The aarch64
+  and win-64 build paths are unimplemented, not merely untested.
+
+Bumping the tag is the **update-opendesigner** skill's job: the tag, its digest and the pnpm pin
+move together, and the resource-tree and Dockerfile-parity assumptions are re-read from the new tag
+before anything is rebuilt.
+
 ## Sandboxes and wrappers
 
 ### `bwrap-pi.sh`
@@ -604,6 +672,11 @@ pixi run pi /path/to/workspace -- --no-git   # block all GitHub access
 pixi run pi /path/to/workspace -- --ro-bind /path/to/reference  # extra read-only bind
 pixi run pi-unsafe /path/to/ws            # full host access, debugging only
 pixi run herdr
+
+# OpenDesigner (designer env: pi + sandbox + git + the opendesigner recipe; no launcher tasks here)
+pixi install -e designer                          # build the daemon + static web UI (a few minutes)
+pixi run -e designer od                           # UI on http://127.0.0.1:7456, loopback only
+pixi run -e designer bash scripts/smoke-opendesigner.sh   # packaged-tree acceptance test (CI)
 
 # …or, after `pixi r install`, from any directory (the wrapper supplies the cwd):
 pi
