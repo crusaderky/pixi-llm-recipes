@@ -34,6 +34,7 @@ jobs:
           locked: true
 
       - name: Check Node, Pi, and the packaged daemon
+        timeout-minutes: 10
         run: |
           pixi run -e designer node --version
           pixi run -e designer pi --version
@@ -45,11 +46,13 @@ jobs:
       # listener, and SIGTERM freeing the port. Runs under `env -i`, so it also
       # proves no build tool or package manager leaked into the run closure.
       - name: Smoke-test packaged daemon and resources
+        timeout-minutes: 10
         run: pixi run -e designer bash scripts/smoke-opendesign.sh
 
       # Unprivileged user namespaces are AppArmor-restricted on Ubuntu 24.04+;
       # this writes /etc/apparmor.d/bwrap (sudo is passwordless on runners).
       - name: Install AppArmor profile for bubblewrap
+        timeout-minutes: 5
         run: pixi r install-apparmor
 
       # The real launcher: one bwrap namespace around the daemon and every
@@ -58,9 +61,13 @@ jobs:
       # host /run and ~/.ssh absent, no GitHub credential under --no-git, and
       # Ctrl-C returning the port.
       - name: Smoke-test sandboxed launcher
+        # Bounded like the pi steps: a launcher that wedges must fail in minutes
+        # with a named step, not sit until the job timeout.
+        timeout-minutes: 15
         run: pixi run -e designer bash scripts/smoke-opendesign-sandbox.sh
 
       - name: opendesign-unsafe refuses --no-git
+        timeout-minutes: 5
         run: |
           if pixi run -e designer opendesign-unsafe - --no-git; then
             echo "opendesign-unsafe accepted --no-git; it must refuse it" >&2

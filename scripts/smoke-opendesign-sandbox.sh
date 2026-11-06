@@ -26,17 +26,27 @@ WS="${TMP}/workspace"
 mkdir -p "$WS"
 
 pid=""
+# Never block on a launcher that ignores the signal: TERM, a bounded grace
+# period, then KILL. bwrap's --die-with-parent takes the daemon with it.
+stop_launcher() {
+    [ -n "${pid}" ] || return 0
+    kill -TERM "${pid}" 2>/dev/null || true
+    for _ in $(seq 1 40); do
+        kill -0 "${pid}" 2>/dev/null || break
+        sleep 0.25
+    done
+    kill -KILL "${pid}" 2>/dev/null || true
+    wait "${pid}" 2>/dev/null || true
+    pid=""
+}
 cleanup() {
     status=$?
     trap - EXIT
-    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
-        kill -TERM "${pid}" 2>/dev/null || true
-        wait "${pid}" 2>/dev/null || true
-    fi
     if [ "${status}" -ne 0 ] && [ -f "${TMP}/launcher.log" ]; then
         echo "sandboxed launcher log (${TMP}/launcher.log):" >&2
         cat "${TMP}/launcher.log" >&2
     fi
+    stop_launcher
     rm -rf "${TMP}"
     exit "${status}"
 }
@@ -47,6 +57,23 @@ trap cleanup EXIT
 # whatever the CI runner has configured.
 bash "$LAUNCHER" "$WS" --no-git --port "$PORT" >"${TMP}/launcher.log" 2>&1 &
 pid=$!
+
+# Fail fast and loudly if the namespace or the daemon cannot start, instead of
+# letting the health poll time out with only a truncated log to show for it.
+for _ in $(seq 1 240); do
+    [ -n "$(ss -ltnH "( sport = :${PORT} )")" ] && break
+    if ! kill -0 "${pid}" 2>/dev/null; then
+        echo "the sandboxed launcher exited before it started listening" >&2
+        cat "${TMP}/launcher.log" >&2
+        pid=""
+        exit 1
+    fi
+    sleep 0.5
+done
+if [ -z "$(ss -ltnH "( sport = :${PORT} )")" ]; then
+    echo "the sandboxed daemon was not listening after 120s" >&2
+    exit 1
+fi
 
 export OD_SMOKE_BASE_URL="$BASE_URL"
 "${PREFIX}/bin/node" --input-type=module <<'JS'
@@ -160,17 +187,28 @@ if grep -q '^OD_SANDBOX_MODE=' "${TMP}/daemon.env"; then
     fail "OD_SANDBOX_MODE must stay unset (bubblewrap is the isolation)"
 fi
 
-# 5. Ctrl-C: the launcher owns the whole tree, and the port comes back.
-kill -INT "$pid"
-wait "$pid" || true
-pid=""
-for _ in $(seq 1 40); do
+# 5. Shutdown. Ctrl-C in a terminal reaches the whole foreground group, so the
+# daemon gets the SIGINT itself and shuts its children down; here the daemon pid
+# is signalled directly (same handler) and the launcher must then exit on its
+# own — bwrap's --die-with-parent is what guarantees no orphan survives it.
+kill -INT "$daemon_pid"
+for _ in $(seq 1 120); do
     [ -z "$(ss -ltnH "( sport = :${PORT} )")" ] && break
     sleep 0.25
 done
 if [ -n "$(ss -ltnH "( sport = :${PORT} )")" ]; then
-    echo "port ${PORT} is still occupied after SIGINT" >&2
+    echo "port ${PORT} is still occupied 30s after SIGINT to the daemon" >&2
     exit 1
 fi
+for _ in $(seq 1 80); do
+    kill -0 "${pid}" 2>/dev/null || break
+    sleep 0.25
+done
+if kill -0 "${pid}" 2>/dev/null; then
+    echo "the launcher (bwrap) outlived its daemon; --die-with-parent is not working" >&2
+    exit 1
+fi
+wait "${pid}" 2>/dev/null || true
+pid=""
 
 echo "Sandboxed OpenDesign smoke test passed; daemon stopped cleanly."
