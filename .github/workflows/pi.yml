@@ -21,6 +21,10 @@ jobs:
   test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # Every pi step below is bounded on its own; this is the backstop for the
+    # rest of the job. A step that wedges must fail in minutes, not at the
+    # runner's 6 h limit.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -50,14 +54,18 @@ jobs:
         run: pixi r -e llamacpp-binary-cpu start-llamacpp
 
       - name: pi-unsafe Hello world
-        run: pixi r pi-unsafe -- --model LFM2.5-230M -p "Hello world"
+        # `-nt` (no tools) because this model is bad at tool calling; prevent it from
+        # calling tools if it tries.
+        timeout-minutes: 10
+        run: pixi r pi-unsafe -- --model LFM2.5-230M -nt -p "Hello world"
 
       - name: Prepare dummy workspace
         run: mkdir -p ../dummy && touch ../dummy/hello123
 
       - name: pi-unsafe workspace
+        timeout-minutes: 10
         run: |
-          pixi r pi-unsafe ../dummy -- --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
+          pixi r pi-unsafe ../dummy -- --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: Global install
@@ -71,44 +79,51 @@ jobs:
 
       - name: pi Hello world
         if: matrix.os != 'windows-latest'
-        run: pixi r pi -- --model LFM2.5-230M -p "Hello world"
+        timeout-minutes: 10
+        run: pixi r pi -- --model LFM2.5-230M -nt -p "Hello world"
 
       - name: pi workspace
         if: matrix.os != 'windows-latest'
+        timeout-minutes: 10
         run: |
-          pixi r pi ../dummy -- --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
+          pixi r pi ../dummy -- --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: pi Hello world (global start script)
         if: matrix.os != 'windows-latest'
-        run: pi --model LFM2.5-230M -p "Hello world"
+        timeout-minutes: 10
+        run: pi --model LFM2.5-230M -nt -p "Hello world"
 
       - name: pi workspace (global start script)
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
+        timeout-minutes: 10
         run: |
           rm -f out.txt
-          pi --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
+          pi --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: pi --no-git
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
+        timeout-minutes: 10
         run: |
           rm -f out.txt
-          pi --model LFM2.5-230M --no-git -p "Use bash tool to run ls; return tool output" | tee out.txt
+          pi --model LFM2.5-230M --no-git --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: pi --no-sandbox Hello world (global start script)
         if: matrix.os != 'windows-latest'
-        run: pi --no-sandbox --model LFM2.5-230M -p "Hello world"
+        timeout-minutes: 10
+        run: pi --no-sandbox --model LFM2.5-230M -nt -p "Hello world"
 
       - name: pi --no-sandbox workspace + rtk integration (global start script)
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
+        timeout-minutes: 10
         run: |
           rm -f out.txt
-          pi --no-sandbox --model LFM2.5-230M -p "Use bash tool to run ls; return tool output" | tee out.txt
+          pi --no-sandbox --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
           grep hello123 out.txt
 
       - name: Stop server

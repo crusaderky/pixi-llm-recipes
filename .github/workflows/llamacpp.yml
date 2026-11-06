@@ -110,7 +110,10 @@ jobs:
         run: pixi r -e llamacpp-${{ matrix.backend }} start-llamacpp
 
       - name: pi Hello world
-        run: pixi r pi-unsafe -- --model LFM2.5-230M -p 'Hello world'
+        # `-nt` (no tools) because this model is bad at tool calling; prevent it from
+        # calling tools if it tries.
+        timeout-minutes: 10
+        run: pixi r pi-unsafe -- --model LFM2.5-230M -nt -p 'Hello world'
 
       - name: Restart server
         run: pixi r -e llamacpp-${{ matrix.backend }} restart-llamacpp
