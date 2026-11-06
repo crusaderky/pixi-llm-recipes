@@ -1,0 +1,76 @@
+context:
+  # OpenDesign stable release to package. The git tag is
+  # `open-design-v${version}`; the repo's own package.json carries a lower
+  # marketing version (0.25.1 at this tag), so the tag is the source of truth.
+  # Bump through the update-opendesign skill, which also refreshes the source
+  # archive sha256 and revalidates the pnpm/Node constraints.
+  version: "0.27.0"
+
+  # upstream_reported_version: "0.25.1"  # root package.json / /api/health at this tag.
+  # Recorded so the tag->version mapping is not re-derived on every bump: the conda
+  # `version` above is the git tag, this is what the running daemon reports. The
+  # update-opendesign skill moves both together.
+
+  # pnpm version pinned by the tag's root package.json `packageManager` field.
+  # The build must use this exact pnpm so `pnpm install --frozen-lockfile`
+  # accepts the committed pnpm-lock.yaml.
+  pnpm_version: "10.33.2"
+
+package:
+  name: opendesign
+  version: ${{ version }}
+
+source:
+  # The tag's source archive, never a floating `main`. SHA-256 is of the
+  # GitHub-generated tarball fetched at build time; re-derive on every bump.
+  url: https://github.com/nexu-io/open-design/archive/refs/tags/open-design-v${{ version }}.tar.gz
+  sha256: 6fb2dedea9fc5d1bf01cd158fd7597b62a171aad60ae344716b5a9ed4a1c4987
+  # Extract into <work>/open-design so build.sh locates the repo root by a fixed
+  # name instead of scanning for the workspace manifest (mirrors the strata recipe).
+  target_directory: open-design
+
+build:
+  number: 0
+  script:
+    # Extension-less: resolves to build.sh on Linux and build.bat on Windows,
+    # following the existing cross-platform recipe convention.
+    file: build
+  skip:
+    # Linux x86-64 is the only validated platform for the packaging spike.
+    - "not (linux and x86_64)"
+
+requirements:
+  build:
+    # better-sqlite3 is compiled through node-gyp, which needs a C/C++
+    # toolchain, make and Python at build time.
+    - ${{ compiler('c') }}
+    - ${{ compiler('cxx') }}
+    - make
+    - python
+    # Node 24 (upstream `engines.node: "~24"`) and the pnpm the lockfile pins.
+    - nodejs >=24,<25
+    - pnpm ==${{ pnpm_version }}
+  run:
+    # Only Node is required to run the packaged daemon. The compiled native
+    # modules link the C++ runtime, pulled in as a run-export of the cxx
+    # compiler; pnpm, Python, node-gyp and compilers are not runtime deps.
+    - nodejs >=24,<25
+
+about:
+  homepage: https://opendesigner.io/
+  repository: https://github.com/nexu-io/open-design
+  license: Apache-2.0
+  # Relative to the work dir; the source extracts under open-design/ (target_directory).
+  license_file: open-design/LICENSE
+  summary: OpenDesign headless daemon serving its static web UI on loopback
+  description: |
+    OpenDesign is a local-first design product: an Express daemon plus a
+    static Next.js UI. This package builds the daemon and the static web export
+    from the pinned release tag, deploys production-only npm dependencies, and
+    installs them with the bundled skill/design/craft/prompt resources under
+    ${PREFIX}/opt/opendesign. It does not build Electron, use Docker, or run
+    `pnpm install` at runtime.
+
+    The agent is not part of this package: OpenDesign drives Pi, which comes
+    from the separate pi-coding-agent / pi-extensions / pi-home packages in the
+    `designer` environment.
