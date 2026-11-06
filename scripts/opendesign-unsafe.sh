@@ -46,6 +46,10 @@ else
     echo "opendesign-unsafe.sh: need a workspace directory (or -)" >&2
     exit 2
   fi
+  if [ ! -d "$1" ]; then
+    echo "opendesign-unsafe.sh: no such workspace directory: $1" >&2
+    exit 2
+  fi
   DIR="$(realpath "$1")"
 fi
 

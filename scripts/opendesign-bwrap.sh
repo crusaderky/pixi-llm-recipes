@@ -62,6 +62,10 @@ else
     echo "opendesign-bwrap.sh: need a workspace directory (or -)" >&2
     exit 2
   fi
+  if [ ! -d "$1" ]; then
+    echo "opendesign-bwrap.sh: no such workspace directory: $1" >&2
+    exit 2
+  fi
   WORKSPACE="$(realpath "$1")"
   PERSISTENT=true
   WK_ARGS=(--bind "$WORKSPACE" "$WORKSPACE" --chdir "$WORKSPACE")

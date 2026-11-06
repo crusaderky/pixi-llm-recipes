@@ -427,6 +427,11 @@ generated artifact, a resumed second turn) need a live model provider and stay m
 
 ## Maintenance
 
-Once stable, add an `update-opendesign` skill that pins the new stable tag, updates source SHA-256 and pnpm/Node constraints from that tag, builds the recipe, runs the smoke tests, and regenerates the lockfile. Include it in `update-all` only after the update process is proven. Do not track upstream `main`, floating npm dependencies, or a mutable container tag.
+The `update-opendesign` skill pins the new stable tag, updates source SHA-256 and pnpm/Node
+constraints from that tag, re-reads the resource-tree and Dockerfile-parity assumptions, rebuilds the
+recipe, runs both smoke tests, and regenerates the lockfile; `update-all` chains it. Bumping the tag is
+never `main`, a floating npm dependency, or a mutable container tag. The remaining slice is Windows:
+`build.bat` plus an MSYS-bash `opendesign-unsafe`, with Linux as the only platform that exposes a
+sandboxed task.
 
 Document the final recipe layout, launcher flags, state exceptions, measured size, supported workflows, and Windows warning in the project instructions when implementation lands. The design intentionally leaves those implementation details out of the current `agents` runtime until the recipe and core flow are demonstrated.
