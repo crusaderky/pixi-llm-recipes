@@ -114,12 +114,13 @@ jobs:
         # server it was started against and completes a turn. Tools would put a
         # 230M model's invented tool calls in the way, and a tool that blocks is
         # one of the two ways print mode wedges upstream — the other is an
-        # extension handle left open after the turn, which is what actually ate
-        # the 6 h runner limit (earendil-works/pi#2677, #5944, #7734).
-        # scripts/ci-run-pi.sh bounds the process and says what it was waiting
-        # on; tool use is covered by pi.yml's workspace steps.
+        # extension handle left open after the answer, which is what actually ate
+        # the 6 h runner limit (earendil-works/pi#2677, #5944, #7734). Print mode
+        # is not exit-safe, so a wedged pi is a failure, and the timeout is what
+        # turns that into a named step instead of a six-hour cancellation. Tool
+        # use is covered by pi.yml's workspace steps.
         timeout-minutes: 10
-        run: bash scripts/ci-run-pi.sh 420 pixi r pi-unsafe -- --model LFM2.5-230M -nt -p 'Hello world'
+        run: pixi r pi-unsafe -- --model LFM2.5-230M -nt -p 'Hello world'
 
       - name: Restart server
         run: pixi r -e llamacpp-${{ matrix.backend }} restart-llamacpp
