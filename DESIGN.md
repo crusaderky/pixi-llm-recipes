@@ -114,7 +114,7 @@ Create:
 pixi-recipes/opendesign/
   recipe.yaml
   build.sh
-  build.bat
+  build.bat            # Windows slice — deferred; the recipe currently skips win-64
 ```
 
 `recipe.yaml` should:
@@ -351,23 +351,23 @@ The source tree and bundled assets are substantial, and upstream allows a 4 GiB 
 
 ## Implementation sequence
 
-1. **Packaging spike**
+1. **Packaging spike** — done (slice 1)
    - Pin one stable tag and implement the daemon/static-web recipe on Linux x86-64.
    - Confirm Node 24 can run the shipped Pi and extensions.
    - Verify the installed tree starts without source, pnpm, compilers, downloads, or Docker.
    - Record size and build-cost measurements and adjust the plan if they are disproportionate.
 
-2. **Linux launcher**
+2. **Linux launcher** — done (slice 2)
    - Add the `designer` environment, foreground wrapper, per-workspace state, Pi auth/model reuse, and bubblewrap profile.
    - Reuse the Git guards and add only small shared Pi-setup helpers where duplication is obvious.
    - Add `.od/` to `.gitignore` and document the exact support boundary.
 
-3. **Core end-to-end validation**
+3. **Core end-to-end validation** — CI build/smoke in place; the live-model items stay manual
    - Run the acceptance tests below, including real artifact generation and resume.
    - Test the existing Pi launcher after any shared-helper change.
    - Add CI build/smoke coverage and the update skill only after the package shape is stable.
 
-4. **Windows unsafe path**
+4. **Windows unsafe path** — not started
    - Implement `build.bat` and `opendesign-unsafe` with MSYS bash and the existing Windows script constraints.
    - Validate the same core workflows without claiming filesystem or Git isolation.
    - Keep Linux as the only platform exposing the normal sandboxed task.
