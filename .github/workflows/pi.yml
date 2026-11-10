@@ -105,13 +105,6 @@ jobs:
 
       - name: pi Hello world (global start script)
         if: matrix.os != 'windows-latest'
-        # The wrapper makes your cwd the workspace, so from the repo root these
-        # steps feed pi this repo's 46 KB AGENTS.md: 30k prompt tokens, which
-        # LFM2.5-230M prefills at ~40 tok/s on a CPU-only runner — over 10 minutes,
-        # so the step times out mid-prefill with the model still working (run
-        # 42830109814: task.n_tokens = 30254, still at progress 0.68 after 563 s).
-        # ../dummy keeps the workspace a real directory without that context,
-        # which is what a wrapper step is testing.
         working-directory: ../dummy
         timeout-minutes: 10
         run: pi --model LFM2.5-230M -nt -p "Hello world"
@@ -136,7 +129,6 @@ jobs:
 
       - name: pi --no-sandbox Hello world (global start script)
         if: matrix.os != 'windows-latest'
-        # working-directory for the reason given on the other global-script step
         working-directory: ../dummy
         timeout-minutes: 10
         run: pi --no-sandbox --model LFM2.5-230M -nt -p "Hello world"
