@@ -94,8 +94,13 @@ jobs:
       - name: Cache downloaded models
         uses: actions/cache@v4
         with:
-          path: ~/.cache/huggingface
-          key: huggingface-${{ matrix.os }}
+          # Same cache and key as .github/workflows/pi.yml, so both workflows
+          # share one archive per OS and a preset change invalidates it instead of
+          # re-downloading forever (see the comment there).
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-${{ matrix.os }}-${{ hashFiles('models.ini') }}
+          restore-keys: |
+            hf-hub-${{ matrix.os }}-
 
       - name: llama-server --version
         run: pixi r -e llamacpp-${{ matrix.backend }} llama-version
@@ -110,8 +115,11 @@ jobs:
         run: pixi r -e llamacpp-${{ matrix.backend }} start-llamacpp
 
       - name: pi Hello world
-        # `-nt` (no tools) because this model is bad at tool calling; prevent it from
-        # calling tools if it tries.
+        # `-nt` (no tools): this step proves pi reaches a server built for this
+        # backend and completes a turn, nothing more; the tool-use steps are in
+        # pi.yml, where the model under test is the one that calls tools
+        # reliably. LFM2.5-230M stays here because llama-hello and llama-benchy
+        # already download its 147 MB.
         timeout-minutes: 10
         run: pixi r pi-unsafe -- --model LFM2.5-230M -nt -p 'Hello world'
 

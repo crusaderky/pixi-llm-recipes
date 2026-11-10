@@ -47,27 +47,41 @@ jobs:
       - name: Cache downloaded models
         uses: actions/cache@v4
         with:
-          path: ~/.cache/huggingface
-          key: huggingface-${{ matrix.os }}
+          # llama-server resolves its download cache in this order
+          # (common/hf-cache.cpp): LLAMA_CACHE, HF_HUB_CACHE,
+          # HUGGINGFACE_HUB_CACHE, $HF_HOME/hub, $XDG_CACHE_HOME/huggingface/hub,
+          # then $HOME — %USERPROFILE% on Windows — under .cache/huggingface/hub.
+          # So ~ is the right prefix on all three runners, and hub/ is the part
+          # that holds the GGUF blobs (the rest is xet state and lock files).
+          path: ~/.cache/huggingface/hub
+          # The model under test is the `hf =` tag of a [preset] in models.ini, so
+          # the key hashes that file. Without the model in the key, switching
+          # preset or quant hits the old cache, downloads the new weights into it,
+          # and never re-saves (an existing key is never overwritten), so every
+          # later run downloads again. restore-keys turns a models.ini edit that
+          # does not move the pins into a partial restore rather than a cold start.
+          key: hf-hub-${{ matrix.os }}-${{ hashFiles('models.ini') }}
+          restore-keys: |
+            hf-hub-${{ matrix.os }}-
 
       - name: Start server
         run: pixi r -e llamacpp-binary-cpu start-llamacpp
 
       - name: pi-unsafe Hello world
-        # `-nt` (no tools) because this model is bad at tool calling; prevent it from
-        # calling tools if it tries.
+        # `-nt` (no tools) keeps the pure-text steps about the harness: pi
+        # reaching the server and finishing a turn with no tool available at all.
+        # The workspace steps are what prove tool use.
         timeout-minutes: 10
-        run: pixi r pi-unsafe -- --model LFM2.5-230M -nt -p "Hello world"
+        run: pixi r pi-unsafe -- --model LFM3-1.7B -nt -p "Hello world"
 
       - name: Prepare dummy workspace
         run: mkdir -p ../dummy && touch ../dummy/hello123
 
       - name: pi-unsafe workspace
-        # scripts/ci-pi-tool-use.sh re-asks the prompt until the model calls the
-        # bash tool: with a 230 M model, whether it does is sampling.
         timeout-minutes: 10
         run: |
-          "$GITHUB_WORKSPACE/scripts/ci-pi-tool-use.sh" pixi r pi-unsafe ../dummy -- --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output"
+          pixi r pi-unsafe ../dummy -- --model LFM3-1.7B --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
+          grep hello123 out.txt
 
       - name: Global install
         if: matrix.os != 'windows-latest'
@@ -81,53 +95,61 @@ jobs:
       - name: pi Hello world
         if: matrix.os != 'windows-latest'
         timeout-minutes: 10
-        run: pixi r pi -- --model LFM2.5-230M -nt -p "Hello world"
+        run: pixi r pi -- --model LFM3-1.7B -nt -p "Hello world"
 
       - name: pi workspace
         if: matrix.os != 'windows-latest'
         timeout-minutes: 10
         run: |
-          "$GITHUB_WORKSPACE/scripts/ci-pi-tool-use.sh" pixi r pi ../dummy -- --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output"
+          pixi r pi ../dummy -- --model LFM3-1.7B --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
+          grep hello123 out.txt
 
       - name: pi Hello world (global start script)
         if: matrix.os != 'windows-latest'
         # The wrapper makes your cwd the workspace, so from the repo root these
-        # steps feed pi this repo's AGENTS.md: 30k prompt tokens, which a 230 M
-        # model on a CPU-only runner prefills at ~40 tok/s — over 10 minutes, so
-        # the step times out mid-prefill with the model still working (run
-        # 42830109814). ../dummy keeps the workspace a real directory without
-        # that context, which is what a wrapper step is testing.
+        # steps feed pi this repo's 46 KB AGENTS.md: 30k prompt tokens, which no
+        # model of this size prefills inside the step bound on a CPU-only runner
+        # (run 42830109814: task.n_tokens = 30254, still at progress 0.68 after
+        # 563 s, with the smaller model it had been using). ../dummy keeps the
+        # workspace a real directory without that context, which is what a
+        # wrapper step is testing.
         working-directory: ../dummy
         timeout-minutes: 10
-        run: pi --model LFM2.5-230M -nt -p "Hello world"
+        run: pi --model LFM3-1.7B -nt -p "Hello world"
 
       - name: pi workspace (global start script)
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         timeout-minutes: 10
         run: |
-          "$GITHUB_WORKSPACE/scripts/ci-pi-tool-use.sh" pi --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output"
+          rm -f out.txt
+          pi --model LFM3-1.7B --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
+          grep hello123 out.txt
 
       - name: pi --no-git
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         timeout-minutes: 10
         run: |
-          "$GITHUB_WORKSPACE/scripts/ci-pi-tool-use.sh" pi --model LFM2.5-230M --no-git --tools bash -p "Use bash tool to run ls; return tool output"
+          rm -f out.txt
+          pi --model LFM3-1.7B --no-git --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
+          grep hello123 out.txt
 
       - name: pi --no-sandbox Hello world (global start script)
         if: matrix.os != 'windows-latest'
         # working-directory for the reason given on the other global-script step
         working-directory: ../dummy
         timeout-minutes: 10
-        run: pi --no-sandbox --model LFM2.5-230M -nt -p "Hello world"
+        run: pi --no-sandbox --model LFM3-1.7B -nt -p "Hello world"
 
       - name: pi --no-sandbox workspace + rtk integration (global start script)
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         timeout-minutes: 10
         run: |
-          "$GITHUB_WORKSPACE/scripts/ci-pi-tool-use.sh" pi --no-sandbox --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output"
+          rm -f out.txt
+          pi --no-sandbox --model LFM3-1.7B --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
+          grep hello123 out.txt
 
       - name: Stop server
         run: pixi r stop-llamacpp
