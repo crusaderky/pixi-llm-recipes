@@ -115,11 +115,8 @@ jobs:
         run: pixi r -e llamacpp-${{ matrix.backend }} start-llamacpp
 
       - name: pi Hello world
-        # `-nt` (no tools): this step proves pi reaches a server built for this
-        # backend and completes a turn, nothing more; the tool-use steps are in
-        # pi.yml, where the model under test is the one that calls tools
-        # reliably. LFM2.5-230M stays here because llama-hello and llama-benchy
-        # already download its 147 MB.
+        # `-nt` (no tools) because this model is bad at tool calling; prevent it from
+        # calling tools if it tries.
         timeout-minutes: 10
         run: pixi r pi-unsafe -- --model LFM2.5-230M -nt -p 'Hello world'
 
