@@ -23,3 +23,21 @@ allowed-tools: WebFetch Read Edit
    Preserve comments, blank lines, indentation and ordering exactly.
 
 5. Report the bumps, the up-to-date packages, and any whose lookup failed.
+
+6. If this run bumped `pi-llama-cpp`, re-check the patch that
+   `build.sh`/`build.bat` apply to it before calling the update done — an
+   anchor that no longer matches fails the package build, and CI is where that
+   would otherwise surface:
+
+   ```bash
+   cd "$(mktemp -d)" && npm pack pi-llama-cpp@<new-version> && tar xzf pi-llama-cpp-<new-version>.tgz
+   node /path/to/pixi-llm-recipes/pixi-recipes/pi-extensions/patches/pi-llama-cpp-sse-shutdown.cjs package
+   ```
+
+   `applied` or `already applied` means the bump is fine; `anchor not found`
+   means re-derive the patch against the new source. Check
+   `grep -rn session_shutdown package/src/` on the extracted tarball first: if
+   upstream fixed [gsanhueza/pi-llama-cpp#40](https://github.com/gsanhueza/pi-llama-cpp/issues/40),
+   delete the patch, its two build-script calls, and the pin comment in
+   `recipe.yaml` instead of re-deriving. Then bump `package.version` and
+   `pixi install -e agents`.

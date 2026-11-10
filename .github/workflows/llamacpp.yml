@@ -94,8 +94,13 @@ jobs:
       - name: Cache downloaded models
         uses: actions/cache@v4
         with:
-          path: ~/.cache/huggingface
-          key: huggingface-${{ matrix.os }}
+          # Same cache and key as .github/workflows/pi.yml, so both workflows
+          # share one archive per OS and a preset change invalidates it instead of
+          # re-downloading forever (see the comment there).
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-${{ matrix.os }}-${{ hashFiles('models.ini') }}
+          restore-keys: |
+            hf-hub-${{ matrix.os }}-
 
       - name: llama-server --version
         run: pixi r -e llamacpp-${{ matrix.backend }} llama-version
