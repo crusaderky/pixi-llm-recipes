@@ -63,10 +63,11 @@ jobs:
         run: mkdir -p ../dummy && touch ../dummy/hello123
 
       - name: pi-unsafe workspace
+        # scripts/ci-pi-tool-use.sh re-asks the prompt until the model calls the
+        # bash tool: with a 230 M model, whether it does is sampling.
         timeout-minutes: 10
         run: |
-          pixi r pi-unsafe ../dummy -- --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
-          grep hello123 out.txt
+          "$GITHUB_WORKSPACE/scripts/ci-pi-tool-use.sh" pixi r pi-unsafe ../dummy -- --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output"
 
       - name: Global install
         if: matrix.os != 'windows-latest'
@@ -86,11 +87,17 @@ jobs:
         if: matrix.os != 'windows-latest'
         timeout-minutes: 10
         run: |
-          pixi r pi ../dummy -- --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
-          grep hello123 out.txt
+          "$GITHUB_WORKSPACE/scripts/ci-pi-tool-use.sh" pixi r pi ../dummy -- --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output"
 
       - name: pi Hello world (global start script)
         if: matrix.os != 'windows-latest'
+        # The wrapper makes your cwd the workspace, so from the repo root these
+        # steps feed pi this repo's AGENTS.md: 30k prompt tokens, which a 230 M
+        # model on a CPU-only runner prefills at ~40 tok/s — over 10 minutes, so
+        # the step times out mid-prefill with the model still working (run
+        # 42830109814). ../dummy keeps the workspace a real directory without
+        # that context, which is what a wrapper step is testing.
+        working-directory: ../dummy
         timeout-minutes: 10
         run: pi --model LFM2.5-230M -nt -p "Hello world"
 
@@ -99,21 +106,19 @@ jobs:
         working-directory: ../dummy
         timeout-minutes: 10
         run: |
-          rm -f out.txt
-          pi --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
-          grep hello123 out.txt
+          "$GITHUB_WORKSPACE/scripts/ci-pi-tool-use.sh" pi --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output"
 
       - name: pi --no-git
         if: matrix.os != 'windows-latest'
         working-directory: ../dummy
         timeout-minutes: 10
         run: |
-          rm -f out.txt
-          pi --model LFM2.5-230M --no-git --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
-          grep hello123 out.txt
+          "$GITHUB_WORKSPACE/scripts/ci-pi-tool-use.sh" pi --model LFM2.5-230M --no-git --tools bash -p "Use bash tool to run ls; return tool output"
 
       - name: pi --no-sandbox Hello world (global start script)
         if: matrix.os != 'windows-latest'
+        # working-directory for the reason given on the other global-script step
+        working-directory: ../dummy
         timeout-minutes: 10
         run: pi --no-sandbox --model LFM2.5-230M -nt -p "Hello world"
 
@@ -122,9 +127,7 @@ jobs:
         working-directory: ../dummy
         timeout-minutes: 10
         run: |
-          rm -f out.txt
-          pi --no-sandbox --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output" | tee out.txt
-          grep hello123 out.txt
+          "$GITHUB_WORKSPACE/scripts/ci-pi-tool-use.sh" pi --no-sandbox --model LFM2.5-230M --tools bash -p "Use bash tool to run ls; return tool output"
 
       - name: Stop server
         run: pixi r stop-llamacpp

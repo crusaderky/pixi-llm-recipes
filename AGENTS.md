@@ -38,6 +38,7 @@ scripts/
   start-forge.sh stop-forge.sh                    # forge guardrails proxy lifecycle
   bwrap-pi.sh                                   # bubblewrap sandbox
   pi-unsafe.sh                                  # unsandboxed equivalent (dev/debug only)
+  ci-pi-tool-use.sh                             # pi.yml: re-ask until the CI model calls the bash tool
   run-herdr.sh                                  # herdr launcher (PATH fixup + plugin inject)
   inject-pi-extensions.sh inject-strata-model.sh inject-herdr-file-viewer.sh
   install-bin.sh uninstall-bin.sh               # ~/.local/bin wrappers + herdr desktop entry
@@ -455,10 +456,12 @@ Calling the pixi task directly is the awkward path: it takes exactly one positio
 
 ### CI
 
-`.github/workflows/{lint,llamacpp,pi}.yml`. Two things about the pi steps are load-bearing and easy to undo by accident:
+`.github/workflows/{lint,llamacpp,pi}.yml`. Four things about the pi steps are load-bearing and easy to undo by accident:
 
 - **Every `pi` step has `timeout-minutes: 10`** — a backstop, not the answer to a known failure. Print mode used to finish its turn, print the answer, and then never exit; reproducibly, when pointed at a `--models-preset` router whose model is still `unloaded`: pi answered within seconds and then kept one idle socket to llama-server open forever. The handle was `pi-llama-cpp`'s SSE stream to `/models/sse` — it reconnects until `disconnect()` is called, and nothing called it (`gsanhueza/pi-llama-cpp` #40, which also leaks one such stream per server re-scan). `pixi-recipes/pi-extensions/patches/pi-llama-cpp-sse-shutdown.cjs` closes every open stream from a `session_shutdown` handler, which is where pi's own extension docs put long-lived resources, and the patch failing to apply fails the package build. Upstream still carries reports of this class (`earendil-works/pi` #2677, #2584, #3886, #5944, #7734 — the last names a spawned subagent as the trigger), so a step that wedges must still fail as a named step in minutes rather than be cancelled at the runner's 6 h limit.
 - **The pure-text steps pass `-nt` and the workspace steps pass `--tools bash`.** The model under test is LFM2.5-230M, chosen because it downloads in seconds — its tool calls are guesses, and a tool that blocks forever (anything waiting on stdin, a password prompt, or a network peer) is the other half of that hang class. `-nt` proves pi reaches the server and completes a turn with no tools at all; `--tools bash` is the narrowest surface that still proves tool use, the `~/.local/bin` wrappers, and the git guards.
+- **The `~/.local/bin/pi` wrapper steps set `working-directory: ../dummy`.** The wrapper makes your cwd the workspace, so from the repo root they hand pi this repo's 46 KB `AGENTS.md` (plus the skills' descriptions): ~30k prompt tokens, which LFM2.5-230M on a CPU-only runner prefills at ~40 tok/s — the step then times out with the model still working, no pi bug involved (run 42830109814 was 12 min into that prefill when its bound fired). The `pixi r pi` steps avoid it by taking no workspace argument, which means a temp directory.
+- **The steps that assert on tool use run through `scripts/ci-pi-tool-use.sh`.** Whether a 230 M model calls the bash tool at all is sampling: the same prompt called `ls` on `ubuntu-latest` and asked "could you please specify the command" on `ubuntu-24.04-arm` one run later. The helper re-asks up to `CI_PI_TOOL_ATTEMPTS` times (5) and fails if none of them produced the marker, so the assertion is still hard but no longer a coin flip.
 
 `llamacpp.yml` sets no job-level timeout because the source backends legitimately compile for a long time; `pi.yml` caps the job at 30 minutes on top of the per-step bounds.
 
