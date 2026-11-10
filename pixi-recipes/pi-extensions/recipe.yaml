@@ -1,6 +1,8 @@
 package:
   name: pi-extensions
-  version: "1"
+  # 2: builds patches/pi-llama-cpp-sse-shutdown.cjs into the installed plugin
+  # (upstream gsanhueza/pi-llama-cpp#40); the plugin pins themselves are unchanged.
+  version: "2"
 
 source:
   - path: .
@@ -13,6 +15,8 @@ build:
     env:
       # Single source of truth for the plugin pins, consumed by both
       # build.sh and build.bat (space-separated <package>@<version> list).
+      # A block scalar: nothing inside it is a comment, so notes about a pin go
+      # in build.sh (there: the SSE patch applied to the installed pi-llama-cpp).
       PLUGINS: >-
         pi-btw@0.8.1
         pi-caveman@1.0.12
