@@ -124,17 +124,25 @@ pi-coding-agent = "*"
 pi-extensions = { path = "pixi-recipes/pi-extensions" }
 pi-home = { path = "pixi-recipes/pi-home" }
 
+# {{ root_dir }} MUST stay double-quoted: pixi renders a task argument into the
+# command by plain text substitution and then parses the result as a shell
+# command line, so an unquoted workspace path with a space splits in two —
+# `pixi r pi ".../Pathfinder 2/Kingmaker"` hands the launcher `.../Pathfinder`
+# as the workspace and binds that. Double quotes are the cross-platform spelling
+# (pi-unsafe runs on Windows too). What that rendering still cannot carry is a
+# path with $, backticks or a double quote, which the shell would expand; single
+# quotes are literal but break on a path containing one, so they are not used.
 [feature.pi.tasks]
-pi-unsafe.cmd = "bash scripts/pi-unsafe.sh {{ root_dir }}"
+pi-unsafe.cmd = "bash scripts/pi-unsafe.sh \"{{ root_dir }}\""
 pi-unsafe.args = [{ arg = "root_dir", default = "-" }]
 pi-export = "pi --export"
 
 [feature.pi.target.linux-64-glibc234.tasks]
-pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
+pi.cmd = "bash scripts/bwrap-pi.sh \"{{ root_dir }}\""
 pi.args = [{ arg = "root_dir", default = "-" }]
 
 [feature.pi.target.linux-aarch64-glibc234.tasks]
-pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
+pi.cmd = "bash scripts/bwrap-pi.sh \"{{ root_dir }}\""
 pi.args = [{ arg = "root_dir", default = "-" }]
 
 [feature.herdr.dependencies]
