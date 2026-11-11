@@ -124,10 +124,12 @@ mkdir -p "$OD_STATE/installation" "$OD_STATE/agent-home" \
   "$OD_STATE/cache" "$OD_STATE/config" "$OD_STATE/data" "$OD_STATE/state" "$OD_STATE/tmp"
 
 # Same guard as the sandboxed launcher: one state root means one daemon, and two
-# writing the same app.sqlite is a corruption risk. Under MSYS this simply finds
-# nothing, which is harmless.
+# writing the same app.sqlite is a corruption risk. See that script for why the
+# -r test comes before the read. Where there is no /proc, the glob matches
+# nothing, fails -r, and the loop is a no-op.
 for env_file in /proc/[0-9]*/environ; do
-  if tr '\0' '\n' <"$env_file" 2>/dev/null | grep -qx "OD_DATA_DIR=$OD_STATE"; then
+  [ -r "$env_file" ] || continue
+  if { tr '\0' '\n' <"$env_file"; } 2>/dev/null | grep -qx "OD_DATA_DIR=$OD_STATE"; then
     other_pid="${env_file#/proc/}"
     echo "WARNING: an OpenDesign session (pid ${other_pid%%/*}) is already using $OD_STATE." >&2
     echo "         A second daemon shares one SQLite database with it — stop the first." >&2

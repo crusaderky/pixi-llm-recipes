@@ -187,11 +187,19 @@ mkdir -p "$DATA_DIR" "$INSTALL_DIR" "$AGENT_HOME" \
 # app.sqlite is a corruption risk, not a race, and a second one otherwise looks
 # like a daemon that started fine. /proc/<pid>/environ is read directly rather
 # than going through pgrep or lsof — neither is used anywhere else in these
-# scripts, and pgrep is off the cross-platform list; an entry that cannot be read
-# belongs to another user. A match may be an agent the daemon spawned rather than
-# the daemon itself; either way something is already on this root.
+# scripts, and pgrep is off the cross-platform list. A match may be an agent the
+# daemon spawned rather than the daemon itself; either way something is already
+# on this root.
+#
+# The -r test is not a nicety: /proc/<pid>/environ is 0400 and only readable by
+# the process owner, so without it every kernel thread and root daemon on the
+# host both spams the terminal (a failed input redirect is reported by the shell
+# itself — `2>/dev/null` after `<file` is already too late) and forks a useless
+# tr+grep pair, i.e. ~2 processes per pid on a busy machine. The group redirect
+# still covers the race of a process exiting between the test and the read.
 for env_file in /proc/[0-9]*/environ; do
-  if tr '\0' '\n' <"$env_file" 2>/dev/null | grep -qx "OD_DATA_DIR=$OD_STATE"; then
+  [ -r "$env_file" ] || continue
+  if { tr '\0' '\n' <"$env_file"; } 2>/dev/null | grep -qx "OD_DATA_DIR=$OD_STATE"; then
     other_pid="${env_file#/proc/}"
     echo "WARNING: an OpenDesign session (pid ${other_pid%%/*}) is already using $OD_STATE." >&2
     echo "         A second daemon shares one SQLite database with it — stop the first." >&2
