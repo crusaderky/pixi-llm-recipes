@@ -4,7 +4,7 @@ context:
   # marketing version (0.25.1 at this tag), so the tag is the source of truth.
   # Bump through the update-opendesign skill, which also refreshes the source
   # archive sha256 and revalidates the pnpm/Node constraints.
-  version: "0.27.0"
+  version: "0.27.1"
 
   # upstream_reported_version: "0.25.1"  # root package.json / /api/health at this tag.
   # Recorded so the tag->version mapping is not re-derived on every bump: the conda
@@ -24,7 +24,7 @@ source:
   # The tag's source archive, never a floating `main`. SHA-256 is of the
   # GitHub-generated tarball fetched at build time; re-derive on every bump.
   url: https://github.com/nexu-io/open-design/archive/refs/tags/open-design-v${{ version }}.tar.gz
-  sha256: 6fb2dedea9fc5d1bf01cd158fd7597b62a171aad60ae344716b5a9ed4a1c4987
+  sha256: 4172b61ba331c9323db94e56f69c670052c253c404d011a06178797ddc76d168
   # Extract into <work>/open-design so build.sh locates the repo root by a fixed
   # name instead of scanning for the workspace manifest (mirrors the strata recipe).
   target_directory: open-design
