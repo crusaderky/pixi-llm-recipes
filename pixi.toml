@@ -127,17 +127,26 @@ pi-home = { path = "pixi-recipes/pi-home" }
 # Pi's packages are shared with design, but its tasks belong only to agents.
 # Keeping the task surface in a separate feature prevents unqualified pi commands
 # from becoming ambiguous when design is present.
+#
+# {{ root_dir }} MUST stay double-quoted: pixi renders a task argument into the
+# command by plain text substitution and then parses the result as a shell
+# command line, so an unquoted workspace path with a space splits in two —
+# `pixi r pi ".../Pathfinder 2/Kingmaker"` hands the launcher `.../Pathfinder`
+# as the workspace and binds that. Double quotes are the cross-platform spelling
+# (pi-unsafe runs on Windows too). What that rendering still cannot carry is a
+# path with $, backticks or a double quote, which the shell would expand; single
+# quotes are literal but break on a path containing one, so they are not used.
 [feature.pi-launcher.tasks]
-pi-unsafe.cmd = "bash scripts/pi-unsafe.sh {{ root_dir }}"
+pi-unsafe.cmd = "bash scripts/pi-unsafe.sh \"{{ root_dir }}\""
 pi-unsafe.args = [{ arg = "root_dir", default = "-" }]
 pi-export = "pi --export"
 
 [feature.pi-launcher.target.linux-64-glibc234.tasks]
-pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
+pi.cmd = "bash scripts/bwrap-pi.sh \"{{ root_dir }}\""
 pi.args = [{ arg = "root_dir", default = "-" }]
 
 [feature.pi-launcher.target.linux-aarch64-glibc234.tasks]
-pi.cmd = "bash scripts/bwrap-pi.sh {{ root_dir }}"
+pi.cmd = "bash scripts/bwrap-pi.sh \"{{ root_dir }}\""
 pi.args = [{ arg = "root_dir", default = "-" }]
 
 # OpenDesign source-built recipe. Gated to linux-64 for now: the aarch64 and
@@ -154,9 +163,9 @@ opendesign = { path = "pixi-recipes/opendesign" }
 # with an `agents` task. Argument convention matches the pi tasks — one
 # positional workspace (`-` for a throwaway tmpfs), everything else after `--`.
 [feature.opendesign.tasks]
-opendesign.cmd = "bash scripts/opendesign-bwrap.sh {{ root_dir }}"
+opendesign.cmd = "bash scripts/opendesign-bwrap.sh \"{{ root_dir }}\""
 opendesign.args = [{ arg = "root_dir", default = "-" }]
-opendesign-unsafe.cmd = "bash scripts/opendesign-unsafe.sh {{ root_dir }}"
+opendesign-unsafe.cmd = "bash scripts/opendesign-unsafe.sh \"{{ root_dir }}\""
 opendesign-unsafe.args = [{ arg = "root_dir", default = "-" }]
 opendesign-help = "bash scripts/opendesign-help.sh"
 

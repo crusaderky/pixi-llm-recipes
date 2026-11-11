@@ -68,11 +68,13 @@ while IFS= read -r var; do
 done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
 unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 
-if [ "$1" == "-" ]; then
+if [ "${1:-}" = "-" ]; then
   echo "Running in empty temporary directory"
   echo "Use \`pixi run pi <directory>\` to move to a specific directory."
   DIR=$(mktemp -d)
-  trap "cleanup && rm -rf $DIR" EXIT
+  # Single quotes: $DIR must survive to trap-execution time and stay quoted
+  # there, or a $TMPDIR with a space would word-split into an rm -rf of pieces.
+  trap 'cleanup && rm -rf "$DIR"' EXIT
 else
   DIR="$1"
 fi

@@ -56,6 +56,11 @@ done
 WORKDIR="$PWD"
 cd "$REPO"
 if [ ${#ARGS[@]} -gt 0 ]; then
-  export _FWD_ARGS=$(printf '%s\0' "${ARGS[@]}" | base64 -w0)
+  # Assign separately: `export _FWD_ARGS=$(...)` masks a failing base64 under
+  # `set -e`, which would drop every forwarded argument silently. Values are
+  # NUL-separated and base64-encoded, so spaces and quotes in --bind paths or
+  # in the daemon's own arguments survive the pixi task line intact.
+  _b64="$(printf '%s\0' "${ARGS[@]}" | base64 -w0)"
+  export _FWD_ARGS="$_b64"
 fi
 exec pixi r -q -e design "$TASK" "$WORKDIR"

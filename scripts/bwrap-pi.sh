@@ -28,16 +28,35 @@
 #   Forwarded args are read from _FWD_ARGS env var (base64-encoded, null-separated,
 #   set by the scripts/pi wrapper) or, as a fallback, from positional args $2 onward
 #   (for direct `pixi r pi -- <args>` invocations).
+#   Every path here may contain spaces (the workspace, $HOME, the conda prefix,
+#   the pixi root, the herdr worktree dir), so each mount list is a bash ARRAY
+#   expanded as "${array[@]}". A space-joined string would word-split into a
+#   truncated bind, and bwrap creates the truncated path instead of failing.
 set -o errexit
 set -o nounset
 
-if [ "$1" == "-" ]; then
+if [ $# -eq 0 ]; then
+  echo "bwrap-pi.sh: need a workspace directory (or -)" >&2
+  exit 2
+fi
+
+# DIR stays empty for the throwaway tmpfs workspace and is the resolved real
+# directory otherwise, so every "is this a real workspace?" test below checks it
+# rather than re-reading $1.
+DIR=""
+WS_ARGS=()
+if [ "$1" = "-" ]; then
   echo "Running in empty temporary directory"
   echo "Use \`pixi run pi <directory>\` to move to a specific directory."
-  ARGS="--tmpfs /tmp/pi --chdir /tmp/pi"
+  WS_ARGS=(--tmpfs /tmp/pi --chdir /tmp/pi)
 else
-  DIR="$(realpath "$1")"
-  ARGS="--bind $DIR $DIR --chdir $DIR"
+  # -e: refuse a typo here, naming the workspace, rather than letting bwrap fail
+  # later on a source path the caller cannot tell apart from one of its binds.
+  DIR="$(realpath -e "$1" 2>/dev/null)" || {
+    echo "bwrap-pi.sh: no such workspace directory: $1" >&2
+    exit 2
+  }
+  WS_ARGS=(--bind "$DIR" "$DIR" --chdir "$DIR")
 fi
 
 
@@ -69,7 +88,10 @@ while [ $i -lt ${#FWD_ARGS[@]} ]; do
       echo "bwrap-pi.sh: $arg needs a directory" >&2
       exit 2
     fi
-    ABS_BIND="$(realpath "${FWD_ARGS[$((i + 1))]}" 2>/dev/null)" || {
+    # -e is what makes this a check: plain realpath canonicalises a path that
+    # does not exist and exits 0, so a mistyped --bind target used to reach
+    # bwrap and fail there with an unnamed "source path" error.
+    ABS_BIND="$(realpath -e "${FWD_ARGS[$((i + 1))]}" 2>/dev/null)" || {
       echo "bwrap-pi.sh: $arg: no such path: ${FWD_ARGS[$((i + 1))]}" >&2
       exit 2
     }
@@ -107,12 +129,12 @@ done
 # ~/.ssh, no ~/.git-credentials, no ssh-agent socket — ssh keys are unscopeable
 # full-write credentials, so the sandbox pushes over https through the
 # `gh auth git-credential` helper instead. --no-git drops all of it.
-GIT_BINDS=""
+GIT_BINDS=()
 if [ "$NO_GIT" = false ]; then
   for p in "$HOME/.config/git" "$HOME/.config/gh"; do
-    [ -e "$p" ] && GIT_BINDS="$GIT_BINDS --ro-bind $p $p"
+    [ -e "$p" ] && GIT_BINDS+=(--ro-bind "$p" "$p")
   done
-  [ -f "$HOME/.gitconfig" ] && GIT_BINDS="$GIT_BINDS --ro-bind $HOME/.gitconfig $HOME/.gitconfig"
+  [ -f "$HOME/.gitconfig" ] && GIT_BINDS+=(--ro-bind "$HOME/.gitconfig" "$HOME/.gitconfig")
   # The gh token must be in plain hosts.yml storage: a keyring-stored one
   # (gh auth login --secure-storage) is invisible here, because the /run
   # tmpfs below takes the keyring's D-Bus socket with it, and every push
@@ -145,33 +167,33 @@ HOOKS_DIR="$GUARD_BIN/hooks"
 # DNS: /etc/resolv.conf is a symlink into /run/systemd/resolve on systemd
 # hosts, so the /run tmpfs below would break name resolution. Re-expose that
 # one directory (resolver sockets only, no privilege).
-RESOLV_BIND=""
-[ -d /run/systemd/resolve ] && RESOLV_BIND="--ro-bind /run/systemd/resolve /run/systemd/resolve"
+RESOLV_BIND=()
+[ -d /run/systemd/resolve ] && RESOLV_BIND=(--ro-bind /run/systemd/resolve /run/systemd/resolve)
 
-POLICY_ARGS="--setenv PATH $GUARD_BIN:$PATH"
+POLICY_ARGS=(--setenv PATH "$GUARD_BIN:$PATH")
 if [ "$NO_GIT" = true ]; then
-  POLICY_ARGS="$POLICY_ARGS --setenv PI_GIT_GUARD blocked"
-  POLICY_ARGS="$POLICY_ARGS --setenv GIT_ALLOW_PROTOCOL file"
-  POLICY_ARGS="$POLICY_ARGS --setenv GIT_TERMINAL_PROMPT 0"
-  POLICY_ARGS="$POLICY_ARGS --setenv GH_CONFIG_DIR /tmp/pi-gh-empty"
+  POLICY_ARGS+=(--setenv PI_GIT_GUARD blocked)
+  POLICY_ARGS+=(--setenv GIT_ALLOW_PROTOCOL file)
+  POLICY_ARGS+=(--setenv GIT_TERMINAL_PROMPT 0)
+  POLICY_ARGS+=(--setenv GH_CONFIG_DIR /tmp/pi-gh-empty)
   # No credential carrier may survive into this mode: environment tokens, the
   # ssh/askpass hooks, and GIT_CONFIG_* (a host shell can carry an
   # http.<url>.extraheader Authorization there).
-  POLICY_ARGS="$POLICY_ARGS --unsetenv SSH_AUTH_SOCK"
-  POLICY_ARGS="$POLICY_ARGS --unsetenv GH_TOKEN --unsetenv GITHUB_TOKEN"
-  POLICY_ARGS="$POLICY_ARGS --unsetenv GH_ENTERPRISE_TOKEN --unsetenv GITHUB_ENTERPRISE_TOKEN"
-  POLICY_ARGS="$POLICY_ARGS --unsetenv GIT_CONFIG_COUNT --unsetenv GIT_CONFIG_KEY_0 --unsetenv GIT_CONFIG_VALUE_0"
-  POLICY_ARGS="$POLICY_ARGS --unsetenv GIT_ASKPASS --unsetenv SSH_ASKPASS --unsetenv GIT_SSH_COMMAND"
+  POLICY_ARGS+=(--unsetenv SSH_AUTH_SOCK)
+  POLICY_ARGS+=(--unsetenv GH_TOKEN --unsetenv GITHUB_TOKEN)
+  POLICY_ARGS+=(--unsetenv GH_ENTERPRISE_TOKEN --unsetenv GITHUB_ENTERPRISE_TOKEN)
+  POLICY_ARGS+=(--unsetenv GIT_CONFIG_COUNT --unsetenv GIT_CONFIG_KEY_0 --unsetenv GIT_CONFIG_VALUE_0)
+  POLICY_ARGS+=(--unsetenv GIT_ASKPASS --unsetenv SSH_ASKPASS --unsetenv GIT_SSH_COMMAND)
 else
-  POLICY_ARGS="$POLICY_ARGS --setenv PI_GIT_GUARD restricted"
+  POLICY_ARGS+=(--setenv PI_GIT_GUARD restricted)
   # core.hooksPath for this session only (like a -c flag): the host's own git
   # config is never touched. hook-dispatch carries the pre-push policy and
   # delegates every other hook name to the repository's own hooks. The git
   # wrapper re-injects these on every invocation, so the agent cannot drop them
   # by rewriting its environment.
-  POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_COUNT 1"
-  POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_KEY_0 core.hooksPath"
-  POLICY_ARGS="$POLICY_ARGS --setenv GIT_CONFIG_VALUE_0 $HOOKS_DIR"
+  POLICY_ARGS+=(--setenv GIT_CONFIG_COUNT 1)
+  POLICY_ARGS+=(--setenv GIT_CONFIG_KEY_0 core.hooksPath)
+  POLICY_ARGS+=(--setenv GIT_CONFIG_VALUE_0 "$HOOKS_DIR")
 fi
 
 # Expose NVIDIA CUDA devices when the host driver is loaded. --dev /dev
@@ -179,15 +201,15 @@ fi
 # /dev/nvidia-uvm is created on demand by the setuid nvidia-modprobe helper;
 # without it CUDA initialisation fails even with the other nodes present.
 # No-op on hosts without an NVIDIA driver.
-CUDA_BINDS=""
+CUDA_BINDS=()
 if [ -e /dev/nvidiactl ]; then
   command -v nvidia-modprobe > /dev/null 2>&1 && nvidia-modprobe -u -c=0 || true
   for d in /dev/nvidia*; do
     [ -c "$d" ] || [ -b "$d" ] || continue
-    CUDA_BINDS="$CUDA_BINDS --dev-bind $d $d"
+    CUDA_BINDS+=(--dev-bind "$d" "$d")
   done
   # Driver metadata, used by nvidia-smi for its version line; harmless if absent.
-  [ -d /proc/driver/nvidia ] && CUDA_BINDS="$CUDA_BINDS --ro-bind /proc/driver/nvidia /proc/driver/nvidia"
+  [ -d /proc/driver/nvidia ] && CUDA_BINDS+=(--ro-bind /proc/driver/nvidia /proc/driver/nvidia)
 fi
 
 _PIXI_ROOT="$(dirname "$(dirname "$PIXI_EXE")")"  # Typically ~/.pixi
@@ -196,15 +218,15 @@ _CONDA_PREFIX="$CONDA_PREFIX"
 # If the working directory is a git worktree, bind the main repository's .git
 # directory read-write so git can read shared objects and update worktree admin
 # files (refs, locks) without exposing the main worktree's checked-out files.
-WORKTREE_BINDS=""
-HERDR_WORKTREE_BINDS=""
-if [ "$1" != "-" ]; then
+WORKTREE_BINDS=()
+HERDR_WORKTREE_BINDS=()
+if [ -n "$DIR" ]; then
   if GD="$(git -C "$DIR" rev-parse --git-dir 2>/dev/null)" \
      && GC="$(git -C "$DIR" rev-parse --git-common-dir 2>/dev/null)"; then
     GD_ABS="$(cd "$DIR" && cd "$GD" && pwd)"
     GC_ABS="$(cd "$DIR" && cd "$GC" && pwd)"
     if [ "$GD_ABS" != "$GC_ABS" ]; then
-      WORKTREE_BINDS="--bind $GC_ABS $GC_ABS"
+      WORKTREE_BINDS=(--bind "$GC_ABS" "$GC_ABS")
     fi
   fi
 
@@ -228,7 +250,7 @@ if [ "$1" != "-" ]; then
     esac
     HERDR_WORKTREE_DIR="$HERDR_WORKTREES/$HERDR_PROJECT"
     mkdir -p "$HERDR_WORKTREE_DIR"
-    HERDR_WORKTREE_BINDS="--bind $HERDR_WORKTREE_DIR $HERDR_WORKTREE_DIR"
+    HERDR_WORKTREE_BINDS=(--bind "$HERDR_WORKTREE_DIR" "$HERDR_WORKTREE_DIR")
   fi
 fi
 
@@ -273,8 +295,8 @@ unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 # same sandbox (pi and all its pi-subagents children) can message each other;
 # independent sandboxes or unsandboxed pi instances on the host cannot be reached.
 # Parallel sandboxes don't conflict: each has its own broker on its own private socket.
-# Note: --ro-bind $_CONDA_PREFIX must be after --bind $1.
-# The caller's read-only binds ($EXTRA_RO_BINDS) go BEFORE $ARGS, like
+# Note: --ro-bind $_CONDA_PREFIX must be after the workspace bind.
+# The caller's read-only binds ($EXTRA_RO_BINDS) go BEFORE "${WS_ARGS[@]}", like
 # --bind does: the workspace bind is applied last, so it stays writable even
 # when a --ro-bind path is its ancestor — `--ro-bind ..` exposes sibling
 # directories read-only while the project stays writable. Read-only requests
@@ -284,8 +306,8 @@ unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 # never the parent of $HOME or of $CONDA_PREFIX.
 # When setting pixi-llm-recipes as the project root for the bind,
 # re-bind $CONDA_PREFIX as read-only after it's bound as read-write.
-# Same for $GUARD_BIN: after $ARGS, so the policy files stay read-only even
-# when the workspace is this repo (which would bind them read-write).
+# Same for $GUARD_BIN: after "${WS_ARGS[@]}", so the policy files stay read-only
+# even when the workspace is this repo (which would bind them read-write).
 
 bwrap \
   --ro-bind / / \
@@ -295,7 +317,7 @@ bwrap \
   --tmpfs /home \
   --tmpfs /root \
   --tmpfs /run \
-  $RESOLV_BIND \
+  "${RESOLV_BIND[@]}" \
   --bind "$HOME/.cache/ccache"            "$HOME/.cache/ccache" \
   --bind "$HOME/.cache/llama-cpp-changelog"    "$HOME/.cache/llama-cpp-changelog" \
   --bind "$HOME/.cache/pip"               "$HOME/.cache/pip" \
@@ -314,12 +336,12 @@ bwrap \
   --ro-bind "$_PIXI_ROOT"                 "$_PIXI_ROOT" \
   "${EXTRA_BINDS[@]}" \
   "${EXTRA_RO_BINDS[@]}" \
-  $HERDR_WORKTREE_BINDS \
-  $WORKTREE_BINDS \
-  $GIT_BINDS \
-  $CUDA_BINDS \
-  $POLICY_ARGS \
-  $ARGS \
+  "${HERDR_WORKTREE_BINDS[@]}" \
+  "${WORKTREE_BINDS[@]}" \
+  "${GIT_BINDS[@]}" \
+  "${CUDA_BINDS[@]}" \
+  "${POLICY_ARGS[@]}" \
+  "${WS_ARGS[@]}" \
   --ro-bind "$GUARD_BIN"                  "$GUARD_BIN" \
   --ro-bind "$_CONDA_PREFIX"              "$_CONDA_PREFIX" \
   --die-with-parent \

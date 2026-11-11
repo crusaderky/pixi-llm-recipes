@@ -97,7 +97,10 @@ while [ $i -lt ${#FWD_ARGS[@]} ]; do
         echo "opendesign-bwrap.sh: $arg needs a directory" >&2
         exit 2
       fi
-      ABS_BIND="$(realpath "${FWD_ARGS[$((i + 1))]}" 2>/dev/null)" || {
+      # -e is what makes this a check: plain realpath canonicalises a path that
+      # does not exist and exits 0, so a mistyped --bind target used to reach
+      # bwrap and fail there with an unnamed "source path" error.
+      ABS_BIND="$(realpath -e "${FWD_ARGS[$((i + 1))]}" 2>/dev/null)" || {
         echo "opendesign-bwrap.sh: $arg: no such path: ${FWD_ARGS[$((i + 1))]}" >&2
         exit 2
       }

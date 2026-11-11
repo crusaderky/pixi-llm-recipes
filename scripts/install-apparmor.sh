@@ -25,6 +25,10 @@ fi
 REPO="$(realpath "$(dirname "$0")/..")"
 PROFILE=/etc/apparmor.d/bwrap
 
+# The attachment pattern is quoted: AppArmor reads it as one token, so a repo
+# checked out under a path with a space (`…/Pathfinder 2/…`) would otherwise
+# produce a profile it cannot parse — and bwrap would then be refused userns
+# with no hint that the profile is the broken file.
 CONTENT="abi <abi/4.0>,
 include <tunables/global>
 
@@ -32,7 +36,7 @@ profile bwrap /usr/bin/bwrap flags=(unconfined) {
   userns,
   include if exists <local/bwrap>
 }
-profile bwrap-local $REPO/.pixi/envs/*/bin/bwrap flags=(unconfined) {
+profile bwrap-local \"$REPO/.pixi/envs/*/bin/bwrap\" flags=(unconfined) {
   userns,
   include if exists <local/bwrap>
 }"
