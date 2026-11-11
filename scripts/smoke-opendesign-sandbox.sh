@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Smoke-test the sandboxed OpenDesign launcher: the whole daemon inside one
 # bubblewrap namespace, serving the static UI to this (host) network, with the
-# workspace as its only persistent write target. Run on a host with the
-# AppArmor profile installed (`pixi r install-apparmor`), as:
+# workspace and the shared ~/.od state root as its only persistent write targets.
+# Run on a host with the AppArmor profile installed (`pixi r install-apparmor`),
+# as:
 #   pixi run -e design bash scripts/smoke-opendesign-sandbox.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -119,11 +120,18 @@ console.log(
 );
 JS
 
-# 2. The workspace is the only persistent write target: OpenDesign's SQLite
-# database and per-workspace state land in <workspace>/.od on the host.
-for path in "$WS/.od/app.sqlite" "$WS/.od/config" "$WS/.od/agent-home"; do
-    [ -e "$path" ] || { echo "expected workspace state is missing: $path" >&2; exit 1; }
+# 2. OpenDesign's state is the shared ~/.od root, not the workspace: the daemon's
+# SQLite database, project folders and agent/XDG tree land there on the host, and
+# the launcher binds it read-write so every workspace sees the same projects.
+for path in "$HOME/.od/app.sqlite" "$HOME/.od/config" "$HOME/.od/agent-home"; do
+    [ -e "$path" ] || { echo "expected OpenDesign state is missing: $path" >&2; exit 1; }
 done
+# The workspace stays the agent's working directory: a launcher that wrote state
+# back into it would defeat the point of one shared root (and litter the checkout).
+if [ -e "$WS/.od" ]; then
+    echo "the launcher still wrote per-workspace state to $WS/.od" >&2
+    exit 1
+fi
 
 # 3. The daemon listens on the host loopback only.
 listeners="$(ss -ltnH "( sport = :${PORT} )")"
@@ -180,8 +188,15 @@ case ",$(mount_field "$HOME/.pi" options)," in
     *,rw,*) ;;
     *) fail "the packaged Pi tree $HOME/.pi is not mounted read-write" ;;
 esac
-# Nothing from the host's $HOME is exposed except the Pi config exceptions and
-# (default mode only) the Git/GitHub config. --no-git binds no credential at all.
+# OpenDesign's shared state root is a host directory too — and beating the
+# --tmpfs /home is the whole point of binding it.
+case ",$(mount_field "$HOME/.od" options)," in
+    *,rw,*) ;;
+    *) fail "the OpenDesign state root $HOME/.od is not mounted read-write" ;;
+esac
+# Nothing from the host's $HOME is exposed except the OpenDesign state root, the
+# Pi config exceptions and (default mode only) the Git/GitHub config. --no-git
+# binds no credential at all.
 if [ -e "/proc/${daemon_pid}/root$HOME/.config/gh" ]; then
     fail "--no-git still exposes $HOME/.config/gh"
 fi
@@ -193,7 +208,7 @@ envs="/proc/${daemon_pid}/environ"
 tr '\0' '\n' <"$envs" >"${TMP}/daemon.env"
 grep -qx "PI_BIN=${PREFIX}/bin/pi" "${TMP}/daemon.env" || fail "PI_BIN does not name the packaged pi"
 grep -qx "PI_GIT_GUARD=blocked" "${TMP}/daemon.env" || fail "PI_GIT_GUARD is not set to blocked"
-grep -qx "OD_DATA_DIR=${WS}/.od" "${TMP}/daemon.env" || fail "OD_DATA_DIR is not the workspace .od"
+grep -qx "OD_DATA_DIR=$HOME/.od" "${TMP}/daemon.env" || fail "OD_DATA_DIR is not the shared ~/.od root"
 grep -qx "OD_BIND_HOST=127.0.0.1" "${TMP}/daemon.env" || fail "OD_BIND_HOST is not loopback"
 if grep -q '^OD_SANDBOX_MODE=' "${TMP}/daemon.env"; then
     fail "OD_SANDBOX_MODE must stay unset (bubblewrap is the isolation)"

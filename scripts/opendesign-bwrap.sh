@@ -1,7 +1,8 @@
 #!/bin/bash
 # Run OpenDesign's local daemon — and every agent and shell it spawns — inside
-# one bubblewrap namespace, with read/write access to the workspace and nowhere
-# else. Needs an AppArmor profile at /etc/apparmor.d/bwrap; install it with
+# one bubblewrap namespace, with read/write access to the workspace, to the one
+# shared OpenDesign state root at ~/.od, and nowhere else. Needs an AppArmor
+# profile at /etc/apparmor.d/bwrap; install it with
 # `pixi run install-apparmor` (see scripts/install-apparmor.sh).
 #
 # Usage: opendesign-bwrap.sh <dir|-> [--no-git] [--bind <dir>] [--ro-bind <dir>]
@@ -52,7 +53,6 @@ done
 # throwaway tmpfs inside the namespace, like bwrap-pi.sh.
 WK_ARGS=()
 WORKSPACE=""
-PERSISTENT=false
 if [ "${1:-}" = "-" ]; then
   echo "Running in an empty temporary directory (nothing is persisted)"
   WORKSPACE="/tmp/opendesign-workspace"
@@ -67,7 +67,6 @@ else
     exit 2
   fi
   WORKSPACE="$(realpath "$1")"
-  PERSISTENT=true
   WK_ARGS=(--bind "$WORKSPACE" "$WORKSPACE" --chdir "$WORKSPACE")
 fi
 
@@ -161,21 +160,44 @@ case "$PORT" in
     ;;
 esac
 
-# Per-workspace state, all of it inside the workspace so it is covered by the
-# one writable bind: OpenDesign's SQLite database, projects and generated files
-# (OD_DATA_DIR), and the XDG/HOME-shaped scratch space its agents expect.
-OD_STATE="$WORKSPACE/.od"
+# OpenDesign's own state — its SQLite database, the project folders it manages
+# (they live inside OD_DATA_DIR keyed by project id, not per checkout), the
+# provider/MCP credentials and plugin, skill and preview state, and the
+# XDG/HOME-shaped scratch space its agents expect. Upstream keeps all of it in
+# one directory (`resolveDataDir` in daemon-paths.js, default
+# <projectRoot>/.od), and none of it is per-checkout state, so it lives in
+# $HOME/.od: the same root every workspace's sandbox binds read-write, which is
+# what makes projects, logins and settings one shared set instead of a fresh
+# empty install per repository. The workspace bind is still the agent's working
+# directory and where an imported-folder project lives.
+#
+# The bind is what makes it work — /home is a tmpfs here, so without it $HOME/.od
+# would be an empty directory the daemon happily populates inside the namespace
+# and throw away. It is created on the host up front, always, so `-` (a tmpfs
+# workspace) still gets real state and a first run does not depend on the
+# daemon's own mkdir succeeding under a read-only root.
+OD_STATE="$HOME/.od"
 DATA_DIR="$OD_STATE"
 INSTALL_DIR="$OD_STATE/installation"
 AGENT_HOME="$OD_STATE/agent-home"
-# Create the state directories on the host, inside the workspace, so nothing
-# here writes outside it. With `-` the workspace lives in a tmpfs inside the
-# namespace and there is nothing to prepare: the daemon creates OD_DATA_DIR and
-# OD_INSTALLATION_DIR on its own.
-if [ "$PERSISTENT" = true ]; then
-  mkdir -p "$DATA_DIR" "$INSTALL_DIR" "$AGENT_HOME" \
-    "$OD_STATE/cache" "$OD_STATE/config" "$OD_STATE/data" "$OD_STATE/state" "$OD_STATE/tmp"
-fi
+mkdir -p "$DATA_DIR" "$INSTALL_DIR" "$AGENT_HOME" \
+  "$OD_STATE/cache" "$OD_STATE/config" "$OD_STATE/data" "$OD_STATE/state" "$OD_STATE/tmp"
+
+# One shared state root means one daemon at a time: two of them writing the same
+# app.sqlite is a corruption risk, not a race, and a second one otherwise looks
+# like a daemon that started fine. /proc/<pid>/environ is read directly rather
+# than going through pgrep or lsof — neither is used anywhere else in these
+# scripts, and pgrep is off the cross-platform list; an entry that cannot be read
+# belongs to another user. A match may be an agent the daemon spawned rather than
+# the daemon itself; either way something is already on this root.
+for env_file in /proc/[0-9]*/environ; do
+  if tr '\0' '\n' <"$env_file" 2>/dev/null | grep -qx "OD_DATA_DIR=$OD_STATE"; then
+    other_pid="${env_file#/proc/}"
+    echo "WARNING: an OpenDesign session (pid ${other_pid%%/*}) is already using $OD_STATE." >&2
+    echo "         A second daemon shares one SQLite database with it — stop the first." >&2
+    break
+  fi
+done
 
 # Sanitize inherited OpenDesign launch settings before applying the explicit
 # values below: a host shell (or a parent OpenDesign) may carry OD_DATA_DIR,
@@ -262,8 +284,8 @@ else
   POLICY_ARGS+=(--setenv GIT_CONFIG_VALUE_0 "$HOOKS_DIR")
 fi
 
-# The daemon's own environment. Every path here is either inside the workspace
-# (writable) or inside the read-only design prefix.
+# The daemon's own environment. Every path here is either writable state (the
+# shared ~/.od root, or the workspace) or inside the read-only design prefix.
 OD_ENV=(
   --setenv OD_BIN "$OD_MJS"
   --setenv OD_NODE_BIN "$NODE"
@@ -283,6 +305,10 @@ OD_ENV=(
   --setenv TMPDIR "$OD_STATE/tmp"
 )
 # OD_SANDBOX_MODE is unset above and never set here.
+# OD_USER_STATE_DIR stays unset too: it would move the deploy provider's
+# Vercel/Cloudflare token file into ~/.od, i.e. into a directory every agent here
+# can read. Today that file lives in the namespace's tmpfs home and is re-entered
+# each session, which is the safer default until a workflow needs it persisted.
 
 # If the workspace is a git worktree, bind the main repository's .git directory
 # read-write so git can read shared objects and update worktree admin files
@@ -307,7 +333,7 @@ unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 
 echo "OpenDesign on http://127.0.0.1:$PORT (bubblewrap sandbox, Ctrl-C to stop)"
 echo "  workspace  $WORKSPACE"
-echo "  state      $OD_STATE"
+echo "  state      $OD_STATE (shared by every workspace)"
 
 # Mount order is load-bearing, exactly as in bwrap-pi.sh:
 #   * read-only extra binds come before $WK_ARGS, so the workspace wins inside
@@ -323,6 +349,10 @@ echo "  state      $OD_STATE"
 #     auth, trust, settings, models, caveman and sessions;
 #   * ~/.pi/agent/intercom is a fresh tmpfs, so the pi-intercom broker and its
 #     socket stay private to this namespace.
+#   * ~/.od is OpenDesign's state root, bound read-write last: it is product
+#     state rather than a credential, it is deliberately the same directory for
+#     every workspace, and being mounted after --tmpfs /home is what makes it
+#     survive the tmpfs that hides the rest of the host's home directory.
 exec bwrap \
   --ro-bind / / \
   --dev /dev \
@@ -349,6 +379,7 @@ exec bwrap \
   --bind "$HOME/.pi/agent/caveman.json" "$HOME/.pi/agent/caveman.json" \
   --bind "$HOME/.pi/agent/sessions" "$HOME/.pi/agent/sessions" \
   --tmpfs "$HOME/.pi/agent/intercom" \
+  --bind "$OD_STATE" "$OD_STATE" \
   --die-with-parent \
   --unshare-all --share-net \
   -- "$NODE" "$OD_MJS" daemon start --serve-web --no-open --port "$PORT" "${OD_ARGS[@]}"

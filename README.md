@@ -323,10 +323,11 @@ cd ~/my-designs && opendesign   # same (after `pixi r install`)
 pixi r opendesign-help
 ```
 
-Everything runs inside a bubblewrap sandbox. Per-workspace state lives in
-`<workspace>/.od`; add it to your own `.gitignore`. The daemon drives the packaged Pi
-over RPC, so your existing Pi login, providers and GitHub policy apply; the UI itself is
-at `http://127.0.0.1:7456`.
+Everything runs inside a bubblewrap sandbox. OpenDesign's state — its database,
+projects, credentials and settings — lives in `~/.od`, shared across all workspaces.
+That means you can only run one OpenDesign daemon at a time. The daemon drives the
+packaged Pi over RPC, so your existing Pi login, providers and GitHub policy apply; the
+UI itself is at `http://127.0.0.1:7456`.
 
 ```bash
 pixi r opendesign ~/my-designs -- --no-git           # hide GitHub credentials

@@ -41,7 +41,12 @@ The UI is served to your own browser on http://127.0.0.1:7456 (loopback only).
 
 What the sandbox gives you
 
-  read-write   the workspace: projects, .od state, artifacts
+  read-write   the workspace: the agent's working directory and any
+               imported-folder project
+  read-write   ~/.od — OpenDesign's state (its SQLite database, projects,
+               credentials, plugin/skill state, XDG tree). One root shared by
+               every workspace, so your projects and settings are the same set
+               whichever directory you launched from
   read-write   the packaged Pi tree (~/.pi), which Pi writes npm/ and
                models-store.json through, plus the host's
                ~/.pi/agent/{auth,trust,settings,models,caveman}.json and
@@ -52,7 +57,8 @@ What the sandbox gives you
                sockets), SSH keys and credentials, GPU devices
   network      shared with the host, so model providers, web tools and a local
                llama-server/Strata stay reachable
-  state        <workspace>/.od (add it to .gitignore)
+  state        ~/.od (shared by every workspace; nothing is written to the
+               checkout)
 
 The daemon drives the packaged Pi in RPC mode (PI_BIN points at the raw
 packaged binary), so it inherits the same non-destructive GitHub policy: reads,

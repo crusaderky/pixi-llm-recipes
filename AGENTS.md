@@ -477,7 +477,9 @@ fails silently:
   (`pnpm`, `node-gyp`, `gcc`, `g++`, `cc`, `make`, `python`) is present in the env — the only way a
   `run:` leak is detected. `scripts/smoke-opendesign-sandbox.sh` is the launcher's, and is the only
   way to assert a mount contract: from outside it reads `/proc/<pid>/mountinfo` and `/environ` of
-  the listening daemon (the pid namespace is shared, the mount namespace is not).
+  the listening daemon (the pid namespace is shared, the mount namespace is not), and it asserts
+  both that the state landed in the shared `~/.od` root and that nothing appeared at
+  `<workspace>/.od`.
 - Measured at 0.27.0: the installed application tree is **960 MiB** (inside the ~1 GiB
   guardrail; the first lever if it grows is the 34 MiB `napi-v3/linux/arm64` payload), and a cold
   `pixi install -e design` is a few minutes — ~3 min on the CI runner.
@@ -505,6 +507,7 @@ reaches it on the host loopback because the namespace shares the network.
 | `/dev`, `/proc`, `/tmp`, `/home`, `/root`, `/run`                                | fresh tmpfs                    |
 | `/run/systemd/resolve`                                                           | read-only (DNS)                |
 | the workspace                                                                    | read-write                     |
+| `~/.od`                                                                          | read-write (shared by all)     |
 | extra `--bind` / `--ro-bind` paths                                               | as asked                       |
 | the design prefix, `scripts/git-guards`                                          | read-only, re-bound on top     |
 | `<prefix>/home/.pi`                                                              | read-write                     |
@@ -514,10 +517,32 @@ reaches it on the host loopback because the namespace shares the network.
 
 What the launcher pins, and why each one is load-bearing:
 
-- **State is per workspace**: `OD_DATA_DIR=<workspace>/.od`, with `OD_AGENT_HOME`, `TMPDIR` and all
-  four `XDG_*` homes under it, so the single writable bind covers everything OpenDesign persists.
-  `.od/` is in this repo's `.gitignore`; users are told to do the same in their own repos.
-- **`OD_INSTALLATION_DIR` is `<workspace>/.od/installation`, not the prefix.** Upstream's packaged
+- **State is one shared root, `~/.od`, not `<workspace>/.od`**: `OD_DATA_DIR=~/.od`,
+  with `OD_AGENT_HOME`, `TMPDIR` and all four `XDG_*` homes under it, and the whole
+  directory bound read-write. OpenDesign persists its SQLite database, its project
+  folders (inside `OD_DATA_DIR/projects/<id>`, keyed by project id rather than by
+  checkout), its provider/MCP credentials and its plugin, skill and preview state in
+  **one** directory — `resolveDataDir` in the packaged `apps/daemon/dist/daemon-paths.js`,
+  whose own default is `<projectRoot>/.od` — and none of that is per-repository state, so a
+  per-workspace root meant a fresh empty install, an empty project list and a separate
+  login for every directory it was launched from. `~/.od` is the same bind in every
+  sandbox, which is what makes them one set. It has to be bound explicitly: `/home` is a
+  fresh tmpfs, so without the bind the daemon would populate an empty `~/.od` inside the
+  namespace and throw it away. The launcher creates the tree on the host up front, so `-`
+  (a tmpfs workspace) still gets real state. The workspace bind remains the agent's
+  working directory and the home of any imported-folder project. **One state root means
+  one daemon at a time** — two writing the same `app.sqlite` is a corruption risk, so both
+  launchers scan `/proc/*/environ` for a live `OD_DATA_DIR=$HOME/.od` and warn. `.od/`
+  stays in this repo's `.gitignore` because a daemon run **without** the launcher still
+  falls back to `<projectRoot>/.od`.
+- **`~/.open-design` is deliberately not bound**, so the two paths upstream keys off
+  `homedir()` stay inside the namespace and do not persist: `deploy.js`'s Vercel/Cloudflare
+  token file (`OD_USER_STATE_DIR`, unset here) and `runtimes/local-profiles.js`'s
+  `agents.local.json` (no env override exists). Both are lost with the namespace and so have
+  to be re-entered each session; pointing `OD_USER_STATE_DIR` at `~/.od` would persist a deploy token in a directory the agent can
+  read, so it stays unset until a workflow needs it. `opendesign-unsafe` has no namespace,
+  so there it is the host's own `~/.open-design`, as upstream intends.
+- **`OD_INSTALLATION_DIR` is `~/.od/installation`, not the prefix.** Upstream's packaged
   value is the channel root, but the prefix is mounted read-only here and the daemon writes
   `installation.json` at boot, so a prefix path would silently lose the install identity.
 - **`PI_BIN` is `$PREFIX/bin/pi`**, the raw packaged binary. Pointing it at `~/.local/bin/pi`

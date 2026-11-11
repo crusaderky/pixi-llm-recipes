@@ -56,8 +56,9 @@ jobs:
         run: pixi r install-apparmor
 
       # The real launcher: one bwrap namespace around the daemon and every
-      # agent it spawns, the workspace as its only persistent write target,
-      # state in <workspace>/.od, the design prefix and Git guards read-only,
+      # agent it spawns, the workspace plus the shared ~/.od state root as its
+      # only persistent write targets (state asserted there, and asserted absent
+      # from the workspace), the design prefix and Git guards read-only,
       # host /run and ~/.ssh absent, no GitHub credential under --no-git, and a
       # SIGINT to the daemon freeing the port with no orphan left behind.
       - name: Smoke-test sandboxed launcher

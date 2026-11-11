@@ -116,10 +116,24 @@ case "$PORT" in
     ;;
 esac
 
-# Per-workspace state, the same layout the sandboxed launcher uses.
-OD_STATE="$DIR/.od"
+# OpenDesign's shared state root: the same ~/.od the sandboxed launcher binds, so
+# one set of projects, credentials and settings serves every workspace. See
+# scripts/opendesign-bwrap.sh for why it is not per-workspace state.
+OD_STATE="$HOME/.od"
 mkdir -p "$OD_STATE/installation" "$OD_STATE/agent-home" \
   "$OD_STATE/cache" "$OD_STATE/config" "$OD_STATE/data" "$OD_STATE/state" "$OD_STATE/tmp"
+
+# Same guard as the sandboxed launcher: one state root means one daemon, and two
+# writing the same app.sqlite is a corruption risk. Under MSYS this simply finds
+# nothing, which is harmless.
+for env_file in /proc/[0-9]*/environ; do
+  if tr '\0' '\n' <"$env_file" 2>/dev/null | grep -qx "OD_DATA_DIR=$OD_STATE"; then
+    other_pid="${env_file#/proc/}"
+    echo "WARNING: an OpenDesign session (pid ${other_pid%%/*}) is already using $OD_STATE." >&2
+    echo "         A second daemon shares one SQLite database with it — stop the first." >&2
+    break
+  fi
+done
 
 # Sanitize inherited OpenDesign launch settings before applying ours.
 while IFS= read -r var; do
@@ -140,7 +154,7 @@ echo "  ~/.ssh, ~/.config/gh, /run and the Docker sockets."
 echo "======================================================================"
 echo "OpenDesign on http://127.0.0.1:$PORT (Ctrl-C to stop)"
 echo "  workspace  $DIR"
-echo "  state      $OD_STATE"
+echo "  state      $OD_STATE (shared by every workspace)"
 
 while IFS= read -r var; do
   unset "$var"
