@@ -313,8 +313,8 @@ pixi r pi-unsafe /path/to/workspace -- -p "Hello"  # Windows; pass arbitrary par
 
 ## OpenDesign
 
-[OpenDesign](https://opendesigner.io/) is a local-first design tool, integrated with
-[pi](https://pi.dev).
+[OpenDesign](https://github.com/nexu-io/open-design/) is a local-first design tool,
+integrated with [pi](https://pi.dev).
 
 ```bash
 pixi install -e design        # build the daemon + static web UI

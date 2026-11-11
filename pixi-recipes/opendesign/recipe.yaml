@@ -57,7 +57,7 @@ requirements:
     - nodejs >=24,<25
 
 about:
-  homepage: https://opendesigner.io/
+  homepage: https://github.com/nexu-io/open-design
   repository: https://github.com/nexu-io/open-design
   license: Apache-2.0
   # Relative to the work dir; the source extracts under open-design/ (target_directory).

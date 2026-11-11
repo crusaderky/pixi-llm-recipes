@@ -19,7 +19,7 @@ process.stdout.write(pkg.version ?? "unknown");
 ' "$APP/apps/daemon/package.json")"
 
 cat <<EOF
-OpenDesign — local-first AI design workspace (https://opendesigner.io/)
+OpenDesign — local-first AI design workspace (https://github.com/nexu-io/open-design)
 
   daemon package   $APP
   daemon version   $DAEMON_VERSION (upstream's own package.json; the release tag is open-design-v<tag>)
