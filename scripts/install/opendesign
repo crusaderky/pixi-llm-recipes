@@ -1,0 +1,66 @@
+#!/bin/bash
+# `opendesign` wrapper — run `cd <workspace> && opendesign <daemon>` from
+# anywhere. Installed to ~/.local/bin as a symlink to this script by
+# `pixi r install`, so it always runs the source tree of this repo.
+#
+# The workspace defaults to the current directory.
+#
+# Special parameters:
+#   --port <n>         daemon port (default 7456). The daemon always binds
+#                      127.0.0.1; there is no LAN option.
+#   --no-git           Block all GitHub access (credentials are not bound, git
+#                      network transport and gh are disabled).
+#   --bind <dir>       Bind an extra directory read-write. Relative paths are
+#                      made absolute against your cwd BEFORE forwarding, because
+#                      the sandbox task runs with the repo as its cwd.
+#   --ro-bind <dir>    Same as --bind, but read-only inside the sandbox. Takes
+#                      any number of either flag, mixed.
+#   --no-sandbox       Skip the bubblewrap sandbox; route to `opendesign-unsafe`
+#                      (full host access, development/debugging only — no
+#                      GitHub policy applies there, including --no-git).
+# All other args are appended to `daemon start --serve-web --no-open`.
+#
+# Git/GitHub access is on by default under a non-destructive policy (no
+# force-push, no remote branch/ref deletion, no deleting/modifying GitHub
+# posts), https-only: the sandbox never sees ssh keys or agent sockets.
+set -o errexit
+set -o nounset
+
+REPO="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
+TASK=opendesign
+TASK_UNSAFE=opendesign-unsafe
+
+ARGS=()
+i=1
+while [ "$i" -le $# ]; do
+  arg="${!i}"
+  if [ "$arg" = "--no-sandbox" ]; then
+    TASK=$TASK_UNSAFE
+    i=$((i + 1))
+  elif [ "$arg" = "--bind" ] || [ "$arg" = "--ro-bind" ]; then
+    next=$((i + 1))
+    if [ "$next" -gt "$#" ]; then
+      echo "opendesign: $arg needs a directory" >&2
+      exit 2
+    fi
+    bd="${!next}"
+    case "$bd" in /*) ;; *) bd="$PWD/$bd" ;; esac
+    ARGS+=("$arg" "$bd")
+    i=$((i + 2))
+  else
+    ARGS+=("$arg")
+    i=$((i + 1))
+  fi
+done
+
+WORKDIR="$PWD"
+cd "$REPO"
+if [ ${#ARGS[@]} -gt 0 ]; then
+  # Assign separately: `export _FWD_ARGS=$(...)` masks a failing base64 under
+  # `set -e`, which would drop every forwarded argument silently. Values are
+  # NUL-separated and base64-encoded, so spaces and quotes in --bind paths or
+  # in the daemon's own arguments survive the pixi task line intact.
+  _b64="$(printf '%s\0' "${ARGS[@]}" | base64 -w0)"
+  export _FWD_ARGS="$_b64"
+fi
+exec pixi r -q -e design "$TASK" "$WORKDIR"

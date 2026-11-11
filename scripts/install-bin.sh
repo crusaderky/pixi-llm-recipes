@@ -6,7 +6,7 @@ mkdir -p ~/.local/share/icons
 # $PWD is the repo root and may contain spaces: unquoted, the brace expansion
 # would hand ln a truncated path and the ~/.local/bin wrappers would point at
 # nothing (or at a directory that happens to exist).
-ln -fsv "$PWD"/scripts/install/{gh,herdr,pi} ~/.local/bin/
+ln -fsv "$PWD"/scripts/install/{gh,herdr,opendesign,pi} ~/.local/bin/
 cp -fv scripts/install/herdr.png ~/.local/share/icons/
 
 # GNOME hides desktop entries whose Exec binary is not in PATH, so pick a

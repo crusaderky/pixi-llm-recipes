@@ -252,6 +252,8 @@ Skills under `.agents/skills/` are available only when pi starts in this reposit
   [herdr-file-viewer](https://github.com/smarzban/herdr-file-viewer)
 - `update-herdr` — update [Herdr](https://herdr.dev/)
 - `update-llama-cpp` — update both llama.cpp recipes
+- `update-opendesign` — update the OpenDesign recipe
+  and rebuild the `design` environment
 - `update-pi-extensions` — refresh pinned Pi extension versions
 - `update-strata` — update the Strata recipe (version pin, the llama.cpp commit its
   engine builds against, requirements) and rebuild the engine
@@ -308,6 +310,34 @@ pi --no-sandbox                                    # Linux
 pixi r pi-unsafe /path/to/workspace                # Windows
 pixi r pi-unsafe /path/to/workspace -- -p "Hello"  # Windows; pass arbitrary parameters (note --)
 ```
+
+## OpenDesign
+
+[OpenDesign](https://opendesigner.io/) is a local-first design tool, integrated with
+[pi](https://pi.dev).
+
+```bash
+pixi install -e design        # build the daemon + static web UI
+pixi r opendesign ~/my-designs  # serve the UI on http://127.0.0.1:7456 (loopback only)
+cd ~/my-designs && opendesign   # same (after `pixi r install`)
+pixi r opendesign-help
+```
+
+Everything runs inside a bubblewrap sandbox. OpenDesign's state — its database,
+projects, credentials and settings — lives in `~/.od`, shared across all workspaces.
+That means you can only run one OpenDesign daemon at a time. The daemon drives the
+packaged Pi over RPC, so your existing Pi login, providers and GitHub policy apply; the
+UI itself is at `http://127.0.0.1:7456`.
+
+```bash
+pixi r opendesign ~/my-designs -- --no-git           # hide GitHub credentials
+pixi r opendesign ~/my-designs -- --bind ../ref      # add extra read-write directory to the sandbox
+pixi r opendesign ~/my-designs -- --ro-bind ../ref   # add extra read-only directory to the sandbox
+pixi r opendesign ~/my-designs -- --port 7457        # different port
+pixi r opendesign-unsafe                             # no sandbox
+```
+
+`pixi r opendesign-unsafe` is the only option available in Windows.
 
 ## herdr
 
