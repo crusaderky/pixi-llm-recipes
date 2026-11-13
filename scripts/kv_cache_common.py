@@ -1113,6 +1113,55 @@ MODEL_KV: dict[str, ModelKV] = {
         key_dim=192,  # kvarn not supported
         value_dim=128,
     ),
+    # `flint` (`unsloth/flint-GGUF`, "Flint Preview"): the plainest geometry in
+    # this table, and the one to read when checking that a curated entry and the
+    # same model derived from its header agree byte for byte. The arch is a
+    # preview, and its loader in the pinned fork ends `load_arch_hparams` with
+    # `type = LLM_TYPE_UNKNOWN`, so nothing names its size -- `general.size_label`
+    # "256x2.1B" and 12.63 GiB at UD-Q2_K_XL are all the file gives.
+    #
+    # `block_count` 49 IS the cache layer count: `create_tensor_qkv` on every
+    # block (plain GQA, no MLA, no `attn_kv_a_mqa`), no linear-attention block
+    # holding a recurrent state, no `nextn_predict_layers` block past `n_layer()`
+    # and no n-gram table to read lazily. So no `compressed` row, and the
+    # extractor's `total (model weights)` line is its only weight class.
+    #
+    # Interleaved SWA, and here the pattern is not optional: the loader takes it
+    # with `ml.get_arr(LLM_KV_ATTENTION_SLIDING_WINDOW_PATTERN, is_swa_impl)`, so
+    # every Flint GGUF ships the per-layer array and `_ARCH_SWA_PATTERN` needs no
+    # entry. 35 layers window at `attention.sliding_window` 513; the 14
+    # full-context ones are blocks 0, 1, 5, 9, ... 45, 48.
+    #
+    # `attention.rope_pattern` (also required) is that same array, and per
+    # llama-hparams.h 1 = use RoPE -- so the 35 windowed layers rotate and the 14
+    # full-context ones are NoPE. Cache-neutral, but it is why the two arrays are
+    # identical, which otherwise reads like a converter pasted one key into the
+    # other. `attn_sinks` sits on all 49 blocks; it is a weight, not a cache.
+    #
+    # 128-dim heads on both sides, so KVarN is real here rather than assumed:
+    # `create_memory` has no FLINT case, and its default branch builds a plain
+    # `llama_kv_cache_iswa` handed `params.kvarn` plus the tail parameters, while
+    # `llama_kvarn_context_route_for` routes every non-DFLASH trunk as OWNED. So
+    # `flint` belongs in neither `_ARCH_NO_KVARN` nor `_ARCH_SWA_PATTERN`.
+    #
+    # 32 heads x 128 = `attn_q` 2048x4096 (wider than the 2048 residual), and
+    # `attention.head_count_kv` is the scalar 4 -- `attn_k`/`attn_v` 2048x512.
+    # `leading_dense_block_count` 2 leaves 47 MoE blocks with 256 routed experts
+    # (`expert_used_count` 6) and `expert_shared_count` 2, but the shared experts
+    # do not scale with that count: flint's loader creates `ffn_*_shexp` **2-D**,
+    # with no expert axis, so each MoE block ships one shared FFN of
+    # `expert_shared_feed_forward_length` 1024. Weights either way -- and unlike
+    # `attention.value_expert_count` of K2-Horizon, nothing here touches the
+    # cache.
+    "Flint": ModelKV(
+        full_attn_layers=14,
+        full_attn_kv_heads=4,
+        sliding_window_layers=35,
+        sliding_window_kv_heads=4,
+        sliding_window_size=513,
+        key_dim=128,
+        value_dim=128,
+    ),
 }
 MODEL_KV["Ornith-1.5-35B"] = MODEL_KV["Qwen3.6-35B-A3B"]
 MODEL_KV["Kat-Coder-V2.5-Dev"] = MODEL_KV["Qwen3.6-35B-A3B"]
