@@ -151,7 +151,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 | Engine       | Model            | Variant    | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
 | ------------ | ---------------- | ---------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
-| Strata       | Qwen3.8-Flash    | UD-IQ3_XXS | 79 GB        | 256k int8/int8      | 20.5 GB<sup>4</sup> | 1,397 tok/s         | 74 tok/s           | ✅     |
+| Strata       | Qwen3.8-Flash    | UD-IQ3_XXS | 79 GB        | 256k int8/int8      | 20.1 GB<sup>4</sup> | 1,519 tok/s         | 70 tok/s           | ✅     |
 | BeeLLaMA.cpp | Qwen3.8-Flash    | UD-IQ3_XXS | 79 GB        | 256k kvarn4         | 21.2 GB<sup>4</sup> | 175 tok/s           | 30 tok/s           | ✅     |
 | BeeLLaMA.cpp | Qwen3.8-27B      | IQ4_XS MTP | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
 | BeeLLaMA.cpp | Ternary-Bonsai-2 | PQ2        | 7.3 GB       | 256k kvarn4         | 12.9 GB             | 949 tok/s           | 55 tok/s           | ✅     |

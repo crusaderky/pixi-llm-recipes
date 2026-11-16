@@ -133,6 +133,11 @@ for item in serve tools data src include cmake strata_control CMakeLists.txt set
     cp -a "${STRATA_SRC}/${item}" "${APPDIR}/${item}"
 done
 cp -a "${STRATA_SRC}/third_party/ggml" "${APPDIR}/third_party/ggml"
+# 0.2.14 added Strata's own prompt kernels, a second ggml tree that ENGINE_SOURCES names:
+# leaving it out makes source_hash drift and the first start offer a compile it cannot do.
+cp -a "${STRATA_SRC}/third_party/strata-ggml" "${APPDIR}/third_party/strata-ggml"
+# The image encoder (VISION_SOURCES) links Strata's own llama tree beside the ggml one.
+cp -a "${STRATA_SRC}/third_party/strata-llama" "${APPDIR}/third_party/strata-llama"
 rm -rf "${APPDIR}/tools/vision/build"
 # get_llama_cpp() returns this tree instead of downloading the archive at the first start.
 # The .git directory of the source clone is not part of it (it would be a few hundred MB).
