@@ -49,30 +49,61 @@ if nvcc is None:
 print(f"  nvcc {nvcc} (CUDA {version[0]}.{version[1]}), architectures {cuda_archs}", flush=True)
 
 llama = pathlib.Path(os.environ["LLAMA_SRC"])
+
+# Every definition setup.py's own build_engine() adds, so the engine this recipe compiles is
+# the engine upstream compiles: cmake_build alone is only the build *function* -- the definition
+# list belongs to upstream's caller, and it is not derivable from the two flags this script used
+# to carry. ggml_defs/vision_llama are upstream's own accessors (the override, else the vendored
+# tree). engine_defs is the one that changes the binary: -DSTRATA_EXPERIMENTAL_SM60=ON for a
+# card below sm_75 or a CUDA 12 toolkit -- without it, STRATA_CUDA_ARCHITECTURES=70 built a
+# Pascal engine that cannot run (nothing else in the recipe or in BUILD.json reports it).
+# The toolkit major comes from the nvcc that builds, not from the recipe's cuda-version pin.
+# arch_nums is the same digits BUILD.json records; an architecture name CMake spells with a
+# suffix ("90a", "compute_90") cannot be a Pascal card, so it skips the floor check.
+arch_nums = [int(a.split("-")[0]) for a in archs if a.split("-")[0].isdigit()]
+toolkit = int(version[0])
+
+# Two of upstream's def helpers are deliberately NOT called, because both are about the machine
+# that runs setup.py rather than about this package:
+#   toolkit_root_defs -> -DCUDAToolkit_ROOT, to stop a host with two CUDA toolkits linking
+#       cudart from the wrong one. A rattler-build environment has exactly one, in ${PREFIX},
+#       and pointing CUDAToolkit_ROOT at a conda prefix is a worse bet than CMake's own search
+#       (conda ships the libraries in lib/, FindCUDAToolkit looks for lib64 first).
+#   isa_floor_defs -> the *older-CPU* engine (STRATA_ISA_FLOOR), chosen from the CPU setup.py
+#       finds. A package must not be tuned to the build host in either direction, so this
+#       builds the normal engine, which is what floor "" means.
+engine_defs = [
+    "-DSTRATA_ENABLE_CUDA=ON",
+    "-DSTRATA_BUILD_TESTS=OFF",
+    f"-DCMAKE_CUDA_ARCHITECTURES={cuda_archs}",
+    f"-DCMAKE_CUDA_COMPILER={nvcc}",
+    *setup.host_compiler_defs(True),
+    *setup.ggml_defs(llama),
+    *(setup.engine_defs(arch_nums, toolkit) if arch_nums else []),
+]
 setup.cmake_build(
     setup.ROOT,
     setup.ROOT / "build",
     "strata",
-    [
-        "-DSTRATA_ENABLE_CUDA=ON",
-        "-DSTRATA_BUILD_TESTS=OFF",
-        f"-DCMAKE_CUDA_ARCHITECTURES={cuda_archs}",
-        f"-DCMAKE_CUDA_COMPILER={nvcc}",
-        f"-DSTRATA_GGML_DIR={llama}",
-    ],
+    engine_defs,
     None,
     "build-strata.bat",
 )
+# Upstream's vision defs: the same tree accessors, the same host compilers (it says "native,
+# like the engine"), and STRATA_PORTABLE=OFF, which the engine build gets from its default.
+vision_defs = [
+    f"-DLLAMA_DIR={setup.vision_llama(llama)}",
+    "-DSTRATA_VISION_CUDA=ON",
+    "-DSTRATA_PORTABLE=OFF",
+    *setup.host_compiler_defs(True),
+    f"-DCMAKE_CUDA_ARCHITECTURES={cuda_archs}",
+    f"-DCMAKE_CUDA_COMPILER={nvcc}",
+]
 setup.cmake_build(
     setup.ROOT / "tools" / "vision",
     setup.ROOT / "build-vision",
     "strata-vision",
-    [
-        f"-DLLAMA_DIR={llama}",
-        "-DSTRATA_VISION_CUDA=ON",
-        f"-DCMAKE_CUDA_ARCHITECTURES={cuda_archs}",
-        f"-DCMAKE_CUDA_COMPILER={nvcc}",
-    ],
+    vision_defs,
     None,
     "build-vision.bat",
 )
@@ -81,13 +112,19 @@ engine = setup.ROOT / "engine"
 engine.mkdir(exist_ok=True)
 shutil.copy2(setup.ROOT / "build" / setup.EXE, engine / setup.EXE)
 shutil.copy2(setup.ROOT / "build-vision" / "bin" / setup.VEXE, engine / setup.VEXE)
-# 0.1.44: on CUDA the K-quant MMQ prompt kernels are a library of their own, and the engine
-# opens it out of its own folder (/proc/self/exe's directory -- src/prefill/mmq_kq_loader.cpp),
-# so it has to sit beside the executable, not in ${PREFIX}/lib. It is what the K-quant experts
-# of Unsloth's UD-Q4/Q5/Q6_K_XL use for prompts, and every Qwen3.6-35B-A3B expert is one (its
-# engine path sets STRATA_MMQ_KQ=1 by default): without it those experts fall back to the FP16
-# prompt path and the engine says so once. CMake builds it only where those formats have CUDA
-# kernels, so a missing file is not an error here.
+# libstrata_kq.so: llama.cpp's MMQ prompt instances for Q4_K / Q5_K / Q5_1 / Q6_K -- the
+# experts of Unsloth's K-quant files -- kept in a library of their own so the engine does not
+# pay ~3.8 MB of VRAM for them at every start; it dlopens them out of its own folder
+# (/proc/self/exe's directory -- src/prefill/mmq_kq_loader.cpp), so it has to sit beside the
+# executable, not in ${PREFIX}/lib.
+#
+# It is normally ABSENT from this package, and that is upstream's own answer, not a packaging
+# bug: 0.2.14 moved the CUDA/HIP prompt path to Strata's own fused kernels and CMake's
+# STRATA_MMQ defaults OFF since then (upstream's build_engine passes -DSTRATA_MMQ=OFF for
+# everything but arm64). strata_kq is built inside strata_cuda_mmq(), which runs only under
+# `if(STRATA_ENABLE_CUDA AND STRATA_MMQ)`, so a default build compiles no MMQ at all and the
+# engine reports its prompt layers on the fused kernels. The copy stays for a -DSTRATA_MMQ=ON
+# A/B build, where the loader still wants the file beside the executable.
 kq = setup.ROOT / "build" / setup.KQ_LIB
 if kq.is_file():
     shutil.copy2(kq, engine / setup.KQ_LIB)

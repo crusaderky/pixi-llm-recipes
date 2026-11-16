@@ -137,6 +137,10 @@ while read -r file pattern; do
 done <<'EOF'
 setup.py find_nvcc
 setup.py cmake_build
+setup.py def host_compiler_defs
+setup.py def ggml_defs
+setup.py def engine_defs
+setup.py def vision_llama
 setup.py ENGINE_SOURCES
 setup.py VISION_SOURCES
 setup.py source_version
@@ -165,7 +169,8 @@ tools/mtp_pack.py --experts
 tools/mtp_rt.py --gguf
 serve/server.py "loaded": self.loaded()
 EOF
-for d in serve tools data src include cmake strata_control engine third_party/ggml third_party/llama.cpp/gguf-py; do
+for d in serve tools data src include cmake strata_control engine third_party/ggml \
+    third_party/strata-ggml third_party/strata-llama third_party/llama.cpp/gguf-py; do
   [ -e "$APP/$d" ] || echo "MISSING: $d/"
 done
 # the two Python entry points that must load the tree, not just the flags in it
@@ -184,6 +189,11 @@ The engine binaries matter too: `engine/strata` and `engine/strata-vision` must 
 executable (Phase 4's smoke test proves they run — `strata-run.py` also depends on setup.py's
 `EXE`/`VEXE` names matching what `build.sh` copied; `engine/strata --version` prints the engine
 package number, which is not the app version — 0.2.9 ships the 0.1.55 engine).
+
+`engine/libstrata_kq.so` is **not** expected: since 0.2.14 the CUDA prompt path runs on Strata's
+own fused kernels, `STRATA_MMQ` defaults OFF (as upstream's own build passes it for everything but
+arm64), and `strata_kq` is built only inside the MMQ branch. Its absence is correct; check the
+engine log says `prompt kernels: … on the fused kernels` instead of chasing the file.
 
 ## Phase 6 — report
 

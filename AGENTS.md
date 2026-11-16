@@ -257,8 +257,12 @@ run on every start; give them after `--`. `gguf-dir` is refused too: the folder 
 wrapper's own.
 
 A 24 GB card is the target and gets filled: 23.7 of 24.5 GiB, `--vram-reserve-mib 2048`, the expert cache and the
-prompt path sharing what is left, everything past that streamed from RAM and SSD. Decode is ~65 tok/s on a 3090
-(~380 tok/s prefill) with the MTP head drafting — `strata.log` reports the expert-cache hit rate per reply. The
+prompt path sharing what is left, everything past that streamed from RAM and SSD. On a 3090 with `UD-IQ3_XXS` and
+`drafter = dflash2`, the engine's own log measures **~59–60 tok/s decode** and **~1500 tok/s cold prefill** (an
+8193-token prompt in 5.3–5.6 s, a 41596-token one at 1830); the first chunks after a start run 576–990 while the
+prompt kernels and the page cache warm. `strata.log` also reports the expert-cache hit rate per reply. Do not read
+the prefill figure off serve's `prompt N tokens = R reused + X read in T ms (R tok/s)` line: its tok/s divides by
+**N, not by X**, so a prefix-cached 63k request prints ~750 tok/s for the 2.7k tokens it actually read. The
 reserve is another **pin**, not the engine's own 700 MiB default: at 700 the expert cache (and the image encoder,
 on `--vision gpu`) holds the rest of the card, the driver evicts whatever the desktop had there, and the X server
 goes down mid-reply — upstream's advice for exactly that is 3072 (#560, #516). `vram-reserve-mib = 2048` in
@@ -325,10 +329,31 @@ from scratch — pack (~2 min), MTP layer (~787 MB `rt/` plus the ~5 GB of check
 Strata publishes **no Linux prebuilt** (its release assets are Windows-only), so a Linux install compiles the engine
 with `cmake -DSTRATA_ENABLE_CUDA=ON` — upstream's Dockerfile does the same, at image build time. Doing it in the
 recipe is what makes `pixi install -e strata` yield a usable env: the first start has nothing to compile and no
-compiler has to exist at runtime. `build.sh` drives **Strata's own `setup.py`** (`cmake_build`) rather than its own
-CMake command line, so the flags cannot drift from upstream; it then writes `engine/BUILD.json` the way the
-Dockerfile does (`source: "local"` plus `source_hash(ENGINE_SOURCES)`), and ships the pinned `llama.cpp` checkout, so
-`get_llama_cpp()` returns it instead of downloading the archive and the pack tools read GGUFs through its `gguf-py`.
+compiler has to exist at runtime. `build.sh` drives **Strata's own `setup.py`** — its `cmake_build` _and_ its
+definition helpers (`host_compiler_defs`, `ggml_defs`, `engine_defs`, `vision_llama`) — rather than a CMake command
+line of its own, because `cmake_build` alone is only the build function: the definition list belongs to upstream's
+caller and is not derivable. Two helpers are left out on purpose — `toolkit_root_defs` (a second host CUDA toolkit
+cannot exist inside a rattler-build environment, and a conda prefix has no `lib64` for `CUDAToolkit_ROOT` to reach)
+and `isa_floor_defs` (the older-CPU engine must never be chosen from the build host). `engine_defs` is the one that
+changes the binary: it adds `-DSTRATA_EXPERIMENTAL_SM60=ON` for a card below `sm_75` or a CUDA 12 toolkit, so without
+it `STRATA_CUDA_ARCHITECTURES=70` silently builds a Pascal engine that cannot run. It then writes `engine/BUILD.json`
+the way the Dockerfile does (`source: "local"` plus `source_hash(ENGINE_SOURCES)`), and ships the pinned `llama.cpp`
+checkout, so `get_llama_cpp()` returns it instead of downloading the archive and the pack tools read GGUFs through
+its `gguf-py`.
+
+**The engine is no longer built on llama.cpp's prompt kernels, but llama.cpp is still in it.** 0.2.14 moved the
+CUDA/HIP **prompt (prefill) path** to Strata's own fused kernels: CMake's `STRATA_MMQ` defaults **OFF** since then,
+passed explicitly by upstream for everything but arm64, and `strata_cuda_mmq()` — which builds `strata_mmq` and the
+K-quant `libstrata_kq.so` the engine dlopens from its own folder — runs only under it. So `engine/` legitimately
+holds only `strata`, `strata-vision` and `BUILD.json`, and the absence of `libstrata_kq.so` is upstream's answer, not
+a packaging bug. Confirm the prompt path from the engine log rather than the file list: `prompt kernels: chunks of
+5632 tokens or more run 48 of 48 layers on the fused kernels`. llama.cpp/ggml still decides everything else — the
+engine configures against the pinned checkout (`-DSTRATA_GGML_DIR`), `strata-vision` still links `third_party/strata-llama`
+(the picture reader is still llama.cpp's, as a fallback and as a selectable reader), and the GGUF tools still read
+through that checkout's `gguf-py`, which is why `llama_cpp_commit` must still equal setup.py's `LLAMA_CPP_COMMIT`.
+The same release added `third_party/strata-ggml` to `ENGINE_SOURCES` and `third_party/strata-llama` to
+`VISION_SOURCES`; `build.sh` copies both, and leaving either out makes `source_hash` drift into a compile the env
+cannot do (the same trap as the missing `cmake/` below).
 
 **Every part `ENGINE_SOURCES` names must be in the installed app tree, byte for byte** — `CMakeLists.txt`, `cmake`,
 `src`, `include`, `third_party/ggml` — because `setup.py` recomputes that hash over `${APPDIR}` at the first start and a
