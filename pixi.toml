@@ -219,7 +219,16 @@ curl = "*"
 # The port is `port` in strata.ini; `start-strata --port <n>` overrides it, and so does
 # STRATA_PORT. start-strata.sh asks scripts/strata-run.py which one that is, so its health
 # check polls the port Strata is about to listen on.
-start-strata = "bash scripts/start-strata.sh"
+#
+# Two engine defaults are traded away for quality, not speed, and both are speed features
+# that change the output's last bits (docs/DETAILS.md): the rank-7 route tail skip (a missed
+# expert every token of a verify window routes at rank 7 or lower is not computed; KL
+# ~0.006, perplexity x1.011) and the CPU prefill share (the idle CPU pool computes some of
+# the experts a prompt chunk up to 5632 tokens would stream; KL ~0.004 under 1024 tokens,
+# ~0.011 at 1-3K). They are environment entries, read by the engine at start, so this task
+# needs no engine or preparation change. STRATA_HC_Q8 stays at its default: the GGUF stores
+# those projections as Q8_0 itself, so forcing 0 recovers no precision.
+start-strata = { cmd = "bash scripts/start-strata.sh", env = { STRATA_ROUTE_TAIL_SKIP = "0", STRATA_PREFILL_CPU_SHARE = "0" } }
 stop-strata = "bash scripts/stop-strata.sh"
 restart-strata = { depends-on = ["stop-strata", "start-strata"] }
 strata-install = "bash scripts/strata-install.sh"
