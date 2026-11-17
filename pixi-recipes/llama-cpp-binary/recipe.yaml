@@ -5,7 +5,7 @@ context:
 
   # Main branch (upstream llama.cpp)
   # fork: ggml-org/llama.cpp
-  # version: b12432
+  # version: b12478
   # asset_prefix: llama
 
   # beellama.cpp
