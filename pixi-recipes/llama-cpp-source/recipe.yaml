@@ -91,6 +91,8 @@ source:
     # (common/src/tools) and ggml/src/CMakeLists.txt (ggml, and ggml-cuda, which
     # forwards CXX_FLAGS into -Xcompiler).
     - patches/0003-cmake-suppress-unused-parameter-warnings.patch
+    # New UI bundles need not ship a separate Workbox script.
+    - patches/0004-ui-allow-inline-workbox.patch
 
 build:
   number: 0
