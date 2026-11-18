@@ -46,6 +46,10 @@ Usage
     # private/gated repos:
     HF_TOKEN=hf_xxx python gguf_tensor_csv.py <url> -o out.csv
 
+    # -v/--verbose additionally prints the KV-cache size derivation and the
+    # per-layer-group breakdown behind every KV row (where the excluded
+    # NextN/MTP blocks are named too)
+
 The header parser, the ggml type table and the lazy-read rules live in
 gguf_common.py, which perplexity.py shares so that a run's `# model:` provenance
 records the same lazily-read byte count this script reports.
@@ -64,8 +68,6 @@ import requests
 from gguf_common import (
     HEADER_CAP,
     HEADER_START,
-    LAZY_AUTO_MIN_BYTES,
-    LAZY_MODE_FLAG,
     RenumberedType,
     Truncated,
     lazy_tensor_names,
@@ -183,11 +185,6 @@ _DENSE_FFN = ("ffn_gate", "ffn_up", "ffn_down")
 # experts' outputs into one `n_embd_v_gqa`-wide V row before build_attn(), so the
 # cache is an ordinary GQA cache of the same width a plain `attn_v` would give.
 _VALUE_EXPERTS = "attn_v_exps"
-
-# `LLM_FFN_EXPS_REGEX` in llama.cpp's common/common.h: the tensors `--cpu-moe` /
-# `--n-cpu-moe` move to the host buffer type, and therefore the only ones that
-# need prefill staging scratch in VRAM.
-_CPU_MOE_RE = re.compile(r"\.ffn_(up|down|gate|gate_up)_(ch|)exps")
 
 
 def build_row(ts):
@@ -730,13 +727,16 @@ _DSV4_STATE_BPW = 32.0  # compressor state is f32 regardless of the cache quant
 # in each format's block/tile overhead (so kvarn4 is 4.375 bpw, not a flat 4)
 # and is shared with the KLD sweep tooling. The tails pair each quant with the
 # exact-tail size that makes it usable in practice: the lossier the body, the
-# longer the f16 tail needed to hold recent tokens exactly.
+# longer the f16 tail needed to hold recent tokens exactly. The plain ggml
+# quants carry no tail: they are the tail-less reference each kvarn body is
+# measured against.
 #
 # Read through `_kv_quants`, never directly: a model whose head dims KVarN cannot
 # quantize gets the plain fallback types instead.
 KV_QUANTS = (
     ("f16", 0),
     ("q8_0", 0),
+    ("q5_0", 0),
     ("kvarn5", 128),
     ("kvarn4", 1024),
     ("kvarn3", 2048),
@@ -758,10 +758,15 @@ def _kv_quants(spec):
     silently stores the fallback, whereas here llama-server refuses to start at
     all (`fail_if_unsupported`), so a kvarn row would size a run that cannot
     exist. The tails are unaffected -- `--kv-tail-tokens` is independent of KVarN.
+
+    Deduplicated, because a fallback `kvarn5 -> q5_0` then sizes the same
+    allocation as the plain `q5_0` row: two rows for one allocation read as two
+    measurements.
     """
     if spec.support_kvarn:
         return KV_QUANTS
-    return tuple((KVARN_FALLBACK.get(quant, quant), tail) for quant, tail in KV_QUANTS)
+    fallback = ((KVARN_FALLBACK.get(q, q), t) for q, t in KV_QUANTS)
+    return tuple(dict.fromkeys(fallback))
 
 
 def _kv_label(quant, tail):
@@ -1582,81 +1587,41 @@ def _recurrent_state_caveat(spec):
     rejected draft needs a snapshot per draftable token. `n_rs_seq` is
     `--spec-draft-n-max` whenever `--spec-type` includes an MTP / EAGLE3 / DFlash
     draft (`common_params_speculative::need_n_rs_seq`) and 0 otherwise, so the
-    line below is the no-speculation figure -- with this project's own
-    `models.ini` (`spec-type = draft-mtp`, `spec-draft-n-max = 4`) the real
-    allocation is 5x it.
+    KV rows are the no-speculation figure -- with this project's own `models.ini`
+    (`spec-type = draft-mtp`, `spec-draft-n-max = 4`) the real allocation is 5x
+    them.
     """
     grp = next((g for g in spec.compressed if g.name == "recurrent state"), None)
     if grp is None:
         return []
     return [
         (
-            "  note: the recurrent state below assumes no speculative decoding. An "
-            "MTP / EAGLE3 / DFlash\n"
+            "  note: the KV figures assume no speculative decoding. An MTP / "
+            "EAGLE3 / DFlash\n"
             "        draft sets n_rs_seq = --spec-draft-n-max and llama.cpp then "
             "allocates (1 + n_rs_seq)\n"
-            "        snapshots of it, to roll back rejected draft tokens."
+            "        snapshots of the recurrent state, to roll back rejected draft "
+            "tokens."
         )
     ]
 
 
 def _kv_tail_caveats(spec, n_ctx):
-    """Notes for the `tN` column of the headline table, where the exact tail this
-    script pairs each quant with reaches less of the cache than the label implies.
+    """One line for the `tN` column of the headline table.
 
-    Two things are worth saying out loud, both read off the spec:
-
-    * A side cache (`spec.compressed`) is constructed with `tail_tokens = 0` --
-      llama.cpp passes it no tail arguments at all -- so no exact tail ever
-      protects it, however large `--kv-tail-tokens` is. On DeepSeek-V4 that is
-      >99% of the cache.
-    * `llama-context.cpp` clamps the sliding-window tail to the window itself
-      (`kv_tail_tokens_swa = min(N, n_swa)`). A model with full-attention layers
-      still gets the unclamped tail on those, but one whose *every* layer is
-      sliding-window (again DeepSeek-V4) gets the same allocation for every tail
-      at or above its window. Either way the clamp is already in the byte
-      figures (`ModelKV._swa_tail`); what it costs is the meaning of the `tN`
-      label, which is why it is said out loud here.
+    `llama-context.cpp` clamps the sliding-window tail to the window itself
+    (`kv_tail_tokens_swa = min(N, n_swa)`), so a tail above it buys exact rows on
+    the full-attention layers alone -- and every tail at or above it is the same
+    allocation on a model with no full-attention layers at all. The clamp is
+    already in the byte figures (`ModelKV._swa_tail`); what it costs is the
+    meaning of the `tN` label, which is why it is said out loud here. Skipped when
+    no reported tail reaches the clamp.
     """
-    tails = sorted({t for _, t in _kv_quants(spec) if t})
-    if not tails:
-        return []
-    lines = []
-    side = [grp.name for grp in spec.compressed if grp.ratio]
-    if side:
-        lines.append(
-            f"  note: the exact tail never reaches {', '.join(side)} -- llama.cpp "
-            "builds those with tail 0,\n"
-            "        so the tN column below protects only the token cache."
-        )
+    tails = [t for _, t in _kv_quants(spec) if t]
     window = min(n_ctx, spec.sliding_window_size) if spec.sliding_window_layers else 0
-    if not window:
-        return lines
-    if not spec.full_attn_layers:
-        # The allocation saturates *at* the window, so a tail equal to it is
-        # already the largest one this model can have.
-        at_or_over = [t for t in tails if t >= window]
-        if at_or_over:
-            tail_list = "/".join(f"t{t}" for t in at_or_over)
-            lines.append(
-                f"  note: every layer is sliding-window, and the tail is clamped to "
-                f"the window ({window} tok),\n"
-                f"        so {tail_list} are all the same allocation here."
-            )
-    else:
-        # A tail equal to the window still buys the whole window on the sliding
-        # layers; only one *above* it is spent on the full-attention layers alone.
-        over = [t for t in tails if t > window]
-        if over:
-            tail_list = "/".join(f"t{t}" for t in over)
-            verb = "buys" if len(over) == 1 else "buy"
-            lines.append(
-                f"  note: the tail is clamped to the window ({window} tok) on the "
-                f"{spec.sliding_window_layers_all} sliding-window layers,\n"
-                f"        so {tail_list} {verb} exact rows on the "
-                f"{spec.full_attn_layers_all} full-attention layers only."
-            )
-    return lines
+    if not tails or not window or max(tails) <= window:
+        return []
+    return [f"  note: the tail is clamped to {window} tokens on SWA layers"]
 
 
 def _kv_cache_breakdown(info, kv_by_quant):
@@ -1686,6 +1651,14 @@ def _kv_cache_breakdown(info, kv_by_quant):
                 f"      looped transformer: {info['n_blocks']} blocks x "
                 f"{info['n_loops']} loops = {info['n_blocks'] * info['n_loops']} "
                 "cache layers"
+            )
+        if info.get("n_nextn_excluded"):
+            lines.append(
+                f"      {info['n_nextn_excluded']} NextN/MTP block(s) are in none "
+                "of the counts below: this\n"
+                "      architecture caches them in a separate MTP context, "
+                "allocated only when\n"
+                "      speculative decoding is on."
             )
         if uniform and not info.get("n_swa_layers"):
             per_layer = head_kv[0] * (klen + vlen)
@@ -1819,6 +1792,12 @@ def main():
         help="per-file download cap (default 512 MiB)",
     )
     ap.add_argument("-q", "--quiet", action="store_true")
+    ap.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="print the KV-cache size derivation and the per-group breakdown",
+    )
     args = ap.parse_args()
 
     import os
@@ -2077,44 +2056,35 @@ def main():
         "everything else (attn/embd/norm)", other, points=pts["other"]
     )
     resident = exps + vexps + shexp + ffn + other
+    # What a token actually touches: the routed experts its routers fire (both
+    # the FFN pool and, on a MoVA model, the value-expert pool) plus every tensor
+    # that fires on every token -- shared experts, dense FFN, attention,
+    # embeddings, norms. Only known when the GGUF carries the router's top-k.
+    # The lazily-read n-gram table is in neither figure: it is not resident, and
+    # its per-token cost is a handful of gathered rows, not a share of its bytes.
+    if activated_exps or activated_vexps:
+        summary += weight_line(
+            "total (activated weights)",
+            activated_exps + activated_vexps + shexp + ffn + other,
+            points=(
+                activated_pts
+                + activated_vpts
+                + pts["shexp"]
+                + pts["ffn"]
+                + pts["other"]
+            ),
+        )
     if lazy_total:
         summary += weight_line(
             "total (resident weights)", resident, points=resident_pts
         )
         summary += weight_line(
-            "lazy tensors (read from disk)",
-            lazy_total,
-            f"({', '.join(sorted(lazy))})",
-            points=pts["lazy"],
+            "ngrams (can be read from disk)", lazy_total, points=pts["lazy"]
         )
         summary += weight_line(
             "total (all weights, on disk)",
             resident + lazy_total,
             points=resident_pts + pts["lazy"],
-        )
-        summary += (
-            textwrap.fill(
-                "note: the lazy line is NOT part of the resident total above it. "
-                "llama.cpp registers the tensor's byte range and reads the rows a "
-                "token needs straight from the mmap, so it costs page cache rather "
-                "than VRAM -- and that holds under any --load-mode, mlock included "
-                "(the mapping is created for lazy tensors on their own, and mlock "
-                "refuses to lock their ranges). "
-                f"{LAZY_MODE_FLAG} off keeps it resident too, `on` drops the "
-                f"{LAZY_AUTO_MIN_BYTES >> 30} GiB size threshold that the default "
-                "`auto` -- and this line -- applies, and `auto` resolves to `off` "
-                "where a device has no mmap support (iGPUs), which makes it "
-                "resident as well. Both totals are tensor payloads read from the "
-                "header's offset column, so a publisher that re-numbered the ggml "
-                "type ids cannot move them (see the note above the weight lines). "
-                "Each line's bpw column is its own bytes x 8 / points, so the "
-                "lazy line's is the n-gram table's quant, which the publisher "
-                "chooses independently of the model's.",
-                width=88,
-                initial_indent="  ",
-                subsequent_indent=" " * 8,
-            )
-            + "\n"
         )
     else:
         summary += weight_line("total (model weights)", resident, points=resident_pts)
@@ -2133,62 +2103,30 @@ def main():
         )
     else:
         n_ctx = info["n_ctx"]
-        layer_desc = f"{info['n_attn_layers']} attn layers"
-        if info.get("n_loops", 1) > 1:
-            layer_desc += f" ({info['n_blocks']} blocks x {info['n_loops']} loops)"
-        if info.get("n_nextn_excluded"):
-            # Excluded from every count above; say so, or the layer arithmetic
-            # will not add up against `block_count`.
-            layer_desc += (
-                f" (+{info['n_nextn_excluded']} NextN/MTP block(s), cached only "
-                "in the separate MTP context)"
-            )
         if info.get("n_swa_layers"):
-            layer_desc += (
-                f": {info['n_full_layers']} full @ {n_ctx // 1024}k tok, "
-                f"{info['n_swa_layers']} SWA @ {info['swa_window']} tok"
+            layout = (
+                f"{info['n_full_layers']}x full @ {n_ctx // 1024}k tok, "
+                f"{info['n_swa_layers']}x SWA @ {info['swa_window']} tok"
             )
-        elif info.get("kv_width"):
-            layer_desc += f", {info['kv_width']} elems/token"
+        else:
+            layout = f"{info['n_attn_layers']}x full @ {n_ctx // 1024}k tok"
         sys.stderr.write(
             f"\ncontext/scratch VRAM estimate (rough, KV cache by quant type):\n"
-            f"  attn layout: {info['attn_kind']}, {layer_desc}\n"
+            f"  attention layout: {layout}\n"
             f"  KV cache @ {n_ctx // 1024}k tokens:\n"
         )
         # Per-quant headline, padded so the GiB/GB columns line up. `tN` is the
         # beellama --kv-tail-tokens the quant is paired with (see `_kv_quants`).
-        # Both ways a run can fail to get the KVarN cache it asked for have to be
-        # visible HERE, not only in the derivation block below, or the headline
-        # silently attributes KVarN sizes to a model that never gets them: a
-        # `kvarnN -> qN_0` label for an architecture whose bespoke cache never
-        # sees the KVarN params, and absent kvarn rows (plus the note) for a model
-        # whose head dims KVarN cannot quantize at all.
+        # Where a run cannot get the KVarN cache it asked for, the row labels say
+        # so: plain qN_0 types for a model whose head dims KVarN cannot quantize
+        # (plus the note), and `kvarnN -> qN_0` for an architecture whose bespoke
+        # cache never sees the KVarN params.
         arch = info.get("arch")
         kv_quants = info["kv_quants"]
         labels = {(q, t): _kv_display_label(q, t, arch) for q, t in kv_quants}
         width = max(len(lbl) for lbl in labels.values())
         if not info["spec"].support_kvarn:
-            # `support_kvarn` answers head dims only, and on an MLA model that is
-            # not even the check that fires: `llama_kvarn_validate_runtime` tests
-            # `attention_supported` (which excludes `is_mla()`) *before* the head
-            # dims, so quoting the head dim as the sole reason would misdescribe
-            # the failure. Say both.
-            note = (
-                "note: -ctk kvarnN is not usable here: KVarN needs 128/256/512-dim "
-                f"heads and this model's are {info['spec'].key_dim}"
-            )
-            if "MLA" in info["attn_kind"]:
-                note += " -- and llama.cpp rejects an MLA cache path outright besides"
-            note += (
-                ". llama-server refuses to start, so the rows below quote the plain "
-                "qN_0 types the CLI pairs each kvarnN with instead."
-            )
-            sys.stderr.write(
-                textwrap.fill(
-                    note, width=88, initial_indent="  ", subsequent_indent=" " * 8
-                )
-                + "\n"
-            )
+            sys.stderr.write("  note: KVarN is not usable for this model\n")
         if any(_effective_quant(q, arch) != q for q, _ in kv_quants):
             sys.stderr.write(
                 f"  note: '{arch}' builds its own KV cache and is never handed the "
@@ -2213,10 +2151,9 @@ def main():
             f"logits {info['logits_bytes'] / gib:.2f} GiB, n_vocab="
             f"{info['n_vocab']}): {overhead_bytes / gib:8.2f} GiB  "
             f"{overhead_bytes / gb:8.2f} GB\n"
-            "  (overhead is independent of context length and KV quant; the KV "
-            "cache scales linearly with both)\n"
         )
-        sys.stderr.write("\n".join(_kv_cache_breakdown(info, kv_by_quant)) + "\n")
+        if args.verbose:
+            sys.stderr.write("\n".join(_kv_cache_breakdown(info, kv_by_quant)) + "\n")
 
     # Lightning-indexer key cache (MSA/DSA) -- additive to the KV cache above.
     if info.get("index_cache_bytes"):
@@ -2227,33 +2164,6 @@ def main():
             f"f32): {ic / gib:8.2f} GiB  {ic / gb:8.2f} GB\n"
             "  (additive to the KV cache above -- sparse attention cuts compute, "
             "not cache size; only present when the GGUF carries indexer tensors)\n"
-        )
-
-    # Expert-offload (--cpu-moe / --n-cpu-moe) prefill staging scratch. During
-    # batched prefill the routed-expert weights (kept in host RAM) are copied to
-    # VRAM and the matmul runs on the GPU. llama.cpp allocates the *full* expert
-    # tensor as the copy destination (only the activated experts' rows are
-    # actually copied) and reuses that region across a layer's gate/up/down
-    # matmuls and across layers -- so the peak is the single largest routed-
-    # expert tensor. Offload only kicks in at batch >= 32 tokens, so this is a
-    # prefill-only term (decode keeps experts on the CPU and adds nothing here).
-    #
-    # Only the tensors the override actually matches count: llama.cpp offloads
-    # `\.ffn_(up|down|gate|gate_up)_(ch|)exps` (LLM_FFN_EXPS_REGEX), so a MoVA
-    # `attn_v_exps` is never staged -- it stays resident in VRAM instead.
-    expert_scratch = max(
-        (ts.nbytes or 0 for ts in all_tensors if _CPU_MOE_RE.search(ts.name)),
-        default=0,
-    )
-    if expert_scratch:
-        sys.stderr.write(
-            f"\nexpert-offload prefill scratch (--cpu-moe / --n-cpu-moe), "
-            f"largest routed-expert tensor staged to VRAM: "
-            f"{expert_scratch / gib:8.2f} GiB  {expert_scratch / gb:8.2f} GB\n"
-            "  (prefill only, batch >= 32 tokens; the full expert tensor is "
-            "allocated but only activated experts are copied; the region is "
-            "reused across a layer's matmuls and across layers, so this is the "
-            "single largest *_exps tensor, not their sum)\n"
         )
 
 
