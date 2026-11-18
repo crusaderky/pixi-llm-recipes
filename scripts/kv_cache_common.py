@@ -625,13 +625,15 @@ MODEL_KV: dict[str, ModelKV] = {
     # * `idx (indexer)` -- `llama_memory_hybrid_idx` fools a plain
     #   `llama_kv_cache` with a copy of the hparams whose `n_head_kv_arr` is all
     #   1s and whose `n_embd_head_k_full` is `attention.indexer.key_length`
-    #   (128), one row per token, at the run's K/V quant and with no exact tail.
-    #   It doctors the K side only, so `has_v = !is_mla()` still holds -- and
-    #   qwen4exp declares no MLA head dims, so unlike DeepSeek's identically
-    #   built LID cache this one really does allocate a V of
-    #   `attention.value_length` x 1 = 256 next to its 128-wide K, twice the K's
-    #   width and untouched by the graph. Transcribed as allocated, not as
-    #   intended: 2.25 of the 8.36 GiB f16 total at 256k.
+    #   (128) times `indexer_kpool_row` (2, its QSA k-pool keeping the raw key
+    #   and the pooled key in one row) = 256, one row per token, at the run's
+    #   K/V quant and with no exact tail. It doctors the K side only, so
+    #   `has_v = !is_mla()` still holds -- and qwen4exp declares no MLA head
+    #   dims, so unlike DeepSeek's identically built LID cache this one really
+    #   does allocate a V of `attention.value_length` x 1 = 256 beside that K,
+    #   which the graph never reads. Transcribed as allocated, not as intended:
+    #   3.00 of the 9.11 GiB f16 total at 256k (2.25 of 8.36 before the k-pool
+    #   row was modelled).
     # * `recurrent state` -- llama_hparams::n_embd_r/n_embd_s over the 36 linear
     #   blocks: (ssm.conv_kernel-1) * (ssm.inner_size + 2*ssm.group_count*
     #   ssm.state_size) = 30720 conv elems + ssm.state_size*ssm.inner_size =
@@ -655,7 +657,7 @@ MODEL_KV: dict[str, ModelKV] = {
         key_dim=256,
         value_dim=256,
         compressed=(
-            CompressedKV("idx (indexer)", 12, 1, 128, 256, ratio=1, per_seq=False),
+            CompressedKV("idx (indexer)", 12, 1, 256, 256, ratio=1, per_seq=False),
             CompressedKV(
                 "recurrent state", 36, 1, 30720, 786432, fixed_rows=1, elem_bpw=32.0
             ),

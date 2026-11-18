@@ -443,18 +443,26 @@ _DEFAULT_FULL_ATTN_INTERVAL = 4  # the fallback all four loaders hardcode
 # Architectures whose NextN/MTP blocks get NO layer in the main attention cache.
 # `llama_kv_cache` loops over `n_layer_all`, not `n_layer()`, so an MTP block is
 # cached by default like any other dense block; only these architectures pass a
-# filter that drops it (`mtp_on_hybrid_qwen35`, the STEP35/HY_V3 branch and
-# hy_v4_flash's `il < n_layer()` filter in llama-model.cpp), giving it a separate
-# context of its own instead, allocated only when a run enables speculative
-# decoding. Every other MTP-carrying arch (glm4-moe, bailingmoe2/3, deepseek32,
-# exaone-moe, mimo2, cohere2moe, ...) keeps the block in the main cache, so its
-# layer count really is `block_count`.
+# filter that drops it, giving it a separate context of its own instead,
+# allocated only when a run enables speculative decoding:
+#
+#   * `mtp_on_hybrid_qwen35` (qwen35, qwen35moe) and the STEP35/HY_V3 branch;
+#   * hy_v4_flash's `il < n_layer()` pair of filters in llama-model.cpp;
+#   * the shared GLM_DSA / DEEPSEEK32 case, whose `filter_mla = il < n_layer()`
+#     covers the trunk alone ("the nextn layer(s) are never attended by the trunk
+#     graph"). GLM-5.2 is a live example: 79 blocks, 1 MTP block, 78 cached.
+#
+# Every other MTP-carrying arch (glm4-moe, bailingmoe2/3, exaone-moe, mimo2,
+# cohere2moe, ...) keeps the block in the main cache, so its layer count really
+# is `block_count`.
 _ARCH_MTP_NO_CACHE = {
     "qwen35",
     "qwen35moe",
     "step35",
     "hy_v3",
     "hy_v4_flash",
+    "glm-dsa",
+    "deepseek32",
 }
 
 
@@ -619,8 +627,10 @@ _ARCH_INDEXER_KV = {"minimax-m3"}
 # that same copy -- which is why the width is not the same on all three:
 # deepseek32 and glm-dsa are MLA and get no V cache, while qwen4exp declares no
 # MLA head dims and therefore really does allocate a V of `attention.value_length
-# x 1` next to its 128-wide indexer K, at 2x the K's width and unused by the
-# graph. Mirrored rather than corrected: it is allocation, not arithmetic.
+# x 1` next to its indexer K, which the graph never reads. Both are transcribed as
+# allocated, not as intended: it is allocation, not arithmetic. That K is not a
+# bare `indexer.key_length` on the k-pool archs -- see
+# `_INDEXER_KPOOL_ROW_SLOTS`.
 # Both DeepSeek-V4 architectures are absent -- their index keys are stored in
 # compressed rows, modelled by `_dsv4_compressed_groups` (V4: a LID cache of its
 # own beside the CSA/HCA caches) and by `_dsv41_compressed_groups` (V4.1: the
@@ -641,12 +651,25 @@ _ARCH_INDEXER_SIDE_CACHE = {
     "hy_v4_flash",
 }
 
-# `llama_hparams::indexer_kpool_row`: the k-pool indexer keeps three head-size
-# slots per cached token -- the raw key, its gate and the pooled key -- in one
-# row of the side cache (`llama_memory_idx_iswa` sets `n_embd_head_k_full` to
-# `indexer_head_size * indexer_kpool_row` before faking an MLA cache, so there is
-# no V tensor). Only Hy4-Flash uses a k-pool today.
-_HY4_FLASH_KPOOL_ROW_SLOTS = 3
+# `llama_hparams::indexer_kpool_row` -- how many head-size slots one cached
+# k-pool row holds. A k-pool indexer caches the raw per-token key *and* the side
+# tensors of its pool in the same row, so `llama_memory_hybrid_idx` and
+# `llama_memory_idx_iswa` both set `n_embd_head_k_full` to
+# `indexer_head_size * indexer_kpool_row` whenever `indexer_kpool > 0` -- and, by
+# also faking an MLA cache, allocate no V tensor beside it. `llama_hparams`
+# defaults the row to 3 ("raw key | gate | pooled key", kept by glm5-next and
+# hy_v4_flash) and `qwen4exp.cpp` narrows it to 2 ("raw key | pooled key"). An
+# arch that never enables pooling -- every other indexer arch here, whose loaders
+# do not read `indexer_kpool` at all -- stores the raw key alone.
+_INDEXER_KPOOL_ROW_SLOTS = {"qwen4exp": 2, "hy_v4_flash": 3}
+_INDEXER_KPOOL_ROW_DEFAULT = 3  # llama_hparams' own default, not 1
+
+# Of the side-cache architectures, the ones whose `create_memory` builds a plain
+# iSWA cache pair -- and no indexer cache at all -- when the checkpoint disables
+# sparse attention (`attention.indexer.top_k == 0`): hy_v4's "DSA is absent on
+# the all-full_attention checkpoints", and hy_v4_flash's. The others allocate
+# their bespoke cache whatever top_k says, so a missing key must not zero them.
+_ARCH_INDEXER_TOP_K_GATED = {"hy_v4", "hy_v4_flash"}
 
 # Of those, the ones whose indexer key cache is filtered down to the layers that
 # actually own an indexer -- `filter_lid = hparams.is_indexer_full(il)` in the
@@ -670,13 +693,16 @@ _INDEXER_FULL_TRUE = {"full", "1", "true", "yes"}
 # (`kv_cache_common.KVARN_FALLBACK`). llama-model.cpp branches to these caches
 # before the `params.kvarn.type != DISABLED` test that everything else goes
 # through: `llama_kv_cache_dsa` (deepseek32 / glm-dsa / hyv4 / hy_v4) has no KVarN
-# parameter at all and builds both its children as plain `llama_kv_cache`, and
+# parameter at all and builds both its children as plain `llama_kv_cache`,
 # `llama_kv_cache_dsv4` passes `llama_kvarn_default_params()` (DISABLED) to its raw
-# cache and nothing to its compressed ones. `deepseek41` shares that same
-# `LLM_ARCH_DEEPSEEK4` case in `create_memory` (its loader is
+# cache and nothing to its compressed ones, and `llama_memory_idx_iswa` (the two
+# Hy4-Flash branches) takes only `type_k` / `type_v`. `deepseek41` shares that
+# same `LLM_ARCH_DEEPSEEK4` case in `create_memory` (its loader is
 # `src/models/deepseek41.cpp`), and -- unlike dsa -- its 512/128 head dims would
 # pass the KVarN head-dim test, so without this entry the kvarn rows below would
-# be sized as if they were real.
+# be sized as if they were real. `hy_v4_flash` is masked twice over: its 576-dim
+# latent fails the head-dim test as well, and the arch does not exist in the
+# KVarN fork at all (`-ctk kvarnN` and this model cannot be combined today).
 _ARCH_NO_KVARN = {
     "deepseek32",
     "deepseek4",
@@ -684,6 +710,7 @@ _ARCH_NO_KVARN = {
     "glm-dsa",
     "hyv4",
     "hy_v4",
+    "hy_v4_flash",
 }
 
 # DeepSeek-V4 compressed caches, mirroring llama-kv-cache-dsv4.cpp: the only two
@@ -782,12 +809,41 @@ def _group_kv_heads(head_kv, layers):
     return sum(head_kv[il] for il in layers) / len(layers)
 
 
+# GLM-5.2's per-layer indexer flags, `glm-dsa.cpp`'s own
+# `GLM_5_2_DEFAULT_INDEXER_TYPES`: layers 0, 1 and every fourth after own an
+# indexer, 21 of the 78 trunk blocks. The loader substitutes this table when the
+# GGUF carries no `attention.indexer.types`, which GLM-5.2's does not, and fills
+# every layer before that when `context_length` is below 1M (GLM-5 / 5.1, whose
+# indexers are all full).
+_GLM_5_2_DEFAULT_INDEXER_TYPES = (1, 1) + (1, 0, 0, 0) * 19
+_GLM_FULL_INDEXER_CTX = 1048576
+
+
+def _indexer_kpool(md, arch, n_layer):
+    """The k-pool size `llama_hparams::indexer_kpool` ends up with, 0 if none.
+
+    Most k-pool loaders read `attention.indexer.kpool` from the GGUF. `qwen4exp`
+    derives it instead: QSA pools the indexer keys of blocks of `compress_ratio`
+    cells, so `qwen4exp.cpp` sets `indexer_kpool` to its one shared
+    `attention.compress_ratios` value -- and refuses a checkpoint whose QSA
+    layers disagree -- leaving 0 when no layer is compressed at all.
+    """
+    if arch == "qwen4exp":
+        ratios = _norm_per_layer(md.get(f"{arch}.attention.compress_ratios"), n_layer)
+        ratios = {r for r in (ratios or ()) if r}
+        return max(ratios) if ratios else 0
+    return int(md.get(f"{arch}.attention.indexer.kpool") or 0)
+
+
 def _indexer_full_flags(md, arch, n_layer):
     """Per-layer "this block owns an indexer" bool list, or None if absent.
 
     Two spellings in the wild: the Hy4-preview converter writes
     `attention.indexer.is_full` (0/1 ints), upstream's loader reads
-    `attention.indexer.types`.
+    `attention.indexer.types`. A GGUF may carry neither -- GLM-5.2 does not --
+    and then the architecture's own default table applies, exactly as in
+    `glm-dsa.cpp`; without it the indexer cache is sized on every cached layer
+    instead of the 21 that own one.
     """
     for key in _INDEXER_FULL_KEYS:
         vals = _norm_per_layer(md.get(f"{arch}.{key}"), n_layer)
@@ -795,7 +851,12 @@ def _indexer_full_flags(md, arch, n_layer):
             return [
                 v in _INDEXER_FULL_TRUE if isinstance(v, str) else bool(v) for v in vals
             ]
-    return None
+    if arch != "glm-dsa":
+        return None
+    if (md.get(f"{arch}.context_length") or 0) < _GLM_FULL_INDEXER_CTX:
+        return [True] * n_layer
+    pattern = _GLM_5_2_DEFAULT_INDEXER_TYPES
+    return [bool(pattern[il]) if il < len(pattern) else False for il in range(n_layer)]
 
 
 def _compressed_groups(
@@ -819,8 +880,10 @@ def _compressed_groups(
         tail. K-only on the MLA architectures; on `qwen4exp` a V of
         `value_length` rides along, see `_ARCH_INDEXER_SIDE_CACHE`. The layer
         count is every cached layer except on `_ARCH_INDEXER_FULL_ONLY`, where
-        only the indexer-owning ones are cached. Hy4-Flash's k-pool row is three
-        head-size slots wide, not one.
+        only the indexer-owning ones are cached. A k-pool row is
+        `_INDEXER_KPOOL_ROW_SLOTS` head-size slots wide, not one.
+        `_ARCH_INDEXER_TOP_K_GATED` allocates none of it on a checkpoint that
+        disables the indexer outright.
       * `deepseek4` -- three *compressed* caches plus compressor state, see
         `_dsv4_compressed_groups`, and the raw token cache holds only a
         128-token window.
@@ -834,6 +897,15 @@ def _compressed_groups(
     if arch == "deepseek41":
         return _dsv41_compressed_groups(md, arch, tensors, head_kv, key_length, n_layer)
     if arch not in _ARCH_INDEXER_SIDE_CACHE:
+        return ()
+
+    # `create_memory` builds the side cache only where the checkpoint keeps an
+    # indexer at all: `indexer_top_k == 0` means no sparse attention, and the two
+    # gated architectures then get a plain iSWA pair with nothing beside it. The
+    # key is optional in their loaders and defaults to 0, so its absence means 0.
+    if arch in _ARCH_INDEXER_TOP_K_GATED and not md.get(
+        f"{arch}.attention.indexer.top_k"
+    ):
         return ()
 
     indexer_dim = md.get(f"{arch}.attention.indexer.key_length")
@@ -850,14 +922,17 @@ def _compressed_groups(
     if arch in _ARCH_INDEXER_FULL_ONLY:
         full = _indexer_full_flags(md, arch, n_main)
         if full:
-            n_idx = sum(1 for il in cached if full[il])
+            # `full` covers `n_layer()`, so an architecture that keeps its MTP
+            # block in the main cache can index one past its end; the loader's
+            # flag array is zeroed there, i.e. that block owns no indexer.
+            n_idx = sum(1 for il in cached if il < len(full) and full[il])
 
-    # Hy4-Flash's k-pool caches the raw key, its gate and the pooled key in one
-    # row (`llama_hparams::indexer_kpool_row`); every other side cache here holds
-    # one head-size slot.
+    # A k-pool row holds the raw key plus the side tensors of the pool, folded by
+    # `indexer_kpool_row` (see `_INDEXER_KPOOL_ROW_SLOTS`); every other side cache
+    # here holds one head-size slot.
     row_slots = (
-        _HY4_FLASH_KPOOL_ROW_SLOTS
-        if arch == "hy_v4_flash" and md.get(f"{arch}.attention.indexer.kpool")
+        _INDEXER_KPOOL_ROW_SLOTS.get(arch, _INDEXER_KPOOL_ROW_DEFAULT)
+        if _indexer_kpool(md, arch, n_layer)
         else 1
     )
     return (

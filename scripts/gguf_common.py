@@ -92,6 +92,10 @@ GGML_SIZES = {
     40: ("NVFP4", 64, 36),
     41: ("Q1_0", 128, 18),
     42: ("Q2_0", 64, 18),  # mainline group-64, 2.25 bpw
+    # one element per byte, no block overhead. Newer than the pinned fork, whose
+    # `GGML_TYPE_COUNT` is 43 -- so a file using it loads only on a llama.cpp that
+    # has the type, e.g. Hy4-Flash's F8_E4M3 Engram table on PR #32517's build.
+    43: ("F8_E4M3", 1, 1),
     # --- ik-llama.cpp / DFlash quant types (ids >= 133) ---
     # Internal q8 vec-dot types (97-99, 136, 147-151) are included for
     # completeness; they normally never appear as a stored tensor ttype.
