@@ -1010,6 +1010,47 @@ MODEL_KV: dict[str, ModelKV] = {
             CompressedKV("lid (indexer)", 78, 1, 128, 0, ratio=1, per_seq=False),
         ),
     ),
+    # Hy4-flash (`AngelSlim/Hy4-flash-GGUF`). This is `hy_v4_flash`, whose runnable
+    # reference is the open llama.cpp PR #32517 (head 0a054d0b) rather than the
+    # pinned fork. Reading only its generic GGUF hparams counts the MTP block and
+    # misses the k-pool indexer; both rules now live in gguf-meta-extract too.
+    # From that loader:
+    #
+    # * `block_count` = 43 with `nextn_predict_layers` = 1, so n_layer() = 42.
+    #   `create_memory` filters the main caches with `il < n_layer()`, leaving the
+    #   MTP block to a separate context that is only allocated for speculative
+    #   decoding. Of the 42 trunk layers, `attention.sliding_window_pattern` marks
+    #   30 at 512 tokens; the other 12 (0, 1, 5, 9, ... 41) are sparse full-context
+    #   layers. `head_count_kv` is the scalar 1.
+    # * MLA as on Hy4-preview: `attention.key_length` 576 is the cached latent
+    #   (kv_lora_rank 512 + rope 64), the MLA impl dims 256/256 are present, and
+    #   the declared `attention.value_length` 512 is not cached. KVarN is out both
+    #   because 576 is not a KVarN head dim and because llama.cpp rejects MLA.
+    # * The 12 sparse layers carry the k-pool indexer. `llama_memory_idx_iswa`
+    #   builds its side cache with one kv head, no V (it fools `llama_kv_cache`
+    #   into MLA), one row per token, no exact tail, and `kv_unified` inherited
+    #   from the main context. The row is `attention.indexer.key_length` 128 times
+    #   `indexer_kpool_row` 3 -- the raw key, its gate and the pooled key -- so it
+    #   is 384 elements wide, not 128. The pool size (`attention.indexer.kpool` 4)
+    #   and top_k (2048) select rows at runtime and do not change the allocation.
+    # The Engram n-gram table is weights, not cache: the 4 modules (layers
+    # 1/11/21/31) share one `per_layer_token_embd.weight` of 660,006,416 rows x
+    # 96, created with `TENSOR_READ_LAZY` and gathered a few rows at a time from
+    # the mmap. It is 59.01 GiB of this Q3_K repo's 144.70 GiB of weights, which
+    # gguf-meta-extract reports separately from resident weights; `--lazy-mode
+    # off` would make it resident, but still would not give it a KV-cache row.
+    "Hy4-flash": ModelKV(
+        full_attn_layers=12,
+        full_attn_kv_heads=1,
+        sliding_window_layers=30,
+        sliding_window_kv_heads=1,
+        sliding_window_size=512,
+        key_dim=576,  # kvarn not supported
+        value_dim=0,
+        compressed=(
+            CompressedKV("idx (k-pool)", 12, 1, 384, 0, ratio=1, per_seq=False),
+        ),
+    ),
     # `k2-horizon`. Three plain GQA stacks -- no SWA, no MLA, no MTP, no
     # recurrent blocks -- so `block_count` really is the cache layer count here
     # and the geometry is as boring as it looks. What is novel is MoVA

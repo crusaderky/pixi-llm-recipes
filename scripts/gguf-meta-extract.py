@@ -442,13 +442,20 @@ _DEFAULT_FULL_ATTN_INTERVAL = 4  # the fallback all four loaders hardcode
 
 # Architectures whose NextN/MTP blocks get NO layer in the main attention cache.
 # `llama_kv_cache` loops over `n_layer_all`, not `n_layer()`, so an MTP block is
-# cached by default like any other dense block; only these three pass a filter
-# that drops it (`mtp_on_hybrid_qwen35` and the STEP35/HY_V3 branch in
-# llama-model.cpp), giving it a separate context of its own instead, allocated
-# only when a run enables speculative decoding. Every other MTP-carrying arch
-# (glm4-moe, bailingmoe2/3, deepseek32, exaone-moe, mimo2, cohere2moe, ...) keeps
-# the block in the main cache, so its layer count really is `block_count`.
-_ARCH_MTP_NO_CACHE = {"qwen35", "qwen35moe", "step35", "hy_v3"}
+# cached by default like any other dense block; only these architectures pass a
+# filter that drops it (`mtp_on_hybrid_qwen35`, the STEP35/HY_V3 branch and
+# hy_v4_flash's `il < n_layer()` filter in llama-model.cpp), giving it a separate
+# context of its own instead, allocated only when a run enables speculative
+# decoding. Every other MTP-carrying arch (glm4-moe, bailingmoe2/3, deepseek32,
+# exaone-moe, mimo2, cohere2moe, ...) keeps the block in the main cache, so its
+# layer count really is `block_count`.
+_ARCH_MTP_NO_CACHE = {
+    "qwen35",
+    "qwen35moe",
+    "step35",
+    "hy_v3",
+    "hy_v4_flash",
+}
 
 
 def _recurrent_flags(md, arch, n_layer):
@@ -628,7 +635,18 @@ _ARCH_INDEXER_SIDE_CACHE = {
     # runs on stock llama.cpp"), while upstream's loader name is `hy_v4`.
     "hyv4",
     "hy_v4",
+    # Hy4-Flash's k-pool indexer lives in `llama_memory_idx_iswa`. It shapes the
+    # side cache the same way, but only on the sparse layers that own one and at
+    # a width of `indexer_head_size * indexer_kpool_row` (see below).
+    "hy_v4_flash",
 }
+
+# `llama_hparams::indexer_kpool_row`: the k-pool indexer keeps three head-size
+# slots per cached token -- the raw key, its gate and the pooled key -- in one
+# row of the side cache (`llama_memory_idx_iswa` sets `n_embd_head_k_full` to
+# `indexer_head_size * indexer_kpool_row` before faking an MLA cache, so there is
+# no V tensor). Only Hy4-Flash uses a k-pool today.
+_HY4_FLASH_KPOOL_ROW_SLOTS = 3
 
 # Of those, the ones whose indexer key cache is filtered down to the layers that
 # actually own an indexer -- `filter_lid = hparams.is_indexer_full(il)` in the
@@ -636,8 +654,9 @@ _ARCH_INDEXER_SIDE_CACHE = {
 # its patched `create_memory` branch passes `nullptr` for both filters, so its
 # indexer cache is allocated on *every* cached layer even though only the
 # `attention.indexer.is_full` ones (21 of 78 here) are ever written or read by the
-# graph. Mirrored as allocated, not as needed.
-_ARCH_INDEXER_FULL_ONLY = {"glm-dsa", "hy_v4"}
+# graph. Hy4-Flash filters on `!is_swa(il) && is_indexer_full(il)` (a layer is
+# forbidden from being both), so only its 12 sparse layers get a row.
+_ARCH_INDEXER_FULL_ONLY = {"glm-dsa", "hy_v4", "hy_v4_flash"}
 
 # The GGUF key carrying that per-layer flag. Upstream reads
 # `%s.attention.indexer.types`; the Hy4-preview converter writes
@@ -780,22 +799,28 @@ def _indexer_full_flags(md, arch, n_layer):
 
 
 def _compressed_groups(
-    md, arch, head_kv, key_length, value_length, cached, n_layer, tensors
+    md, arch, head_kv, key_length, value_length, cached, n_layer, n_main, tensors
 ):
     """Cache groups an architecture allocates *besides* its token KV cache.
+
+    ``n_layer`` is `block_count` (all blocks, MTP included); ``n_main`` is
+    `n_layer()` (the trunk blocks). Per-layer arrays such as the indexer's
+    ``attention.indexer.types`` are sized against `n_layer()` by the loader, so
+    that is the length they must be read with here too.
 
     Empty for all but the sparse-attention architectures, which cache their
     lightning-indexer keys in a side cache of their own instead of in the main one
     (`_ARCH_INDEXER_KV`):
 
       * `_ARCH_INDEXER_SIDE_CACHE` (`deepseek32`, `glm-dsa`, `qwen4exp`, `hyv4`,
-        `hy_v4`) -- one extra full-context cache of one row per token,
-        `head_count_kv` forced to 1 and the key head dim replaced by
+        `hy_v4`, `hy_v4_flash`) -- one extra full-context cache of one row per
+        token, `head_count_kv` forced to 1 and the key head dim replaced by
         `attention.indexer.key_length`, at the run's K/V quant and with no exact
         tail. K-only on the MLA architectures; on `qwen4exp` a V of
         `value_length` rides along, see `_ARCH_INDEXER_SIDE_CACHE`. The layer
         count is every cached layer except on `_ARCH_INDEXER_FULL_ONLY`, where
-        only the indexer-owning ones are cached.
+        only the indexer-owning ones are cached. Hy4-Flash's k-pool row is three
+        head-size slots wide, not one.
       * `deepseek4` -- three *compressed* caches plus compressor state, see
         `_dsv4_compressed_groups`, and the raw token cache holds only a
         128-token window.
@@ -823,21 +848,33 @@ def _compressed_groups(
     # the graph ever touches it (hyv4, whose patched build passes no filter).
     n_idx = len(cached)
     if arch in _ARCH_INDEXER_FULL_ONLY:
-        full = _indexer_full_flags(md, arch, n_layer)
+        full = _indexer_full_flags(md, arch, n_main)
         if full:
             n_idx = sum(1 for il in cached if full[il])
 
+    # Hy4-Flash's k-pool caches the raw key, its gate and the pooled key in one
+    # row (`llama_hparams::indexer_kpool_row`); every other side cache here holds
+    # one head-size slot.
+    row_slots = (
+        _HY4_FLASH_KPOOL_ROW_SLOTS
+        if arch == "hy_v4_flash" and md.get(f"{arch}.attention.indexer.kpool")
+        else 1
+    )
     return (
         CompressedKV(
             # Named after llama.cpp's own tensor tag for the cache, so a reader
             # can grep the right file: `cache_idx_k_l*` out of
             # llama_memory_hybrid_idx, `cache_k_l*` of kv_lid out of
             # llama_kv_cache_dsa (whose upstream name for it is the "lightning
-            # indexer", LID).
-            "idx (indexer)" if arch == "qwen4exp" else "lid (indexer)",
+            # indexer", LID), and `cache_idx_k_l*` of llama_memory_idx_iswa.
+            "idx (k-pool)"
+            if arch == "hy_v4_flash"
+            else "idx (indexer)"
+            if arch == "qwen4exp"
+            else "lid (indexer)",
             n_idx,
             1,  # the doctored hparams fill n_head_kv_arr with 1
-            indexer_dim,
+            indexer_dim * row_slots,
             # `has_v = !is_mla()` on the doctored hparams: zero for the MLA
             # architectures, `attention.value_length x 1` for qwen4exp.
             value_length,
@@ -1225,7 +1262,15 @@ def _model_kv_from_metadata(md, tensors=None):
     # but the sparse-attention architectures. `tensors` is the fallback source
     # locator for a deepseek41 whose GGUF omits attention.kv_source_layers.
     compressed = _compressed_groups(
-        md, arch, head_kv, key_length, value_length, cached, n_layer, tensors or ()
+        md,
+        arch,
+        head_kv,
+        key_length,
+        value_length,
+        cached,
+        n_layer,
+        n_main,
+        tensors or (),
     )
 
     # A hybrid's recurrent blocks are not free: each holds a per-sequence f32

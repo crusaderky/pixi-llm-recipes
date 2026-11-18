@@ -410,7 +410,7 @@ def read_header(path, start=HEADER_START, growth=4, cap=HEADER_CAP):
 # Tensors llama.cpp reads from disk on demand instead of keeping resident
 # --------------------------------------------------------------------------- #
 # Tensor names an architecture marks `TENSOR_READ_LAZY` in its `create_tensor`
-# call, per arch -> tuple of names (`src/models/<arch>.cpp`). All three entries
+# call, per arch -> tuple of names (`src/models/<arch>.cpp`). All four entries
 # are the same tensor name: an n-gram / per-layer hash-embedding table, gathered
 # a handful of rows at a time, so llama.cpp registers its byte range in
 # `lazy_tensor_ranges` and reads those rows out of the mmap when a token needs
@@ -447,6 +447,13 @@ ARCH_LAZY_TENSORS = {
     # llama-model-loader.h's TENSOR_READ_LAZY comment names "PLE / engrams
     # embd" as the use case. Never resident weights.
     "deepseek41": ("per_layer_token_embd.weight",),
+    # `{ple_head_dim, n_rows}` on Hy4-Flash too. `hy-v4-flash.cpp` calls this the
+    # same n-gram hash table deepseek41 carries, folds all `ple.layers` modules
+    # into one tensor, and creates it with `TENSOR_READ_LAZY` -- "118 GiB at the
+    # full size: read lazily, so only the rows a batch hashes to are faulted in".
+    # Here the 4 Engram modules (layers 1/11/21/31) have 16 hash heads each and
+    # 660,006,416 rows of 96: 59.01 GiB of this Q3_K repo's 144.70 GiB of weights.
+    "hy_v4_flash": ("per_layer_token_embd.weight",),
 }
 
 # `auto_min_size` in llama-model-loader.cpp's `lazy_read::add`: under the default
