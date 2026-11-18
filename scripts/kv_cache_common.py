@@ -614,6 +614,52 @@ MODEL_KV: dict[str, ModelKV] = {
             ),
         ),
     ),
+    # The same Qwen3.5-9B body, looped: `sensenova_loop`, from
+    # `sensenova/SenseNova-Loop-9B-GGUF`. Identity, as the header carries it:
+    # block_count 57, `loop.start`/`end`/`count` 4/28/2, `mhc.start`/`end` 4/28
+    # over 2 streams, `nextn_predict_layers` 1, and `attention.recurrent_layers`
+    # a 57-entry array (full attention every 4th block). 32 distinct decoder
+    # layers, 56 executions per forward pass, 24 of them twice; head_count 16,
+    # head_count_kv 4, key/value 256, no SWA, no MLA.
+    #
+    # This is the one entry whose layer counts are **visits**, and both of the
+    # usual ways of describing a loop get it wrong here:
+    #
+    # * `n_loops` must stay 1. `sensenova_loop` stores the looped block ONCE and
+    #   counts **one block per visit** in `block_count` (the file carries
+    #   `blk.0`-`blk.27` and `blk.52`-`blk.56`; 28-51 alias 4-27), so the plan is
+    #   already expanded and `ModelKV`'s `n_loops` expansion would square it.
+    # * only blocks 4..27 loop, so no single multiplier describes it either: the
+    #   32 physical layers are 8 full-attention + 24 recurrent, and the 24 inside
+    #   the loop make 56 visits -> **14** full-attention cache layers and **42**
+    #   recurrent states. Those are the two counts below, verbatim from
+    #   `gguf-meta-extract.py`'s derivation block.
+    #
+    # The MTP block (`blk.56`, the 1 `nextn_predict_layers`) is in neither group:
+    # `sensenova_loop` is in `mtp_on_hybrid_qwen`, and its hybrid filters are
+    # `il < n_layer() && ...`, so the block gets a plain attention cache of its
+    # own only under speculative decoding (`_ARCH_MTP_NO_CACHE`).
+    #
+    # `support_kvarn` holds: 256-dim heads on both sides, and `create_memory` has
+    # no bespoke cache for this arch -- the default hybrid branch hands the
+    # attention half `params.kvarn`. The numbers match Qwen3.5-9B's because it is
+    # the same gated-delta trunk: n_embd_r = (ssm.conv_kernel-1) * (ssm.inner_size
+    # + 2*ssm.group_count*ssm.state_size) = 24576, n_embd_s = ssm.state_size *
+    # ssm.inner_size = 524288 f32 elems, per visit per sequence.
+    "SenseNova-Loop-9B": ModelKV(
+        full_attn_layers=14,
+        full_attn_kv_heads=4,
+        sliding_window_layers=0,
+        sliding_window_kv_heads=0,
+        sliding_window_size=0,
+        key_dim=256,
+        value_dim=256,
+        compressed=(
+            CompressedKV(
+                "recurrent state", 42, 1, 24576, 524288, fixed_rows=1, elem_bpw=32.0
+            ),
+        ),
+    ),
     # Qwen4 preview (`qwen4exp`): the deepest layer stack here, and the one with
     # the most ways to get it wrong. block_count = 48 at
     # `full_attention_interval` 4 leaves **12** cache layers; the other 36 are

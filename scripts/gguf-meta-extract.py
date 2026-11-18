@@ -343,10 +343,71 @@ def _n_loops(md):
     This function only *reads* the key: the expansion itself is `ModelKV`'s
     `n_loops` field, so it applies to the hand-curated `MODEL_KV` table and the
     KLD report too.
+
+    Not every looped architecture expands here. `sensenova_loop` counts one block
+    per *visit* in `block_count` already and aliases the later visits onto the
+    first visit's tensors, so its cache is sized correctly with `n_loops == 1`;
+    reading a loop count for it too would square the expansion. `_loop_schedule`
+    is what knows about that one.
     """
     arch = md.get("general.architecture")
     n = md.get(f"{arch}.num_loops") if arch else None
     return int(n) if isinstance(n, (int, float)) and int(n) > 1 else 1
+
+
+def _loop_schedule(md):
+    """Execution plan of a looped transformer, or None.
+
+    Returns ``(start, end, count, n_physical)``: layers ``[start, end)`` of the
+    *plan* run ``count`` times, and `n_physical` is how many distinct blocks the
+    file actually stores weights for.
+
+    Two shapes, and they expand differently -- which is why this is not folded
+    into `_n_loops`:
+
+    * **Aliased visits** (`sensenova_loop`): the file stores the looped block
+      once and `block_count` counts one block *per visit*, so the plan is already
+      expanded and `n_layer_all = block_count`. `start` / `end` / `count` are the
+      GGUF's own keys, the second and later visits own no tensors (the loader
+      aliases them onto the first visit's), and
+      ``n_physical = n_layer - (count - 1) * (end - start)``. The weights are
+      shared but every visit gets its own KV / recurrent state, so the cache is
+      sized on the expanded plan -- decided by `block_count`, never here.
+    * **Repeated passes** (`nanbeige`): `num_loops` runs every one of the
+      `block_count` physical blocks again (`_n_loops`, which feeds `ModelKV`'s
+      `n_loops`); there is nothing to alias, so the plan is the whole stack and
+      the two counts coincide.
+
+    The counts exist for the *weight* summary: a looped layer is traversed more
+    than once per token, while the resident set stays one copy of each block.
+    """
+    arch = md.get("general.architecture")
+    if not arch:
+        return None
+    n_blocks = md.get(f"{arch}.block_count") or 0
+    n_nextn = int(md.get(f"{arch}.nextn_predict_layers") or 0)
+    n_layer = n_blocks - n_nextn if 0 < n_nextn < n_blocks else n_blocks
+    if not n_layer:
+        return None
+
+    start = md.get(f"{arch}.loop.start")
+    end = md.get(f"{arch}.loop.end")
+    count = md.get(f"{arch}.loop.count")
+    if start is not None and end is not None and count is not None:
+        start, end, count = int(start), int(end), int(count)
+        # `llama_model_sensenova_loop::load_arch_hparams` refuses all of these; no
+        # plan is better than a wrong one, and `block_count` still sizes the cache.
+        if not 0 <= start < end <= n_layer or count < 2:
+            return None
+        extra = (count - 1) * (end - start)
+        if extra > n_layer - end:
+            return None
+        return start, end, count, n_layer - extra
+
+    n_loops = _n_loops(md)
+    if n_loops > 1:
+        return 0, n_layer, n_loops, n_layer
+    return None
 
 
 def _swa_flags(pattern, n_layer, dense_first=False):
@@ -434,8 +495,18 @@ _ARCH_SWA_PATTERN = {
 # Without this, three quarters of a Qwen3.6 stack is sized as full attention --
 # for Qwen3.6-27B, 65 cache layers instead of 16, a ~4x overstatement. Qwen4's
 # `qwen4exp` is the same shape: 48 blocks at interval 4 leave 12 that cache.
-_ARCH_FULL_ATTN_INTERVAL = {"qwen35", "qwen35moe", "qwen3next", "qwen4exp"}
-_DEFAULT_FULL_ATTN_INTERVAL = 4  # the fallback all four loaders hardcode
+# `sensenova_loop` is the same trunk (`llama_model_sensenova_loop` derives from
+# `llama_model_qwen35` and its `load_arch_hparams` defers to the parent's): it
+# *requires* `attention.recurrent_layers`, but the stride is what the parent
+# falls back to when the key is missing.
+_ARCH_FULL_ATTN_INTERVAL = {
+    "qwen35",
+    "qwen35moe",
+    "qwen3next",
+    "qwen4exp",
+    "sensenova_loop",
+}
+_DEFAULT_FULL_ATTN_INTERVAL = 4  # the fallback every one of those loaders hardcodes
 
 # Architectures whose NextN/MTP blocks get NO layer in the main attention cache.
 # `llama_kv_cache` loops over `n_layer_all`, not `n_layer()`, so an MTP block is
@@ -460,6 +531,12 @@ _ARCH_MTP_NO_CACHE = {
     "hy_v4_flash",
     "glm-dsa",
     "deepseek32",
+    # `sensenova_loop`'s MTP head is a `qwen35`-style dense block: llama-model.cpp
+    # puts the arch in `mtp_on_hybrid_qwen` (its MTP context is a plain attention
+    # cache, built only for speculative decoding) and its hybrid filters are
+    # `il < n_layer() && ...`, so the block is in neither the attention cache nor
+    # the recurrent state. Its `is_recr` entry is required to be false.
+    "sensenova_loop",
 }
 
 
@@ -1397,9 +1474,17 @@ def _model_kv_from_metadata(md, tensors=None):
         # blocks that keep a fixed-size state instead of a KV cache.
         attn_kind += f" ({n_recr} recurrent)"
     # Layer counts for display come back out of the spec, so they carry the loop
-    # expansion without this script ever multiplying anything.
+    # expansion without this script ever multiplying anything. The *physical*
+    # count and the schedule are only for display: a `sensenova_loop` GGUF already
+    # counts one block per visit, so nothing here is multiplied.
     info = {
         "attn_kind": attn_kind,
+        "loop": _loop_schedule(md),
+        # How many blocks one forward pass executes. `block_count` is already
+        # expanded for an aliased plan (`sensenova_loop`, where the visit count is
+        # the layer count) and has to be multiplied for a repeated-pass one
+        # (`nanbeige`); the MTP head is never part of the trunk's pass.
+        "n_visits": n_blocks * n_loops - n_nextn,
         "n_attn_layers": spec.full_attn_layers_all + spec.sliding_window_layers_all,
         "n_full_layers": spec.full_attn_layers_all,
         "n_swa_layers": spec.sliding_window_layers_all,
@@ -1646,11 +1731,16 @@ def _kv_cache_breakdown(info, kv_by_quant):
         klen = info["key_length"]
         vlen = info["value_length"]
         uniform = len(set(head_kv)) == 1
-        if info.get("n_loops", 1) > 1:
+        if info.get("loop") and info["loop"][3] != info["n_visits"]:
+            # Either shape gives every visit a cache layer of its own -- the
+            # weights are shared, the per-layer state is not -- so the cache is
+            # sized on the visits, not on the blocks the file stores.
+            start, end, count, n_phys = info["loop"]
             lines.append(
-                f"      looped transformer: {info['n_blocks']} blocks x "
-                f"{info['n_loops']} loops = {info['n_blocks'] * info['n_loops']} "
-                "cache layers"
+                f"      looped transformer: {n_phys} physical layers executed as "
+                f"{info['n_visits']} block visits\n"
+                f"      (layers {start}..{end} run {count}x, each visit with its "
+                "own KV / recurrent state)"
             )
         if info.get("n_nextn_excluded"):
             lines.append(
@@ -1915,6 +2005,13 @@ def main():
     # with no settled size was skipped above, so it is in neither total, and a
     # tensor with an empty shape contributes bytes but no points.
     pts = {"exps": 0, "vexps": 0, "shexp": 0, "ffn": 0, "other": 0, "lazy": 0}
+    # A looped transformer executes its looped layers more than once per token
+    # (`_loop_schedule`), so the weights a token traverses are more than the set
+    # that must be resident. The always-on part of the loop region is summed here
+    # and multiplied by the extra passes below; routed experts are left out, as
+    # they are charged their activated share in the `all_tensors` pass instead.
+    loop = _loop_schedule(metadata)
+    loop_bytes = loop_pts = 0
     for r in rows:
         if not isinstance(r[6], int):
             continue
@@ -1930,6 +2027,10 @@ def main():
         # `ffn_gate.<i>.weight` is the pre-merge per-expert spelling (grok and
         # early Mixtral conversions); it is a routed expert, not a dense FFN.
         legacy_exp = base in _DENSE_FFN and len(parts) > 1 and parts[1].isdigit()
+        routed = legacy_exp or base.endswith("_exps") or base == _VALUE_EXPERTS
+        if loop and not routed and loop[0] <= (int(r[0]) if r[0] else -1) < loop[1]:
+            loop_bytes += r[6]
+            loop_pts += n_points
         if base == _VALUE_EXPERTS:
             vexps += r[6]
             pts["vexps"] += n_points
@@ -1980,6 +2081,7 @@ def main():
     v_experts = metadata.get(f"{arch}.attention.value_expert_count") if arch else None
     activated_exps = activated_vexps = 0
     activated_pts = activated_vpts = 0
+    loop_act = loop_act_pts = 0  # activated share of the looped block
     for ts in all_tensors:
         name, dims, nb = ts.name, ts.dims, ts.nbytes
         if "_exps." not in name or not dims:
@@ -1998,12 +2100,24 @@ def main():
                 continue
             u = used_k[int(m.group(1))]
         n_points = math.prod(dims)
+        # A routed-expert tensor inside the looped block is fired once per pass,
+        # so its activated share joins the loop extra as well.
+        m = _BLK.match(name)
+        in_loop = loop is not None and (
+            loop[0] <= (int(m.group(1)) if m else -1) < loop[1]
+        )
         if is_value:
             activated_vexps += nb // n_expert * u
             activated_vpts += n_points // n_expert * u
+            if in_loop:
+                loop_act += nb // n_expert * u
+                loop_act_pts += n_points // n_expert * u
         else:
             activated_exps += nb // n_expert * u
             activated_pts += n_points // n_expert * u
+            if in_loop:
+                loop_act += nb // n_expert * u
+                loop_act_pts += n_points // n_expert * u
 
     # Empty buckets are omitted: a dense model has no expert lines to show, and
     # an MoE without dense-FFN or shared-expert layers has none of those.
@@ -2056,22 +2170,36 @@ def main():
         "everything else (attn/embd/norm)", other, points=pts["other"]
     )
     resident = exps + vexps + shexp + ffn + other
+    # The second and later passes of a looped block traverse the same bytes again
+    # (`_loop_schedule`), so they add to the per-token figure without adding a
+    # single byte to the resident one. `loop` is (start, end, count, n_physical),
+    # and the note says which layers carry the repetition.
+    loop_note = ""
+    loop_extra = loop_extra_pts = 0
+    if loop:
+        loop_extra = (loop_bytes + loop_act) * (loop[2] - 1)
+        loop_extra_pts = (loop_pts + loop_act_pts) * (loop[2] - 1)
+        loop_note = f"({loop[1] - loop[0]}/{loop[3]} layers loop {loop[2]}x)"
     # What a token actually touches: the routed experts its routers fire (both
     # the FFN pool and, on a MoVA model, the value-expert pool) plus every tensor
     # that fires on every token -- shared experts, dense FFN, attention,
-    # embeddings, norms. Only known when the GGUF carries the router's top-k.
+    # embeddings, norms -- plus the extra passes of a looped block, which a dense
+    # model has nothing else to show. Only known when the GGUF carries the
+    # router's top-k, or when the file declares a loop.
     # The lazily-read n-gram table is in neither figure: it is not resident, and
     # its per-token cost is a handful of gathered rows, not a share of its bytes.
-    if activated_exps or activated_vexps:
+    if activated_exps or activated_vexps or loop_extra:
         summary += weight_line(
             "total (activated weights)",
-            activated_exps + activated_vexps + shexp + ffn + other,
+            activated_exps + activated_vexps + shexp + ffn + other + loop_extra,
+            loop_note,
             points=(
                 activated_pts
                 + activated_vpts
                 + pts["shexp"]
                 + pts["ffn"]
                 + pts["other"]
+                + loop_extra_pts
             ),
         )
     if lazy_total:
@@ -2110,6 +2238,15 @@ def main():
             )
         else:
             layout = f"{info['n_attn_layers']}x full @ {n_ctx // 1024}k tok"
+        # A looped plan caches one layer per *visit*, so its layer counts exceed
+        # the number of weight blocks the file stores. Say so here, where the
+        # counts are read, rather than leaving the reader to reconcile them with
+        # the model's "N physical layers" figure.
+        if info.get("loop") and info["loop"][3] != info["n_visits"]:
+            layout += (
+                f" (looped: {info['loop'][3]} physical layers -> "
+                f"{info['n_visits']} block visits)"
+            )
         sys.stderr.write(
             f"\ncontext/scratch VRAM estimate (rough, KV cache by quant type):\n"
             f"  attention layout: {layout}\n"
