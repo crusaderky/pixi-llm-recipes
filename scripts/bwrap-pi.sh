@@ -28,6 +28,11 @@
 #   Forwarded args are read from _FWD_ARGS env var (base64-encoded, null-separated,
 #   set by the scripts/pi wrapper) or, as a fallback, from positional args $2 onward
 #   (for direct `pixi r pi -- <args>` invocations).
+#   Herdr's control channel is host-only (its socket is under ~/.config/herdr, and
+#   /home is a tmpfs here), so the HERDR_* control variables are unset and
+#   pi-subagents' `machine: "local"` fails before it can try to open a tab.
+#   Managed worktrees (PI_SUBAGENTS_WORKTREE_DIR) are pointed at the per-project
+#   ~/.herdr/worktrees dir bound here — the same place the git-worktree skill uses.
 #   Every path here may contain spaces (the workspace, $HOME, the conda prefix,
 #   the pixi root, the herdr worktree dir), so each mount list is a bash ARRAY
 #   expanded as "${array[@]}". A space-joined string would word-split into a
@@ -220,6 +225,9 @@ _CONDA_PREFIX="$CONDA_PREFIX"
 # files (refs, locks) without exposing the main worktree's checked-out files.
 WORKTREE_BINDS=()
 HERDR_WORKTREE_BINDS=()
+# --setenv args for pi-subagents' managed worktrees (see the Herdr worktree
+# branch below); empty unless that branch binds a host-visible worktree root.
+HERDR_WT_ENV=()
 if [ -n "$DIR" ]; then
   if GD="$(git -C "$DIR" rev-parse --git-dir 2>/dev/null)" \
      && GC="$(git -C "$DIR" rev-parse --git-common-dir 2>/dev/null)"; then
@@ -251,6 +259,15 @@ if [ -n "$DIR" ]; then
     HERDR_WORKTREE_DIR="$HERDR_WORKTREES/$HERDR_PROJECT"
     mkdir -p "$HERDR_WORKTREE_DIR"
     HERDR_WORKTREE_BINDS=(--bind "$HERDR_WORKTREE_DIR" "$HERDR_WORKTREE_DIR")
+    # pi-subagents' managed worktrees (`worktree: true`) default to
+    # {dirname(repoRoot)}/worktrees, which no bind reaches, so `git worktree add`
+    # fails there. Point them at the bound per-project dir: it appends
+    # basename(repoRoot) itself, so the leaf lands under $HERDR_WORKTREE_DIR and is
+    # host-visible and durable. Only set when that bind exists — an unbound root
+    # would be created in the /home tmpfs and silently lost with the sandbox. From
+    # inside a worktree the built path is the checkout itself, which pi-subagents
+    # rejects as unsafe; create siblings by hand as the git-worktree skill says.
+    HERDR_WT_ENV=(--setenv PI_SUBAGENTS_WORKTREE_DIR "$HERDR_WORKTREES")
   fi
 fi
 
@@ -288,6 +305,17 @@ while IFS= read -r var; do
   unset "$var"
 done < <(env | grep -oE '^(PIXI_|CONDA_)[^=]+')
 unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
+
+# Herdr's control channel is host-only: its socket lives under ~/.config/herdr (or a
+# named session's folder) and /home is a tmpfs here, so an inherited
+# HERDR_SOCKET_PATH points at nothing. Dropping the control variables makes
+# pi-subagents' `machine: "local"` fail as "not in Herdr" before it tries to open
+# a tab — the honest cause — instead of reporting the (running) server as stopped,
+# and keeps the herdr skill's HERDR_ENV=1 precondition from claiming a control
+# channel this sandbox does not have. The socket must never be bound: `pane
+# send-keys`/`pane read` would be arbitrary control of every host pane.
+unset HERDR_ENV HERDR_PANE_ID HERDR_WORKSPACE_ID HERDR_TAB_ID \
+      HERDR_SOCKET_PATH HERDR_CLIENT_SOCKET_PATH
 
 # pi-intercom setup note:
 # ~/.pi/agent/intercom is a fresh tmpfs per sandbox: the pi-intercom broker, its unix
@@ -337,6 +365,7 @@ bwrap \
   "${EXTRA_BINDS[@]}" \
   "${EXTRA_RO_BINDS[@]}" \
   "${HERDR_WORKTREE_BINDS[@]}" \
+  "${HERDR_WT_ENV[@]}" \
   "${WORKTREE_BINDS[@]}" \
   "${GIT_BINDS[@]}" \
   "${CUDA_BINDS[@]}" \
