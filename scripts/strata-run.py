@@ -42,8 +42,8 @@ things it does there are replaced here:
 
 Everything else stays setup.py's: the expert pack, the MTP draft layer, the run config.
 What it writes is all inside ``$CONDA_PREFIX`` -- the pack, the MTP layer and the config
-under ``$CONDA_PREFIX/strata-data`` and ``$CONDA_PREFIX/opt/strata``, its per-user settings
-redirected there with ``XDG_CONFIG_HOME`` too.
+under ``$CONDA_PREFIX/strata-data`` and ``$CONDA_PREFIX/opt/strata/terminal`` (0.2.16's
+app tree), its per-user settings redirected there with ``XDG_CONFIG_HOME`` too.
 
     python scripts/strata-run.py               # prepare if needed, then start
     python scripts/strata-run.py --no-start    # prepare only, do not start
@@ -437,7 +437,14 @@ def fetch_dflash2(
         else:
             print(f"  {step}", flush=True)
 
-    engine = Path(setup.ROOT) / "engine" / setup.EXE
+    # setup.py puts the binaries in ROOT/engine; since 0.2.16 its engine_dir() is the one
+    # that knows (ROOT moved to terminal/ while the sources moved one level up).
+    engine_dir = (
+        setup.engine_dir()
+        if hasattr(setup, "engine_dir")
+        else Path(setup.ROOT) / "engine"
+    )
+    engine = engine_dir / setup.EXE
     try:
         drafting_fetch.ensure(data, progress=report)
         if drafting.engine_reads_selector_q4(engine):
@@ -540,7 +547,9 @@ def main() -> int:
     fam = family_table(setup)[family]
     own = family in own_path_table(setup)
     tag = (fam["tag"] + model).lower()
-    config = root / f"strata-{tag}.json"
+    # setup.py writes its run configs in home(), which is ROOT outside Control mode.
+    # Since 0.2.16 ROOT is the packaged terminal/ folder, not the app tree's top level.
+    config = Path(setup.ROOT) / f"strata-{tag}.json"
     # Only decides whether the image encoder is fetched beside the shards. Without a
     # `vision` in strata.ini the choice is setup.py's, and its recommended answer is the GPU
     # encoder -- so fetching it is the assumption that cannot waste a later start.

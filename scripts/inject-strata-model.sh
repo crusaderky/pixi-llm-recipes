@@ -27,7 +27,7 @@ fi
 # name and the context size the model was prepared with.
 APP=""
 for candidate in "${STRATA_ROOT:-}" "${CONDA_PREFIX:-}/opt/strata" "${CONDA_PREFIX:-}/../strata/opt/strata" "$(dirname "$0")/../.pixi/envs/strata/opt/strata"; do
-    if [ -n "${candidate}" ] && [ -f "${candidate}/setup.py" ]; then
+    if [ -n "${candidate}" ] && { [ -f "${candidate}/setup.py" ] || [ -f "${candidate}/terminal/setup.py" ]; }; then
         APP="${candidate}"
         break
     fi
@@ -44,8 +44,13 @@ MODEL="strata"
 
 CONFIG=""
 if [ -n "${APP}" ]; then
+    # setup.py writes configs in its ROOT: the app tree before 0.2.16, terminal/ since then.
+    CONFIG_DIR="${APP}"
+    if [ -d "${APP}/terminal" ]; then
+        CONFIG_DIR="${APP}/terminal"
+    fi
     # the newest run config: a machine may have prepared several models, and each has its own
-    for candidate in "${APP}"/strata-*.json; do
+    for candidate in "${CONFIG_DIR}"/strata-*.json; do
         [ -f "${candidate}" ] || continue
         if [ -z "${CONFIG}" ] || [ "${candidate}" -nt "${CONFIG}" ]; then
             CONFIG="${candidate}"

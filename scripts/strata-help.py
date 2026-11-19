@@ -26,6 +26,7 @@ from strata_common import (
     prepare_flags,
     render,
     run_setup,
+    setup_file,
     strata_args,
 )
 
@@ -62,7 +63,7 @@ def main() -> int:
     print("this run would use:")
     print("  " + " ".join(render(pairs)))
     print()
-    print(f"every parameter {app_dir() / 'setup.py'} accepts:")
+    print(f"every parameter {setup_file(app_dir())} accepts:")
     return run_setup(setup, ["--help"])
 
 

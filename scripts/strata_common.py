@@ -347,7 +347,15 @@ def app_dirs() -> list[Path]:
         Path(prefix).parent / "strata" / "opt" / "strata" if prefix else None,
         repo_root() / ".pixi" / "envs" / "strata" / "opt" / "strata",
     ]
-    return [path for path in candidates if path and (path / "setup.py").is_file()]
+    # 0.2.16 moved setup.py one level down into terminal/; both layouts are one app tree.
+    return [
+        path
+        for path in candidates
+        if path
+        and (
+            (path / "setup.py").is_file() or (path / "terminal" / "setup.py").is_file()
+        )
+    ]
 
 
 def app_dir() -> Path:
@@ -373,9 +381,11 @@ def read_config(path: Path) -> dict | None:
 
 def model_configs(root: Path) -> list[Path]:
     """The run configs of one app tree, newest first -- setup.py's `installed_configs()`
-    order, which is also the one its start path serves when several models are installed."""
+    order, which is also the one its start path serves when several models are installed.
+    0.2.16 writes them in terminal/, older trees at the app root."""
+    folder = root / "terminal" if (root / "terminal").is_dir() else root
     return sorted(
-        (path for path in root.glob("strata-*.json") if read_config(path)),
+        (path for path in folder.glob("strata-*.json") if read_config(path)),
         key=lambda path: path.stat().st_mtime,
         reverse=True,
     )
@@ -504,12 +514,19 @@ def pin_drafting(config: Path, choice: str) -> bool:
 # ---------------------------------------------------------------------------
 #  setup.py as a module
 # ---------------------------------------------------------------------------
+def setup_file(root: Path) -> Path:
+    """This app tree's setup.py, at its root or one level down in terminal/ (0.2.16)."""
+    nested = root / "terminal" / "setup.py"
+    return nested if nested.is_file() else root / "setup.py"
+
+
 def load_setup(root: Path) -> ModuleType:
     """Strata's setup.py as a module, so its tables drive this wrapper and not a copy."""
-    sys.path.insert(0, str(root))
-    spec = importlib.util.spec_from_file_location("strata_setup", root / "setup.py")
+    path = setup_file(root)
+    sys.path.insert(0, str(path.parent))
+    spec = importlib.util.spec_from_file_location("strata_setup", path)
     if spec is None or spec.loader is None:
-        sys.exit(f"cannot load {root / 'setup.py'}")
+        sys.exit(f"cannot load {path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules["strata_setup"] = module
     spec.loader.exec_module(module)

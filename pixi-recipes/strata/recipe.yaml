@@ -1,6 +1,6 @@
 context:
   # Strata release to package (the git tag is v${version}).
-  version: "0.2.15"
+  version: "0.2.16"
 
   # The llama.cpp commit Strata's own setup.py pins (LLAMA_CPP_COMMIT) and builds its
   # engine against. It is a second git source here because the runtime tools
@@ -38,6 +38,7 @@ build:
     file: build.sh
     env:
       CUDA_ARCHITECTURES: ${{ cuda_architectures }}
+      LLAMA_COMMIT: ${{ llama_cpp_commit }}
   # The engine and the image encoder link cuBLAS / cuRAND / cudart out of ${PREFIX}/lib
   # from opt/strata/engine/, a directory no default RPATH covers, so rattler-build's DSO
   # check reports them missing however the link was made. They are found at runtime the

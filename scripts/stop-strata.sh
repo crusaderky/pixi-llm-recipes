@@ -9,7 +9,8 @@ set -o pipefail
 
 PIDFILE="${CONDA_PREFIX}/strata.pid"
 # the app lives at <prefix>/opt/strata/, whichever prefix started it
-PATTERN='opt/strata/(serve/server\.py|engine/strata)'
+# Since 0.2.16 setup.py lives one level down in terminal/; accept both trees.
+PATTERN='opt/strata/(terminal/)?(serve/server\.py|engine/strata)'
 
 # The pid file sits in the (shared) prefix, so a server started inside another PID namespace
 # -- a pi sandbox -- leaves a pid that means a different process here. Killing by pid alone
