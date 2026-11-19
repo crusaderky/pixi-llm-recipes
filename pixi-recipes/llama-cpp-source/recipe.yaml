@@ -1,7 +1,7 @@
 context:
   # Main branch (upstream llama.cpp)
   # fork: ggml-org/llama.cpp
-  # version: b12478
+  # version: b12541
 
   # beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
   # https://github.com/Anbeeld/beellama.cpp
@@ -95,8 +95,11 @@ source:
     # (common/src/tools) and ggml/src/CMakeLists.txt (ggml, and ggml-cuda, which
     # forwards CXX_FLAGS into -Xcompiler).
     - patches/0003-cmake-suppress-unused-parameter-warnings.patch
-    # New UI bundles need not ship a separate Workbox script.
-    - patches/0004-ui-allow-inline-workbox.patch
+    # The HF UI bucket now ships hashed SvelteKit chunks under _app/immutable
+    # instead of bundle[hash].js/css and a separate workbox[hash].js. Validate
+    # the asset tree by file type so a truncated download still fails, without
+    # demanding filenames the current bundle does not have.
+    - patches/0004-ui-asset-validation.patch
 
 build:
   number: 0
@@ -161,7 +164,7 @@ requirements:
     - if: backend == "cuda"
       then:
         - cuda-nvcc
-        - cuda-version =13.1
+        - cuda-version =13.5
     - if: backend == "vulkan"
       then:
         - shaderc
@@ -170,7 +173,7 @@ requirements:
     - openssl
     - if: backend == "cuda"
       then:
-        - cuda-version =13.1
+        - cuda-version =13.5
         - cuda-cudart-dev
         - libcublas-dev
         - libcurand-dev
