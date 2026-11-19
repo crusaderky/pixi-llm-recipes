@@ -298,7 +298,8 @@ from the host when the RAM budget matters.
 
 | what                                                                          | where                                                                   |
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| app, engine, image encoder, run configs, engine log                           | `$CONDA_PREFIX/opt/strata`                                              |
+| app + run configs (`terminal/` since 0.2.16), built engine + image encoder    | `$CONDA_PREFIX/opt/strata/terminal`                                     |
+| engine sources whose hash `BUILD.json` records (`engine/`)                    | `$CONDA_PREFIX/opt/strata/engine`                                       |
 | expert pack (`strata-data/packs`), MTP layer (`strata-data/mtp/rt`), settings | `$CONDA_PREFIX/strata-data`, `$CONDA_PREFIX/.config/strata`             |
 | the model's GGUF shards                                                       | `~/.cache/huggingface/hub` — **the same blobs `llama-server -hf` uses** |
 | the `--gguf-dir` folder of symlinks into that cache                           | `$CONDA_PREFIX/strata-models/<tag>`                                     |
@@ -317,8 +318,8 @@ that had opened llama-server's UI kept rendering that cached page on `localhost:
 response was (`curl -s localhost:8080 | head -3` shows `<title>Strata</title>` either way). Distinct ports, distinct
 origins; `start-strata --port <n>` remains the escape hatch if one is ever run on llama-server's port.
 
-The generated `strata-<tag>.json` / `run-<tag>.sh` / `.log` land **next to the packaged app**, inside
-`$CONDA_PREFIX/opt/strata`, and are not part of any package's file list: a recipe rebuild that merely relinks the package
+The generated `strata-<tag>.json` / `run-<tag>.sh` / `.log` land **next to `setup.py`**, inside
+`$CONDA_PREFIX/opt/strata/terminal` (`$CONDA_PREFIX/opt/strata` before 0.2.16), and are not part of any package's file list: a recipe rebuild that merely relinks the package
 leaves them, and with them the pack and the MTP layer, alone — so the second start skips everything the first did. That
 is not a promise the env prefix keeps: one that is _recreated_ rather than relinked (pixi re-extracting every package,
 a `pixi clean`, an `rm -rf` of the env) takes `strata-data` and those configs with it, and the next start re-prepares
@@ -332,31 +333,29 @@ recipe is what makes `pixi install -e strata` yield a usable env: the first star
 compiler has to exist at runtime. `build.sh` drives **Strata's own `setup.py`** — its `cmake_build` _and_ its
 definition helpers (`host_compiler_defs`, `ggml_defs`, `engine_defs`, `vision_llama`) — rather than a CMake command
 line of its own, because `cmake_build` alone is only the build function: the definition list belongs to upstream's
-caller and is not derivable. Two helpers are left out on purpose — `toolkit_root_defs` (a second host CUDA toolkit
+caller and is not derivable. `ggml_defs` and `vision_llama` disappeared in 0.2.16: the engine builds from the
+vendored `third_party/strata-ggml` and the picture reader is Strata's own tower (`tools/vision/own`), so no
+llama.cpp override is passed. Two helpers are left out on purpose — `toolkit_root_defs` (a second host CUDA toolkit
 cannot exist inside a rattler-build environment, and a conda prefix has no `lib64` for `CUDAToolkit_ROOT` to reach)
 and `isa_floor_defs` (the older-CPU engine must never be chosen from the build host). `engine_defs` is the one that
 changes the binary: it adds `-DSTRATA_EXPERIMENTAL_SM60=ON` for a card below `sm_75` or a CUDA 12 toolkit, so without
-it `STRATA_CUDA_ARCHITECTURES=70` silently builds a Pascal engine that cannot run. It then writes `engine/BUILD.json`
-the way the Dockerfile does (`source: "local"` plus `source_hash(ENGINE_SOURCES)`), and ships the pinned `llama.cpp`
-checkout, so `get_llama_cpp()` returns it instead of downloading the archive and the pack tools read GGUFs through
-its `gguf-py`.
+it `STRATA_CUDA_ARCHITECTURES=70` silently builds a Pascal engine that cannot run. It then writes
+`terminal/engine/BUILD.json` the way the Dockerfile does (`source: "local"` plus `source_hash(ENGINE_SOURCES)`).
+The recipe's `LLAMA_COMMIT` build variable fails the build if the second git source stops matching setup.py's
+`LLAMA_CPP_COMMIT`; that commit is still mixed into `source_hash()` even though nothing links or reads llama.cpp at
+runtime (its `gguf-py` is vendored under `engine/third_party/strata-gguf-py`).
 
-**The engine is no longer built on llama.cpp's prompt kernels, but llama.cpp is still in it.** 0.2.14 moved the
-CUDA/HIP **prompt (prefill) path** to Strata's own fused kernels: CMake's `STRATA_MMQ` defaults **OFF** since then,
-passed explicitly by upstream for everything but arm64, and `strata_cuda_mmq()` — which builds `strata_mmq` and the
-K-quant `libstrata_kq.so` the engine dlopens from its own folder — runs only under it. So `engine/` legitimately
-holds only `strata`, `strata-vision` and `BUILD.json`, and the absence of `libstrata_kq.so` is upstream's answer, not
-a packaging bug. Confirm the prompt path from the engine log rather than the file list: `prompt kernels: chunks of
-5632 tokens or more run 48 of 48 layers on the fused kernels`. llama.cpp/ggml still decides everything else — the
-engine configures against the pinned checkout (`-DSTRATA_GGML_DIR`), `strata-vision` still links `third_party/strata-llama`
-(the picture reader is still llama.cpp's, as a fallback and as a selectable reader), and the GGUF tools still read
-through that checkout's `gguf-py`, which is why `llama_cpp_commit` must still equal setup.py's `LLAMA_CPP_COMMIT`.
-The same release added `third_party/strata-ggml` to `ENGINE_SOURCES` and `third_party/strata-llama` to
-`VISION_SOURCES`; `build.sh` copies both, and leaving either out makes `source_hash` drift into a compile the env
-cannot do (the same trap as the missing `cmake/` below).
+**The engine is Strata's own code now.** 0.2.14 moved the CUDA/HIP prompt path to Strata's fused kernels
+(`STRATA_MMQ` defaults OFF, so `libstrata_kq.so` is normally absent), and 0.2.16 moved the whole engine into the
+checkout's `engine/` tree and the picture reader into Strata's own `tools/vision/own`. Confirm the prompt path from
+the engine log rather than the file list: `prompt kernels: chunks of … run 48 of 48 layers on the fused kernels`.
+`setup.engine_src()` resolves to the sibling `engine/` tree, `setup.engine_dir()` to `terminal/engine/` for the
+built binaries; the recipe mirrors both, and the run-config paths, `strata-help` and `inject-strata-model.sh` all
+read them from the installed tree rather than assuming a flat app root.
 
-**Every part `ENGINE_SOURCES` names must be in the installed app tree, byte for byte** — `CMakeLists.txt`, `cmake`,
-`src`, `include`, `third_party/ggml` — because `setup.py` recomputes that hash over `${APPDIR}` at the first start and a
+**Every part `ENGINE_SOURCES` names must be in the installed `engine/` tree, byte for byte** — `CMakeLists.txt`,
+`cmake`, `src`, `include`, `third_party/ggml`, `third_party/strata-ggml`; `VISION_SOURCES` adds `terminal/tools/vision`
+and `engine/third_party/stb` — because `setup.py` recomputes that hash at the first start and a
 missing part makes the engine look stale. It then wants to compile it, finds no `nvcc` (the env has the CUDA libraries,
 not a compiler), and offers to `apt-get install cuda-toolkit-13-0` with **sudo**, which blocks on a password when a
 terminal is on stdin. `cmake/` (`cmake/hip_backend.cmake`, build-time only, ~7.5 KB) is read for no other reason than
