@@ -4,14 +4,14 @@ context:
   backend: ${{ backend }}
 
   # Main branch (upstream llama.cpp)
-  # fork: ggml-org/llama.cpp
-  # version: b12541
-  # asset_prefix: llama
+  fork: ggml-org/llama.cpp
+  version: b12613
+  asset_prefix: llama
 
   # beellama.cpp
-  fork: Anbeeld/beellama.cpp
-  version: v0.5.0
-  asset_prefix: beellama
+  # fork: Anbeeld/beellama.cpp
+  # version: v0.5.0
+  # asset_prefix: beellama
 
 package:
   name: llama-cpp

@@ -40,9 +40,9 @@ pixi r stop-llamacpp
 
 ## llama.cpp variants
 
-This project builds [BeeLLaMA.cpp](https://github.com/Anbeeld/beellama.cpp) by default.
-Mainline [llama.cpp](https://github.com/ggml-org/llama.cpp) is available as a
-commented-out variant in the recipes (`pixi-recipes/llama-cpp-*/recipe.yaml`); swap the
+This project builds [llama.cpp](https://github.com/ggml-org/llama.cpp) by default.
+[BeeLLaMA.cpp](https://github.com/Anbeeld/beellama.cpp) is available as a commented-out
+variant in the recipes (`pixi-recipes/llama-cpp-*/recipe.yaml`); swap the
 active/commented `fork:` blocks to go back to upstream.
 
 There are eight pixi environments to choose from: four that compile llama.cpp from
@@ -149,30 +149,22 @@ Strata is set up to run Qwen3.8-Flash. It is configured in `strata.ini`.
 Llama.cpp models are defined in `models.ini` (llama-server's native preset format) and are
 served on demand. All models were carefully cherry-picked and tuned.
 
-| Engine                   | Model             | Variant    | Size on disk | Context<sup>1</sup> | VRAM<sup>2</sup>    | Prefill<sup>3</sup> | Decode<sup>3</sup> | Vision |
-| ------------------------ | ----------------- | ---------- | ------------ | ------------------- | ------------------- | ------------------- | ------------------ | ------ |
-| Strata                   | Qwen3.8-Flash     | UD-IQ3_XXS | 79 GB        | 256k int8/int8      | 20.4 GB<sup>4</sup> | 1,526 tok/s         | 64 tok/s           | ✅     |
-| BeeLLaMA.cpp             | Qwen3.8-Flash     | UD-IQ3_XXS | 79 GB        | 256k kvarn4         | 21.2 GB<sup>4</sup> | 175 tok/s           | 30 tok/s           | ✅     |
-| BeeLLaMA.cpp             | Qwen3.8-27B       | IQ4_XS MTP | 14 GB        | 256k kvarn5         | 21.2 GB             | 963 tok/s           | 57 tok/s           | ✅     |
-| BeeLLaMA.cpp             | Ternary-Bonsai-2  | PQ2        | 7.3 GB       | 256k kvarn4         | 12.9 GB             | 949 tok/s           | 55 tok/s           | ✅     |
-| BeeLLaMA.cpp<sup>5</sup> | SenseNova-Loop-9B | Q4_K_M     | 5.8 GB       | 256k q5/q5          | 12.7 GB             | 2,048 tok/s         | 56 tok/s           | ✅     |
-| BeeLLaMA.cpp             | K2-Horizon-7B     | Q5_K_M     | 6.1 GB       | 128k kvarn4         | 11.2 GB             | 1,700 tok/s         | 73 tok/s           | 🔴     |
-| BeeLLaMA.cpp             | LFM3-1.7B         | 6.56bpw    | 1.5 GB       | 256k q6/q6          | 3.7 GB              | 14,896 tok/s        | 247 tok/s          | 🔴     |
-| BeeLLaMA.cpp             | LFM3-VL-2B        | Q6_K       | 1.6 GB       | 128k q6/q6          | 3.3 GB              | 13,058 tok/s        | 244 tok/s          | ✅     |
-| llama.cpp                | LFM2.5-230M       | Q4_K_M     | 147 MB       | 32k q8/q8           | 712 MB              | 58,917 tok/s        | 678 tok/s          | 🔴     |
+| Engine    | Model            | bpw  | Disk size | Context        | VRAM<sup>1</sup>    | Prefill<sup>2</sup> | Decode<sup>2</sup> | Vision |
+| --------- | ---------------- | ---- | --------- | -------------- | ------------------- | ------------------- | ------------------ | ------ |
+| Strata    | Qwen3.8-Flash    | 3.49 | 79 GB     | 256k int8/int8 | 20.4 GB<sup>3</sup> | 1,526 tok/s         | 64 tok/s           | ✅     |
+| llama.cpp | Qwen3.8-Flash    | 3.49 | 79 GB     | 256k q5/q4     | 22.0 GB<sup>3</sup> | 200 tok/s           | 35 tok/s           | ✅     |
+| llama.cpp | Qwen3.8-27B      | 3.84 | 14 GB     | 256k q5/q5     | 22.3 GB             | 1,300 tok/s         | 64 tok/s           | ✅     |
+| llama.cpp | Ternary-Bonsai-2 | 2.26 | 7.7 GB    | 256k q5/q4     | 14.7 GB             | 1,350 tok/s         | 62 tok/s           | ✅     |
+| llama.cpp | K2-Horizon-7B    | 5.74 | 6.1 GB    | 128k q5/q4     | 12.2 GB             | 3,600 tok/s         | 76 tok/s           | 🔴     |
+| llama.cpp | LFM3-1.7B        | 6.56 | 1.5 GB    | 256k q8/q5     | 3.8 GB              | 15,600 tok/s        | 237 tok/s          | 🔴     |
+| llama.cpp | LFM3-VL-2B       | 6.57 | 1.6 GB    | 128k q8/q5     | 3.3 GB              | 15,000 tok/s        | 236 tok/s          | ✅     |
+| llama.cpp | LFM2.5-230M      | 5.26 | 147 MB    | 32k q8/q5      | 724 MB              | 55,200 tok/s        | 607 tok/s          | 🔴     |
 
 **Notes:**
 
-- <sup>1</sup>KV cache compression is set per-model via `cache-type-k`/`cache-type-v` in
-  `models.ini`. The default fork
-  ([BeeLLaMA.cpp](https://github.com/Anbeeld/beellama.cpp)) adds KVarN low-bit cache
-  quants on top of upstream's standard quants.
-- <sup>2</sup>Process total measured by nvidia-smi. When sizing video card VRAM, you
-  must add ~2 GiB for your desktop (unless you're running on an integrated video card
-  and your discrete card is detached from the X server)
-- <sup>3</sup> Speed measured on RTX 3090
-- <sup>4</sup> Experts offloaded to host RAM; frequently used ones are cached on GPU
-- <sup>5</sup> Requires custom patches
+- <sup>1</sup>Process total measured by nvidia-smi on RTX 3090
+- <sup>2</sup> Measured with `pixi r llama-benchy` on RTX 3090
+- <sup>3</sup> Experts offloaded to host RAM; frequently used ones are cached on GPU
 
 ### Estimating model size and VRAM
 

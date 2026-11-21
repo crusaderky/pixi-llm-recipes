@@ -1,12 +1,12 @@
 context:
   # Main branch (upstream llama.cpp)
-  # fork: ggml-org/llama.cpp
-  # version: b12541
+  fork: ggml-org/llama.cpp
+  version: b12613
 
   # beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
   # https://github.com/Anbeeld/beellama.cpp
   # fork: Anbeeld/beellama.cpp
-  # version: v0.4.9
+  # version: v0.5.0
 
   # Beellama plus custom patches
   # + llama-perplexity collision probability measure
@@ -15,8 +15,8 @@ context:
   #   + https://github.com/ggml-org/llama.cpp/pull/32102 (needed for SenseNova-Loop)
   #   + GGML_OP_MHC_ROUTE / GGML_OP_MHC_MERGE, the fused mHC router and merge from
   #     mission-deny-the-mission/llama.cpp-sensenova-loop
-  fork: crusaderky/llama.cpp
-  version: beellama-staging-v0.5.0-r3
+  # fork: crusaderky/llama.cpp
+  # version: beellama-staging-v0.5.0-r3
 
   # The active backend is selected via the `backend` matrix in variants.yaml
   # and exposed to consumers as a build `flag` (see pixi.toml).

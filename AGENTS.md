@@ -4,844 +4,568 @@
 
 A [pixi](https://pixi.sh/) workspace that:
 
-1. **Builds and packages llama.cpp** as a conda package via **pixi-build / rattler-build**, either compiled from source or repackaged from upstream pre-built release binaries, for four backends: cpu, cuda, vulkan, rocm.
-2. **Packages the tooling around it**: the pi coding agent's plugins and home dir, [herdr](https://herdr.dev) and its file-viewer plugin.
-3. **Runs pi in a bubblewrap sandbox** against a local llama-server.
-4. **Benchmarks** inference throughput (`llama-benchy`), long-context recall (`sample-data/context-bench/`), and model/KV-cache quantization quality (`scripts/perplexity*.py`).
-5. **Inspects GGUF headers** to size weights and KV cache without downloading the weights (`scripts/gguf-meta-extract.py`).
+1. Builds and packages llama.cpp as a conda package via **pixi-build / rattler-build**, from source or from upstream release binaries, for cpu, cuda, vulkan and rocm.
+2. Packages the tooling around it: the Pi coding agent's plugins and home dir, [herdr](https://herdr.dev) and its file-viewer plugin.
+3. Runs Pi in a bubblewrap sandbox against a local llama-server.
+4. Benchmarks throughput (`llama-benchy`), long-context recall (`sample-data/context-bench/`) and model/KV-cache quantization quality (`scripts/perplexity*.py`).
+5. Inspects GGUF headers to size weights and KV cache without downloading the weights (`scripts/gguf-meta-extract.py`).
 
 ## Layout
 
-```
+```text
 pixi.toml                    # workspace: features, environments, tasks
 pixi.lock                    # generated; never hand-edit
 dprint.json lefthook.yml pyproject.toml   # lint config (`pixi r lint`)
 models.ini                   # llama-server multi-model preset (--models-preset)
-strata.ini                   # Strata's command line (see "Strata" below)
+strata.ini                   # Strata's command line
 perplexity.yaml              # sample config for scripts/perplexity.py
 chat-templates/              # Jinja chat templates referenced from models.ini
-neon-arena/                  # ad-hoc Reddit-style model comparison prompt
-perplexity/                  # archived KLD sweep outputs (logs + html/md/svg reports)
+perplexity/                  # archived KLD sweep outputs
 .agents/skills/              # agent skills
 .github/workflows/           # lint.yml, llamacpp.yml, pi.yml, opendesign.yml
 sample-data/
-  wiki.test.raw, wiki.test.head-2.4k.raw, wiki.train.head-10k.raw  # perplexity/KLD corpora
-  describe-me.jpg            # multimodal smoke test
-  context-bench/             # long-context recall benchmark (books, answer keys, runner)
+  wiki*.raw                  # perplexity/KLD corpora; describe-me.jpg = multimodal smoke test
+  context-bench/             # books, answer keys, runner, report aggregator
 scripts/
-  start-llamacpp.sh stop-llamacpp.sh              # llama-server lifecycle
-  start-strata.sh stop-strata.sh strata-install.sh   # Strata lifecycle (see "Strata" below)
-  strata-run.py                                 # Strata's setup.py, with pixi owning the deps
-  strata-help.py                                # every Strata parameter + how strata.ini feeds it
-  llama-benchy-strata.py                        # llama-benchy against whatever Strata serves
-  strata_common.py                              # strata.ini parsing, shared by all four
-  start-forge.sh stop-forge.sh                    # forge guardrails proxy lifecycle
-  bwrap-pi.sh                                   # bubblewrap sandbox (Pi)
-  pi-unsafe.sh                                  # unsandboxed equivalent (dev/debug only)
-  opendesign-bwrap.sh opendesign-unsafe.sh opendesign-help.sh   # OpenDesign launchers
-  smoke-opendesign.sh smoke-opendesign-sandbox.sh               # OpenDesign acceptance tests (CI)
-  run-herdr.sh                                  # herdr launcher (PATH fixup + plugin inject)
+  start-llamacpp.sh stop-llamacpp.sh start-forge.sh stop-forge.sh
+  start-strata.sh stop-strata.sh strata-install.sh strata-run.py strata-help.py
+  strata_common.py llama-benchy-strata.py
+  bwrap-pi.sh pi-unsafe.sh run-herdr.sh
+  opendesign-bwrap.sh opendesign-unsafe.sh opendesign-help.sh
+  smoke-opendesign.sh smoke-opendesign-sandbox.sh
   inject-pi-extensions.sh inject-strata-model.sh inject-herdr-file-viewer.sh
-  install-bin.sh uninstall-bin.sh               # ~/.local/bin wrappers + herdr desktop entry
-  install-apparmor.sh install-memlock.sh install-oomd.sh install-clipboard.sh
-  install-file-viewer-renderers.sh install-git.sh
-  git-guards/                                   # git/gh policy wrappers, hook-dispatch + hooks/ farm
-  install/{pi,opendesign,herdr,gh}              # the wrappers themselves
-  install/herdr.desktop install/herdr.png
-  gguf_common.py kv_cache_common.py perplexity_common.py   # importable shared modules
-  perplexity.py perplexity-report.py            # KLD sweep + report
-  gguf-meta-extract.py llama-cpp-changelog.py
+  install-bin.sh uninstall-bin.sh install-{apparmor,clipboard,file-viewer-renderers,
+    git,memlock,oomd}.sh
+  git-guards/                # git/gh PATH wrappers + hook farm
+  install/{pi,opendesign,herdr,gh,herdr.desktop,herdr.png}
+  gguf_common.py kv_cache_common.py perplexity_common.py   # shared, stdlib-only
+  perplexity.py perplexity-report.py gguf-meta-extract.py llama-cpp-changelog.py
 pixi-recipes/
   llama-cpp-source/    recipe.yaml variants.yaml build.sh patches/
   llama-cpp-binary/    recipe.yaml variants.yaml build.sh build.bat
-  strata/              recipe.yaml build.sh   # app + engine + image encoder, compiled here
-  opendesign/          recipe.yaml build.sh   # daemon + static web UI, built from the pinned tag
-  pi-extensions/ pi-home/
-  herdr/ herdr-file-viewer/
+  strata/              recipe.yaml build.sh   # app + engine + image encoder
+  opendesign/          recipe.yaml build.sh   # daemon + static web UI
+  pi-extensions/ pi-home/ herdr/ herdr-file-viewer/
 ```
 
 ## Features & Environments (`pixi.toml`)
 
 | Feature                                           | Adds                                                                                                        | Tasks                                                                                                                                                                                                       |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llamacpp`                                        | python + pydantic + pyyaml (for the sweeper); pairs with one backend feature                                | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-llamacpp`, `perplexity`                                                                                                          |
+| `llamacpp`                                        | python + pydantic + pyyaml (sweeper); pairs with one backend feature                                        | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-llamacpp`, `perplexity`                                                                                                          |
 | `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` | pins `llama-cpp` to one recipe + backend flag                                                               | —                                                                                                                                                                                                           |
 | `pi`                                              | `pi-coding-agent`, `pi-extensions`, `pi-home`                                                               | —                                                                                                                                                                                                           |
-| `pi-launcher`                                     | no packages; included only in `agents` so `design` can share `pi` dependencies without duplicating tasks    | `pi` (Linux), `pi-unsafe`, `pi-export`                                                                                                                                                                      |
+| `pi-launcher`                                     | no packages; keeps Pi launchers out of `design`                                                             | `pi`, `pi-unsafe`, `pi-export` (Linux)                                                                                                                                                                      |
 | `sandbox`                                         | `bubblewrap` (Linux only)                                                                                   | —                                                                                                                                                                                                           |
-| `herdr`                                           | `herdr`, `herdr-file-viewer` (linux-64 + win-64 only)                                                       | `herdr`                                                                                                                                                                                                     |
+| `herdr`                                           | `herdr`, `herdr-file-viewer` (linux-64 + win-64)                                                            | `herdr`                                                                                                                                                                                                     |
 | `git`                                             | `git`, `gh`                                                                                                 | —                                                                                                                                                                                                           |
-| `git-launcher`                                    | no packages; included only in `agents` so `design` can share `git` dependencies without duplicating tasks   | `git`, `gh`                                                                                                                                                                                                 |
-| `opendesign`                                      | the `opendesign` recipe (source-built daemon + static web UI, linux-64 only)                                | `opendesign`, `opendesign-unsafe`, `opendesign-help`                                                                                                                                                        |
-| `strata`                                          | the `strata` recipe (app + compiled engine, linux-64 only) + `huggingface_hub` + `curl`                     | `start-strata`, `stop-strata`, `restart-strata`, `strata-install`                                                                                                                                           |
+| `git-launcher`                                    | no packages; keeps Git launchers out of `design`                                                            | `git`, `gh`                                                                                                                                                                                                 |
+| `opendesign`                                      | the `opendesign` recipe (linux-64 only)                                                                     | `opendesign`, `opendesign-unsafe`, `opendesign-help`                                                                                                                                                        |
+| `strata`                                          | the `strata` recipe (linux-64 only) + `huggingface_hub`, `curl`                                             | `start-strata`, `stop-strata`, `restart-strata`, `strata-install`                                                                                                                                           |
 | `pytools`                                         | python 3.14, `llama-benchy`, `forge-guardrails`, huggingface_hub, transformers, openai, matplotlib, tomli-w | `llama-benchy`, `llama-benchy-strata`, `strata-help`, `hf`, `context-bench`, `aggregate-context-bench`, `perplexity-report`, `llama-cpp-changelog`, `gguf-meta-extract`, `openrouter-models`, `start-forge` |
 | `lint`                                            | lefthook, ruff, dprint, actionlint, shellcheck, pyflakes, codespell, blacken-docs                           | `lint`, `install-git-hooks`, `update-dprint`                                                                                                                                                                |
 
-Environments:
+Environments: eight `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}`; `agents` = `pi` +
+`pi-launcher` + `sandbox` + `git` + `git-launcher` + `herdr` + `pytools` (no standalone
+`herdr` env); `design` = `opendesign` + `pi` + `sandbox` + `git`; `lint` and `strata` are
+their features alone (`no-default-feature`). `strata-help` and `llama-benchy-strata` live
+in `pytools` so they do not trigger the Strata env's engine compile.
 
-- Eight `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` = `llamacpp` + the matching backend feature.
-- `agents` = `pi` + `pi-launcher` + `sandbox` + `git` + `git-launcher` + `herdr` + `pytools`. There is no standalone `herdr` env.
-- `design` = `opendesign` + `pi` + `sandbox` + `git` — the same Pi, extensions, home, bubblewrap and git guards as `agents`, minus `pytools`/`herdr` and minus the Pi/Git launcher tasks (the `opendesign` feature brings its own; see [OpenDesign](#opendesign-design-env-pixi-recipesopendesign)).
-- `lint` = `lint` alone (`no-default-feature`).
-- `strata` = `strata` alone (`no-default-feature`); it serves on the port `strata.ini` sets (8082), so the ports stay apart: 9931 is llama-server's (also forge's backend), 8080 the forge proxy, 8082 Strata's (VRAM, not the port, keeps llama-server and Strata from running together). A bare `start-llamacpp` pins 9931 because that is llama-server's own `--port` default since upstream moved it off 8080. `strata-help` and `llama-benchy-strata` are in `pytools` instead: a help command must not trigger the `strata` env's engine compile, and the benchmark runs where `llama-benchy` does.
+Ports: llama-server 9931 (also forge's backend), forge proxy 8080, Strata 8082 (from
+`strata.ini`). Root tasks present everywhere: `stop-llamacpp`, `stop-forge`,
+`restart-llamacpp`, `restart-forge`. Linux target tasks: `install-apparmor`, `install-bin`,
+`install-clipboard`, `install-file-viewer-renderers`, `install-git`, `install-memlock`,
+`install-oomd`, `install` (all seven), `uninstall`.
 
-Platform gating: source-cuda and source-rocm are linux-64 only; binary-cuda and binary-rocm are linux-64 only; binary-vulkan is linux-64 + win-64 (beellama ships no arm64 vulkan asset). `strata` is linux-64 only — its engine is compiled CUDA, and the release's Windows engine would be a second recipe.
+`-e <env>` is needed only for the `llamacpp` tasks, which exist in all eight
+`llamacpp-*` envs. Everything else resolves on its own.
 
-Root `[tasks]` (present in every env): `stop-llamacpp`, `stop-forge`, `restart-llamacpp`, `restart-forge`.
-Linux `[target.*.tasks]`: `install-apparmor`, `install-bin`, `install-clipboard`, `install-file-viewer-renderers`, `install-git`, `install-memlock`, `install-oomd`, `install` (= all seven), `uninstall`.
-
-**`-e <env>` is only required when a task exists in more than one environment** — in practice only the `llamacpp` feature's tasks, which exist in all eight `llamacpp-*` envs. Everything else (`pi`, `herdr`, `gh`, `llama-benchy`, `perplexity-report`, …) resolves on its own.
-
-> ⚠ **`start-forge` / `restart-forge` are currently broken.** `start-forge` lives in `pytools` (only in `agents`) but declares `depends-on start-llamacpp`, which lives in `llamacpp` (only in the `llamacpp-*` envs). No environment has both, so the task fails to resolve everywhere. Start llama-server from a `llamacpp-*` env (9931), then run the proxy on 8080 manually, until the features are realigned.
+> ⚠ `start-forge` / `restart-forge` are broken: `start-forge` lives in `pytools` but
+> depends on `start-llamacpp` from `llamacpp`, and no env has both. Start llama-server
+> from a `llamacpp-*` env, then run the proxy on 8080 manually.
 
 ## llama-cpp recipes
 
-Both recipes hold all four backends in a **single** recipe. The backend comes from the `backend` matrix in `variants.yaml` and is re-exported as a build `flag`, which `pixi.toml` selects per feature:
-
-```toml
-llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["cuda"] }
-```
-
-Backend-specific requirements and the ROCm `dynamic_linking` exemption are gated with `if: backend == "..."`; platforms that cannot build a backend `skip` it. Build string is `${{ backend }}_${{ build_number }}`; package name is `llama-cpp` for both recipes.
+Both recipes hold all backends in one recipe: the `backend` matrix in `variants.yaml` is
+re-exported as a build flag, which `pixi.toml` selects
+(`llama-cpp = { path = "pixi-recipes/llama-cpp-source", flags = ["cuda"] }`). Backend
+requirements and the ROCm `dynamic_linking` exemptions are gated with
+`if: backend == "…"`; unsupported platforms `skip`. Package name is `llama-cpp`, build
+string `${{ backend }}_${{ build_number }}`.
 
 ### Fork pinning
 
-Each recipe's `context:` block lists several `fork:` / `version:` pairs with exactly **one uncommented**; the rest are kept as commented-out reference variants. `source:` interpolates `${{ fork }}` / `${{ version }}` — there is no commit-SHA field. The two recipes may pin different forks (the source recipe currently tracks a personal fork of beellama; the binary recipe tracks `Anbeeld/beellama.cpp`, which is allowed to be a `preview-*` tag because pre-built assets ship from preview releases). Mainline `ggml-org/llama.cpp` (`bNNNN` tags) is retained commented-out in both and kept current.
+Each recipe's `context:` block lists several `fork:` / `version:` pairs, exactly one
+uncommented. Both recipes currently pin mainline `ggml-org/llama.cpp` version `b12613`;
+beellama (`v0.5.0`, `asset_prefix: beellama`) and the personal patch fork
+(`beellama-staging-v0.5.0-r3`) are kept as commented references. The source recipe clones
+`${{ fork }}` at tag `${{ version }}`; the binary recipe downloads
+`<asset_prefix>-<version>-bin-…` release assets. There is no commit-SHA field.
 
-**Never change `fork:`** — it is a deliberate choice. Version bumps go through the **update-llama-cpp** skill, which also enforces the stable-vs-preview rule (source builds clone the tag, so they need a stable `vX.Y.Z`).
+**Never change `fork:`** without an explicit request; it is a deliberate choice. Version
+bumps use the **update-llama-cpp** skill, which keeps tag families intact: `bNNNN` →
+newer `bNNNN`, stable `vX.Y.Z` → newer stable, preview → exact stable when it exists.
 
 ### Source build
 
-| Backend  | CMake flag         | Extra build deps                          |
-| -------- | ------------------ | ----------------------------------------- |
-| `cpu`    | (none)             | —                                         |
-| `cuda`   | `-DGGML_CUDA=ON`   | `cuda-nvcc`, `cuda-version =13.1` (conda) |
-| `vulkan` | `-DGGML_VULKAN=ON` | `shaderc` (conda)                         |
-| `rocm`   | `-DGGML_HIP=ON`    | **system** ROCm (see below)               |
+| Backend  | CMake flag                                       | Extra build deps                  |
+| -------- | ------------------------------------------------ | --------------------------------- |
+| `cpu`    | —                                                | —                                 |
+| `cuda`   | `-DGGML_CUDA=ON`, `-DGGML_CUDA_FA_ALL_QUANTS=ON` | `cuda-nvcc`, `cuda-version =13.5` |
+| `vulkan` | `-DGGML_VULKAN=ON`                               | `shaderc`                         |
+| `rocm`   | `-DGGML_HIP=ON`                                  | **system** ROCm                   |
 
-`build.sh` reads `BACKEND` and:
+`build.sh` installs executables and shared libs into `${PREFIX}/opt/llama` (so `dlopen`
+finds backend DLLs), sets `RPATH=$ORIGIN`, enables `GGML_BACKEND_DL`,
+`GGML_CPU_ALL_VARIANTS`, `GGML_RPC`, disables tests/examples, symlinks `llama-*` and
+`rpc-server` into `${PREFIX}/bin` with relative paths, and compiles through conda's
+`ccache`. CUDA architectures default to `native` and are overridable with
+`LLAMA_CUDA_ARCHS` (`all` uses ggml's portable list). `recipe.yaml` also exposes
+`LLAMA_ROCM_PATH` (default `/opt/rocm/core-10.0`) and `LLAMA_GPU_TARGETS` (default
+`gfx1150`).
 
-1. Installs into `${PREFIX}/opt/llama` (`CMAKE_INSTALL_LIBDIR`/`BINDIR`) — executables and shared libs **must** coexist there so `dlopen` finds the optional ggml backend libraries.
-2. Sets `RPATH=$ORIGIN` so executables find sibling backend DLLs without `LD_LIBRARY_PATH` (the rocm backend appends `${ROCM_PATH}/lib` to it — see below).
-3. Enables `GGML_BACKEND_DL`, `GGML_CPU_ALL_VARIANTS`, `GGML_RPC`; disables tests/examples.
-4. Symlinks `llama-*` and `rpc-server` into `${PREFIX}/bin` with **relative** paths (`../opt/llama/...`), required for prefix portability.
-5. Compiles through **ccache** via `CMAKE_{C,CXX,CUDA,HIP}_COMPILER_LAUNCHER` (a conda build dep, never a system install).
+ccache needs `CCACHE_DIR` / `CCACHE_MAXSIZE` passed from `recipe.yaml` (rattler-build
+redirects `HOME`); `build.sh` sets `CCACHE_BASEDIR`, `hash_dir=false`,
+`compiler_check=content` and the conda sloppiness set so objects survive moving build
+trees. Patches: `0003-cmake-suppress-unused-parameter-warnings.patch` (conda CUDA headers
+are included with `-I`) and `0004-ui-asset-validation.patch` (the HF UI now ships hashed
+SvelteKit chunks; validate by file type).
 
-**ccache**: rattler-build builds in a fresh `.pixi/bld/llama-cpp/<hash>/` tree with `HOME` redirected, so `recipe.yaml` passes `CCACHE_DIR` (default `~/.cache/ccache`) and `CCACHE_MAXSIZE` (default `20G`), both overridable via env at solve time. `build.sh` sets `CCACHE_BASEDIR`, `hash_dir=false`, `compiler_check=content` and the usual conda sloppiness set so objects still hit after `${SRC_DIR}`/`${PREFIX}`/`${BUILD_PREFIX}` move. Setting the launchers explicitly also short-circuits ggml's own `GGML_CCACHE` autodetection. Hit rate is printed after `cmake --build`.
-
-`patches/` currently holds two: a glibc-2.29 guard for `posix_spawn_file_actions_addchdir_np` in vendored `subprocess.h` (conda-forge's sysroot is glibc 2.28 and pixi pins it there), and a CMake `-Wno-unused-parameter` suppression (the warning fires in bulk from conda's CUDA headers, which are included with `-I` rather than `-isystem`, and drowns the build log).
-
-**ROCm is the one backend conda does not fully serve.** conda-forge ships no hipBLAS/rocBLAS, which llama.cpp's HIP backend hard-requires via `find_package`, so this backend links against the **system** ROCm:
-
-- Targets **ROCm 10** from AMD's `stable.repo.amd.com` apt repo (`amdrocm-core-sdk10.0-gfx1150`), installed under `/opt/rocm/core-10.0`. The prefix is the `rocm_path` context var, overridable with `LLAMA_ROCM_PATH` (e.g. `/usr` for Ubuntu's archive ROCm 7.1). `build.sh` derives `HIP_PATH`/`HIPCXX` from it and validates it exists; it deliberately does **not** call `hipconfig -R`, because `/usr/bin/hipconfig` is a Debian alternatives symlink that ROCm 10 takes over from Ubuntu's `hipcc` package — its answer tracks alternatives priority, not this recipe. `ggml-hip/CMakeLists.txt` reads `$ENV{ROCM_PATH}` into `CMAKE_PREFIX_PATH`, which is how `find_package(hip|hipblas|rocblas)` resolves.
-- Device targets come from the `gpu_targets` context var (default `gfx1150`, this project owner's Strix Point iGPU); override with `LLAMA_GPU_TARGETS=gfx1100 pixi install -e llamacpp-source-rocm`. AMD's repo splits device code per architecture, so another target also needs its `amdrocm-core10.0-<gfx>` package installed.
-- **RPATH matters here.** ROCm 10 ships no `ld.so.conf.d` drop-in, and its `libamdhip64` shares soname `.so.7` with Ubuntu's ROCm 7.1 under `/usr`, which _is_ on the default linker path — so a soname-only bind silently lands on 7.1 rather than failing. `build.sh` appends `${ROCM_PATH}/lib` to `CMAKE_INSTALL_RPATH` and `build.dynamic_linking.rpath_allowlist` stops rattler-build's relocation pass from stripping it as prefix-external. Verify after a build with `ldd .pixi/envs/llamacpp-source-rocm/opt/llama/libggml-hip.so` — every ROCm DSO must resolve under `/opt/rocm/core-10.0/lib`.
-- The overlinking / missing-DSO exemptions in `build.dynamic_linking` remain: ROCm is never a conda run dependency, so the package needs a matching system ROCm **at runtime** — unlike the self-contained CUDA/Vulkan builds.
-- **No `HSA_OVERRIDE_GFX_VERSION`** in the source feature's activation env: ROCm 10 has native gfx1150 device libraries and rocBLAS kernels, and since only the `-gfx1150` packages are installed, the old `11.5.1` (gfx1151) override would now break it rather than help. `llamacpp-binary-rocm` keeps the override — its prebuilt binaries bind by soname and so load Ubuntu's ROCm 7.1, which does lack gfx1150 rocBLAS kernels.
+**ROCm is not fully served by conda.** conda-forge has no hipBLAS/rocBLAS, so the build
+uses system ROCm 10 under `/opt/rocm/core-10.0`; `build.sh` derives `HIP_PATH`/`HIPCXX`
+from `ROCM_PATH` and never calls `hipconfig -R` (Debian alternatives priority, not a
+pin). Device targets come from `LLAMA_GPU_TARGETS`; AMD splits device code per gfx, so
+other targets need their `amdrocm-core10.0-<gfx>` package. `${ROCM_PATH}/lib` is appended
+to `CMAKE_INSTALL_RPATH` and allowlisted in `build.dynamic_linking`, because ROCm 10's
+`libamdhip64.so.7` would otherwise silently bind to Ubuntu's ROCm 7.1 under `/usr`.
+Verify with `ldd .pixi/envs/llamacpp-source-rocm/opt/llama/libggml-hip.so`. Neither ROCm
+feature sets `HSA_OVERRIDE_GFX_VERSION` any more (ROCm 10 has native gfx1150 kernels);
+both set `GGML_CUDA_ENABLE_UNIFIED_MEMORY=1` for iGPU hosts.
 
 ### Binary build
 
-Copies pre-built release binaries into `${PREFIX}/opt/llama` and symlinks `llama-*` into `${PREFIX}/bin`. `FORK`, `VERSION`, `ASSET_PREFIX` (`beellama-<tag>-bin-…` vs mainline `llama-<tag>-bin-…`) come from the recipe context.
+Copies the matching release asset into `${PREFIX}/opt/llama` and symlinks `llama-*` into
+`${PREFIX}/bin`; `FORK`, `VERSION` and `ASSET_PREFIX` come from the recipe context. Binary
+envs skip compilation entirely.
 
-Binary envs skip compilation entirely and are far faster to set up.
+The source recipe uses `script.file: build.sh`; the binary recipe uses `file: build`,
+which rattler-build resolves to `build.sh` on Linux and `build.bat` on Windows. Naming
+`build.sh` directly would run bash on Windows, where the generated `build_env.sh` chokes
+on vars like `ProgramFiles(x86)`. On Windows there is no `opt/llama` split or symlinks:
+executables and DLLs all go into `%PREFIX%\bin`.
 
-### `file: build`, not `build.sh`
-
-Both recipes point `script.file` at the **extension-less** `build`: rattler-build resolves it to `build.sh` (bash) on Linux and `build.bat` (cmd.exe) on Windows. Pointing at `build.sh` directly would make rattler-build run it with bash on Windows too, and its generated `build_env.sh` chokes on Windows env vars like `ProgramFiles(x86)`.
-
-On Windows there is no `opt/llama` split and no symlinks: executables and DLLs all go into `%PREFIX%\bin`, which is on `PATH` in activated pixi envs.
-
-### Adding a backend
-
-1. Add the name to `backend:` in `variants.yaml` (both recipes, if binaries exist).
-2. Add a `case` branch in `build.sh` for the `-DGGML_*=ON` flag.
-3. Add `if: backend == "<name>"` requirements in `recipe.yaml`, plus `skip` entries for unsupported platforms.
-4. Add the feature + environment in `pixi.toml`, `pixi lock`, then `pixi install -e llamacpp-source-<name>`.
+Adding a backend: add it to both `variants.yaml` matrices, add a `case` to `build.sh`,
+add gated requirements and `skip` entries in `recipe.yaml`, then add the feature/env in
+`pixi.toml`, `pixi lock`, `pixi install -e llamacpp-source-<name>`.
 
 ## Other recipes
 
-| Recipe              | What it packages                                                                                                                                                                                                                                                                                |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pi-extensions`     | Runs `pi install` for each source in the `PLUGINS` env var of `recipe.yaml`, into `${PREFIX}/home/.pi/agent`. npm pins carry an `npm:` prefix. Bump the pins, but not the recipe version.                                                                                                       |
-| `pi-home`           | Copies `skills/`, `AGENTS.md`, `keybindings.json` into `${PREFIX}/home/.pi/agent/`, `web-search.json` into `${PREFIX}/home/.pi/` (one level up — not a typo), and seeds an empty `agent/bin/`.                                                                                                  |
-| `herdr`             | Downloads pre-built release binaries. Linux = stable (`https://herdr.dev/latest.json`, tag `v{version_stable}`); Windows = preview-only (`preview.json`, tag `{version_preview}`). Context pins `version_stable`, `sha256_stable_{x86_64,aarch64}`, `version_preview`, `sha256_preview_win_64`. |
-| `herdr-file-viewer` | Lays down a herdr plugin root under `${PREFIX}/home/.config/herdr/plugins/herdr-file-viewer/`: prebuilt binary at `target/release/`, plus manifest/scripts/example config fetched from the tagged source.                                                                                       |
-| `strata`            | Strata's app tree plus its C++/CUDA engine and image encoder, all compiled at install time (see [Strata](#strata-strata-env-strataini)).                                                                                                                                                        |
-| `opendesign`        | OpenDesign's daemon and static web UI, built from the pinned `open-design-v<version>` tag with conda Node + pnpm — no Electron, no Docker, no runtime `pnpm install` (see [OpenDesign](#opendesign-design-env-pixi-recipesopendesign)).                                                         |
+| Recipe              | What it packages                                                                                                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pi-extensions`     | Runs `pi install` for each source in `PLUGINS` into `${PREFIX}/home/.pi/agent`; npm pins carry `npm:`. Bump pins, not the recipe version.                                  |
+| `pi-home`           | Copies `skills/`, `AGENTS.md`, `keybindings.json` into `${PREFIX}/home/.pi/agent/`, `web-search.json` one level up, and seeds an empty `agent/bin/`.                       |
+| `herdr`             | Prebuilt release binaries: Linux stable (`latest.json`, `v{version_stable}`), Windows preview (`preview.json`). Context pins versions and sha256s.                         |
+| `herdr-file-viewer` | Plugin root under `${PREFIX}/home/.config/herdr/plugins/herdr-file-viewer/`: prebuilt binary + manifest/scripts/config from the tagged source, plus portable `entry.json`. |
+| `strata`            | Strata app tree plus C++/CUDA engine and image encoder, compiled at install time.                                                                                          |
+| `opendesign`        | OpenDesign daemon + static UI, built from the pinned tag with conda Node + pnpm.                                                                                           |
 
-Both `herdr` recipes set `dynamic_linking.binary_relocation: false` — the upstream Linux prebuilts are static-pie musl binaries, and rattler-build's default patchelf pass corrupts them (adds RPATH + PT_LOAD; the result segfaults).
-
-`herdr-file-viewer` also writes a portable `entry.json` (version, `min_herdr_version`, description — no absolute paths) next to the manifest. `scripts/inject-herdr-file-viewer.sh` reads it and merges the plugin into `~/.config/herdr/plugins.json`, filling `manifest_path`/`plugin_root` from `$CONDA_PREFIX`. It runs from `run-herdr.sh` before the PIXI/CONDA env is stripped, so nothing but the registry entry and the user's `config.toml` lands in `~/`.
-
-Version bumps for `herdr`, `herdr-file-viewer`, `pi-extensions`, `strata`, `opendesign` and `llama-cpp` all have dedicated skills in `.agents/skills/`; `update-all` chains them and refreshes the lockfile.
+Both `herdr` recipes set `dynamic_linking.binary_relocation: false`: rattler-build's
+patchelf pass corrupts the static-pie musl Linux binaries. `inject-herdr-file-viewer.sh`
+merges the plugin into `~/.config/herdr/plugins.json` from `run-herdr.sh`, before the
+PIXI/CONDA env is stripped. Version bumps for all of these plus `llama-cpp` have skills
+in `.agents/skills/`; `update-all` chains them and refreshes the lockfile.
 
 ## Strata (`strata` env, `strata.ini`)
 
-[Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next — a 125B MoE — on one GPU plus system RAM and
-serves it on `127.0.0.1`, on the port `strata.ini` sets (8082), with OpenAI-, Anthropic- and
-Responses-compatible APIs (`/v1/chat/completions`, `/v1/models`, `/v1/messages`). 9931 is llama-server's — the port forge also fronts as its backend — and 8080 is the forge proxy's, so no two of them collide — whether llama-server and Strata can run at the
-same time is a VRAM question, not a port one. `start-strata.sh` still refuses a port someone else owns, and tells Strata's `/health` (which carries
-`"loaded"`) from llama-server's (which does not), so the check cannot mistake one for the other.
+[Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next (125B MoE) on one
+GPU plus system RAM, serving OpenAI/Anthropic/Responses APIs on `127.0.0.1:<port from
+strata.ini>` (8082). It refuses a port someone else owns and distinguishes its own
+`/health` (carries `"loaded"`) from llama-server's. Whether it can run alongside
+llama-server is a VRAM question, not a port one.
 
 ```bash
-pixi install -e strata     # solves the env AND compiles the engine (~8 min on a 32-core host, once)
-pixi run start-strata      # first run: pack + MTP layer (~2 min, ~8 GiB), then serve on strata.ini's port
-pixi run strata-install    # that half alone, no server: it prepares whatever strata.ini says
-pixi run stop-strata       # SIGTERM (the server answers the engine with QUIT), then SIGKILL
+pixi install -e strata     # solves + compiles the engine (~8 min on 32 cores, once)
+pixi run start-strata      # first run packs the model (~2 min), then serves
+pixi run strata-install    # prepare only, no server
+pixi run stop-strata       # SIGTERM, then SIGKILL
 pixi run restart-strata
-pixi r strata-help         # every parameter setup.py takes, and what strata.ini says right now
+pixi r strata-help         # every setup.py parameter + current strata.ini value
 ```
 
-`strata.ini`'s `port` is where that number lives; `--port <n>` and `STRATA_PORT` override it. `start-strata.sh` asks
-`scripts/strata-run.py --print port` instead of carrying a default of its own (the same flag answers `--print context`
-for `inject-strata-model.sh`), so its health check polls the port Strata is about to listen on, and setup.py lets that
-port win over the one recorded in the run config.
+### `strata.ini`
 
-### `strata.ini` — what Strata runs with
+Every key is a Strata `setup.py` argument; `scripts/strata-run.py` has no defaults for
+them and refuses to run without the file. Precedence: command line after `--`, then
+`STRATA_*` env vars (`STRATA_FAMILY`, `STRATA_MODEL`, `STRATA_VISION`, `STRATA_CONTEXT`,
+`STRATA_VRAM_RESERVE_MIB`, `STRATA_PORT`, `STRATA_DATA`, `STRATA_KEEP_MTP_INPUTS`), then
+the file. `key = value`, dashes or underscores, leading `--` optional; empty value is a
+flag, `off`/`no`/`false` drops one. `STRATA_INI` selects another file. `port`, `--port`
+and `STRATA_PORT` drive both the server and `start-strata.sh`'s health check (the script
+asks `strata-run.py --print port`).
 
-Every key of `strata.ini` (repo root) is an argument for Strata's own `setup.py`, so the model, its quant, the context,
-the KV cache, the VRAM reserve, the port and everything else are set there and nowhere else: `scripts/strata-run.py`
-has no default for any of them and refuses to run without the file. Precedence, highest first — the command line after
-`--`, the `STRATA_*` variables (`STRATA_FAMILY`, `STRATA_MODEL`, `STRATA_VISION`, `STRATA_CONTEXT`,
-`STRATA_VRAM_RESERVE_MIB`, `STRATA_PORT`, `STRATA_DATA`, `STRATA_KEEP_MTP_INPUTS`), then the file. `key = value`, dashes
-or underscores, the leading `--` optional; a key with no value is a flag on its own (`no-browser =`) and `off`/`no`/
-`false` drops one. `STRATA_INI` points the wrapper at another copy.
+`family` and `model` are read live from setup.py's `FAMILIES`/`MODELS`; a `MODELS` entry
+may pin its own Hub `revision` and the `quant` its files actually carry. `OWN_PATH_FAMILIES`
+(old name `PREVIEW_FAMILIES`) such as `qwen36` keeps its own engine path and GGUF: no
+expert pack, profile or MTP fetch, and `vram-reserve-mib` is applied at prepare as
+`--expert-vram`. `nvfp4` (ready-made packs) and `MULTI_FILE_FAMILIES` (`deepseek41`) are
+not offered — the wrapper only implements GGUF shards into the Hub cache.
 
-Which `family` and `model` exist is **setup.py's own tables, read live** — `scripts/strata-run.py`
-copies nothing. `FAMILIES` is Qwen3.8-Flash-Next's releases (`qwen`, `swift`, `coder`, `unsloth`,
-`gyro`, `nvfp4`), whose sizes are listed in `MODELS` with the families that ship each. A `MODELS`
-entry can name a `revision` of its own and the `quant` its files carry on the Hub — Unsloth's
-v3.1 sizes sit at a commit `UD-Q4_K_XL` does not, and the catalog name `UD-IQ4_XS-v31` is a file
-called `UD-IQ4_XS` — which is why the wrapper takes the folder it fetches from setup.py's
-`model_hf()` rather than formatting `fam["hf"]` itself.
+A start applies run-config engine arguments verbatim, so a flag read only while preparing
+does nothing there. Preparation keys are recorded in `<data-dir>/strata-prepared.json`;
+changing one triggers one re-prepare (`~2 min`, no download) on the next start, and
+`strata-install` re-prepares whatever the file says. `--context` is the exception: it
+rewrites `--max-context` in the run config before every start. A pruned Hub cache makes
+the recorded `--gguf-dir` links dangle (vision then dies with `failed to open GGUF
+file`); the wrapper stats the folder and forces a re-link. `setup`, `no-start`,
+`update`, `check`, `calibrate` and `gguf-dir` are refused in the file — pass one-shot
+commands after `--`.
 
-`OWN_PATH_FAMILIES` (added in 0.1.44, still offered under its old name `PREVIEW_FAMILIES`) is a
-family with an engine path of its own — `qwen36`, Qwen3.6-35B-A3B, whose `UD-Q4_K_XL` /
-`UD-Q6_K_XL` / `Q8_0` live in the family entry and **not** in `MODELS`, and whose `UD-Q4_K_XL` is
-therefore another repository's file
-than `unsloth`'s of the same name. Such a family is read from the GGUF as it is: no expert pack
-(`strata-data/packs/<tag>` holds only the tokenizer), no expert profile, no MTP fetch — the file's
-own MTP block drafts (`--mtp 2` in the run config means draft count, not a layer folder) — and
-`vram-reserve-mib` is applied at prepare as `--expert-vram` rather than on a start, which is why it
-counts as a preparation key there, so a change re-derives it instead of being logged by the engine as
-"not an option of this engine". Its own `mmproj` (`Qwen3.6-35B-A3B-MTP-GGUF`'s `mmproj-F16.gguf`,
-reached through `strata-vision`) means `vision` applies to it as to any other family; the wrapper
-still drops `vision` for a family whose entry says `"vision": false`, which none does today.
+The VRAM reserve is a pin (`vram-reserve-mib = 2048`): the engine's 700 MiB default lets
+the expert cache evict the desktop and kill X. On a 3090 with `UD-IQ3_XXS` and
+`drafter = dflash2`, the engine logs ~59–60 tok/s decode and ~1500 tok/s cold prefill;
+serve's `prompt … (R tok/s)` divides by total prompt tokens, not newly read ones.
+Ubuntu also ships `user@.service` as a `systemd-oomd` kill candidate; the recorded victim
+was `systemd --user`, taking the whole session down. `scripts/install-oomd.sh` writes a
+drop-in setting `ManagedOOMMemoryPressure=auto` for that unit. Starting from inside the
+Pi sandbox unshares cgroups, so the engine cannot determine its RAM budget and streams
+experts from the page cache instead of RAM — correct answers, lower speed; start from
+the host when that matters.
 
-Two upstream tables are deliberately **not** offered by the wrapper, which is why `strata.ini` does not list them:
-`nvfp4` (`FAMILIES`) ships ready-made Strata packs rather than GGUF shards, so there is nothing for the wrapper's
-Hub-cache-plus-`--gguf-dir` fetch to do — `resolve_family` refuses it with that reason — and `MULTI_FILE_FAMILIES`
-(`deepseek41`, DeepSeek-V4.1-Flash, 239-508 GB across 9 shards plus an engine package of its own) is a third install
-path the wrapper does not implement.
+| What                                                             | Where                                                         |
+| ---------------------------------------------------------------- | ------------------------------------------------------------- |
+| app + run configs (in `terminal/`), built engine + image encoder | `$CONDA_PREFIX/opt/strata/terminal`                           |
+| engine sources hashed into `BUILD.json`                          | `$CONDA_PREFIX/opt/strata/engine`                             |
+| expert pack, MTP layer, settings                                 | `$CONDA_PREFIX/strata-data`, `$CONDA_PREFIX/.config/strata`   |
+| model GGUF shards                                                | `~/.cache/huggingface/hub` (same blobs as `llama-server -hf`) |
+| symlink folder passed as `--gguf-dir`                            | `$CONDA_PREFIX/strata-models/<tag>`                           |
+| last prepared `strata.ini` signature                             | `$CONDA_PREFIX/strata-data/strata-prepared.json`              |
+| server output                                                    | `strata.log` in the invoking directory                        |
 
-`pixi r strata-help` prints every parameter setup.py accepts **with setup.py's own explanation** — its argparse parser is
-read off the installed `setup.py`, so the list cannot drift from the packaged version — which of them a start applies,
-which are only read when the model is prepared, and the argument list the current file produces.
+Strata publishes no Linux prebuilt, so the recipe runs upstream `setup.py`'s own
+`cmake_build` plus its definition helpers (`host_compiler_defs`, `engine_defs`), excluding
+`toolkit_root_defs` and `isa_floor_defs` (`ggml_defs`/`vision_llama` no longer exist since
+0.2.16), and writes `terminal/engine/BUILD.json`. The engine is Strata's own fused-kernel code;
+confirm from `strata.log` (`prompt kernels: … on the fused kernels`), not the file list.
+`llama_cpp_commit` in `pixi-recipes/strata/recipe.yaml` must match setup.py's
+`LLAMA_CPP_COMMIT`.
 
-That split is the thing to know before editing the file. setup.py's start path hands its run config's engine arguments
-to the engine verbatim, so a `--kv` or a `--parallel` that only ever appears on a start changes nothing. The part of
-the command line setup.py reads only when preparing is recorded in `<data-dir>/strata-prepared.json`; when it moves, the
-next start re-prepares once (~2 min, no download) instead of quietly serving the old value, and `pixi r strata-install`
-re-prepares whatever the file says right now. `--context` is the exception the wrapper can apply without a re-prepare:
-it rewrites `--max-context` in the run config before every start.
+Everything in `ENGINE_SOURCES` (`CMakeLists.txt`, `cmake`, `src`, `include`,
+`third_party/ggml`, `third_party/strata-ggml`; plus `terminal/tools/vision` and
+`engine/third_party/stb` for `VISION_SOURCES`) must be installed byte for byte, or setup.py
+recomputes a stale hash and asks to compile with sudo. `strata-run.py` replaces
+`install_build_tools` with a clear error. `strata_control/` is never compiled but imported
+at module level by both setup.py and the server, so it must be installed too.
+`cuda_architectures` defaults to `86`; override with `STRATA_CUDA_ARCHITECTURES`.
 
-A file the Hub cache no longer has re-prepares the same way. setup.py is handed the `--gguf-dir` folder and records
-those paths in the run config, so a pruned cache (`hf cache delete`, a freed-up `~/.cache/huggingface/hub`) leaves
-links into nothing and the engine starts with a `--mmproj` that is not there — the vision encoder then dies on the
-first picture with `failed to open GGUF file`, and the server reports it once per request while the text model serves
-on. `scripts/strata-run.py` stats the folder on every start and names what is missing, which forces the preparation
-that re-links (and re-downloads) it; before that only `strata.ini` moving ever rewrote the folder.
+`strata-run.py` loads setup.py as a module and replaces: dependency installation
+(CUDA libs come from conda, `${PREFIX}/lib` in `BUILD.json`), model download (Hub cache
 
-`setup`, `no-start`, `update`, `check` and `calibrate` are refused in the file — one-shot commands that would otherwise
-run on every start; give them after `--`. `gguf-dir` is refused too: the folder of symlinks into the Hub cache is the
-wrapper's own.
+- symlink folder instead of a second copy), and engine compilation. The MTP layer is
+  fetched as byte ranges from the BF16 checkpoint into `$CONDA_PREFIX/strata-data/mtp`;
+  only `rt/` is loaded, and the ~5 GB tensors plus intermediate GGUF are deleted after the
+  build unless `--keep-mtp-inputs`. DFlash2 is fetched by `strata-run.py` itself; GGUF-published
+  MTP heads are llama.cpp sidecars, not Strata's `rt/` format.
 
-A 24 GB card is the target and gets filled: 23.7 of 24.5 GiB, `--vram-reserve-mib 2048`, the expert cache and the
-prompt path sharing what is left, everything past that streamed from RAM and SSD. On a 3090 with `UD-IQ3_XXS` and
-`drafter = dflash2`, the engine's own log measures **~59–60 tok/s decode** and **~1500 tok/s cold prefill** (an
-8193-token prompt in 5.3–5.6 s, a 41596-token one at 1830); the first chunks after a start run 576–990 while the
-prompt kernels and the page cache warm. `strata.log` also reports the expert-cache hit rate per reply. Do not read
-the prefill figure off serve's `prompt N tokens = R reused + X read in T ms (R tok/s)` line: its tok/s divides by
-**N, not by X**, so a prefix-cached 63k request prints ~750 tok/s for the 2.7k tokens it actually read. The
-reserve is another **pin**, not the engine's own 700 MiB default: at 700 the expert cache (and the image encoder,
-on `--vision gpu`) holds the rest of the card, the driver evicts whatever the desktop had there, and the X server
-goes down mid-reply — upstream's advice for exactly that is 3072 (#560, #516). `vram-reserve-mib = 2048` in
-`strata.ini` is that pin (~1.3 GB back from the expert cache, a few percent of speed);
-`STRATA_VRAM_RESERVE_MIB` or an explicit `--vram-reserve-mib` overrides it, and a config that disagrees with the file is
-rewritten at the next start.
-
-A desktop dies for a second, unrelated reason, and it is the one that actually bites here: **Ubuntu ships the login
-session itself as a `systemd-oomd` kill candidate.** `/usr/lib/systemd/system/user@.service.d/10-oomd-user-service-defaults.conf`
-sets `ManagedOOMMemoryPressure=kill` with a 50% limit, so once the whole `user@<uid>.service` subtree stays above
-50% memory pressure for 20 s _with reclaim activity_, oomd SIGKILLs a cgroup below it — and a leaf is all a
-candidate needs to be. The recorded victim was `user@<uid>.service/init.scope`, i.e. `systemd --user` itself, which
-takes every unit in the session with it: gnome-shell, the terminal, the model mid-load, and the X server (whose log
-says `Server terminated successfully (0)` — a clean exit, no core dump, no `(EE) NVIDIA`, no kernel `Xid`, which is
-why it reads as "X crashed"). Four kills in one afternoon. Pressure, not usage, is what trips it: ~30 GB of locked
-anon cannot be reclaimed, so the kernel keeps reclaiming the ~55 GB of GGUF page cache the run charged to that
-session's cgroup — and that charge survives the process, which is why the first starts work and later ones do not.
-Nothing about it is VRAM, so no reserve, quant or context setting avoids it: `scripts/install-oomd.sh`
-(`pixi r install-oomd`, part of `pixi r install`) writes
-`/etc/systemd/system/user@.service.d/90-oomd-user-session.conf` with `ManagedOOMMemoryPressure=auto`, which makes
-`systemd-oomd` neither monitor nor choose that unit — the kernel's own OOM killer stays the backstop, and it kills
-a process rather than the session. The script warns when another drop-in, or an ancestor slice, still reports `kill`.
-
-**A start from inside the pi sandbox loses its RAM budget**, which costs speed and nothing else.
-`bwrap --unshare-all` unshares the cgroup namespace too, so `/proc/self/cgroup` says `0::/` there;
-the engine's ancestor walk builds `/sys/fs/cgroup/` (trailing slash) from it, finds that unequal to
-its own root, and reports `FileExpertSource: cannot determine available memory for
---resident-budget-gib`, then reads every expert the GPU does not hold through the OS file cache
-instead of copying them into RAM. The server answers correctly — that warning is the tell. Start
-from the host when the RAM budget matters.
-
-### Where everything goes
-
-| what                                                                          | where                                                                   |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| app + run configs (`terminal/` since 0.2.16), built engine + image encoder    | `$CONDA_PREFIX/opt/strata/terminal`                                     |
-| engine sources whose hash `BUILD.json` records (`engine/`)                    | `$CONDA_PREFIX/opt/strata/engine`                                       |
-| expert pack (`strata-data/packs`), MTP layer (`strata-data/mtp/rt`), settings | `$CONDA_PREFIX/strata-data`, `$CONDA_PREFIX/.config/strata`             |
-| the model's GGUF shards                                                       | `~/.cache/huggingface/hub` — **the same blobs `llama-server -hf` uses** |
-| the `--gguf-dir` folder of symlinks into that cache                           | `$CONDA_PREFIX/strata-models/<tag>`                                     |
-| the record of what `strata.ini` last prepared the model with                  | `$CONDA_PREFIX/strata-data/strata-prepared.json`                        |
-| the server's own output                                                       | `strata.log` in the invoking directory (the repo root under pixi)       |
-
-Everything else Strata writes is inside `$CONDA_PREFIX`. The Hub cache is the deliberate shared exception, and
-`strata.log` the one file that lands outside it (it is `$PWD` at the call, exactly like `llama-server.log`).
-`strata-run.py` redirects `XDG_CONFIG_HOME` to `$CONDA_PREFIX/.config` for the same reason — setup.py otherwise
-writes `~/.config/strata/settings.json`.
-
-Serving on its own port means its own browser origin, which is also what ended an earlier confusion worth knowing
-about: llama-server's webui is a PWA (`/sw.js`, `/manifest.webmanifest`, `/_app/version.json` — its own security test
-requests them) and a service worker belongs to the _origin_, not the server, so while the two shared 8080 (llama-server's port then; its default is 9931 now) a browser
-that had opened llama-server's UI kept rendering that cached page on `localhost:8080` however correct Strata's own
-response was (`curl -s localhost:8080 | head -3` shows `<title>Strata</title>` either way). Distinct ports, distinct
-origins; `start-strata --port <n>` remains the escape hatch if one is ever run on llama-server's port.
-
-The generated `strata-<tag>.json` / `run-<tag>.sh` / `.log` land **next to `setup.py`**, inside
-`$CONDA_PREFIX/opt/strata/terminal` (`$CONDA_PREFIX/opt/strata` before 0.2.16), and are not part of any package's file list: a recipe rebuild that merely relinks the package
-leaves them, and with them the pack and the MTP layer, alone — so the second start skips everything the first did. That
-is not a promise the env prefix keeps: one that is _recreated_ rather than relinked (pixi re-extracting every package,
-a `pixi clean`, an `rm -rf` of the env) takes `strata-data` and those configs with it, and the next start re-prepares
-from scratch — pack (~2 min), MTP layer (~787 MB `rt/` plus the ~5 GB of checkpoint tensors re-read to build it).
-
-### Why the recipe builds the engine
-
-Strata publishes **no Linux prebuilt** (its release assets are Windows-only), so a Linux install compiles the engine
-with `cmake -DSTRATA_ENABLE_CUDA=ON` — upstream's Dockerfile does the same, at image build time. Doing it in the
-recipe is what makes `pixi install -e strata` yield a usable env: the first start has nothing to compile and no
-compiler has to exist at runtime. `build.sh` drives **Strata's own `setup.py`** — its `cmake_build` _and_ its
-definition helpers (`host_compiler_defs`, `ggml_defs`, `engine_defs`, `vision_llama`) — rather than a CMake command
-line of its own, because `cmake_build` alone is only the build function: the definition list belongs to upstream's
-caller and is not derivable. `ggml_defs` and `vision_llama` disappeared in 0.2.16: the engine builds from the
-vendored `third_party/strata-ggml` and the picture reader is Strata's own tower (`tools/vision/own`), so no
-llama.cpp override is passed. Two helpers are left out on purpose — `toolkit_root_defs` (a second host CUDA toolkit
-cannot exist inside a rattler-build environment, and a conda prefix has no `lib64` for `CUDAToolkit_ROOT` to reach)
-and `isa_floor_defs` (the older-CPU engine must never be chosen from the build host). `engine_defs` is the one that
-changes the binary: it adds `-DSTRATA_EXPERIMENTAL_SM60=ON` for a card below `sm_75` or a CUDA 12 toolkit, so without
-it `STRATA_CUDA_ARCHITECTURES=70` silently builds a Pascal engine that cannot run. It then writes
-`terminal/engine/BUILD.json` the way the Dockerfile does (`source: "local"` plus `source_hash(ENGINE_SOURCES)`).
-The recipe's `LLAMA_COMMIT` build variable fails the build if the second git source stops matching setup.py's
-`LLAMA_CPP_COMMIT`; that commit is still mixed into `source_hash()` even though nothing links or reads llama.cpp at
-runtime (its `gguf-py` is vendored under `engine/third_party/strata-gguf-py`).
-
-**The engine is Strata's own code now.** 0.2.14 moved the CUDA/HIP prompt path to Strata's fused kernels
-(`STRATA_MMQ` defaults OFF, so `libstrata_kq.so` is normally absent), and 0.2.16 moved the whole engine into the
-checkout's `engine/` tree and the picture reader into Strata's own `tools/vision/own`. Confirm the prompt path from
-the engine log rather than the file list: `prompt kernels: chunks of … run 48 of 48 layers on the fused kernels`.
-`setup.engine_src()` resolves to the sibling `engine/` tree, `setup.engine_dir()` to `terminal/engine/` for the
-built binaries; the recipe mirrors both, and the run-config paths, `strata-help` and `inject-strata-model.sh` all
-read them from the installed tree rather than assuming a flat app root.
-
-**Every part `ENGINE_SOURCES` names must be in the installed `engine/` tree, byte for byte** — `CMakeLists.txt`,
-`cmake`, `src`, `include`, `third_party/ggml`, `third_party/strata-ggml`; `VISION_SOURCES` adds `terminal/tools/vision`
-and `engine/third_party/stb` — because `setup.py` recomputes that hash at the first start and a
-missing part makes the engine look stale. It then wants to compile it, finds no `nvcc` (the env has the CUDA libraries,
-not a compiler), and offers to `apt-get install cuda-toolkit-13-0` with **sudo**, which blocks on a password when a
-terminal is on stdin. `cmake/` (`cmake/hip_backend.cmake`, build-time only, ~7.5 KB) is read for no other reason than
-this hash and was the one the copy loop missed; `scripts/strata-run.py` now also replaces `install_build_tools` with a
-message that names the drift, so the prompt cannot be reached from the pixi tasks at all.
-
-`strata_control/` is the same kind of trap for a different reason. It is stdlib-only and never compiled, but since 0.2
-`setup.py` imports it at module level (`acquisition`, `tls`, `atomic`, `draft_layer`, `dsv41_context`,
-`engine_component`, `user_args`) and so does `serve/server.py` (those plus `gpu_roles`, `drafting`, `hipblaslt_tuning`,
-`vision_reader`), so an app tree without it cannot be loaded at all — not by the wrapper, not by the server. It is in
-`build.sh`'s copy list for that reason alone.
-
-`cuda_architectures` (context var, `STRATA_CUDA_ARCHITECTURES` in the environment)
-defaults to `86`, i.e. RTX 30 series. Another card may need e.g.
-`STRATA_CUDA_ARCHITECTURES=89,120 pixi install -e strata`.
-
-### `scripts/strata-run.py` — what differs from `./setup.sh`
-
-The wrapper loads Strata's `setup.py` as a module and replaces several things:
-
-- **Dependencies.** Step 3, and `pip_cuda_libs()` for a ready-made engine, run
-  `python -m pip install <pinned wheels>` into whatever interpreter runs them — a `.venv` upstream, **the conda
-  prefix** here. `pip_install` is replaced with a check that the packages are importable, so nothing installs into
-  the env. The CUDA libraries come from conda (`libcublas`, `libcurand`, `cuda-cudart`) rather than NVIDIA's wheels,
-  which also means there is no `site-packages/nvidia/**` for `cuda_lib_dirs()` to find: `BUILD.json` records
-  `${PREFIX}/lib` as the engine's library directory instead, and the server prepends it to `LD_LIBRARY_PATH`
-  (`start-strata.sh` sets the same path for anything run by hand).
-- **The model files.** setup.py downloads each shard into `<data-dir>/models` with its own `.done` markers — a second
-  55-111 GB copy that llamacpp cannot see. `strata-run.py` fetches them with `huggingface_hub` into
-  `~/.cache/huggingface/hub` instead, at the revision `setup.py` pins (`HF_REVISIONS`, with the same fallback to
-  `main` when a repository has dropped it — upstream's `hf_unpinned`), and hands over a folder of symlinks as
-  `--gguf-dir`. `pixi install -e strata` therefore downloads no model, and the first start reuses whatever the
-  quant `strata.ini` names that `llama-server -hf` has already fetched.
-- **The compile.** `build_engine` compiles the engine whenever the installed one does not match `ENGINE_SOURCES`, and
-  without an `nvcc` it installs the CUDA Toolkit through apt and **sudo** (see "Why the recipe builds the engine").
-  `install_build_tools` is replaced with `fail(...)`, so the pixi tasks never reach a password prompt: the start path
-  catches the `SystemExit` and starts the installed engine (its usual answer to a compile that failed), and a prepare
-  stops with the message naming the drift between the recipe's app tree and setup.py's hash.
-
-The MTP draft layer is the one download that cannot go through the Hub cache: `tools/mtp_fetch.py` reads ~5 GB of
-_byte ranges_ out of 28 shards of the 360 GB BF16 checkpoint (`Qwen/Qwen3.8-Flash-Next`, pinned revision — no GGUF
-repo ships an MTP head: checked ISTA-DASLab's two, ukisai's Swift-1.5 and Unsloth's), so caching it as blobs would
-mean the whole checkpoint. It lands in `$CONDA_PREFIX/strata-data/mtp`, like the pack — and only `rt/` (787 MB) is
-what the engine loads (`--mtp`, a folder, not a file). The ~5 GB of tensors and the `mtp-q2_0.gguf` `mtp_rt.py`
-consumed are build inputs, so `strata-run.py` checks the tensors against the checkpoint's SHA256 (`mtp_fetch.py
-verify`, upstream's #327 check) and deletes both once `rt/` is built — 6.1 GB back on this machine.
-`--keep-mtp-inputs` / `STRATA_KEEP_MTP_INPUTS=1` keeps them; they are dead weight otherwise, since setup.py's only
-trigger to rebuild the layer is `rt/experts.bin` going missing, and that re-fetches everything anyway.
-
-The other drafter, DFlash2, is a pack the recipe's engine reads and setup.py does not fetch (`strata drafting fetch` is a
-subcommand of a CLI the recipe does not package), so `strata-run.py` fetches it, and writes the run config's `drafting`
-key so the choice survives a start — see the `strata.ini` note above.
-
-GGUF-published MTP heads do exist — `unsloth/Qwen3.8-Flash-Next-GGUF/MTP/mtp-Qwen3.8-Flash-Next-{shared-,}{Q8_0,Q4_K_M,BF16}.gguf`,
-1.8-7.8 GB, in the `mtp-` sidecar convention beellama resolves (`find_best_mtp()` in `common/download.cpp`, fed by
-`--spec-type draft-mtp` / `--mtp`) — and those belong in the Hub cache, where `llama-server` puts them by itself. They
-are **not** Strata's format: Strata wants the `rt/` blob layout its own `mtp_pack.py`+`mtp_rt.py` build at q2_0 (the
-main model's expert format, chosen by measured draft acceptance), while an MTP export from llama.cpp drops the head
-entirely (`supports_mtp_export = False`). Do not point `--mtp` at one of those files.
-
-What it runs with is `strata.ini` (see above): every key of it goes to setup.py, and the wrapper has no default of its
-own — it refuses to run when the file names no `family` and `model`, because it is the wrapper that prepares the model
-files and has to know which model it is preparing. `--data-dir` is the one default left, and it is a layout rather than
-a setting: `$CONDA_PREFIX/strata-data`, passed on both paths because setup.py's own default is a `Strata-data` folder
-next to the app and `data_folder()` moves model files between the two. Anything unknown on the command line still goes
-to setup.py, so `pixi run strata-install -- --calibrate` works as upstream documents it.
-
-Three settings the wrapper applies to the run config itself, because setup.py's start path reads that config verbatim:
-the **context** (`context` in `strata.ini` rewrites `--max-context` before every start — setup.py ignores `--context` on a
-start, and its setup path without `--gguf-dir` would want the shards re-downloaded), the **drafter** (`drafter` writes
-the config's `drafting` key, which serve/server.py reads and setup.py never writes — its `--drafter` only decides whether
-the MTP layer is fetched — so `dflash2` named here stays named), and the **VRAM reserve** (a config that disagrees with
-`vram-reserve-mib` is what a start passes the flag for, setup.py rewriting its `args` when it sees it; a config that
-agrees is left alone, so the steady state rewrites nothing). Every other flag the file changes moves the preparation
-signature, and that re-prepares instead — `parallel` among them, since setup.py reads it only while it writes the config
-(the key then becomes the engine's `--batch N`, "requests at once"; `auto` drafting is DFlash2 for one request and the
-MTP for several, which is why the named choice above is what carries DFlash2 past one slot).
-
-**Sampling is not the file's at all.** setup.py has no sampling flag, and since 0.1.45 serve/server.py applies the model
-card's own recommended set to a request that names none: `MODEL_CARD_SAMPLING` gives Qwen3.8-Flash-Next temperature 1.0,
-top_p 0.95, top_k 20 in **thinking mode** (how Strata serves it — the chat template thinks by default at xhigh effort)
-and 0.7 / 0.8 / 20 / presence_penalty 1.5 in **instruct mode** (a request asking for `enable_thinking: false`);
-Qwen3.6 and DeepSeek get their own card's set. A request's own fields still win (an explicit 0 stays greedy) and
-Strata's Chat settings (`POST /settings`) sit on top. Before 0.2 the engine was greedy without help, which is why
-`scripts/strata-run.py` used to write a `sampling` block into the run config — that block outranks the card's set for
-_both_ modes, so it is gone: the wrapper carries no sampling keys, and `strata.ini` sets none.
-
-The pin to watch is `llama_cpp_commit` in `pixi-recipes/strata/recipe.yaml`: it must equal `LLAMA_CPP_COMMIT` in the
-`setup.py` of the packaged version, since the engine links against that ggml and the runtime tools read GGUFs with its
-`gguf-py`. Unlike `fork:` in the llama-cpp recipes it is safe to bump on its own — it is not a deliberate fork choice,
-it is upstream's own pin.
+Three settings are applied directly to the run config: `context` (`--max-context`),
+`drafter` (the `drafting` key; `dflash2` must be named to survive one-slot starts) and
+`vram-reserve-mib`. Other changed keys re-prepare. Sampling comes from the model card's
+`MODEL_CARD_SAMPLING` as of Strata 0.1.45; request fields and Chat settings win, and
+`strata.ini` sets none. Generated run configs/log files live next to setup.py in
+`terminal/` and survive a relink but not a recreated env prefix.
 
 ## OpenDesign (`design` env, `pixi-recipes/opendesign/`)
 
-[OpenDesign](https://github.com/nexu-io/open-design) is a local-first design product: an Express
-daemon plus a static Next.js UI, serving `127.0.0.1:7456` by default (`--port`/`--host`,
-`OD_PORT`/`OD_BIND_HOST`). It runs a **code agent**, and the one it runs is Pi: it finds `pi` on
-`PATH`, probes `pi --version` / `pi --list-models` and drives the conversation over
-`pi --mode rpc` (upstream `apps/daemon/src/runtimes/defs/pi.ts`). The agent is not part of this
-recipe — `design` gets it from `pi`/`pi-extensions`/`pi-home`.
+[OpenDesign](https://github.com/nexu-io/open-design) is a local-first design product:
+an Express daemon plus static Next.js UI on `127.0.0.1:7456`, driving Pi over
+`pi --mode rpc` (`apps/daemon/src/runtimes/defs/pi.ts`). Pi comes from the `pi` recipe,
+not this one.
 
-`build.sh` reproduces upstream's own `deploy/Dockerfile` build stage with conda Node + pnpm:
-`pnpm install --frozen-lockfile`, then `pnpm --filter @open-design/{daemon,web} build`, then
-`pnpm --filter @open-design/daemon deploy --legacy --prod`, then the Dockerfile's cleanup list.
-Everything it assumes about the tag is pinned or asserted, because every one of those assumptions
-fails silently:
+`build.sh` reproduces upstream's Dockerfile stage with conda Node + pnpm:
+`pnpm install --frozen-lockfile`, daemon/web builds, `pnpm --filter @open-design/daemon
+deploy --legacy --prod`, then cleanup. Its assumptions are asserted:
 
-- `version:` is the **git tag** `open-design-v<version>`, not the version the tag's root
-  `package.json` carries (`0.25.1` at tag `0.27.0`); the commented `upstream_reported_version` line
-  records that mapping so nobody re-derives it. `source:` fetches the tag's archive with a `sha256`
-  computed from that exact URL.
-- `pnpm_version` must equal the tag's `packageManager`, or `--frozen-lockfile` refuses the committed
-  `pnpm-lock.yaml`. `engines.node: ~24` is a **run** requirement too — `nodejs >=24,<25` appears in
-  both lists, and nothing else is one: no pnpm, no Python, no compiler.
-- **`better-sqlite3` is compiled from pinned source**, with `npm_config_build_from_source=true`
-  scoped to that single `rebuild` command: `prebuild-install`'s Debian tarball is not covered by the
-  lockfile's integrity hash, and `sharp` treats any non-empty value of that variable as a request to
-  compile itself as well. The ABI of the deployed addon is then proven with a real
-  `require("better-sqlite3")` under the build's Node, after all cleanup has run.
-- The `RESOURCE_TREES` array **is** upstream's `BUNDLED_RESOURCE_TREES`
-  (`tools/pack/src/resources/index.ts`), source→dest, including the two that come from `assets/`
-  (`assets/frames` → `frames`) and the `plugins/` pair that keeps its subdirectory. The count is
-  asserted equal, and every installed tree is asserted non-empty, so an upstream addition cannot
-  ship as a missing resource.
-- The layout is the daemon's own resolution contract: daemon at `opt/opendesign/apps/daemon`,
-  static UI at `apps/web/out` (`STATIC_DIR` is `<PROJECT_ROOT>/apps/web/out`), the ten trees under
-  `resources/` where `OD_RESOURCE_ROOT` points. `${PREFIX}/bin/opendesign` is a **relative** symlink
-  to the daemon's `od.mjs`. Upstream names that binary `od`, which inside a conda env would shadow
-  coreutils' octal dump; the symlink, the pixi task and the wrapper carry the product's name, and
-  only the entry point keeps upstream's `od.mjs`. `pixi run -e design opendesign-help` prints the
-  packaged daemon and Pi versions plus the support boundary.
-- Two cleanup passes have no upstream equivalent and both matter: host absolute paths are removed
-  (`node_modules/.modules.yaml`, every `.bin/` directory — pnpm bakes the build work dir into both),
-  and native payload that cannot load on this x86-64-only package is dropped (`onnxruntime-node`'s
-  `bin/napi-v3/{darwin,win32}`, all of `node-pty`'s `prebuilds/` but `linux`). The 34 MiB
-  `napi-v3/linux/arm64` stays deliberately: at 960 MiB installed the tree is inside the ~1 GiB
-  guardrail, and that payload is the recorded first lever if it stops being.
-- `scripts/smoke-opendesign.sh` is the packaged-tree acceptance test CI runs: the installed daemon
-  under `env -i` with an empty `HOME`, a fresh `OD_DATA_DIR` and `OD_RESOURCE_ROOT`, asserting the
-  static UI, all six resource endpoints, every bundled plugin's absolute source path, the
-  plugin-preview manifest, `app.sqlite` in `OD_DATA_DIR`, nothing written to `HOME`, a
-  `127.0.0.1`-only listener, and that `SIGTERM` frees the port. It also fails if **any** build tool
-  (`pnpm`, `node-gyp`, `gcc`, `g++`, `cc`, `make`, `python`) is present in the env — the only way a
-  `run:` leak is detected. `scripts/smoke-opendesign-sandbox.sh` is the launcher's, and is the only
-  way to assert a mount contract: from outside it reads `/proc/<pid>/mountinfo` and `/environ` of
-  the listening daemon (the pid namespace is shared, the mount namespace is not), and it asserts
-  both that the state landed in the shared `~/.od` root and that nothing appeared at
-  `<workspace>/.od`.
-- Measured at 0.27.0: the installed application tree is **960 MiB** (inside the ~1 GiB
-  guardrail; the first lever if it grows is the 34 MiB `napi-v3/linux/arm64` payload), and a cold
-  `pixi install -e design` is a few minutes — ~3 min on the CI runner.
-- `pixi install -e design` **is** safe from the bwrap sandbox (unlike `-e agents`): the host
-  `~/.pi` file binds land in the agents prefix only, so nothing in `.pixi/envs/design` is
-  un-unlinkable. A path-recipe pin bump does **not** move `pixi.lock` either — the
-  `conda_source: opendesign[…] @ pixi-recipes/opendesign` entry is content-stable.
-- `design` has none of the **Pi/Git** launcher tasks on purpose: `pi`/`pi-unsafe`/`pi-export` and
-  `git`/`gh` stay in `pi-launcher`/`git-launcher`, which only `agents` includes, so an unqualified
-  `pixi run pi` is never ambiguous. The `opendesign*` tasks are the exception: they live in the
-  `opendesign` feature, which only `design` includes, so they cannot collide either.
-- linux-64 only, gated twice: `build.skip` in the recipe and `platforms` on the feature. The aarch64
-  and win-64 build paths are unimplemented, not merely untested.
+- `version:` is the git tag `open-design-v<version>`, not the root `package.json` version;
+  `source:` fetches that tag's archive with its exact sha256.
+- `pnpm_version` must equal the tag's `packageManager`; Node `>=24,<25` is a run
+  requirement, and pnpm/Python/compilers are not.
+- `better-sqlite3` is compiled from pinned source (`npm_config_build_from_source=true`
+  scoped to its rebuild), then `require()`d under the build Node after cleanup.
+- `RESOURCE_TREES` mirrors upstream's `BUNDLED_RESOURCE_TREES`; count and non-emptiness
+  are asserted.
+- Layout: daemon at `opt/opendesign/apps/daemon`, UI at `apps/web/out`, ten trees under
+  `resources/` for `OD_RESOURCE_ROOT`; `${PREFIX}/bin/opendesign` is a relative symlink
+  to upstream's `od.mjs` (renamed to avoid shadowing coreutils `od`).
+- Cleanup removes host absolute paths (`.modules.yaml`, `.bin/`) and non-x86-64 native
+  payload; the 34 MiB `napi-v3/linux/arm64` stays inside the ~1 GiB guardrail (960 MiB
+  installed at 0.27.0; cold install ~3 min on CI).
 
-### Launchers (`scripts/opendesign-bwrap.sh`, `opendesign-unsafe.sh`, `opendesign-help.sh`)
+`scripts/smoke-opendesign.sh` is the packaged-tree acceptance test: empty `HOME`, fresh
+data/resource roots, static UI and six resource endpoints, plugin paths, `app.sqlite`,
+localhost-only listener, SIGTERM frees the port, no build tools left in the env.
+`scripts/smoke-opendesign-sandbox.sh` checks the launcher's mount contract from outside
+the namespace. `design` has no Pi/Git launcher tasks (they stay in `pi-launcher` /
+`git-launcher`), is linux-64 only, and `pixi install -e design` is safe from the sandbox
+unlike `-e agents`. Bump the tag with the **update-opendesign** skill.
 
-`pixi r opendesign <workspace> [-- <args>]` runs the daemon **in the foreground, inside one bubblewrap
-namespace**, modelled on `bwrap-pi.sh`. The daemon and every process it spawns — the Pi it drives, and
-every shell and tool below that — live in that single boundary, so there is no nested bubblewrap: `curl`
-reaches it on the host loopback because the namespace shares the network.
+### Launchers
 
-| Path                                                                             | Access                         |
-| -------------------------------------------------------------------------------- | ------------------------------ |
-| `/`                                                                              | read-only                      |
-| `/dev`, `/proc`, `/tmp`, `/home`, `/root`, `/run`                                | fresh tmpfs                    |
-| `/run/systemd/resolve`                                                           | read-only (DNS)                |
-| the workspace                                                                    | read-write                     |
-| `~/.od`                                                                          | read-write (shared by all)     |
-| extra `--bind` / `--ro-bind` paths                                               | as asked                       |
-| the design prefix, `scripts/git-guards`                                          | read-only, re-bound on top     |
-| `<prefix>/home/.pi`                                                              | read-write                     |
-| `~/.pi/agent/{auth,trust,settings,models,caveman}.json`, `~/.pi/agent/sessions/` | read-write                     |
-| `~/.pi/agent/intercom`                                                           | fresh tmpfs                    |
-| `~/.gitconfig`, `~/.config/git`, `~/.config/gh`                                  | read-only (`--no-git`: absent) |
+`pixi r opendesign <workspace> [-- <args>]` runs the daemon in the foreground in one
+bubblewrap namespace (no nested sandbox); loopback is shared with the host. Mounts:
+read-only `/`; tmpfs `/dev`, `/proc`, `/tmp`, `/home`, `/root`, `/run`, except read-only
+`/run/systemd/resolve`; read-write workspace, `~/.od`, the design prefix's `home/.pi`,
+and selected host Pi config files/sessions; read-only design prefix, `scripts/git-guards`,
+`~/.gitconfig`, `~/.config/git`, `~/.config/gh`; tmpfs `~/.pi/agent/intercom`.
 
-What the launcher pins, and why each one is load-bearing:
+Load-bearing choices:
 
-- **State is one shared root, `~/.od`, not `<workspace>/.od`**: `OD_DATA_DIR=~/.od`,
-  with `OD_AGENT_HOME`, `TMPDIR` and all four `XDG_*` homes under it, and the whole
-  directory bound read-write. OpenDesign persists its SQLite database, its project
-  folders (inside `OD_DATA_DIR/projects/<id>`, keyed by project id rather than by
-  checkout), its provider/MCP credentials and its plugin, skill and preview state in
-  **one** directory — `resolveDataDir` in the packaged `apps/daemon/dist/daemon-paths.js`,
-  whose own default is `<projectRoot>/.od` — and none of that is per-repository state, so a
-  per-workspace root meant a fresh empty install, an empty project list and a separate
-  login for every directory it was launched from. `~/.od` is the same bind in every
-  sandbox, which is what makes them one set. It has to be bound explicitly: `/home` is a
-  fresh tmpfs, so without the bind the daemon would populate an empty `~/.od` inside the
-  namespace and throw it away. The launcher creates the tree on the host up front, so `-`
-  (a tmpfs workspace) still gets real state. The workspace bind remains the agent's
-  working directory and the home of any imported-folder project. **One state root means
-  one daemon at a time** — two writing the same `app.sqlite` is a corruption risk, so both
-  launchers scan `/proc/*/environ` for a live `OD_DATA_DIR=$HOME/.od` and warn. `.od/`
-  stays in this repo's `.gitignore` because a daemon run **without** the launcher still
-  falls back to `<projectRoot>/.od`.
-- **`~/.open-design` is deliberately not bound**, so the two paths upstream keys off
-  `homedir()` stay inside the namespace and do not persist: `deploy.js`'s Vercel/Cloudflare
-  token file (`OD_USER_STATE_DIR`, unset here) and `runtimes/local-profiles.js`'s
-  `agents.local.json` (no env override exists). Both are lost with the namespace and so have
-  to be re-entered each session; pointing `OD_USER_STATE_DIR` at `~/.od` would persist a deploy token in a directory the agent can
-  read, so it stays unset until a workflow needs it. `opendesign-unsafe` has no namespace,
-  so there it is the host's own `~/.open-design`, as upstream intends.
-- **`OD_INSTALLATION_DIR` is `~/.od/installation`, not the prefix.** Upstream's packaged
-  value is the channel root, but the prefix is mounted read-only here and the daemon writes
-  `installation.json` at boot, so a prefix path would silently lose the install identity.
-- **`PI_BIN` is `$PREFIX/bin/pi`**, the raw packaged binary. Pointing it at `~/.local/bin/pi`
-  (the sandbox wrapper) or at `scripts/bwrap-pi.sh` would either re-enter a launcher or attempt
-  nested namespace creation.
-- **`PI_CODING_AGENT_DIR` is the host `~/.pi/agent`**, and the files inside it are bound
-  individually: that is what reuses the login, providers, preferences and resumable sessions while
-  the rest of `~/.pi` stays the packaged tree. That tree is bound **read-write**, unlike the rest of
-  the prefix: Pi writes `agent/npm` and `agent/models-store.json` through it on every
-  `pi --list-models`, and `bwrap-pi.sh` binds it the same way for the same reason.
-- **`OD_SANDBOX_MODE` stays unset.** Upstream's mode relocates `HOME`/XDG and rewrites agent homes,
-  which would hide Pi's config, break `gh`'s default `~/.config/gh` lookup and land outside the
-  binds; bubblewrap is the isolation here. `OD_AGENT_HOME` is set explicitly instead (it scopes
-  executable discovery; an explicit `PI_BIN` still wins).
-- **`--no-git` is the same contract as the Pi sandbox**: no credential bind at all, `PI_GIT_GUARD=blocked`,
-  `GIT_ALLOW_PROTOCOL=file`, `GH_CONFIG_DIR` pointed at an empty dir and every token/askpass/`GIT_CONFIG_*`
-  carrier unset. The credential's absence is the enforcement; the env layers are UX.
-- **Loopback only**: `OD_BIND_HOST=127.0.0.1` always, and the launcher refuses `--host` (and consumes
-  `--port`, default 7456 — apart from llama-server's 9931, forge's 8080 and Strata's 8082).
-- **No CUDA devices, no host caches** are bound in on purpose: the daemon and Pi need neither, and
-  the design's rule is to add a mount only when a core workflow needs it.
-- It runs `inject-pi-extensions.sh` (Node only) but **not** `inject-strata-model.sh`, which needs
-  Python: keeping the Strata provider entry in `models.json` is the normal Pi launcher's job.
-- **Not validated end-to-end yet**: a real design turn through the packaged Pi extension set. The
-  sandbox smoke test does assert `/api/agents` reports Pi `available` inside the namespace, which
-  runs `pi --list-models` through `PI_BIN` with the bound `PI_CODING_AGENT_DIR` and the packaged
-  extensions; a generated artifact needs a live provider. If an interactive extension misbehaves
-  under RPC (upstream auto-answers extension UI requests), the design's fallback is a
-  design-specific Pi settings/session profile sharing auth and models — not a Pi fork.
-- `pixi r opendesign-unsafe <workspace>` is the full-host path: prominent warning on every launch,
-  `--bind`/`--ro-bind` accepted and ignored with a warning, and `--no-git` refused rather than
-  swallowed. `scripts/install/opendesign` (installed by `install-bin.sh` as `~/.local/bin/opendesign`)
-  supplies the caller's cwd as the workspace and forwards the rest base64-encoded in `_FWD_ARGS`, so
-  `--bind` and `--ro-bind` relative paths resolve against the caller's cwd; `--no-sandbox` routes to
-  the unsafe task.
+- `OD_DATA_DIR=~/.od` is the single shared state root (SQLite DB, projects, credentials,
+  plugin/skill state). A per-workspace root meant a fresh install per directory; one
+  daemon at a time, since two writers would corrupt `app.sqlite`. `~/.open-design` is
+  deliberately not bound, so deploy tokens and local profiles do not persist.
+- `OD_INSTALLATION_DIR=~/.od/installation` (the prefix is read-only and the daemon
+  writes there at boot). `PI_BIN=$PREFIX/bin/pi` is the raw binary, never a launcher.
+  `PI_CODING_AGENT_DIR` is the host `~/.pi/agent`, bound read-write for Pi's writes.
+- `OD_SANDBOX_MODE` stays unset; bubblewrap is the isolation. `--no-git` binds no
+  credential at all (`PI_GIT_GUARD=blocked`, empty `GH_CONFIG_DIR`, tokens unset): absence
+  of a token is the enforcement, the env layers are UX. `OD_BIND_HOST=127.0.0.1` always;
+  `--host` is refused, `--port` is consumed (default 7456). No CUDA devices or host
+  caches. The launcher runs `inject-pi-extensions.sh` but not `inject-strata-model.sh`
+  (Python), so Strata's provider entry is the normal Pi launcher's job.
+- Not validated end-to-end yet: a real design turn with the packaged extension set. The
+  smoke test only asserts `/api/agents` reports Pi available via `pi --list-models`.
 
-`.github/workflows/opendesign.yml` builds the recipe, runs both smoke tests and checks that
-`opendesign-unsafe` refuses `--no-git`. The sandbox step needs the AppArmor profile
-(`pixi r install-apparmor`), which the job installs with the runner's passwordless sudo.
-
-Bumping the tag is the **update-opendesign** skill's job: the tag, its digest and the pnpm pin
-move together, and the resource-tree and Dockerfile-parity assumptions are re-read from the new tag
-before anything is rebuilt.
+`pixi r opendesign-unsafe` is the full-host path (warning on every launch; `--bind`
+ignored; `--no-git` refused). `~/.local/bin/opendesign` supplies the caller's cwd as
+workspace and base64-encodes other args. Both launchers are exercised in
+`.github/workflows/opendesign.yml`; the sandbox step needs AppArmor.
 
 ## Sandboxes and wrappers
 
 ### `bwrap-pi.sh`
 
-Read-only root; `/tmp`, `/home`, `/root` as tmpfs; the target workdir bound read-write (or a temp dir if `-` is passed); `$CONDA_PREFIX` and `$PIXI_ROOT` bound read-only; caches under `~/.cache` bound through; `--unshare-all --share-net --die-with-parent`. Needs the AppArmor profile at `/etc/apparmor.d/bwrap` (`pixi run install-apparmor`).
+Read-only `/`; tmpfs `/tmp`, `/home`, `/root`, `/run`; workdir bound read-write (or a
+temp dir for `-`); `$CONDA_PREFIX` and `$PIXI_ROOT` read-only; `~/.cache` binds through;
+`--unshare-all --share-net --die-with-parent`. Needs `/etc/apparmor.d/bwrap` (`pixi r
+install-apparmor`).
 
-`--bind <dir>` adds a read-write bind, `--ro-bind <dir>` a read-only one; both repeat, take a host path, and mount it at that same path inside the sandbox. The path must exist: the launcher resolves it with `realpath -e` and refuses a typo by name (`--bind: no such path: …`) instead of letting bwrap fail later with an unnamed `Can't find source path`. Both are emitted **before** the workdir bind, so the workspace always wins: `--ro-bind ..` exposes sibling directories and the parent read-only while the project itself stays writable (bwrap applies mounts in order, and a read-write bind of a deeper path applied last beats a read-only bind of its ancestor). The price of that precedence is that a read-only bind pointing _at or inside_ the workspace comes out read-write, which the script warns about. Either flag's bind of an ancestor of something already mounted detaches that mount, so bind the directory you want — never the parent of `$HOME`, which would hide the `~/.pi` binds below it.
+`--bind` / `--ro-bind <dir>` repeat, mount at the same host path, and are checked with
+`realpath -e`. They are emitted before the workdir bind, so the workspace wins over an
+ancestor read-only bind; a bind of an ancestor of an existing mount detaches it. Mount
+lists are bash arrays expanded as `"${array[@]}"` — never space-joined strings — since
+paths may contain spaces and bwrap silently creates truncated bind targets.
 
-**CUDA passthrough**: when the host has the NVIDIA driver loaded, every `/dev/nvidia*` node is `--dev-bind`-ed through the fresh `--dev /dev` (plus `/proc/driver/nvidia` read-only), so CUDA builds and llama.cpp GPU runs work from inside the sandbox. `nvidia-modprobe -u -c=0` is invoked first (best-effort) to create `/dev/nvidia-uvm`, which the driver creates on demand and without which CUDA init fails. No-op on hosts without an NVIDIA driver — the section is skipped entirely.
+CUDA passthrough binds every `/dev/nvidia*` device and `/proc/driver/nvidia` when the
+driver is loaded, after a best-effort `nvidia-modprobe -u -c=0` for `/dev/nvidia-uvm`.
 
-**GitHub access is on by default under a non-destructive policy**, and it is https-only: `~/.gitconfig`, `~/.config/git` and `~/.config/gh` (the gh token) are bound read-only, and that is all — no `~/.ssh`, no `~/.git-credentials`, no ssh-agent socket. SSH keys are unscopeable full-write credentials and every agent socket on the host (`$XDG_RUNTIME_DIR/keyring/ssh`, `gcr/ssh`, `gnupg/S.gpg-agent.ssh`, …) is a live one, so the sandbox pushes over https through the `gh auth git-credential` helper instead (run `gh auth refresh` on the host when the token expires; the `gh` wrapper also pins the config directory, so the agent cannot point `gh` at its own `GH_CONFIG_DIR`/`XDG_CONFIG_HOME` and reach an alias the wrapper cannot see). The token must live in **plain hosts.yml storage**: one in the system keyring (`gh auth login --secure-storage`) is invisible to every session, because the `/run` tmpfs below takes the keyring's D-Bus socket with it and `gh` then sees an account with no token — pushes fail with `could not read Username`. `install-git.sh` detects a working keyring token and re-stores it in plain storage (`gh auth token` → `logout` → `login --insecure-storage --with-token`; no new token, no browser), and `bwrap-pi.sh` warns at launch. Fresh `gh auth login` runs need `--insecure-storage` too on newer `gh`, which stores in the system credential store by default. The host's entire `/run` is hidden behind a tmpfs — it holds those agent sockets plus the docker sockets (`/run/docker.sock`, `/run/user/$UID/docker.sock`), and AF_UNIX connect() works across read-only mounts, so hiding them requires the tmpfs. Only `/run/systemd/resolve` is re-exposed: `/etc/resolv.conf` symlinks into it on systemd hosts and its sockets carry no privilege. The conda-forge `gh` shadows any snap-installed one.
+GitHub access is https-only by default: `~/.gitconfig`, `~/.config/git`, `~/.config/gh`
+read-only, no SSH/credential/agent sockets. `/run` is a tmpfs so keyring, SSH and docker
+sockets are unreachable (AF_UNIX connect() works across read-only mounts); only
+`/run/systemd/resolve` is re-exposed for DNS. The gh token must be in plain `hosts.yml`
+storage — a keyring token is invisible in the sandbox because its D-Bus socket lives in
+`/run`; `install-git.sh` migrates it. `scripts/git-guards/` provides PATH wrappers and a
+`pre-push` hook injected via `GIT_CONFIG_COUNT` → `core.hooksPath`; fetch/pull,
+fast-forward pushes and gh reads/writes for issues/PRs are allowed, while force-push,
+ref/post deletion, state-changing reviews, repo mutations and raw API writes are blocked.
+Aliases, `git send-pack`, `core.hooksPath` overrides and `gh api` mutations are covered.
+This is a guard layer, not a security boundary: absolute-path binaries, the readable
+token with raw HTTP, and unauthenticated network access remain. Use a fine-grained PAT
+plus server-side rulesets; use `pi --no-git` to remove credentials entirely.
 
-The policy layer is `scripts/git-guards/` (`git` and `gh` PATH wrappers) plus a `pre-push` hook in `scripts/git-guards/hooks/` — a committed symlink farm over `hook-dispatch` covering every standard hook name — injected per-session via `GIT_CONFIG_COUNT` → `core.hooksPath` (never touching the host's git config; the `git` wrapper re-injects that environment on every invocation, so the agent cannot drop the hook by rewriting `GIT_CONFIG_*`; `hook-dispatch` fails closed when the remote tip has not been fetched, delegates `pre-push` to the repository's own hook after the policy check, and sends every other hook name to the repository's own `core.hooksPath` when it sets one, so lefthook keeps working). `bwrap-pi.sh` binds `scripts/git-guards` read-only — _after_ the workdir bind, so the policy files stay read-only even when the workspace is this repo. Allowed: fetch/pull, fast-forward pushes, all `gh` reads, creating issues/PRs/comments/releases, editing an issue or PR in place (`gh issue edit` / `gh pr edit`: title, body, base branch, labels, assignees, milestone — every delete path stays blocked, and `gh release edit` stays blocked too), and fixing your own last comment (`gh issue/pr comment --edit-last`, which gh resolves to the authenticated author's most recent comment and requires a new `--body`, so it cannot reach anyone else's comment; `comment --delete-last` and `--create-if-none` stay blocked, and editing a comment by id needs `gh api -X PATCH`, which the raw-API rule refuses). Blocked — **no flag re-enables any of it**: force-push (long, short, clustered `-uf`, and `+refspec` spellings), remote ref/branch deletion, deleting any post, editing releases, `close`/`merge`/`lock` and other state changes, state-changing reviews, `run cancel`/`rerun`, `workflow run`, repo/admin mutations (secrets, variables, deploy keys), `gh auth` state changes, and raw `gh api` mutations (GET and inline `graphql` queries only; `--input` and `-F key=@file` bodies are refused — their payload is not inspectable in argv). The git guard also blocks the routes around the hook: `git send-pack` (plumbing push, runs no hooks; the dashed `git-send-pack` binary is refused by a stub on PATH), `-c`/`--config-env` config of `alias.*`/`core.hooksPath` (case-insensitively — git matches config keys that way, and a `-c` value outranks the injected hook path), `git config` writes of `alias.*` (a repo-config `core.hooksPath` cannot shadow the policy hook — the wrapper re-injects the env value — and `hook-dispatch` delegates to it afterwards), and aliases themselves: internal aliases are expanded and re-scanned by the wrapper, external `!…` aliases are run by the wrapper with the guard still in front (git would prepend its exec-path to PATH, which shadows the guard with the real git).
+Pi-specific behavior: mounts `$CONDA_PREFIX/home/.pi` as `~/.pi`, binds host
+`~/.pi/agent/{auth,trust,settings,models,caveman}.json` and `sessions/`, and gives
+`~/.pi/agent/intercom` a fresh tmpfs. `inject-pi-extensions.sh` and
+`inject-strata-model.sh` run on the host before bwrap. A git worktree workspace binds
+the main repo's common `.git` read-write. On exit, `skills`, `AGENTS.md` and
+`keybindings.json` are rsynced back into `pixi-recipes/pi-home/` (`--no-times` to avoid
+needless recipe rebuilds). All `PIXI_*`/`CONDA_*` and `HERDR_*` control vars are unset.
+`pi-unsafe.sh` grants full host access, symlinks the packaged `agent/npm` into
+`~/.pi/agent`, and refuses `--no-git` rather than pretending to enforce it.
 
-`pi --no-git` binds no GitHub credential at all: no `~/.config/gh`, no `~/.gitconfig`, no `~/.git-credentials`, no `~/.ssh`/agent socket, and `GH_TOKEN`/`GITHUB_TOKEN`/`GH_ENTERPRISE_TOKEN`/`GIT_CONFIG_*`/askpass/`GIT_SSH_COMMAND` unset (a host shell can carry an `http.<url>.extraheader` credential in `GIT_CONFIG_*`). That absence is the enforcement: without a token or key there is nothing to write with, however the agent manipulates PATH, hooks or the environment. The env layers (`GIT_ALLOW_PROTOCOL=file`, `GH_CONFIG_DIR` pointed at an empty dir, the guard stubs refusing network subcommands and all of `gh`) are UX on top, not the wall.
+### Wrappers and Herdr
 
-A guard layer, not a security boundary. Residual holes, all requiring a deliberate step outside the PATH: the real `git`/`gh` by absolute path (and `git --exec-path` helper binaries — the per-name stubs only cover bare PATH invocations); for those absolute-path invocations, `-c core.hooksPath=` or a dropped `GIT_CONFIG_*` environment removes the hook, whereas a wrapper-mediated invocation cannot drop it; the gh token itself, readable from the read-only `~/.config/gh` — raw `curl` against the API with it does anything the token can, as does any non-git client (dulwich, libgit2) — cap this blast radius by authenticating gh with a fine-grained PAT scoped to the repos the agent may touch (contents/issues/PRs read-write and nothing else), and put force-push prevention server-side (a separate bot identity plus repo rulesets that deny it, with your own account in the bypass list so your shell stays unrestricted), since no token scope can express it; and unauthenticated public network access, which stays open because killing the network namespace would take web fetch/search and the local llama-server with it. `pi-unsafe` applies no policy at all and refuses `--no-git` instead of ignoring it — use the sandbox when the policy matters.
+`pixi r install` runs seven installers (bin, AppArmor, clipboard, renderers, git, memlock,
+oomd); `install-bin.sh` symlinks the `~/.local/bin` wrappers and installs the herdr
+desktop entry. Wrappers `cd` into the repo, pass your cwd as the workspace, and forward
+other args base64-encoded in `_FWD_ARGS`; they resolve relative bind paths against your
+cwd and route `--no-sandbox` to the `*-unsafe` task. Calling the pixi task directly needs
+a `--` separator before any flag (`pixi run pi --no-git` alone treats the flag as the
+workspace). `run-herdr.sh` registers the file-viewer plugin and strips `$CONDA_PREFIX/bin`
+from PATH so panes use the sandbox wrapper, not the raw Pi binary.
 
-- Mounts `$CONDA_PREFIX/home/.pi` as `~/.pi`; bind-mounts `~/.pi/agent/{auth,trust,settings,models,caveman}.json` and `sessions/` from the host. Without a bind there, a config an extension writes to `~/.pi/agent` lands in the **env prefix** and dies with it — that is how pi-caveman's default level kept resetting to `full` after an env reinstall. Extension configs are migrated from the prefix to the host when the host has none, so pre-fix state survives; pi's own files are seeded `{}` instead, since their packaged copies are placeholders.
-- Mounts a fresh **tmpfs** at `~/.pi/agent/intercom`, so the pi-intercom broker and its unix socket stay private per sandbox: a session and its pi-subagents children can talk; independent sandboxes and the host cannot. Without it the extension would write shared state into `$CONDA_PREFIX` through the rw `~/.pi` bind.
-- If the workdir is a **git worktree**, binds the main repo's common `.git` dir read-write so git can read shared objects and update worktree admin files, without exposing the main checkout.
-- Calls `inject-pi-extensions.sh` to merge the packaged `packages` block into `~/.pi/agent/settings.json`, and `inject-strata-model.sh` to add the local Strata server to the host's `~/.pi/agent/models.json` as the `strata` provider (endpoint and context size from `strata.ini`, model name from the newest run config; an existing provider is left alone, a stale port reported). Both run on the host before bwrap, and the binds above put their result inside the sandbox too.
-- On exit, rsyncs `skills`, `AGENTS.md`, `keybindings.json` back from `$CONDA_PREFIX/home/.pi/agent/` into `pixi-recipes/pi-home/`, so edits made from inside pi can be reviewed and committed. `-c --no-times` keeps mtimes stable when content is unchanged, otherwise pixi-build would rebuild the recipe on every launch.
-- Unsets all `PIXI_*` / `CONDA_*` plus `INIT_CWD`, `XML_CATALOG_FILES`, `GSETTINGS_SCHEMA_DIR` and the `HERDR_*` control variables before exec (the last for the reason in the next section).
-
-`pi-unsafe.sh` runs with full host access (dev/debug only) and additionally symlinks `$CONDA_PREFIX/home/.pi/agent/npm` into `~/.pi/agent/` (copies on Windows, where MSYS bash cannot symlink, and forces `HOME=%USERPROFILE%` so bash's `~` matches pi's) and cleans up via `trap`. It calls the same two pi-config injectors, so a sandboxed and an unsandboxed session see the same packages and models. It consumes `--no-git` only to swallow the flag (with a warning): no GitHub policy applies there — with full host access, absolute paths, `cmd.exe` on Windows and raw HTTP calls with the host token sidestep every PATH/env guard, so the sandbox's `git-guards` layer is deliberately not attempted. Use the sandboxed `pi` when the policy matters.
-
-### `~/.local/bin` wrappers
-
-`pixi r install` runs all seven installers (`install-bin.sh`, `install-apparmor.sh`, `install-clipboard.sh`, `install-file-viewer-renderers.sh`, `install-git.sh`, `install-memlock.sh`, `install-oomd.sh`); `install-bin.sh` symlinks `scripts/install/{pi,opendesign,herdr,gh}` into `~/.local/bin` and generates a herdr desktop entry + icon (picking ptyxis / gnome-terminal / plain terminal depending on what exists). `install-git.sh` does the one-off GitHub groundwork (`gh auth login` only when no token exists at all — reruns never mint a second one; `gh auth setup-git` helper; `user.name`/`user.email` from the GitHub profile when missing); every step is idempotent — the policy hooks need no install, they are versioned in `scripts/git-guards/hooks/`. `install-oomd.sh` takes the login session out of `systemd-oomd`'s hands (see the [Strata](#strata-strata-env-strataini) section); it is a no-op where oomd is not installed. `pixi r uninstall` removes the `~/.local/bin` wrappers.
-
-The wrappers `cd` into the repo and call the matching pixi task with your cwd as the workspace, forwarding the rest base64-encoded in `_FWD_ARGS` (which dodges pixi's shell-parser mangling of quotes). They resolve `--bind` and `--ro-bind` relative paths against your cwd first, since the task itself runs with the repo as cwd, and honour `--no-sandbox` by routing to the `*-unsafe` task.
-
-Calling the pixi task directly is the awkward path: it takes exactly one positional argument (the workspace), so `--no-git`, `--bind`, `--ro-bind` and any agent flags must follow a `--` separator. `pixi run pi --no-git` does **not** work — `--no-git` is consumed as the workspace directory.
-
-**A workspace path may contain spaces** — `/home/me/Pathfinder 2/Kingmaker` binds as one path through all four entry points (`pi`, `opendesign`, `pixi r pi`, `pixi r opendesign`), and so may every `--bind`/`--ro-bind` path. Two layers had to be fixed for that, and both failed silently:
-
-- Pixi renders `{{ root_dir }}` into the task command by **plain text substitution** and then parses the result as a shell command line, so an unquoted workspace path split at the first space and the launcher bound `…/Pathfinder` (the remainder became an agent flag). The four launcher tasks therefore carry `"{{ root_dir }}"` and it must stay quoted — double quotes because `pi-unsafe` runs on Windows too. What that rendering still cannot carry is a path with `$`, backticks or `"`, which the shell expands rather than passes literally; single quotes would be literal but die on a path containing `'`, a legal filename character, so they are not used. Arguments after `--` are safe either way: pixi appends them pre-quoted, and the wrappers move every other argument NUL-separated and base64-encoded in `_FWD_ARGS`.
-- Every mount list in `bwrap-pi.sh` and `opendesign-bwrap.sh` is a bash **array** expanded as `"${array[@]}"`: the workspace bind and `--chdir`, the extra `--bind`/`--ro-bind` paths, the git/gh credential binds, the CUDA device nodes, the worktree and herdr-worktree binds, `/run/systemd/resolve`, and the `--setenv PATH` / `GIT_CONFIG_VALUE_0` values. A space-joined string word-splits into a truncated bind, and bwrap creates the truncated path instead of failing — the same silent wrong-directory as the pixi bug, one layer down.
-
-`run-herdr.sh` backs the `herdr` task: it registers the file-viewer plugin, then **removes `$CONDA_PREFIX/bin` from PATH** so `pi` spawned inside a herdr pane resolves the `~/.local/bin` wrapper instead of the raw conda binaries (which would bypass the sandbox). It resolves the real herdr binary _before_ the reorder, or `exec herdr` would re-enter its own wrapper forever, and `cd $HOME` so new panes start in `~`.
-
-### pi-subagents inside a Herdr session
-
-`pi-subagents` (pinned in `pixi-recipes/pi-extensions/recipe.yaml`) can place a child in a terminal pane instead of a background runner: `machine: <saved Herdr machine>`, or — since 0.89.0 — `machine: "local"`, which opens the child in a new tab of the Herdr session the calling Pi runs in, with no saved machine and no SSH. It identifies the terminal by `HERDR_ENV=1` plus `HERDR_PANE_ID`, confirms its own pane over the Herdr server socket, then `tab.create`s in a `pi-subagents-<hash(cwd)>` workspace, `agent.start --kind pi`s a **`pi` resolved from that pane shell's PATH**, prompts it through Herdr, and drives it over a per-run bridge: a runtime dir under `$TMPDIR` holding `manifest.json` and `bridge.sock`, whose path the parent passes in `PI_SUBAGENTS_HERDR_RUNTIME_DIR` and whose manifest it polls for 30 s before declaring the child dead.
-
-**Placement is a no-op in this sandbox, by construction.** `/home` and `/run` are tmpfs here, and `~/.config/herdr` — where the server socket lives — is not bound, so the inherited `HERDR_SOCKET_PATH` points at nothing: from inside the sandbox `herdr status server --json` answers `not_running` _while the server that launched the pane is running_, and `machine: "local"` fails with "Herdr server is stopped or incompatible", naming the wrong cause. Saved Herdr machines fail the same way (their catalog needs the same socket) and so would their SSH transport (`~/.ssh` is absent). `bwrap-pi.sh` therefore unsets `HERDR_ENV`, `HERDR_PANE_ID`, `HERDR_WORKSPACE_ID`, `HERDR_TAB_ID`, `HERDR_SOCKET_PATH` and `HERDR_CLIENT_SOCKET_PATH`, which makes the launch fail on pi-subagents' own "running in neither Herdr nor Rex" before anything is created, and makes the herdr skill's `test "${HERDR_ENV:-}" = 1` precondition fail instead of promising control of a server the sandbox cannot reach.
-
-Nothing that matters is lost. Background and foreground children are `spawn()`ed by the parent Pi, so they live in the same namespace and inherit the workspace binds, the `--no-git`/git-guard environment and the private `~/.pi/agent/intercom` tmpfs; `--die-with-parent` additionally keeps them from outliving the session (their runs cannot be resumed after the sandbox exits, unlike host runs).
-
-**Binding the socket is the wrong fix, and there is no narrow version of it.** It is the whole multiplexer: `pane send-keys`/`send-text` types into any host pane, `pane read` returns any pane's output, `agent prompt` steers other sessions, `workspace`/`worktree create` makes host state, and `herdr --machine` forwards to SSH hosts — which is exactly what the `/run` tmpfs exists to prevent, and a read-only bind would not help, because AF_UNIX `connect()` works across read-only mounts. The threat actor is not only a rogue agent: a cloned repo's `.pi/settings.json` or `.pi/agents/*.md` may name `machine: local`. And even the "safe" path is not safe: a pane child resolves the `~/.local/bin/pi` wrapper, so it comes up as a **second, independent sandbox** that inherits neither `--no-git` nor the caller's `--bind`/`--ro-bind`, its bridge runtime dir is a different `/tmp` tmpfs, and the bridge cannot connect anyway (0.89.0 waits 30 s, reports "did not start the pi-subagents bridge" and closes the pane). The one regime where placement works is a pane that resolves the raw conda `pi` — an unsandboxed child, i.e. the hole `run-herdr.sh`'s PATH strip exists to close. Making panes genuinely work would take a host-side broker that does only "open a tab, exec `pi` with a fixed argv, share one runtime dir", not the multiplexer's socket.
-
-`worktree: true` is the one subagent feature that needs adjusting: its dedicated root defaults to `{dirname(repoRoot)}/worktrees`, outside every bind, so `git worktree add` fails. When the workspace is a git root, `bwrap-pi.sh` binds `$HOME/.herdr/worktrees/<project>` read-write and sets `PI_SUBAGENTS_WORKTREE_DIR` to `$HOME/.herdr/worktrees`, so the leaf lands under that bind, host-visible and durable, next to the worktrees the git-worktree skill creates. Setting it also forces native allocation (Worktrunk is off, which is the only option in here). From inside a worktree the same setting would point at the checkout itself, which pi-subagents rejects as unsafe — create siblings by hand there.
-
-`herdr integration install pi` is not run by `pixi r install` and should not be: its extension reports pane state through `HERDR_SOCKET_PATH`, so it can only ever serve host-run Pi. Sandboxed sessions are classified by Herdr's terminal heuristics.
+pi-subagents' `machine: "local"` / saved Herdr machines do not work inside this sandbox:
+`~/.config/herdr` and `/run` are absent, so the server socket is unreachable and the
+launcher unsets all `HERDR_*` variables. Background/foreground children inherit the
+namespace, binds and `--no-git` contract. `worktree: true` gets
+`PI_SUBAGENTS_WORKTREE_DIR=$HOME/.herdr/worktrees` bound read-write for git roots.
+`herdr integration install pi` is intentionally not installed.
 
 ### CI
 
-`.github/workflows/{lint,llamacpp,pi}.yml`. Five things about the pi steps are load-bearing and easy to undo by accident:
-
-- **Every `pi` step has `timeout-minutes: 10`** — a backstop, not the answer to a known failure. Print mode used to finish its turn, print the answer, and then never exit; reproducibly, when pointed at a `--models-preset` router whose model is still `unloaded`: pi answered within seconds and then kept one idle socket to llama-server open forever. The handle was `pi-llama-cpp`'s SSE stream to `/models/sse` — it reconnects until `disconnect()` is called, and nothing called it (`gsanhueza/pi-llama-cpp` #40, which also leaks one such stream per server re-scan). The recipe now pins upstream's `develop` branch, which closes every SSE client from a `session_shutdown` handler, so no local patch is applied; the branch is a test pin, not a released version. Upstream still carries reports of this class (`earendil-works/pi` #2677, #2584, #3886, #5944, #7734 — the last names a spawned subagent as the trigger), so a step that wedges must still fail as a named step in minutes rather than be cancelled at the runner's 6 h limit.
-- **The model under test is `LFM2.5-230M`, and its tool calls are guesses.** It is 147 MB, so a cold runner spends seconds on it, and that is the whole reason it is here: `--tools bash` steps assert on the chain (sandbox, wrapper, git guard, rtk) underneath a tool call, and the model making one is luck — run 42830109814 got `ls` on `ubuntu-latest` and "could you please specify the command" on `ubuntu-24.04-arm` for the identical prompt. That flakiness is accepted rather than retried. `-nt` on the pure-text steps keeps that guessing out of them entirely: they prove pi reaches the server and completes a turn with no tools available. A tool that blocks forever (anything waiting on stdin, a password prompt, or a network peer) is the other half of the hang class. `LFM3-1.7B` would be the better tool-caller but cannot run on CI today: the prebuilt pin is `Anbeeld/beellama.cpp` v0.4.9, the newest release, whose binaries predate the `lfm3` architecture, so llama-server answers `500: model name=LFM3-1.7B failed to load` with `unknown model architecture: 'lfm3'` on every runner. The source pin (`crusaderky/llama.cpp` `beellama-staging-v0.4.10-r1`) does have lfm3, so the `llamacpp-source-*` envs load it — switching the pi workflow to a source build would buy a llama.cpp compile per job and still leave Windows, which has no source job, on the old model. Revisit when beellama releases a build with lfm3.
-- **The `~/.local/bin/pi` wrapper steps set `working-directory: ../dummy`.** The wrapper makes your cwd the workspace, so from the repo root they hand pi this repo's 46 KB `AGENTS.md` (plus the skills' descriptions): ~30k prompt tokens, which a model of this size cannot prefill inside the step bound on a CPU-only runner (run 42830109814 was 12 min into `task.n_tokens = 30254`, progress 0.68, when the bound fired) — the step times out with the model still working, which is not a pi bug. The `pixi r pi` steps avoid it by taking no workspace argument, which means a temp directory.
-- **Both workflows cache `~/.cache/huggingface/hub` under a key that hashes `models.ini`** (`hf-hub-<os>-<hash>`, shared between them so one archive per OS serves both). `common/hf-cache.cpp` resolves the download directory as `LLAMA_CACHE` → `HF_HUB_CACHE` → `HUGGINGFACE_HUB_CACHE` → `$HF_HOME/hub` → `$XDG_CACHE_HOME/huggingface/hub` → `$HOME` (`%USERPROFILE%` on Windows) `/.cache/huggingface/hub`, so `~` is that path on all three runners and `hub/` is where the GGUFs live. The model belongs in the key: with a key naming only the OS, a preset or quant change hits the old cache, downloads into it, and never re-saves — an existing key is never overwritten — so every later run downloads again. `restore-keys` keeps a `models.ini` edit that does not move the pins a partial restore.
-
-`llamacpp.yml` sets no job-level timeout because the source backends legitimately compile for a long time; `pi.yml` caps the job at 30 minutes on top of the per-step bounds.
+`.github/workflows/{lint,llamacpp,pi,opendesign}.yml`. Every Pi step has
+`timeout-minutes: 10` as a backstop for turns that finish but leave an idle SSE socket
+open; `pi.yml` also caps the job at 30 minutes. The model is `LFM2.5-230M` (147 MB, fast
+on a cold runner); its tool calls are guesses, so `-nt` keeps pure-text steps honest and
+a `--tools bash` step may emit a question instead of a command. The wrapper steps use
+`working-directory: ../dummy` to avoid prefilling this repo's large `AGENTS.md` on a
+small CPU-only model. Both Pi and llamacpp workflows cache
+`~/.cache/huggingface/hub` under `hf-hub-<os>-${{ hashFiles('models.ini') }}`; the model
+pin belongs in the key because an existing cache entry is never overwritten.
+`llamacpp.yml` has no job timeout because source backends legitimately compile for a
+long time.
 
 ## Python tooling
 
-### `scripts/gguf_common.py` — shared GGUF header primitives
+### `scripts/gguf_common.py`
 
-Imported by `gguf-meta-extract.py` (which Range-fetches headers over HTTP, `pytools`) and `perplexity.py` (which reads them off the local HF cache, `llamacpp-*`), so it is **stdlib only** for the same reason as `perplexity_common.py`. Holds `GGML_SIZES`/`quant_info`/`tensor_nbytes`, the header-only parser (`parse_header`, `Truncated`, `read_header` for a local file — both yield a `GgufHeader`), and:
+Stdlib-only header parser shared by `gguf-meta-extract.py` (pytools) and `perplexity.py`
+(llamacpp envs). Holds `GGML_SIZES`/`quant_info`/`tensor_nbytes`, `parse_header`,
+`Truncated`, `read_header`, and `GgufHeader`.
 
-- **`ARCH_LAZY_TENSORS`** — the tensors an architecture creates with `TENSOR_READ_LAZY`: `per_layer_token_embd.weight` on all four of `gemma4`, `qwen4exp`, `deepseek41` and `hy_v4_flash`, the same name every time — DeepSeek-V4.1-Flash's Engram memory is qwen4exp's n-gram hash with one set of hash constants per Engram layer, and `deepseek41.cpp` keeps them "all in one lazily read tensor, like the qwen4exp n-gram table": 768,022,850 rows × 256 (125.9 GiB at UD-Q2_K_XL — two fifths of the file). Hy4-Flash's `hy-v4-flash.cpp` says the same thing about its own 4 Engram modules — 660,006,416 rows × 96, 59.01 GiB of the AngelSlim Q3_K repo's 144.70 GiB of weights. Hash-embedding tables whose byte range llama.cpp registers in `lazy_tensor_ranges` and reads a row at a time out of the mmap as tokens need it. Such a tensor is **weights on disk that never become resident weights**, so it never reaches VRAM — and on Qwen3.8-Flash-Next it is a _quarter of the file_ (26.8 GiB of 103.7 at UD-Q4_K_XL). There is no `engram_embd.weight` to look for: `blk.N.engram_kv` / `engram_gate` are ordinary resident projections. The flag is arch code, not GGUF metadata; keep the table in step with `git grep -l TENSOR_READ_LAZY src/models/`. Names are matched on the `blk.N.`-stripped form, so a per-layer tensor hits the same entry as a global one.
-- **`LAZY_AUTO_MIN_BYTES`** (4 GiB) and **`LAZY_MODE_FLAG`** (`--lazy-mode` / `-lzm`; the older `--tensor-read-lazy` spelling is not in this fork's binary) — what the lazy read is conditional on: the size threshold under the default `auto` (which is why Gemma 4's small sizes keep their table resident), `--lazy-mode off`, and a device without `mmap_support`, where `load_tensors` resolves `auto` to `off` (iGPUs). It does **not** depend on `--load-mode`: `init_mappings` maps a file when `use_mmap || lazy.any()`, and `mlock` deliberately refuses to lock the lazy ranges ("locking a lazy tensor would fault all of it in"), so `models.ini`'s own `load-mode = mlock` keeps the table off the resident weights like `dio` does. Both scripts say so next to the figure.
-- **`GgufHeader.sizes()`** / **`TensorSize`** — **every byte total in this project comes from here, and it is the header's offset column, not `GGML_SIZES`, that decides a tensor's size.** A ggml type id is a bare integer with no registry behind it, so a fork that re-numbered its enum makes the table describe a format the file does not hold; the offsets cannot be wrong about their own file. GGUF aligns each tensor's offset to `general.alignment` (32), so a gap is the payload plus at most `alignment - 1` bytes of pad: when table and gap agree within that tolerance `nbytes` keeps the table's value (it excludes the padding, so it is exactly what a loader allocates — `size_source="table"`), and only a disagreement takes the gap (`"offsets"`). An unknown id lands on `"offsets"` too, so an id this table has never seen still has a size; `"table-unverified"` marks the tensors with no usable offset — the last one of a file whose total size went unreported (`fetch_prefix` reads the total from `Content-Range`, `read_header` from `fstat`). **`renumbered_types()`** lists the ids where the two sources disagree, as `RenumberedType` rows with table vs measured bpw, which is what `gguf-meta-extract.py` warns about. (Precedent: Agention's Gyro trellis types occupy ids 144–149, which ik_llama.cpp spells `IQ4_KS`/`IQ2_KS`/`IQ4_KSS`/`Q8_K16`/`Q8_K32`/`Q8_KR8` at 2.25–9.25 bpw, while the files hold 128-element blocks of 26/30/34/42/50/58 bytes = 1.625–3.625 bpw; that inflated Gyro-M's resident weights from 34.98 GiB to 65.21. No id table can express it either, because Gyro-L gives its three ids a different bpw per layer range.)
-- **`lazy_tensor_names(metadata)`** and **`GgufHeader.lazy_bytes(names)`** — the names the architecture marks lazy, and one GGUF file's marked tensors with their offset-derived bytes. The **arch lives only in split 0's metadata** while the tensor may sit in any shard, so a caller with a split model must merge the metadata across shards before matching each shard's own tensor table (`perplexity.py`'s `lazy_bytes_by_shard`); a shard whose only tensor is the lazy table still gets a size, because the file's total bounds it.
+- `ARCH_LAZY_TENSORS`: `per_layer_token_embd.weight` on `gemma4`, `qwen4exp`,
+  `deepseek41` and `hy_v4_flash` is read lazily from the mmap (n-gram hash tables, up to
+  a quarter of a Qwen3.8-Flash-Next file). Such bytes are on disk, not resident weights
+  or VRAM. Keep this table in sync with `git grep -l TENSOR_READ_LAZY src/models/`.
+- `LAZY_AUTO_MIN_BYTES` (4 GiB), `LAZY_MODE_FLAG` (`--lazy-mode`/`-lzm`): lazy reads
+  depend on size, the flag and mmap support, not on `--load-mode`.
+- `GgufHeader.sizes()` / `TensorSize`: sizes come from the GGUF **offset column**, not
+  `GGML_SIZES`, because a fork may renumber type ids. A table/gap mismatch beyond
+  alignment (32) takes the gap; `renumbered_types()` reports those ids.
+- `lazy_tensor_names(metadata)` / `GgufHeader.lazy_bytes(names)`: the arch lives in
+  split 0's metadata but the tensor may sit in any shard, so merge metadata first.
 
-### `scripts/kv_cache_common.py` — shared KV-cache sizing
+### `scripts/kv_cache_common.py`
 
-Imported by `perplexity.py`, `perplexity-report.py` and `gguf-meta-extract.py` (hyphenated names, so they are run as `python scripts/<name>.py` and `sys.path[0]` is `scripts/`).
+Stdlib-only KV sizing shared by `perplexity.py`, `perplexity-report.py` and
+`gguf-meta-extract.py`. `BPW`/`resolve_bpw` (bits per weight including block overhead),
+`ModelKV` (attention/SWA/compressed groups, head dims, loop count, exact tail),
+`CompressedKV` (side caches and context-independent buffers),
+`KVARN_FALLBACK`, `KVARN_HEAD_DIMS` (128/256/512; unsupported head dims refuse to start),
+and `MODEL_KV`/`resolve_model(ref)` (hand-curated geometries from GGUF headers).
 
-- **`BPW`** / **`resolve_bpw(name)`** — bits per weight per quant, including block overhead (`q8_0` = 8.5, `kvarn4` = 4.375, …); warns and falls back to 32.0 on unknown names.
-- **`ModelKV`** — a model's KV geometry (full-attention and sliding-window layer groups, per-group KV-head counts, window size, key/value head dims, loop count, plus `compressed` side caches) and the sizing model for beellama's persistent allocation (quant body + per-sequence f16 exact-tail overlay; bodyless exact ring when the tail covers the SWA window). Key API: `get_total_kv_cache_size()`, `cache_breakdown()` → `CacheGroupSize` rows, `elems_per_token`, `compressed_rows()`/`compressed_note()`, `full_attn_layers_all`/`sliding_window_layers_all`. Only `layers * kv_heads` enters the arithmetic, so a group with varying per-layer head counts is described by its (possibly fractional) average; `value_dim = 0` expresses an MLA / K-only cache; `n_loops > 1` is a looped transformer whose `block_count` blocks each get one cache layer **per pass**.
-- **`CompressedKV`** — a cache group that is _not_ one row per token, allocated **in addition** to the token groups (the same layer counts in both). `ratio` = tokens per stored row (`4`/`128` for DeepSeek-V4 CSA/HCA, `1` for a plain full-context side cache such as the DeepSeek-V3.2 / GLM-DSA indexer key cache, `0` for a context-independent buffer of `fixed_rows`). `pad` rounds the row count up; `per_seq = False` marks a single shared allocation.
-- **`KVARN_FALLBACK`** — the plain ggml type each `kvarnN` falls back to (`kvarn_fallback_cache_type` in `common/arg.cpp`) when a cache never receives the KVarN params.
-- **`KVARN_HEAD_DIMS`** = `(128, 256, 512)` and **`ModelKV.support_kvarn`** — the head dims KVarN can quantize (its kernels rotate each head through a Walsh-Hadamard transform in fixed 128-element slices). This covers head dims only; arch-level exclusions are the caller's. The two failure modes differ: an unsupported **architecture** starts and silently stores the fallback type, whereas an unsupported **head dim** makes llama-server refuse to start (`fail_if_unsupported` has no CLI override) — so the 64-dim-head LFM2 family cannot use `-ctk kvarnN` at all.
-- **`MODEL_KV`** / **`resolve_model(ref)`** — hand-curated geometries for the models this project runs (transcribed from their GGUF headers via `gguf-meta-extract.py`), matched case-insensitively by substring against a `-hf`/`-m` reference. An entry transcribes the header and lets `ModelKV` do the arithmetic, with one exception that has no expressible form: a **partially** looped model, where `sensenova_loop`'s `block_count` already counts one block per visit (57 for 32 physical layers, 24 of them run twice) and no multiplier describes a loop covering only part of the stack. `SenseNova-Loop-9B` therefore curates **visit** counts — 14 full-attention cache layers + 42 recurrent states — with `n_loops` left at 1; setting 2 there would square the cache.
+> All KV arithmetic belongs in `ModelKV`; callers must not derive bytes. Curate hparams
+> verbatim from GGUF headers, and count **cache layers**, not `block_count`: hybrid
+> recurrent blocks have no KV, MTP blocks may be excluded, and looped models count visits
+> (Qwen3.5/3.6: 16 cache layers out of 65 blocks; SenseNova-Loop-9B: 14 + 42 visits).
 
-> **All KV-cache arithmetic belongs in `ModelKV`, never in a caller.** Every field must be a hparam transcribed **verbatim** from the GGUF header — never pre-multiplied or pre-summed (`full_attn_layers` is a physical block count, never `block_count * num_loops`). Every derived number is a `ModelKV` method or property; if the one you want doesn't exist, add it — a display value computed the wrong way is indistinguishable from a sizing bug. Whatever `gguf-meta-extract.py` reads out of a header, a curator must be able to type straight into `MODEL_KV` and get the same bytes. (Precedent: `num_loops` was once expanded inside `gguf-meta-extract.py`, which left `MODEL_KV` sizing looped models at half their real cache.)
->
-> **A layer count is a _cache_ layer count, not `block_count`** — the two coincide only for an ordinary dense transformer, so curate from `gguf-meta-extract.py`'s derivation block rather than from the raw header. A block can hold no cache in two ways: it is a hybrid's linear-attention block (fixed-size recurrent state instead — a `CompressedKV` row), or it is a NextN/MTP head on one of the `_ARCH_MTP_NO_CACHE` architectures. Qwen3.5/3.6 is both at once: of Qwen3.6-27B's 65 blocks, 48 are recurrent and 1 is MTP, leaving **16** that cache. And a count counts **visits** wherever a block is executed more than once: `nanbeige`'s blocks expand through `ModelKV.n_loops`, while `sensenova_loop` bakes the expansion into `block_count` itself (one block per visit, with 28-51 aliasing 4-27) — which is why `SenseNova-Loop-9B`'s 14 and 42 are visit counts against 32 physical layers. (Precedent: the whole Qwen3.5/3.6 family was once curated at `block_count`, overstating its cache ~4x.)
+### `scripts/perplexity_common.py`
 
-### `scripts/perplexity_common.py` — shared flag/log primitives
+Stdlib-only flag/log primitives: `canon`/`ALIASES` (llama.cpp's exact flag spellings),
+`iter_cmd_options`/`parse_cmd_args` (valueless flags → `True`, last value wins),
+`cmd_signature` (run identity, ignoring KLD/neutral/placement keys so a resumed sweep
+survives changes in offload policy), `iter_runs`/`LogRun`/`ModelFile` (log parsing,
+including split blocks left by a killed run; `ModelFile.resident = size - lazy`), and
+`select_model_files` (which GGUF `-hf <repo>:<tag>` loads: case-insensitive tag followed
+by `.` or `-`, first repo-listing match, one model only, sidecars excluded). Feed it the
+**repository listing**, not the local cache; `perplexity.py` fetches that via the Hub API
+and falls back to the cache offline.
 
-Imported by `perplexity.py` (runs in `llamacpp-*`) and `perplexity-report.py` (runs in `pytools`), so it is **stdlib only** — the two environments share no third-party dependency.
+### `scripts/perplexity.py`
 
-- **`canon`** / **`ALIASES`** — canonical (long, dash-free) name for every llama.cpp flag spelling this project passes. Not derivable: llama.cpp matches flags by exact string, `--hf` does not exist, and the dash count doesn't follow from the name (`-cmoe`/`-hffv` are single-dash; `--ppl`/`--ui` are double). Canonicalising is what lets a sweep resume against a log full of short spellings.
-- **`iter_cmd_options`** / **`parse_cmd_args`** — a command line as `(key, value, raw)` / `{key: value}`. A valueless flag is `True`; a repeated flag keeps its last value, matching llama.cpp's last-wins parsing (which is what lets a combo's `--hf-repo` override an `-hf` in `common:`). A token is a flag iff it is a dash followed by a letter, so `-1` reads as a value and no per-flag arity table is needed.
-- **`cmd_signature`** — a run's identity: canonical `(key, value)` pairs minus `IGNORED_KEYS`. That is `KLD_KEYS` (so a logits dump and its `--kl-divergence` rerun match), `NEUTRAL_KEYS` (options touching neither the logits nor the clock — `--offline`, `--hf-token`, logging) and `PLACEMENT_KEYS` (where and how the work runs: `-ngl`, `--fit*`, `--device`, `--threads`, `--load-mode`, `--cpu-moe`, …). The last two would otherwise force a resumed sweep to repeat days of measurements because the offload policy changed under it; delete a run's block from the log to force it to run again. `IGNORED_KEYS` is also what the report leaves out of its labels — `PLACEMENT_KEYS`, unlike `NEUTRAL_KEYS`, still shows up in its "Common Parameters" block, where a shared `-ngl 99` is what makes the speed chart interpretable.
-- **`iter_runs`** / **`LogRun`** / **`ModelFile`** — every run in a log with its command line, output, aborted flag, `# LABEL:` override and `# model:` weight sizes. A shard's `size=` is its whole file; the optional `lazy=` is how much of it llama.cpp reads from disk on demand (see `gguf_common.ARCH_LAZY_TENSORS`), so `ModelFile.resident = size - lazy` is what the report puts on its cost axis. `lazy=` is measured from the header's offset column (`GgufHeader.lazy_bytes`), never from a quant's block size, and `size=` is the file's own size, so a publisher that re-numbered its ggml type ids cannot move either figure. `lazy=` is absent both for an ordinary model and in every log written before it existed, and defaults to 0 — which is what those bytes used to be counted as, so an old log reads exactly as it did. One run per `------` section is the invariant, but not something a reader may assume: `run_llama_perplexity` writes a block's closing separator only after the child exits, so a sweep killed mid-run leaves its block open and the next invocation appends into the same section — gluing its first comment onto the dead run's last line when that line had no newline. `_run_spans` splits such a section back apart at the `#` comment block heading each extra command (at the command itself when it has none), and `seal_log` closes any dangling block before appending, repairing logs an older version left broken. Keeping only the first command, as the parser once did, **loses a completed measurement and files it under the killed run's flags** — the sweep then re-runs the good combo forever and skips the dead one forever.
-- **`select_model_files`** — which GGUF of a listing `-hf <repo>:<tag>` actually loads. A port of `find_best_model` / `get_split_files` / `gguf_filename_is_model` in llama.cpp's `common/download.cpp`, and none of it is guessable: the tag is matched **case-insensitively, with no left boundary, and must be followed by `.` or `-`**; the **first** file of the listing that matches wins; exactly **one** model is loaded (a split GGUF's shards, never two quants); and sidecars (`mmproj`, `imatrix`, `mtp-`, `eagle3-`, `dflash-`, `dspark-`) are never candidates even when the tag is in their name. Since `-` (0x2D) sorts before `.` (0x2E), a repo publishing mixed quants resolves `:Q5_K_M` to `…-Q5_K_M-Q4_K_M.gguf` rather than to the `…-Q5_K_M.gguf` sitting next to it — **use `--hf-file` when a tag is a prefix or suffix of a sibling's**. An untagged `-hf` takes llama.cpp's own default (`Q4_K_M`, then `Q8_0`, then the first model file). Input is grouped by HF cache snapshot, so a repo cached at two commits still reports both: that is weights moving under a multi-day sweep, which is what the provenance exists to show.
+Runs `llama-perplexity` over a cross-product of options against one logits dump. YAML:
+`common`, `baseline`, `cross-product` (lists of option dicts), optional `include`/
+`exclude`, `max_eta_factor`. `label:` becomes `# LABEL:`; duplicate keys across one
+product are an error; `exclude` matches all its keys; asymmetric KVarN, an exact-cache
+tail and finer value than key quants are auto-dropped; `--file`/`--ctx-size`/`--chunks`/
+`--kl-divergence-base` in a combo are hard errors. Combos whose `:quant` tags resolve to
+the same file are collapsed. The baseline runs twice (dump creation and noise floor);
+completed runs are skipped by `cmd_signature`, output appends to `perplexity.log`.
 
-  > ⚠ **Feed it the repository listing, not the local cache** — `find_best_model` reads `hf_cache::get_repo_files`, so a file this machine has not downloaded yet still outranks one it has. Resolving against the cache alone inverts the answer exactly when it matters: on the first run of a new quant the cache holds only the _previous_ ones, and `:IQ3_S` then lands on the already-downloaded `…-IQ4_XS-IQ3_S.gguf` instead of the `…-IQ3_S-IQ3_XXS.gguf` it is about to fetch. `perplexity.py`'s `hf_repo_files` supplies the listing (`api/models/<repo>/tree/main?recursive=true`, stdlib `urllib`, memoised per repo, `--hf-token`/`$HF_TOKEN` for gated repos); on `--offline` or any request failure it falls back to the cache, which llama.cpp is then using too. The fallback is only ever wrong while the real file is missing — once downloaded it precedes every other cached match in the listing the cache is a subset of — so post-run provenance is right either way.
+### `scripts/perplexity-report.py`
 
-### `scripts/perplexity.py` — KLD sweep
+Parses `perplexity.log` into interactive HTML + Markdown/SVG reports. X axis is total
+VRAM = **resident** weights (`lazy=` bytes get their own "On disk" column) + KV cache at
+the run's context; one KLD frontier is drawn on every chart. Labels show only what the
+sweep varied and name models by the file loaded, not the `-hf` tag. X ranges are shared
+across charts, Y ranges local; `--cache-type-*`/`--author`/`--whitelist` filter runs
+without recomputing labels or colours.
 
-Runs `llama-perplexity` over a **cross-product of arbitrary command-line options**, measuring KL divergence against a single baseline. YAML config: `common` (command prefix), `baseline` (creates the logits dump), `cross-product` (list of lists of option dicts, expanded into every union of one dict per list), optional `include`/`exclude`, `max_eta_factor`.
+### `scripts/gguf-meta-extract.py`
 
-Option keys are llama.cpp flags without dashes, emitted as `--<key> <value>`; a value of `false` omits the flag entirely (e.g. `{kv-tail-tokens: false}` for mainline llama.cpp, which doesn't know it). Nothing is KV-specific, so one sweep can vary cache quants, model quantization (`hf-repo`), or both.
+Range-fetches only GGUF headers (8 MiB → 512 MiB) to dump per-tensor CSV and stderr
+estimates without downloading weights. Sizes come from `GgufHeader.sizes`;
+`bits_per_weight = total_bytes * 8 / n_points`. Stderr reports weight buckets (routed
+experts and fraction activated, shared experts, dense FFN, ngrams, other), KV estimates
+at 256k across `KV_QUANTS`, fixed overhead, and MSA indexer streams. Totals split into
+resident / on-disk ngrams / all weights, plus an activated-weights line for MoE and
+looped models. The KV estimate derives `ModelKV` from the GGUF's own hparams
+(`n_embd_k_gqa(il) = key_length * head_count_kv(il)`), never from `MODEL_KV`.
 
-- **`label:`** is the only key not passed through: it becomes a `# LABEL:` comment and overrides the report's own label. Labels from several lists join with `|` in list order.
-- **Key collisions** across the lists of one product are a config error (`label:` excepted).
-- **`exclude`** drops every combo matching _all_ keys of an entry, whatever its other options.
-- **Auto-dropped** from the cross-product (but not from `include`, where an explicit request is intentional): asymmetric KVarN, a non-zero tail on an exact f16/f16 cache, and a value cache finer than the key cache. Evaluated on `common:` overlaid with the combo.
-- **Hard config errors**: `--file`/`--ctx-size`/`--chunks`/`--kl-divergence-base` in a combo (all four are fixed by the single logits dump), and a missing `--kl-divergence-base` in `common:`.
-- **Model collisions** (`drop_model_collisions`, run after `combos()` because it needs the Hub): two combos differing only by a `:quant` tag that resolves to the **same file** are one measurement, so the duplicate is dropped and reported with the `hf-file:` that would have measured the quant its tag names. In a repo publishing mixed quants this is the rule, not the exception — `:Q5_K_M`, `:IQ4_XS`, `:IQ3_S` and `:IQ3_XXS` of `AtomicChat/Qwen3.8-27B-GGUF` all load a _different_ file than their name suggests. The survivor is the combo whose tag matches a single file of the repo, i.e. the one that says what it loads; `--hf-file` is expanded to its whole split (`split_shards`) so pinning shard 1 and letting a tag resolve to it compare equal. Without the check the sweep spends hours proving a model equals itself and the report draws it as two series with identical KLD.
+Architecture knowledge absent from GGUFs lives in tables here, mirroring llama.cpp:
+`_ARCH_SWA_PATTERN`, `_ARCH_FULL_ATTN_INTERVAL` (hybrids with scalar `head_count_kv`),
+`_recurrent_state_group()`, `_ARCH_MTP_NO_CACHE`, `_ARCH_INDEXER_KV`,
+`_ARCH_INDEXER_SIDE_CACHE` with `_INDEXER_KPOOL_ROW_SLOTS`,
+`_ARCH_INDEXER_TOP_K_GATED`, `_ple_conv_state_group()`, `_ARCH_K_ONLY_CACHE`,
+`_ARCH_NO_KVARN`, `_loop_schedule` (repeated passes and aliased visits), DeepSeek-V4 /
+V4.1 side caches, and SWA tail clamps. `-v` adds the per-group KV derivation.
 
-The baseline runs twice — once to create the dump, once with `--kl-divergence` against its own logits (noise floor + reference speed without dump I/O). Completed runs are skipped by `cmd_signature`, so a sweep is idempotent and resumable, including against logs from older versions of the script and across a change of offload policy (`PLACEMENT_KEYS` is not part of a run's identity — `Combo.key` drops the same keys, so two combos differing only by `--fit-target` are one run). Output appends to `perplexity.log`.
+### `scripts/llama-cpp-changelog.py`
 
-### `scripts/perplexity-report.py` — KLD report
+Deterministic markdown changelog between git refs of any fork. Defaults: repo = active
+`fork:` in the source recipe (`--repo` overrides), `from` = recipe's
+`# Last sync with main at <tag>` comment if present, else that fork's active/commented
+pin, `to` = latest stable `bNNNN`/`vX.Y.Z` tag. Commits-only git clone cache per fork at
+`~/.cache/llama-cpp-changelog/<owner>-<repo>.git` (`LLAMA_CPP_CHANGELOG_CACHE` overrides);
+PR bodies need `GITHUB_TOKEN`/`GH_TOKEN`. The **llama-cpp-changelog** skill summarizes its
+output.
 
-Parses a `perplexity.log`, extracts per-chunk KL divergence, and writes an interactive HTML report (Chart.js inlined from CDN, with a `<script>` tag fallback) plus a Markdown one (static matplotlib SVG).
+### `sample-data/context-bench/`
 
-Non-obvious behaviour worth knowing before editing:
-
-- **Cost on the x axis is total VRAM**: model weights (summed from the `# model:` provenance the sweeper records) plus the KV cache at the projected context. Weights are all-or-nothing across a log — a row silently missing them would sit at the wrong x — so a log without provenance falls back to KV cache alone, then weights alone, then bpw. The axis is not anchored at 0, or the sweep would collapse into a sliver at the right edge.
-- **Weights means _resident_ weights**: the provenance's `lazy=` bytes get their own "On disk" column and are in neither the Weights nor the VRAM figure. Leaving Qwen3.8-Flash-Next's 26.8 GiB n-gram table in the cost would move it a quarter of the axis to the right of where it runs, and would order its variants by a table whose quant the publisher picks independently of the model's (IQ4_NL in seven of unsloth's nine, Q8_0 in two). The column carries the two ways the bytes come back — `--lazy-mode off`, and `auto` on a device without mmap support.
-- **The KV figure comes from `kv_cache_common.MODEL_KV`**, resolved **per run** and evaluated at `--ctx-size` (default: the run's own context) and `--n-parallel` (default 4).
-- **One frontier, drawn on every plot** — the runs with the lowest mean KLD at each cost. Other charts mark those same runs rather than their own optimum, so a point can sit beyond the frontier line there: the fastest run at a cost need not be the most accurate.
-- **Labels show only what the sweep varied** (`_build_labels`), `|`-joined in the order model → KV cache → everything else, since a run is only distinguishable from its siblings by what changed. A `# LABEL:` comment overrides the lot.
-- **A model is named by the file it loaded, not by its `-hf` tag** (`_model_quants` → `_file_quants`). The tag is not a name: several tags of one repo can resolve to the same file, and a repo may leave its own marker out of the tag while every file carries it — AtomicChat's `:Q4_K_M` loads `Qwen3.8-27B-AD-Q4_K_M.gguf`, so labelling by the tag would print it as plain `Q4_K_M` beside unsloth's `UD-Q4_K_XL`, as if only one of them were a custom mix. What is stripped is the model name **each repo's own** files all lead with, in whole segments — `MiniCPM5-2B-` for bartowski, `MiniCPM5-2B-heretic-abliterated-` for Abiray, `MiniCPM5-2B.i1-` for mradermacher, all three landing on `Q6_K`, since which publisher abliterated or imatrix'd it is what the _author_ half of the label already says. Stripping against the whole log instead stops at the first segment any publisher spells differently, so one repo naming the model `MiniCPM5-2B.i1` drags `2B-` back into every label and leaves Abiray's at `2B-heretic-abliterated-Q6_K`. A **segment** breaks on a dash, and on a dot except between two digits (`MiniCPM5-2B.i1-Q6_K` and `LFM2.5-2.6B.Q6_K` split at the quant; `LFM2.5`, `2.6B`, `Qwen3.8` do not) — dashes alone weld the quant onto the name and no sibling can match it away. What a repo's siblings do _not_ share is kept, which is exactly its own mix marker: LiquidAI's `QAD-Q4_0` beside its plain `Q4_K_M`, unsloth's `UD-Q4_K_XL` beside its plain `Q4_K_M`. A repo contributing a **single** file has no siblings — and compared with itself it would strip down to its last segment, eating that marker — so it falls back to the prefix the whole log shares. Runs from logs written before the `# model:` provenance keep their tag.
-- **Framing is shared on X, local on Y** — every X change goes through one `setXRange` and lands on all charts; Y belongs to each plot.
-- **Filters** `--cache-type-k`/`--cache-type-v`/`--author` (OR within a flag, AND between) and `--whitelist` (exact labels). The baseline and logits runs always survive, and neither labels nor author colours are recomputed on the survivors, so a filtered report stays comparable with the full one.
-
-### `scripts/gguf-meta-extract.py` — GGUF header inspector / VRAM estimator
-
-Points at a HF GGUF repo directory, a single `.gguf` blob/resolve URL, or a glob, and dumps per-tensor metadata to CSV **without downloading the weights**: only the header is fetched, via HTTP Range requests (starting at 8 MiB, growing until the tensor table parses, capped at 512 MiB). The parser, the ggml type table and the lazy-read rules come from `gguf_common.py`, and `total_bytes` is settled by the offset column (`GgufHeader.sizes`), with the CSV's `size_source` saying which source decided it. **`bits_per_weight` sits to the right of `total_bytes` and is measured from it — `total_bytes * 8 / n_points`, never from the block size** — so it is the only bits-per-weight figure a type id `GGML_SIZES` has never seen can have, and the only one that includes ik-llama's per-row scale overhead (`bytes_per_point` keeps the block-payload meaning whenever the table settled the size, so the two differ by exactly that overhead). Split GGUFs are merged (split 0's hparams win). `--token`/`$HF_TOKEN` for gated repos.
-
-To stderr it prints: the weight split across routed experts (`*_exps.*`, plus the fraction activated per token), shared experts (`*_shexp*`), dense FFN (`ffn_{gate,up,down}`), **ngrams** (the lazily-read hash-embedding table) and everything else, empty buckets omitted, each bucket's line carrying its own bits-per-weight column (that bucket's bytes × 8 over its own points, so rows with no settled size are in neither figure); a KV-cache estimate at 256k tokens across `KV_QUANTS`, each with the `--kv-tail-tokens` exact tail that makes it usable (the plain `f16`/`q8_0`/`q5_0` rows carry none — they are the tail-less reference each kvarn body is measured against, and on a model KVarN cannot quantize the `kvarnN` fallback collides with the `q5_0` row, which is why `_kv_quants` deduplicates); fixed CUDA + logits overhead; and the in-KV f32 lightning-indexer stream of an MSA model. The per-group KV derivation block, and with it the excluded NextN/MTP block count, prints only under `-v/--verbose`. Recognises mainline ggml, ik_llama.cpp/DFlash, and PrismML ternary (`PQ2_0`/`PTQ1_0`, type ids 142/143 from the `PrismML-Eng/llama.cpp` fork) quant type ids — but a type id is only ever a _name_: sizes come from the offsets, so a fork that re-numbered its enum gets a warning naming the ids and their measured bpw (`gguf_common.GgufHeader.renumbered_types`) instead of a total sized in someone else's format.
-
-The lazy bucket is subtracted from the weights rather than added to them, so the totals split into `total (resident weights)` / `ngrams (can be read from disk)` / `total (all weights, on disk)` — see `gguf_common.ARCH_LAZY_TENSORS` (the label says `ngrams` because that bucket is exactly the n-gram PLE table, and _can_ because `--lazy-mode off` makes it resident; no tensor names are printed after it). A model with no such tensor keeps the single `total (model weights)` line it always had. When the GGUF carries the router's top-k, a **`total (activated weights)`** line sits above them all: the activated share of the routed experts (both pools, so a MoVA model's `attn_v_exps` too) plus every tensor that fires on every token — shared experts, dense FFN, attention, embeddings, norms — 5.25 GiB against 47.28 resident on Qwen3.8-Flash-Next UD-Q2_K_XL. A **looped** model gets that line too, even when dense, because its looped block is traversed more than once per token while the resident set stays one copy of each weight: the extra passes are charged at the same activation rule (a routed expert inside the loop counts its top-k share only), and the line ends with the schedule — `(24/32 layers loop 2x)` on SenseNova-Loop-9B, 6.20 GiB resident against 9.64 GiB per token. `_loop_schedule` owns both shapes: `sensenova_loop`'s `loop.start` / `loop.end` / `loop.count` with the visits aliased onto the first visit's blocks, and `nanbeige`'s `num_loops`, which repeats all of them (`(22/22 layers loop 2x)`). The n-gram table is in neither figure: it is not resident, and its per-token cost is a handful of gathered rows rather than a share of its bytes. All three are sums of offset-derived tensor payloads, so they are the file's own bytes whatever the type ids mean — and all three leave out the header, which is a few MB on a n-gram PLE arch whose tensor table runs past 10 MB. Each line's bpw column divides by that line's own points, so the lazy line quotes the **table's** quant (IQ4_NL in seven of unsloth's nine Qwen3.8-Flash-Next quants, Q8_0 in two) and not the model's — which is why `perplexity-report.py` keeps those bytes off its cost axis altogether.
-
-The KV figure derives a `ModelKV` from the GGUF's own hparams — `n_embd_k_gqa(il) = key_length * head_count_kv(il)` is llama.cpp's own formula, and the hparams are the main source for which layers cache at all (`head_count_kv == 0` marks conv/recurrent/linear-attention blocks; `_ARCH_FULL_ATTN_INTERVAL` covers the hybrids that use a stride instead). Unlike the report, it never consults `MODEL_KV`. It sizes a single sequence (`KV_N_PARALLEL`).
-
-Architecture knowledge that the GGUF does **not** carry, and therefore lives in small tables here, each mirroring llama.cpp:
-
-- **MLA**: `attention.key_length` is already the cached latent width (`kv_lora_rank + rope`) and llama.cpp allocates **no V cache** (`has_v = !is_mla`), so the V side is zeroed. `key_length_mla`/`value_length_mla` are the attention math's inner dims, never the cache's; their presence _is_ `llama_hparams::is_mla()`. Per-layer tensor shapes are the fallback for GGUFs missing hparams, with MLA checked first (a hybrid MLA model also carries `attn_k`/`attn_v`, on its non-caching layers).
-- **`_ARCH_SWA_PATTERN`** mirrors each loader's `hparams.set_swa_pattern(period, dense_first)`. Not redundant with the GGUF: `attention.sliding_window_pattern` is optional and, when present, overrides only the _period_ — the dense-first phase lives solely in arch code, as does the period for the many GGUFs that omit the key (every Laguna and Gemma-3, for two). Without it such a model is sized as if fully dense, overstating the cache several-fold. Architectures storing the pattern as a per-layer bool array (`gemma4`, `lfm2`, `mimo2`, …) need no entry. If a GGUF declares a window and neither source has a pattern, the script warns and reports an explicit upper bound.
-- **`_ARCH_FULL_ATTN_INTERVAL`** — hybrids marking their linear-attention blocks with a **stride** rather than a per-layer array: `is_recr(il)` iff `(il + 1) % {arch}.full_attention_interval != 0` (`qwen35`, `qwen35moe`, `qwen3next`, `qwen4exp`, and `sensenova_loop`, whose `load_arch_hparams` requires `attention.recurrent_layers` but defers to `llama_model_qwen35` for the fallback; the loaders default the interval to 4). Every other hybrid zeroes `head_count_kv` on its recurrent blocks, which needs no table — but a Qwen3.5/3.6 GGUF ships a plain **scalar** `head_count_kv`, so without this three quarters of the stack is sized as full attention (Qwen3.6-27B: 65 cache layers instead of 16, ~4x; Qwen3.8-Flash-Next: 48 instead of 12).
-- **`_recurrent_state_group()`** — those recurrent blocks are not free: `llama_memory_recurrent` allocates a per-sequence f32 pair (`n_embd_r` conv/rolling + `n_embd_s` state) per layer, from the same pool the KV cache comes from. It rides along as a context-independent `CompressedKV` (ratio 0, forced 32 bpw) so `ModelKV` still owns the arithmetic. The widths mirror llama.cpp's branch order — RWKV, LFM2 short-conv, Kimi KDA, then the Mamba default. **`--spec-draft-n-max` multiplies it**: an MTP/EAGLE3/DFlash draft sets `n_rs_seq` and llama.cpp allocates `(1 + n_rs_seq)` snapshots for draft rollback, so this project's own `models.ini` gets 5x the reported figure. The script sizes the no-speculation case and prints a note.
-- **`_ARCH_MTP_NO_CACHE`** — NextN/MTP blocks sit past `hparams.n_layer()`, but that does **not** keep them out of the attention cache in general: `llama_kv_cache` loops over `n_layer_all` and only `qwen35`, `qwen35moe`, `step35`, `hy_v3`, `hy_v4_flash`, `glm-dsa`, `deepseek32` and `sensenova_loop` pass a filter dropping them (they get a separate MTP context instead, allocated only when speculative decoding is on; `sensenova_loop` is in `mtp_on_hybrid_qwen`, and its hybrid filters are `il < n_layer() && ...`). The last two share one `create_memory` case whose `filter_mla = il < n_layer()` covers the trunk alone — GLM-5.2 is 79 blocks with 1 MTP block, so 78 cache layers. Everywhere else — `glm4-moe`, `bailingmoe2`/`3`, `exaone-moe`, `mimo2`, `cohere2moe` — the MTP block really is a cache layer. `n_layer()` **does** bound the recurrent state and clears `is_recr`/`is_swa` past it.
-- **`_ARCH_INDEXER_KV`** — indexer keys live in the **main** KV cache as an extra f32 stream (`hparams.indexer_kv`). Only `minimax-m3`; reported as its own additive line.
-- **`_ARCH_INDEXER_SIDE_CACHE`** / **`_compressed_groups()`** — every other sparse-attention arch puts its indexer keys in a side cache at the run's **K/V quant, not f32**, built by handing a plain `llama_kv_cache` a doctored hparams copy: `n_head_kv_arr` all 1s and `n_embd_head_k_full` replaced by `attention.indexer.key_length` times `indexer_kpool_row`. One full-context row per token for `deepseek32`/`glm-dsa`/`qwen4exp`; a _compressed_ one for `deepseek4`, and none at all for `deepseek41`, whose index keys share the latent's row (see `_dsv41_compressed_groups`). The two Hy4 archs are here too: patched `hyv4` allocates its LID cache on all 78 layers, while `hy_v4_flash` filters to its 12 sparse layers. **`_INDEXER_KPOOL_ROW_SLOTS`** is how many head-size slots one of those rows holds — a k-pool indexer caches the raw key beside its pool's tensors, so `llama_memory_idx_iswa`/`llama_memory_hybrid_idx` multiply by `indexer_kpool_row` whenever `indexer_kpool > 0`: 3 (raw key | gate | pooled) for `hy_v4_flash` and glm5-next, 2 (raw key | pooled) for `qwen4exp`, one slot for an arch that never pools. That makes Hy4-Flash's row `128 × 3 = 384` and qwen4exp's `128 × 2 = 256`. `_ARCH_INDEXER_TOP_K_GATED` names the archs whose `create_memory` builds no side cache at all when the checkpoint disables sparse attention (`indexer_top_k == 0`). Charging these an f32 full-context stream instead overstates the width ~4x and leaves it out of the headline. Only the **K** side is doctored, so the V side still follows `has_v = !is_mla()` on that copy — which is why the width differs: the DeepSeek and Hy4 archs are MLA and get no V, while `qwen4exp` declares no MLA head dims and really does allocate a V of `attention.value_length × 1` (256) beside that K, which the graph never reads. Mirrored as allocated: it is allocation, not arithmetic. The flags come from `attention.indexer.types` / `attention.indexer.is_full`, else from the arch's own default table (`_indexer_full_flags`: GLM-5.2 ships neither key and llama.cpp substitutes its 21-of-78 `GLM_5_2_DEFAULT_INDEXER_TYPES`), read at `hparams.n_layer()` — so the sum is bounds-checked, since an architecture that keeps its MTP block in the main cache has no flag for it.
-- **`_ple_conv_state_group()`** — an n-gram PLE layer (`{arch}.ple.layers`, `qwen4exp`) convolves over the hyper-connection streams and cannot pack its history behind the delta-net conv state next door (the tensor-split Meta backend mirrors `cache_r_l` per head, which would make it unaddressable), so `llama_memory_recurrent` gives it a third tensor, `cache_ple_r_l`, of `(ple.conv_kernel - 1) * ple.ngram_size * hyper_connection.count * n_embd` f32. Only PLE layers that are also **recurrent** get one — the tensor is allocated behind `filter_recr`. Context-independent, so it rides along as a `CompressedKV` like the recurrent state.
-- **`_ARCH_K_ONLY_CACHE`** — architectures forcing K-only storage **without** declaring MLA head dims: `deepseek4` fakes `is_mla()` (`dsv4_make_k_only`) purely to get `has_v = false`, so its `attention.value_length` must be zeroed exactly as for real MLA; `deepseek41`'s `attn_kv` row and compressor output are likewise one fused 512-wide latent per token covering all 64 attention heads (`head_count_kv = 1`, one `sparse_attn` KV entry — confirmed against DeepSeek's own reference implementation), so its declared `attention.value_length` (512) is dead weight too.
-- **`_ARCH_NO_KVARN`** — architectures branching to a bespoke cache **before** llama-model.cpp's KVarN test, so they never receive the params (`deepseek32`, `glm-dsa`, `deepseek4`, `deepseek41`, `hyv4`, `hy_v4`, `hy_v4_flash`). `-ctk kvarnN` there silently stores `KVARN_FALLBACK`, which the report substitutes and labels. deepseek41 shares the `LLM_ARCH_DEEPSEEK4` case of `create_memory` (its loader is `src/models/deepseek41.cpp` on the pinned fork); its 512/128 head dims would pass the KVarN head-dim test, so without the entry the kvarn rows would be sized as if they were real.
-- **Looped transformers, repeated passes** (`{arch}.num_loops`, e.g. `nanbeige`) run `block_count` physical blocks several times and **every pass gets its own cache layer**; the loader tiles the per-layer arrays to `n_layer_all = block_count * num_loops`. `_n_loops()` only _reads_ the key — the expansion is `ModelKV.n_loops` — so layer groups and the SWA pattern here are derived on the **physical** count, which is also what llama.cpp does (the generic `set_swa_pattern` runs before tiling).
-- **Looped transformers, aliased visits** (`sensenova_loop`) invert the storage and need `_loop_schedule` rather than `_n_loops`: `block_count` already counts **one block per visit** (57 for 32 physical layers on SenseNova-Loop-9B), while the file carries tensors for `blk.0`-`blk.27` and `blk.52`-`blk.56` only (the second visit's `blk.28`-`blk.51` alias `blk.4`-`blk.27`, mHC routers `hc_attn_fn`/`hc_ffn_fn` included), and `loop.start` / `loop.end` / `loop.count` give the plan. Its `n_loops` is therefore **1** — reading a count here would square the expansion — and the cache is sized on `block_count` as-is: 14 full-attention visits and 42 recurrent states, out of 8 and 24 physical layers, each visit with its own KV / recurrent state. The model card is the cross-check: 32 distinct layers, 56 executions per forward pass, 24 of them twice.
-- **DeepSeek-V4** is the one arch whose token cache is not where its context lives: every layer is sliding-window at 128 tokens, and the history sits in three K-only side caches (`llama_kv_cache_dsv4`: CSA, HCA, indexer LID) of `GGML_PAD(ceil(n_ctx / ratio), 256)` cells per sequence, tail-less, each with a context-independent f32 compressor ring. Without them the model sizes at ~1% of its real cache.
-- **DeepSeek-V4.1-Flash** (`deepseek41` — `src/models/deepseek41.cpp` on the pinned fork, sharing `llama_kv_cache_dsv4` with `deepseek4`) inverts that layout (CSA2): only the 4 layers named in `attention.kv_source_layers` (2/8/14 at ratio 2, 20 at ratio 1 — the ones carrying `attn_compressor_kv`) keep a compressed cache, which **every** ratio-carrying layer reads, so the compressed history is one cache per source layer rather than one per compressed layer. The index keys are **not** a second cache: the V4.1 branch fills those caches' `n_head_kv_arr` with 1 and replaces the head dim with `n_embd_head_k + indexer_head_size` (512 + 128 = 640), so one row holds `[kv | index K]` and `kv_lid` is filtered out (`filter_lid` is V4-only) — which is what the tensor table says too: `indexer.attn_k` / `indexer.k_norm` exist only on those 4 layers, and the extra `attention.indexer.source_layers` (24, 28, 32, 36) own no rows. `_dsv41_compressed_groups()` reads `attention.kv_source_layers` and falls back to the tensor table, adds each ratio's compressor ring (`kv_state` + `score_state`, `ratio` rows of f32 — HCA's `state_size` is the ratio too, so the ratio-1 source has a 1-row ring rather than none), and pads rows to 256 cells like DSV4. Cross-check: one 640-wide row per source at fp4 with the checkpoint's scale formats (288 B of latents + 68 B of index keys) reproduces DeepSeek's published **890 bytes/token** global KV exactly — 3 × 178 + 356. The Engram table (layers 1/14) is n-gram _weights_, not cache — it rides in `ARCH_LAZY_TENSORS`.
-- **The `tN` column means less than usual on these architectures**, so `_kv_tail_caveats()` prints one line — `the tail is clamped to <window> tokens on SWA layers` — and only when a reported tail actually reaches the clamp: `llama-context.cpp` clamps the SWA tail to the window (`min(N, n_swa)`), which on DeepSeek-V4 makes `t128`/`t1024`/`t2048` one and the same allocation, protecting only the ~5 MiB raw window. (Side caches are constructed with `tail_tokens = 0` too, so no tail reaches them either; that stays unstated, since the byte figures already say it.) The clamp is `ModelKV._swa_tail`, applied before any SWA group is sized — the non-KVarN path collapses to a bodyless `(window + R)` ring at `tail >= window` and so never needed it, but a KVarN SWA ring keeps its records _and_ an overlay, and without the clamp was charged for an overlay several times the window it protects (Gemma4-31B at `-ctk kvarn2 --kv-tail-tokens 4096`, n_parallel 4: 30.0 GiB claimed against 11.2 GiB real).
-
-### `scripts/llama-cpp-changelog.py` — deterministic changelog dumper
-
-Dumps a markdown changelog between two git refs of any llama.cpp fork. Repo defaults to the active `fork:` in the source recipe (`--repo owner/name` to override). `from` defaults to the recipe's `# Last sync with main at <tag>` comment, else the active `version:`, else the commented-out `# version:` for the selected repo; `to` defaults to the repo's latest **stable** release tag (`preview-*` skipped). Handles `bNNNN` and `vX.Y.Z` tags. Git fallback cache is per-fork at `~/.cache/llama-cpp-changelog/<owner>-<repo>.git` (keyed on the full `owner/repo` so distinct forks of `llama.cpp` cannot collide on one clone; a pre-existing name-only cache is adopted on first use when its `origin` matches).
-
-Sections: header (refs, dates, counts), tags in range with dates + URLs, PRs merged in range (filtered by merge-commit SHA, body excerpt up to 1200 chars), and direct commits with no PR. PRs need authenticated `gh` (or `GITHUB_TOKEN`/`GH_TOKEN`); tags/commits work unauthenticated but rate-limited.
-
-### `sample-data/context-bench/` — long-context recall benchmark
-
-Measures how well a model recalls facts scattered through a long context, and how that degrades under a quantized KV cache.
-
-- **Books** `16k.txt` … `256k.txt` — public-domain Gutenberg titles, license boilerplate stripped, each sized to fill ~70–90% of the named window, with 20 strict-fact questions appended under a `QUESTIONS` section. Deliberately obscure, recently-digitised titles so answers must come from the context, not training data. When replacing one, keep it well under its window and regenerate the answer key.
-- **Answer keys** `<size>.answers.txt` — `A1`–`A20` with source line numbers in `[brackets]`.
-- **`AGENTS.md`** — the system prompt for the model under test (no tools; answer from the supplied text only; leave blanks when unknown).
-- **`run_benchmark.py`** — reads a Pydantic-validated TOML config (one `[model tag]` table each: `url` defaulting to localhost, optional `api_key`/`api_key_env`/`model_name`, required `ctx-size` list, optional `temperature`/`max_tokens`/`timeout`; an optional `[*]` table supplies defaults). Sends `AGENTS.md` + each book via the `openai` client and grades with normalized string matching (case-insensitive; ignores articles, currency symbols, separators, spacing; number-words → digits). Writes a TOML report keyed `[model tag.context size]` with `raw_answers`, `outcomes` (`PASS`/`NO ANSWER`/`WRONG`) and `grade` = `(#PASS − #WRONG)/20`. Grading is deterministic, so a correct-but-off-format answer scores `WRONG` — `raw_answers` is kept for inspection.
+Books `16k.txt` … `256k.txt` with 20 strict-fact questions each and matching
+`<size>.answers.txt` keys; `AGENTS.md` is the no-tools system prompt. `run_benchmark.py`
+reads a Pydantic-validated TOML config (`[model tag]` tables: `url`, optional keys,
+required `ctx-size` list), sends each book via the `openai` client, and grades normalized
+answers into `PASS`/`NO ANSWER`/`WRONG` with `grade = (#PASS − #WRONG)/20`. Grading is
+deterministic; inspect `raw_answers` for correct-but-off-format replies.
 
 ## Common commands
 
 ```bash
-# Environments (building llama-cpp from source takes a while; binary envs don't compile)
+# Environments (source builds compile llama.cpp; binary envs do not)
 pixi install -e llamacpp-source-cuda
 pixi install -e agents
 
 # Serving
-pixi run -e llamacpp-source-cuda start-llamacpp                  # background, logs to llama-server.log
-pixi run -e llamacpp-source-cuda start-llamacpp --host-ram 16G   # simulate a 16 GiB host (cgroup v2)
-pixi run -e llamacpp-source-cuda stop-llamacpp                   # SIGTERM, then SIGKILL
+pixi run -e llamacpp-source-cuda start-llamacpp                  # logs to llama-server.log
+pixi run -e llamacpp-source-cuda start-llamacpp --host-ram 16G   # simulate a 16 GiB host
+pixi run -e llamacpp-source-cuda stop-llamacpp
 pixi run -e llamacpp-source-cuda restart-llamacpp
 pixi run -e llamacpp-source-cuda llama-list-devices
-pixi run -e llamacpp-source-cuda llama-hello                   # smoke test with llama-cli
+pixi run -e llamacpp-source-cuda llama-hello
 
-# Strata (its port is `port` in strata.ini; llama-server keeps 9931, the forge proxy 8080 --
-# VRAM, not the port, is what limits running both at once)
-pixi install -e strata        # solves the env and compiles the engine (~8 min, once)
-pixi run start-strata         # prepares the model on the first run, then serves on strata.ini's port
-pixi run strata-install       # prepare only (Hub cache + pack + MTP layer), whatever strata.ini says
+# Strata
+pixi install -e strata
+pixi run start-strata
+pixi run strata-install
 pixi run stop-strata
-pixi r strata-help            # every Strata parameter + what strata.ini says right now
+pixi r strata-help
 
-# Agents. The task takes exactly one positional arg (the workspace, `-` for a temp
-# dir); everything else MUST come after `--`, including --no-git, --bind and --ro-bind.
+# Agents. Exactly one positional arg (workspace, `-` = temp dir); flags go after `--`.
 pixi run pi /path/to/workspace
-pixi run pi /path/to/workspace -- --no-git   # block all GitHub access
-pixi run pi /path/to/workspace -- --ro-bind /path/to/reference  # extra read-only bind
+pixi run pi /path/to/workspace -- --no-git
+pixi run pi /path/to/workspace -- --ro-bind /path/to/reference
 pixi run pi-unsafe /path/to/ws            # full host access, debugging only
 pixi run herdr
-
-# OpenDesign (design env: pi + sandbox + git + the opendesign recipe; the opendesign
-# tasks are its own, so unlike pi/git they need no separate launcher feature)
-pixi install -e design                          # build the daemon + static web UI (a few minutes)
-pixi r opendesign /path/to/workspace              # foreground daemon in a bwrap sandbox, UI on 127.0.0.1:7456
-pixi r opendesign-help                            # packaged versions + support boundary
-pixi r opendesign-unsafe /path/to/workspace       # full host access, debugging only (refuses --no-git)
-pixi run -e design bash scripts/smoke-opendesign.sh          # packaged-tree acceptance test (CI)
-pixi run -e design bash scripts/smoke-opendesign-sandbox.sh  # launcher/mount-contract test (CI, needs AppArmor)
-
-# …or, after `pixi r install`, from any directory (the wrapper supplies the cwd):
+# …or, after `pixi r install`, from any directory:
 pi
 pi --no-git
 
+# OpenDesign
+pixi install -e design
+pixi r opendesign /path/to/workspace              # 127.0.0.1:7456
+pixi r opendesign-help
+pixi r opendesign-unsafe /path/to/workspace       # refuses --no-git
+pixi run -e design bash scripts/smoke-opendesign.sh
+pixi run -e design bash scripts/smoke-opendesign-sandbox.sh  # needs AppArmor
+
 # Benchmarks and analysis
-pixi run -e llamacpp-source-cuda perplexity -c perplexity.yaml   # edit/duplicate the yaml first
+pixi run -e llamacpp-source-cuda perplexity -c perplexity.yaml
 pixi run perplexity-report perplexity.log -o perplexity-report
 pixi run llama-benchy
-pixi r llama-benchy-strata                       # whatever model Strata is serving, from /v1/models
+pixi r llama-benchy-strata
 pixi run context-bench sample-data/context-bench/config.toml -o results.toml
 pixi run gguf-meta-extract https://huggingface.co/unsloth/GLM-5.2-GGUF/tree/main/UD-IQ1_S -o glm.csv
 pixi r llama-cpp-changelog [from] [to]
-pixi run openrouter-models z-ai/glm-5.3  # per-provider CSV + HTML report into ./openrouter-reports
+pixi run openrouter-models z-ai/glm-5.3
 
 # Building packages
 pixi build
@@ -849,17 +573,19 @@ pixi build --path pixi-recipes/llama-cpp-source
 pixi build --path pixi-recipes/strata
 ```
 
-To use the file-viewer plugin, bind a key in `~/.config/herdr/config.toml` (e.g. `prefix+f` → `herdr plugin action invoke open-file-viewer --plugin herdr-file-viewer`) and `herdr server reload-config`. Optional renderers (`glow`/`delta`/`bat`) come from `pixi r install-file-viewer-renderers`.
+The file-viewer plugin needs a Herdr key binding (e.g. `prefix+f` → `herdr plugin action
+invoke open-file-viewer --plugin herdr-file-viewer`) and `herdr server reload-config`.
+Optional renderers (`glow`/`delta`/`bat`) come from `pixi r install-file-viewer-renderers`.
 
 ## Rules for coding agents
 
 - **Always run `pixi r lint` after changing files**, and fix what it reports. Linting rewrites files, so re-read from disk before editing further.
-- **After changing anything under `pixi-recipes/`, run `pixi install -e <env>`** for every environment using that recipe. A green lint does not mean the recipe builds — resolve "no candidates were found" / "invalid value" before calling it done.
+- **After changing anything under `pixi-recipes/`, run `pixi install -e <env>`** for every environment using that recipe. A green lint does not mean the recipe builds.
 - **Never edit `pixi.lock`** — regenerate with `pixi lock` (or `pixi lock -e <env>`).
-- **Never change `fork:` in a llama-cpp recipe**, and never hardcode a commit SHA where the templated `${{ fork }}`/`${{ version }}` belongs.
+- **Never change `fork:` in a llama-cpp recipe** without an explicit request, and never hardcode a commit SHA where `${{ fork }}` / `${{ version }}` belongs. Bump versions through the **update-llama-cpp** skill.
 - **`${PREFIX}` only exists inside build scripts** — never reference it elsewhere.
 - **Symlinks into `${PREFIX}/bin` must be relative** (`../opt/llama/...`) for prefix portability.
-- **Windows scripts run under the MSYS2 bash shipped by the environment** — the default feature pins `m2-bash`, `m2-coreutils`, `m2-grep`, `m2-sed` on win-64, because a plain `bash` from PATH on Windows resolves to WSL, which discards the pixi environment. Don't use `jq` (not on conda-forge for win-64), `nc`, `pkill`/`pgrep`, or `ln -s` in cross-platform scripts. Use `node -e` for JSON, `curl` for port checks (Windows ships it in System32), `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` or an NTFS junction (`cmd //c 'mklink /J <link> <target>'`, no admin rights needed) instead of symlinks. Add another `m2-*` package if a script needs a further external command.
+- **Windows scripts run under the MSYS2 bash shipped by the environment** (`m2-bash`, `m2-coreutils`, `m2-grep`, `m2-sed` on win-64): a plain `bash` from PATH resolves to WSL and loses the pixi env. Don't use `jq`, `nc`, `pkill`/`pgrep`, or `ln -s`. Use `node -e` for JSON, `curl` for ports, `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` or an NTFS junction (`cmd //c 'mklink /J <link> <target>'`) instead of symlinks. Add another `m2-*` package if needed.
 - **All three platforms are targeted**: `linux-64`, `linux-aarch64`, `win-64`.
-- **Never run `pixi install -e agents` from inside the bwrap sandbox — it leaves a half-extracted env.** The env prefix is _effectively_ read-write (the `--ro-bind $CONDA_PREFIX` is shadowed by the later `--bind $DIR $DIR` workdir bind, which detaches the read-only submount). After rebuilding the changed local recipe in `.pixi/bld`, the env sync deletes the old extracted files and only then fails on `home/.pi/agent/settings.json` with **EBUSY** — the host's file is mounted over the package copy via the `~/.pi` bind chain, and nothing inside the namespace can unlink it. Result: binaries, libraries and plugin `package.json`s deleted, new files never written (e.g. `bin/git` breaks with `libiconv.so.2: cannot open shared object file`). Repair and reinstall from the host with `pixi install -e agents`; any `pixi run <task>` in `agents` triggers the same implicit install whenever a local recipe changed. `pixi update` / `pixi lock` are lockfile-only and safe from the sandbox.
-- **`--host-ram <size>` simulates a smaller host** by launching llama-server in a transient systemd user scope with a cgroup v2 `MemoryMax` and swap off. That is the only limit that accounts the page cache holding the mmap'd weights — RLIMIT_RSS is unenforced and RLIMIT_AS caps address space, not residency. Linux with a delegated memory controller only. Caveats: page cache warmed by an earlier run is charged to that run's cgroup and stays free, and mlock'd or pinned memory that doesn't fit gets the server OOM-killed rather than paged (use `load-mode = mmap`).
+- **Never run `pixi install -e agents` from inside the bwrap sandbox — it leaves a half-extracted env.** The workdir bind shadows the read-only prefix mount; env sync deletes files, then fails with EBUSY on the host-bound `home/.pi/agent/settings.json`. Repair from the host. `pixi update` / `pixi lock` are lockfile-only and safe in the sandbox.
+- **`--host-ram <size>` simulates a smaller host** with a transient systemd user scope and cgroup v2 `MemoryMax`, swap off: the only limit that accounts for mmap page cache. Linux with delegated memory controller only; warmed page cache stays charged to its earlier run, and pinned memory that does not fit gets the server OOM-killed (use `load-mode = mmap`).
