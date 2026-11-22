@@ -84,6 +84,12 @@ jobs:
             amdrocm-hipblas-common-dev10.0 amdrocm-blas10.0-gfx1030
           echo "LLAMA_GPU_TARGETS=gfx1030" >> "$GITHUB_ENV"
 
+      - name: Pin CUDA architecture
+        if: matrix.backend == 'source-cuda'
+        # GitHub runners have no GPU, so nvcc's -arch=native falls back to a
+        # default architecture. Compile for the project's RTX 3090 (sm_86).
+        run: echo "LLAMA_CUDA_ARCHS=86" >> "$GITHUB_ENV"
+
       - uses: prefix-dev/setup-pixi@v0
         with:
           pixi-version: v0.84.1
