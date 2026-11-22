@@ -176,10 +176,6 @@ Results are with `models.ini` as of 2026-06-18; it may have changed since then.
   amount of tweaking to their parameters fixed this behaviour. Note that **model collapse
   produces survivor bias in the other scores of the model**.
 
-  [forge](https://github.com/antoinezambelli/forge) may be the solution to always get a
-  response (untested) - however it would not prevent the model from burning through 9k
-  tokens two or three times to reach the response.
-
 ### Grading
 
 `grade` is calculated as follows:
