@@ -52,8 +52,9 @@ is exposed rw as `~/.pi`, and the host's `~/.pi/agent/{auth,trust,settings}.json
 Run each sub-skill in order, then report. Skip nothing; report "already at latest" where
 nothing moved.
 
-1. **update-llama-cpp** — bumps the active fork pin and the commented-out mainline pin in
-   both `llama-cpp-source` and `llama-cpp-binary` (four version strings). Never changes `fork:`.
+1. **update-llama-cpp** — bumps the active `version:` pin in both `llama-cpp-source` and
+   `llama-cpp-binary`; the source follows the newest git tag, the binary the newest tag with
+   release assets. Never changes `fork:` or `asset_prefix:`.
 2. **update-pi-extensions** — npm pins in the `PLUGINS` list.
 3. **update-herdr-file-viewer** — version + two SHA-256 digests.
 4. **update-herdr** — stable (Linux) and preview (Windows) pins.
@@ -74,7 +75,8 @@ nothing moved.
 ### llama.cpp
 - Source: <old> → <new>          (fork pin untouched)
 - Binary: <old> → <new>
-- Mainline variant: <old> → <new> (source / binary)
+- Mainline reference: <old> → <new>, or "active = mainline in both; no separate commented pin"
+- Binary assets: present at the pinned tag (checked)
 
 ### pi-extensions
 - Updated: <packages with bumps>   /  Up to date: <rest>

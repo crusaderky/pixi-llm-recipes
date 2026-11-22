@@ -130,7 +130,7 @@ served on demand. All models were carefully cherry-picked and tuned.
 
 | Engine    | Model            | bpw  | Disk size | Context        | VRAM<sup>1</sup>     | Prefill<sup>2</sup> | Decode<sup>2</sup> | Vision |
 | --------- | ---------------- | ---- | --------- | -------------- | -------------------- | ------------------- | ------------------ | ------ |
-| Strata    | Qwen3.8-Flash    | 3.49 | 79 GiB    | 256k int8/int8 | 20.6 GiB<sup>3</sup> | 1,600 tok/s         | 79 tok/s           | ✅     |
+| Strata    | Qwen3.8-Flash    | 3.49 | 79 GiB    | 256k int8/int8 | 20.6 GiB<sup>3</sup> | 1,600 tok/s         | 75 tok/s           | ✅     |
 | llama.cpp | Qwen3.8-Flash    | 3.49 | 79 GiB    | 256k q5/q4     | 22.0 GiB<sup>3</sup> | 200 tok/s           | 35 tok/s           | ✅     |
 | llama.cpp | Inkling-2-Mini   | 4.82 | 15 GiB    | 32k f16/f16    | 21.9 GiB             | 800 tok/s           | 48 tok/s           | ✅     |
 | llama.cpp | Qwen3.8-27B      | 3.84 | 14 GiB    | 256k q5/q5     | 22.3 GiB             | 1,300 tok/s         | 64 tok/s           | ✅     |

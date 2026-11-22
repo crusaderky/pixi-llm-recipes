@@ -17,10 +17,10 @@ build:
         npm:pi-btw@0.8.1
         npm:pi-caveman@1.0.12
         npm:pi-intercom@0.18.1
-        npm:pi-llama-cpp@0.22.1
+        npm:pi-llama-cpp@0.23.2
         npm:pi-web-access@0.48.0
-        npm:pi-subagents@0.89.1
-        npm:pi-token-speed@0.13.0
+        npm:pi-subagents@0.89.2
+        npm:pi-token-speed@0.13.1
         npm:@juicesharp/rpiv-ask-user-question@2.15.0
         npm:@tmustier/pi-usage-extension@0.10.2
 
