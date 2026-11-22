@@ -7,11 +7,14 @@ context:
   fork: ggml-org/llama.cpp
   version: b12613
   asset_prefix: llama
+  # Upstream switched its Ubuntu ROCm binary from 7.2 to 10.0 in b12613.
+  rocm_version: "10.0"
 
   # beellama.cpp
   # fork: Anbeeld/beellama.cpp
   # version: v0.5.0
   # asset_prefix: beellama
+  # rocm_version: "7.2"
 
 package:
   name: llama-cpp
@@ -28,6 +31,7 @@ build:
       FORK: ${{ fork }}
       VERSION: ${{ version }}
       ASSET_PREFIX: ${{ asset_prefix }}
+      ROCM_VERSION: ${{ rocm_version }}
   # Expose each backend as a selectable build flag, e.g. `flags = ["vulkan"]`.
   flags:
     - ${{ backend }}
