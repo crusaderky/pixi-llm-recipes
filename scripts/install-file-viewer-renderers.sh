@@ -28,6 +28,13 @@ if command -v snap > /dev/null; then
   SNAP_OK=true
 fi
 
+# Runner images ship a package index that can point at superseded versions;
+# installing without refreshing it fails with 404 on the archive. Refresh once
+# before the first apt install below.
+if [ "$APT_OK" = true ] && { ! command -v delta > /dev/null || ! command -v bat > /dev/null; }; then
+  $SUDO apt-get update -qq
+fi
+
 # --- delta (apt package: git-delta; binary: delta) -----------------------------------------
 if command -v delta > /dev/null; then
   echo "delta is already installed."

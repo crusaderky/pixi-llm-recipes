@@ -28,5 +28,8 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 echo "Installing wl-clipboard"
+# GitHub-hosted runners ship a package index that can point at superseded
+# versions; installing without refreshing it fails with 404 on the archive.
+$SUDO apt-get update -qq
 $SUDO apt-get install -y wl-clipboard
 echo "wl-clipboard installed."

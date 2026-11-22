@@ -4,7 +4,7 @@ set -euo pipefail
 # Install pre-built llama.cpp binaries into the conda prefix (Linux only;
 # Windows is handled by build.bat).
 #
-# VERSION, FORK, ASSET_PREFIX and BACKEND are set by recipe.yaml
+# VERSION, FORK, ASSET_PREFIX, ROCM_VERSION and BACKEND are set by recipe.yaml
 # (build.script.env). FORK is the GitHub `owner/repo` of the active llama.cpp
 # fork; ASSET_PREFIX is the release-asset file prefix (`beellama` for
 # Anbeeld/beellama.cpp, `llama` for mainline ggml-org/llama.cpp).
@@ -35,7 +35,7 @@ case "$TARGET_PLATFORM-$BACKEND" in
         ARCHIVE_POSTFIX=ubuntu-vulkan-x64.tar.gz
         ;;
     linux-64-rocm)
-        ARCHIVE_POSTFIX=ubuntu-rocm-7.2-x64.tar.gz
+        ARCHIVE_POSTFIX=ubuntu-rocm-${ROCM_VERSION}-x64.tar.gz
         ;;
     linux-aarch64-cpu)
         ARCHIVE_POSTFIX=ubuntu-arm64.tar.gz
