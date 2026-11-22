@@ -16,9 +16,8 @@ set -o pipefail
 # later starts only load the model (~40 s) -- unless strata.ini changed something setup.py
 # only reads when preparing, which re-prepares once (see scripts/strata-run.py).
 #
-# Strata listens on the port strata.ini says (`port`): llama-server owns 9931 (also the
-# backend forge fronts) and the forge proxy owns 8080, so none of these collide. A port
-# someone else owns is refused rather than taken over.
+# Strata listens on the port strata.ini says (`port`): llama-server owns 9931, so these
+# do not collide. A port someone else owns is refused rather than taken over.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT=""
@@ -65,7 +64,7 @@ if server_is_up; then
         echo "Strata is already running on port ${PORT}."
         exit 0
     fi
-    echo "Port ${PORT} is in use by another server (llama-server, the forge backend, another Strata)." >&2
+    echo "Port ${PORT} is in use by another server (llama-server, another Strata)." >&2
     echo "Stop it first (pixi run stop-llamacpp), then start Strata again." >&2
     exit 1
 fi

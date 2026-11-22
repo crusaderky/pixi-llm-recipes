@@ -97,8 +97,7 @@ pixi r -e llamacpp-source-cuda start-llamacpp
 [Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next on one consumer GPU
 plus system RAM, and serves it with OpenAI-, Anthropic- and Responses-compatible APIs,
 vision included. Strata is configured by `strata.ini` and runs by default on port
-**8082**, so that it does not collide with llama-server (9931) or with the forge
-proxy (8080, see below).
+**8082**, so that it does not collide with llama-server (9931).
 
 ```bash
 pixi install -e strata    # solve the environment and compile the engine
@@ -121,26 +120,6 @@ never overwritten, so hand edits stick.
 On Ubuntu 24.04, strata has been observed to cause random restarts in the whole X
 server. They are prevented by tweaking `systemd-oomd` through `pixi r install-oomd`
 (part of `pixi r install`).
-
-## Forge guardrails proxy
-
-[forge](https://github.com/antoinezambelli/forge) is a transparent reliability layer for
-tool-calling: it validates every tool call in the model's response, rescue-parses
-malformed ones, and retries inference with corrective feedback when validation fails.
-
-`start-forge` starts the llama-server router on port **9931** — the port a bare
-`start-llamacpp` binds — and the forge proxy in front of it on port **8080**, so
-agents pointed at `http://localhost:8080/v1` pick up the guardrails. `9931` still
-answers unguarded, which is what `llama-benchy` and `context-bench` measure.
-
-```bash
-pixi r start-forge    # Start llama-server on 9931 + forge proxy on 8080
-pixi r stop-forge     # Stop both forge and llama-server
-pixi r restart-forge
-```
-
-It takes over the `start-llamacpp` / `stop-llamacpp` / `restart-llamacpp` lifecycle
-(`stop-forge` stops both processes, `restart-forge` restarts both).
 
 ## Models
 

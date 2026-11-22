@@ -9,9 +9,7 @@ platforms = [
 
 [tasks]
 stop-llamacpp = "bash scripts/stop-llamacpp.sh"
-stop-forge = "bash scripts/stop-forge.sh && bash scripts/stop-llamacpp.sh"
 restart-llamacpp = { depends-on = ["stop-llamacpp", "start-llamacpp"] }
-restart-forge = { depends-on = ["stop-forge", "start-forge"] }
 
 [target.linux-64-glibc234.tasks]
 install-apparmor = "bash scripts/install-apparmor.sh"
@@ -241,8 +239,6 @@ openai = "*"
 tomli-w = "*"
 
 [feature.pytools.pypi-dependencies]
-# forge-guardrails = "*"
-forge-guardrails = { git = "https://github.com/crusaderky/forge.git", branch = "staging" }
 llama-benchy = ">=0.4.0"
 
 [feature.pytools.tasks]
@@ -259,10 +255,6 @@ args = [
   { arg = "models", default = "xiaomi/mimo-v2.6-pro xiaomi/mimo-v2.6-flash z-ai/glm-5.3 z-ai/glm-5.3-flash deepseek/deepseek-v4.1-flash moonshotai/kimi-k3 tencent/hy4-preview" },
 ]
 cmd = "python scripts/openrouter_model_report.py {{ models }}"
-
-[feature.pytools.tasks.start-forge]
-depends-on = [{ task = "start-llamacpp" }]
-cmd = "bash scripts/start-forge.sh"
 
 [feature.lint.dependencies]
 lefthook = "*"

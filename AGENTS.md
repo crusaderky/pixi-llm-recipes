@@ -27,7 +27,7 @@ sample-data/
   wiki*.raw                  # perplexity/KLD corpora; describe-me.jpg = multimodal smoke test
   context-bench/             # books, answer keys, runner, report aggregator
 scripts/
-  start-llamacpp.sh stop-llamacpp.sh start-forge.sh stop-forge.sh
+  start-llamacpp.sh stop-llamacpp.sh
   start-strata.sh stop-strata.sh strata-install.sh strata-run.py strata-help.py
   strata_common.py llama-benchy-strata.py
   bwrap-pi.sh pi-unsafe.sh run-herdr.sh
@@ -50,20 +50,20 @@ pixi-recipes/
 
 ## Features & Environments (`pixi.toml`)
 
-| Feature                                           | Adds                                                                                                        | Tasks                                                                                                                                                                                                       |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llamacpp`                                        | python + pydantic + pyyaml (sweeper); pairs with one backend feature                                        | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-llamacpp`, `perplexity`                                                                                                          |
-| `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` | pins `llama-cpp` to one recipe + backend flag                                                               | —                                                                                                                                                                                                           |
-| `pi`                                              | `pi-coding-agent`, `pi-extensions`, `pi-home`                                                               | —                                                                                                                                                                                                           |
-| `pi-launcher`                                     | no packages; keeps Pi launchers out of `design`                                                             | `pi`, `pi-unsafe`, `pi-export` (Linux)                                                                                                                                                                      |
-| `sandbox`                                         | `bubblewrap` (Linux only)                                                                                   | —                                                                                                                                                                                                           |
-| `herdr`                                           | `herdr`, `herdr-file-viewer` (linux-64 + win-64)                                                            | `herdr`                                                                                                                                                                                                     |
-| `git`                                             | `git`, `gh`                                                                                                 | —                                                                                                                                                                                                           |
-| `git-launcher`                                    | no packages; keeps Git launchers out of `design`                                                            | `git`, `gh`                                                                                                                                                                                                 |
-| `opendesign`                                      | the `opendesign` recipe (linux-64 only)                                                                     | `opendesign`, `opendesign-unsafe`, `opendesign-help`                                                                                                                                                        |
-| `strata`                                          | the `strata` recipe (linux-64 only) + `huggingface_hub`, `curl`                                             | `start-strata`, `stop-strata`, `restart-strata`, `strata-install`                                                                                                                                           |
-| `pytools`                                         | python 3.14, `llama-benchy`, `forge-guardrails`, huggingface_hub, transformers, openai, matplotlib, tomli-w | `llama-benchy`, `llama-benchy-strata`, `strata-help`, `hf`, `context-bench`, `aggregate-context-bench`, `perplexity-report`, `llama-cpp-changelog`, `gguf-meta-extract`, `openrouter-models`, `start-forge` |
-| `lint`                                            | lefthook, ruff, dprint, actionlint, shellcheck, pyflakes, codespell, blacken-docs                           | `lint`, `install-git-hooks`, `update-dprint`                                                                                                                                                                |
+| Feature                                           | Adds                                                                                    | Tasks                                                                                                                                                                                        |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llamacpp`                                        | python + pydantic + pyyaml (sweeper); pairs with one backend feature                    | `llama-help`, `llama-version`, `llama-hello`, `llama-list-devices`, `start-llamacpp`, `perplexity`                                                                                           |
+| `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}` | pins `llama-cpp` to one recipe + backend flag                                           | —                                                                                                                                                                                            |
+| `pi`                                              | `pi-coding-agent`, `pi-extensions`, `pi-home`                                           | —                                                                                                                                                                                            |
+| `pi-launcher`                                     | no packages; keeps Pi launchers out of `design`                                         | `pi`, `pi-unsafe`, `pi-export` (Linux)                                                                                                                                                       |
+| `sandbox`                                         | `bubblewrap` (Linux only)                                                               | —                                                                                                                                                                                            |
+| `herdr`                                           | `herdr`, `herdr-file-viewer` (linux-64 + win-64)                                        | `herdr`                                                                                                                                                                                      |
+| `git`                                             | `git`, `gh`                                                                             | —                                                                                                                                                                                            |
+| `git-launcher`                                    | no packages; keeps Git launchers out of `design`                                        | `git`, `gh`                                                                                                                                                                                  |
+| `opendesign`                                      | the `opendesign` recipe (linux-64 only)                                                 | `opendesign`, `opendesign-unsafe`, `opendesign-help`                                                                                                                                         |
+| `strata`                                          | the `strata` recipe (linux-64 only) + `huggingface_hub`, `curl`                         | `start-strata`, `stop-strata`, `restart-strata`, `strata-install`                                                                                                                            |
+| `pytools`                                         | python 3.14, `llama-benchy`, huggingface_hub, transformers, openai, matplotlib, tomli-w | `llama-benchy`, `llama-benchy-strata`, `strata-help`, `hf`, `context-bench`, `aggregate-context-bench`, `perplexity-report`, `llama-cpp-changelog`, `gguf-meta-extract`, `openrouter-models` |
+| `lint`                                            | lefthook, ruff, dprint, actionlint, shellcheck, pyflakes, codespell, blacken-docs       | `lint`, `install-git-hooks`, `update-dprint`                                                                                                                                                 |
 
 Environments: eight `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}`; `agents` = `pi` +
 `pi-launcher` + `sandbox` + `git` + `git-launcher` + `herdr` + `pytools` (no standalone
@@ -71,18 +71,13 @@ Environments: eight `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}`; `agents` 
 their features alone (`no-default-feature`). `strata-help` and `llama-benchy-strata` live
 in `pytools` so they do not trigger the Strata env's engine compile.
 
-Ports: llama-server 9931 (also forge's backend), forge proxy 8080, Strata 8082 (from
-`strata.ini`). Root tasks present everywhere: `stop-llamacpp`, `stop-forge`,
-`restart-llamacpp`, `restart-forge`. Linux target tasks: `install-apparmor`, `install-bin`,
+Ports: llama-server 9931, Strata 8082 (from `strata.ini`). Root tasks present
+everywhere: `stop-llamacpp`, `restart-llamacpp`. Linux target tasks: `install-apparmor`, `install-bin`,
 `install-clipboard`, `install-file-viewer-renderers`, `install-git`, `install-memlock`,
 `install-oomd`, `install` (all seven), `uninstall`.
 
 `-e <env>` is needed only for the `llamacpp` tasks, which exist in all eight
 `llamacpp-*` envs. Everything else resolves on its own.
-
-> ⚠ `start-forge` / `restart-forge` are broken: `start-forge` lives in `pytools` but
-> depends on `start-llamacpp` from `llamacpp`, and no env has both. Start llama-server
-> from a `llamacpp-*` env, then run the proxy on 8080 manually.
 
 ## llama-cpp recipes
 
