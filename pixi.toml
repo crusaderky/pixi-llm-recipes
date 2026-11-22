@@ -224,6 +224,14 @@ restart-strata = { depends-on = ["stop-strata", "start-strata"] }
 strata-install = "bash scripts/strata-install.sh"
 strata-help = "python scripts/strata-help.py"
 
+# RustingStrata compiles at install time from a pinned release. Kernels are
+# NVRTC-compiled at run time, so there is no GPU or CUDA toolkit at build time.
+[feature.rustingstrata]
+platforms = ["linux-64-glibc234"]
+
+[feature.rustingstrata.dependencies]
+rustingstrata = { path = "pixi-recipes/rustingstrata" }
+
 [feature.pytools.dependencies]
 python = "=3.14"
 huggingface_hub = "*"
@@ -289,6 +297,7 @@ llamacpp-binary-cuda = ["llamacpp", "llamacpp-binary-cuda"]
 llamacpp-binary-rocm = ["llamacpp", "llamacpp-binary-rocm"]
 llamacpp-binary-vulkan = ["llamacpp", "llamacpp-binary-vulkan"]
 strata = { features = ["strata"] }
+rustingstrata = { features = ["rustingstrata"] }
 agents = ["pi", "pi-launcher", "sandbox", "git", "git-launcher", "herdr", "pytools"]
 # OpenDesign reuses the exact pi/sandbox/git dependencies (same Pi binary,
 # extensions, home, bubblewrap and git guards) plus the new recipe. No pytools

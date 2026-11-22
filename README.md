@@ -46,12 +46,13 @@ variant in the recipes (`pixi-recipes/llama-cpp-*/recipe.yaml`); swap the
 active/commented `fork:` blocks to go back to upstream.
 
 There are eight pixi environments to choose from: four that compile llama.cpp from
-source, four that just unpack the pre-built binaries from upstream releases, and one that
-compiles Strata (read below).
+source, four that just unpack the pre-built binaries from upstream releases, plus
+dedicated environments that compile Strata and RustingStrata (read below).
 
 | Environment              | Build            | Backend  | Linux x64 | Linux ARM | Windows x64 |
 | ------------------------ | ---------------- | -------- | --------- | --------- | ----------- |
 | `strata`                 | from sources     | CUDA 13  | ✅        | 🔴        | 🔴          |
+| `rustingstrata`          | from sources     | CUDA 13  | ✅        | 🔴        | 🔴          |
 | `llamacpp-source-cpu`    | from sources     | CPU only | ✅        | ✅        | 🔴          |
 | `llamacpp-source-cuda`   | from sources     | CUDA 13  | ✅        | 🔴        | 🔴          |
 | `llamacpp-source-vulkan` | from sources     | Vulkan   | ✅        | ✅        | 🔴          |
@@ -121,6 +122,56 @@ never overwritten, so hand edits stick.
 On Ubuntu 24.04, strata has been observed to cause random restarts in the whole X
 server. They are prevented by tweaking `systemd-oomd` through `pixi r install-oomd`
 (part of `pixi r install`).
+
+## RustingStrata
+
+[RustingStrata](https://github.com/RustingStudio/RustingStrata) is a pure-Rust Qwen GGUF
+engine with runtime-compiled CUDA kernels. `pixi install -e rustingstrata` builds the
+pinned v1.3.0 release with conda's Rust toolchain and ships `cuda-nvrtc`, which the engine
+loads to compile its kernels on first use. The environment is Linux x64 only; there are
+no start/stop tasks yet. Run the CLI directly:
+
+```bash
+pixi run -e rustingstrata rustingstrata --version
+pixi run -e rustingstrata rustingstrata serve --model "$MODEL" --gpu --backend cuda \
+  --ctx 262144 --kv q8 --draft-model "$DRAFT" --vram-margin 512 \
+  --addr 127.0.0.1:8085 --alias qwen3.8-flash
+```
+
+For this checkout, `MODEL` is shard 1 of `unsloth/Qwen3.8-Flash-Next-GGUF:UD-IQ3_XXS`
+under `~/.cache/huggingface/hub/`. `DRAFT` is the DFlash2 GGUF converted from the pinned
+`incoai/Qwen3.8-Flash-Next-DFlash2` safetensors at revision `a22a1744`: the community
+GGUF publishes `fc.weight`-style names that RustingStrata mistakes for an EAGLE3 head,
+so pass `model.safetensors` once with `--draft-model` and `STRATA_DFLASH_Q4=1` and use the
+resulting `model-dflash-q4_0.gguf` next to it.
+
+Calibrate once per model, machine and draft file, with the same `--ctx`, `--kv` and
+`--vram-margin` as the runs:
+
+```bash
+pixi run -e rustingstrata rustingstrata calibrate --model "$MODEL" \
+  --ctx 262144 --kv q8 --vram-margin 512 --draft-model "$DRAFT"
+```
+
+On the RTX 3090 here, calibration picked `chunk=4096`, `short=16` and `--mtp 0`.
+DFlash2 is loaded, but its drafts are slower with this 78 GiB GGUF: enabling one draft
+per step drops 8k decode from ~46 to ~37 tok/s because draft verification takes ~2.8 GiB
+of VRAM away from the expert cache. `--mtp 0` also avoids batched-check rounding at near
+ties, so it has no quality cost.
+
+Measured with the built-in `rustingstrata bench` on this machine, same UD-IQ3_XXS file,
+256k context, q8 KV, calibrated settings:
+
+| Prompt | Prefill   | Decode (128 tokens) |
+| ------ | --------- | ------------------- |
+| 8k     | 904 tok/s | 45.9 tok/s          |
+| 32k    | 884 tok/s | 39.0 tok/s          |
+
+The Strata row in the model table below was measured with `llama-benchy` on the same RTX
+3090: 1,600 tok/s prefill and 79 tok/s decode with 20.6 GiB of VRAM and Strata's packed
+experts. RustingStrata reads the raw GGUF experts (936.8 MB per token) and reaches about
+57% of that prefill and 58% of that decode here. Both use 8-bit KV caches; the benchmark
+harnesses are not identical, so treat the comparison as indicative.
 
 ## Forge guardrails proxy
 

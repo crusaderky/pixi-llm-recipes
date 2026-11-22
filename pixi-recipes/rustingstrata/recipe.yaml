@@ -1,0 +1,53 @@
+context:
+  # Upstream release packaged here. The git tag is v${version}; bump the pin
+  # (and re-derive the archive sha256) together with the RustingStrata release.
+  version: "1.3.0"
+
+package:
+  name: rustingstrata
+  version: ${{ version }}
+
+source:
+  url: https://github.com/RustingStudio/RustingStrata/archive/refs/tags/v${{ version }}.tar.gz
+  sha256: 42edb6d1ea5b68e8bd1c8b279c4c99e6a3b6edb8c42576033b1da319901ab0e2
+  target_directory: rustingstrata
+
+build:
+  number: 0
+  script:
+    file: build.sh
+  # CUDA kernels are compiled at run time through the driver's NVRTC, so there is
+  # no toolkit or GPU at build time. Vulkan shaders ship as prebuilt SPIR-V.
+  skip:
+    - "not (linux and x86_64)"
+
+requirements:
+  build:
+    # conda-forge's `rust` package provides cargo, rustc and std; there is no
+    # standalone `cargo` package to pin. The C compiler is needed by onig_sys,
+    # which the pinned tokenizers feature compiles from source.
+    - rust
+    - ${{ compiler('c') }}
+  run:
+    # The engine loads libnvrtc by name at run time to compile its CUDA kernels.
+    # Driver packages do not install the NVRTC library on Linux, so ship the
+    # matching conda build (same CUDA major as Strata's engine uses here).
+    # The C runtime comes from the compiler's run export.
+    - cuda-version =13.1
+    - cuda-nvrtc
+
+about:
+  homepage: https://github.com/RustingStudio/RustingStrata
+  repository: https://github.com/RustingStudio/RustingStrata
+  license: LicenseRef-RustingStrata-1.0
+  license_file: rustingstrata/LICENSE.md
+  summary: Pure-Rust inference engine for Qwen GGUF models, with CUDA and Vulkan backends
+  description: |
+    RustingStrata runs Qwen GGUF models on the GPU with a pure-Rust forward
+    pass and runtime-compiled CUDA kernels (or prebuilt Vulkan shaders), and
+    serves OpenAI- and Anthropic-compatible APIs. Experts that do not fit in
+    VRAM run on the CPU concurrently with GPU work.
+
+    This package builds the pinned upstream release with cargo. Models and
+    draft files are not bundled: they are read from the Hugging Face cache or
+    a path given on the command line.

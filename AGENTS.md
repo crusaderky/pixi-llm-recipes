@@ -44,6 +44,7 @@ pixi-recipes/
   llama-cpp-source/    recipe.yaml variants.yaml build.sh patches/
   llama-cpp-binary/    recipe.yaml variants.yaml build.sh build.bat
   strata/              recipe.yaml build.sh   # app + engine + image encoder
+  rustingstrata/       recipe.yaml build.sh   # cargo-built Rust engine + NVRTC runtime
   opendesign/          recipe.yaml build.sh   # daemon + static web UI
   pi-extensions/ pi-home/ herdr/ herdr-file-viewer/
 ```
@@ -62,14 +63,16 @@ pixi-recipes/
 | `git-launcher`                                    | no packages; keeps Git launchers out of `design`                                                            | `git`, `gh`                                                                                                                                                                                                 |
 | `opendesign`                                      | the `opendesign` recipe (linux-64 only)                                                                     | `opendesign`, `opendesign-unsafe`, `opendesign-help`                                                                                                                                                        |
 | `strata`                                          | the `strata` recipe (linux-64 only) + `huggingface_hub`, `curl`                                             | `start-strata`, `stop-strata`, `restart-strata`, `strata-install`                                                                                                                                           |
+| `rustingstrata`                                   | the `rustingstrata` recipe (linux-64 only, cargo build + `cuda-nvrtc` runtime)                              | —                                                                                                                                                                                                           |
 | `pytools`                                         | python 3.14, `llama-benchy`, `forge-guardrails`, huggingface_hub, transformers, openai, matplotlib, tomli-w | `llama-benchy`, `llama-benchy-strata`, `strata-help`, `hf`, `context-bench`, `aggregate-context-bench`, `perplexity-report`, `llama-cpp-changelog`, `gguf-meta-extract`, `openrouter-models`, `start-forge` |
 | `lint`                                            | lefthook, ruff, dprint, actionlint, shellcheck, pyflakes, codespell, blacken-docs                           | `lint`, `install-git-hooks`, `update-dprint`                                                                                                                                                                |
 
 Environments: eight `llamacpp-{source,binary}-{cpu,cuda,vulkan,rocm}`; `agents` = `pi` +
 `pi-launcher` + `sandbox` + `git` + `git-launcher` + `herdr` + `pytools` (no standalone
-`herdr` env); `design` = `opendesign` + `pi` + `sandbox` + `git`; `lint` and `strata` are
-their features alone (`no-default-feature`). `strata-help` and `llama-benchy-strata` live
-in `pytools` so they do not trigger the Strata env's engine compile.
+`herdr` env); `design` = `opendesign` + `pi` + `sandbox` + `git`; `lint`, `strata` and
+`rustingstrata` are their features alone (`no-default-feature`). `strata-help` and
+`llama-benchy-strata` live in `pytools` so they do not trigger the Strata env's engine
+compile.
 
 Ports: llama-server 9931 (also forge's backend), forge proxy 8080, Strata 8082 (from
 `strata.ini`). Root tasks present everywhere: `stop-llamacpp`, `stop-forge`,
@@ -167,6 +170,7 @@ add gated requirements and `skip` entries in `recipe.yaml`, then add the feature
 | `herdr`             | Prebuilt release binaries: Linux stable (`latest.json`, `v{version_stable}`), Windows preview (`preview.json`). Context pins versions and sha256s.                         |
 | `herdr-file-viewer` | Plugin root under `${PREFIX}/home/.config/herdr/plugins/herdr-file-viewer/`: prebuilt binary + manifest/scripts/config from the tagged source, plus portable `entry.json`. |
 | `strata`            | Strata app tree plus C++/CUDA engine and image encoder, compiled at install time.                                                                                          |
+| `rustingstrata`     | Single `rustingstrata` CLI built from the pinned v1.3.0 tag with cargo; `cuda-nvrtc` is a run dependency because the engine compiles kernels at first load.                |
 | `opendesign`        | OpenDesign daemon + static UI, built from the pinned tag with conda Node + pnpm.                                                                                           |
 
 Both `herdr` recipes set `dynamic_linking.binary_relocation: false`: rattler-build's
@@ -272,6 +276,46 @@ Three settings are applied directly to the run config: `context` (`--max-context
 `MODEL_CARD_SAMPLING` as of Strata 0.1.45; request fields and Chat settings win, and
 `strata.ini` sets none. Generated run configs/log files live next to setup.py in
 `terminal/` and survive a relink but not a recreated env prefix.
+
+## RustingStrata (`rustingstrata` env, `pixi-recipes/rustingstrata/`)
+
+[RustingStrata](https://github.com/RustingStudio/RustingStrata) is a pure-Rust Qwen GGUF
+engine. The recipe pins v1.3.0, builds `cargo build --release --locked --bin rustingstrata`
+and installs one binary. conda-forge has no standalone `cargo` package, so the build
+dependency is `rust` (which provides cargo, rustc and std) plus a C compiler for
+`onig_sys`. `cuda-nvrtc` is a **run** dependency: the driver supplies the CUDA driver API,
+but not the NVRTC library this engine loads by name to compile kernels on first use.
+Without it the engine silently falls back to Vulkan, which is much slower here. The recipe
+is Linux x64 only; there are no start/stop scripts or tasks.
+
+The local Qwen3.8-Flash-Next file is shard 1 of
+`unsloth/Qwen3.8-Flash-Next-GGUF:UD-IQ3_XXS` in the shared Hub cache. DFlash2 must be the
+converted safetensors, not the published community GGUF: `incoai/...-GGUF` uses
+`fc.weight`-style names that RustingStrata's `open_mtp_gguf` treats as EAGLE3 and then
+fails on a missing `blk.48.eagle3.output.weight`. Pass the pinned `incoai/Qwen3.8-Flash-Next-DFlash2`
+`model.safetensors` once with `STRATA_DFLASH_Q4=1 --draft-model ...`; the engine writes
+`model-dflash-q4_0.gguf` next to it. This is the only file to pass to later runs.
+
+Calibration writes `~/.cache/rusting_strata/strata-<model>.json`, keyed to the GPU name,
+model byte count and draft filename. Run it with the target `--ctx`, `--kv`,
+`--vram-margin` and `--draft-model`; this model/machine chose `chunk=4096`, `short=16` and
+`--mtp 0`. DFlash2 is loaded but speculative drafts are **off**: with drafts enabled, the
+verification buffers take ~2.8 GiB from the expert cache and 8k decode falls from ~46 to
+~37 tok/s, while draft acceptance is only ~60%. `--mtp 0` also avoids batched-check
+rounding differences at near ties, so it is the no-quality-loss choice.
+
+Calibrated launch (no scripts):
+
+```bash
+pixi run -e rustingstrata rustingstrata serve --model "$MODEL" --gpu --backend cuda \
+  --ctx 262144 --kv q8 --draft-model "$DRAFT" --vram-margin 512 \
+  --addr 127.0.0.1:8085 --alias qwen3.8-flash
+```
+
+Measured here with `rustingstrata bench` on an RTX 3090, 256k context and q8 KV:
+904/45.9 tok/s prefill/decode at 8k and 884/39.0 at 32k. Strata's README reports
+1600/79 on the same GPU with its packed experts and `llama-benchy`; RustingStrata reaches
+~57%/~58% of that here. The harnesses are not identical, so treat this as indicative.
 
 ## OpenDesign (`design` env, `pixi-recipes/opendesign/`)
 
