@@ -163,6 +163,10 @@ requirements:
       then:
         - cuda-nvcc
         - cuda-version =13.5
+        # ggml-cuda.cu includes <nvml.h> unconditionally; the header ships in
+        # this package under targets/x86_64-linux/include, already on nvcc's
+        # include path in build.sh.
+        - cuda-nvml-dev
     - if: backend == "vulkan"
       then:
         - shaderc
