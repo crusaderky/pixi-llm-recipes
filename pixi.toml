@@ -216,14 +216,9 @@ huggingface_hub = "*"
 curl = "*"
 
 [feature.strata.tasks]
-# Two engine defaults are traded away for quality, not speed, and both are speed features
-# that change the output's last bits (docs/DETAILS.md): the rank-7 route tail skip (a missed
-# expert every token of a verify window routes at rank 7 or lower is not computed; KL
-# ~0.006, perplexity x1.011) and the CPU prefill share (the idle CPU pool computes some of
-# the experts a prompt chunk up to 5632 tokens would stream; KL ~0.004 under 1024 tokens,
-# ~0.011 at 1-3K). They are environment entries, read by the engine at start, so this task
-# needs no engine or preparation change.
-start-strata = { cmd = "bash scripts/start-strata.sh", env = { STRATA_ROUTE_TAIL_SKIP = "0", STRATA_PREFILL_CPU_SHARE = "0" } }
+# Disable using CPU to help computing prefill for short prompts (up to 5632 tokens);
+# it is lossy (KLD ~0.011). It is an environment entry read by the engine at start.
+start-strata = { cmd = "bash scripts/start-strata.sh", env = { STRATA_PREFILL_CPU_SHARE = "0" } }
 stop-strata = "bash scripts/stop-strata.sh"
 restart-strata = { depends-on = ["stop-strata", "start-strata"] }
 strata-install = "bash scripts/strata-install.sh"
