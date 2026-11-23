@@ -264,11 +264,12 @@ tokens), from the engine's `timings` in the API answer.
 | ---------------------------------------------------------------- | ------------------------------------------------------------- |
 | app + run configs (in `terminal/`), built engine + image encoder | `$CONDA_PREFIX/opt/strata/terminal`                           |
 | engine sources hashed into `BUILD.json`                          | `$CONDA_PREFIX/opt/strata/engine`                             |
-| expert pack, MTP layer, settings                                 | `$CONDA_PREFIX/strata-data`, `$CONDA_PREFIX/.config/strata`   |
+| expert pack, MTP layer                                           | `~/.cache/strata-data`                                        |
+| settings                                                         | `$CONDA_PREFIX/.config/strata`                                |
 | model GGUF shards                                                | `~/.cache/huggingface/hub` (same blobs as `llama-server -hf`) |
-| Inkling `.strata` builds                                         | `$CONDA_PREFIX/strata-data/models/inkling-2-mini`             |
+| Inkling `.strata` builds                                         | `~/.cache/strata-data/models/inkling-2-mini`                  |
 | symlink folder passed as `--gguf-dir`                            | `$CONDA_PREFIX/strata-models/<tag>`                           |
-| last prepared signature of each model                            | `$CONDA_PREFIX/strata-data/prepared/<tag>.json`               |
+| last prepared signature of each model                            | `~/.cache/strata-data/prepared/<tag>.json`                    |
 | server output                                                    | `strata.log` in the invoking directory                        |
 
 Strata publishes no Linux prebuilt, so the recipe runs upstream `setup.py`'s own
@@ -291,7 +292,7 @@ at module level by both setup.py and the server, so it must be installed too.
 (CUDA libs come from conda, `${PREFIX}/lib` in `BUILD.json`), model download (Hub cache
 
 - symlink folder instead of a second copy), and engine compilation. The MTP layer is
-  fetched as byte ranges from the BF16 checkpoint into `$CONDA_PREFIX/strata-data/mtp`;
+  fetched as byte ranges from the BF16 checkpoint into `~/.cache/strata-data/mtp`;
   only `rt/` is loaded, and the ~5 GB tensors plus intermediate GGUF are deleted after the
   build unless `--keep-mtp-inputs`. DFlash2 is fetched by `strata-run.py` itself; GGUF-published
   MTP heads are llama.cpp sidecars, not Strata's `rt/` format.
@@ -617,5 +618,6 @@ Optional renderers (`glow`/`delta`/`bat`) come from `pixi r install-file-viewer-
 - **Symlinks into `${PREFIX}/bin` must be relative** (`../opt/llama/...`) for prefix portability.
 - **Windows scripts run under the MSYS2 bash shipped by the environment** (`m2-bash`, `m2-coreutils`, `m2-grep`, `m2-sed` on win-64): a plain `bash` from PATH resolves to WSL and loses the pixi env. Don't use `jq`, `nc`, `pkill`/`pgrep`, or `ln -s`. Use `node -e` for JSON, `curl` for ports, `taskkill` behind an `$OSTYPE == msys*` branch, and `cp -r` or an NTFS junction (`cmd //c 'mklink /J <link> <target>'`) instead of symlinks. Add another `m2-*` package if needed.
 - **All three platforms are targeted**: `linux-64`, `linux-aarch64`, `win-64`.
+- **`bwrap-pi.sh` binds only what Pi needs to work on the project.** Do not add host paths to it for maintenance tasks. Maintenance on `pixi-llm-recipes` is a special case: before touching any host directory outside the workspace, check the running bwrap command for an explicit `--bind` / `--ro-bind` of every such path supplied by the user. If one is missing, stop and ask for it; never widen the sandbox or write data into the `/home` tmpfs instead.
 - **Never run `pixi install -e agents` from inside the bwrap sandbox — it leaves a half-extracted env.** The workdir bind shadows the read-only prefix mount; env sync deletes files, then fails with EBUSY on the host-bound `home/.pi/agent/settings.json`. Repair from the host. `pixi update` / `pixi lock` are lockfile-only and safe in the sandbox.
 - **`--host-ram <size>` simulates a smaller host** with a transient systemd user scope and cgroup v2 `MemoryMax`, swap off: the only limit that accounts for mmap page cache. Linux with delegated memory controller only; warmed page cache stays charged to its earlier run, and pinned memory that does not fit gets the server OOM-killed (use `load-mode = mmap`).

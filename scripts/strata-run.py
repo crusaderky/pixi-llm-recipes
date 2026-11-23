@@ -43,9 +43,10 @@ things it does there are replaced here:
   with the message that says so, so a mismatch can never reach a password prompt (see below).
 
 Everything else stays setup.py's: the expert pack, the MTP draft layer, the run config.
-What it writes is all inside ``$CONDA_PREFIX`` -- the pack, the MTP layer and the config
-under ``$CONDA_PREFIX/strata-data`` and ``$CONDA_PREFIX/opt/strata/terminal`` (0.2.16's
-app tree), its per-user settings redirected there with ``XDG_CONFIG_HOME`` too.
+The data -- the pack, the MTP layer, the preparation records -- lives under
+``~/.cache/strata-data``, shared by every Strata env; only the run configs stay under
+``$CONDA_PREFIX/opt/strata/terminal`` (0.2.16's app tree). Per-user settings stay redirected
+under the prefix with ``XDG_CONFIG_HOME``.
 
     python scripts/strata-run.py               # prepare if needed, then start the profile
     python scripts/strata-run.py --no-start    # prepare only, do not start
@@ -566,10 +567,14 @@ def main() -> int:
     family = resolve_family(setup, family)
     model = resolve_model(setup, family, model)
 
-    # The layout default, not a setting: everything stays inside the env's own prefix.
+    # The layout default, not a setting: data is a user cache, not env state, so a new
+    # prefix keeps its packs and model builds. An explicit --data-dir in strata.ini, the
+    # environment or the command line still wins.
     # Passed on both paths -- setup.py's own default is `Strata-data` next to the app folder,
     # and data_folder() moves model files between whatever it and the remembered one are.
-    data = Path(flag_value(pairs, "--data-dir") or prefix / "strata-data")
+    data = Path(
+        flag_value(pairs, "--data-dir") or Path.home() / ".cache" / "strata-data"
+    )
     data_dir = ["--data-dir", str(data)]
     fam = family_table(setup)[family]
     own = family in own_path_table(setup)

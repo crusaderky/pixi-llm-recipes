@@ -4,9 +4,9 @@ set -o pipefail
 
 # Start Strata in the background, appending its output to strata.log in the current
 # directory. The first argument names one profile from strata.ini (a section or an alias);
-# only that model starts. Everything Strata writes stays inside $CONDA_PREFIX: the app and
-# the engine in $CONDA_PREFIX/opt/strata, the expert pack, the MTP draft layer and the run
-# configs in $CONDA_PREFIX/strata-data.
+# only that model starts. The app, engine and run configs stay in $CONDA_PREFIX/opt/strata;
+# the expert pack, MTP draft layer and preparation records live in ~/.cache/strata-data, so
+# they survive a recreated env.
 #
 # What it runs with is that profile of strata.ini; `pixi run strata-help <profile>` prints
 # every parameter Strata takes and what that profile says right now.

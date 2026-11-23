@@ -109,13 +109,13 @@ other parameter the wrapper is about to pass.)
   preparation signature in `<data-dir>/strata-prepared.json` moved. `strata-install`
   is also the cheapest interface test — it exercises the `FAMILIES`/`MODELS`/`--gguf-dir` paths
   in the wrapper (~2 min, no download).
-- The pack (`strata-data/packs/<tag>`) and the MTP layer (`strata-data/mtp/rt`) carry **no
-  version stamp**; setup.py only checks that their files exist. So if the release notes mention a
-  pack or `rt` format change, or the smoke test fails, or drafting is dead (`draft_n_accepted: 0`),
-  rebuild both from scratch:
+- The pack (`~/.cache/strata-data/packs/<tag>`) and the MTP layer
+  (`~/.cache/strata-data/mtp/rt`) carry **no version stamp**; setup.py only checks that their
+  files exist. So if the release notes mention a pack or `rt` format change, or the smoke test
+  fails, or drafting is dead (`draft_n_accepted: 0`), rebuild both from scratch:
 
   ```bash
-  rm -rf "${CONDA_PREFIX}/strata-data/packs" "${CONDA_PREFIX}/strata-data/mtp"
+  rm -rf "${HOME}/.cache/strata-data/packs" "${HOME}/.cache/strata-data/mtp"
   pixi run -e strata strata-install   # pack ~2 min; re-fetches the ~5 GB of MTP tensors
   ```
 
