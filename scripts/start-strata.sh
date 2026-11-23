@@ -2,15 +2,16 @@
 set -o errexit
 set -o pipefail
 
-# Start Strata (the model strata.ini names) in the background, appending its output to
-# strata.log in the current directory. Everything else it writes stays inside $CONDA_PREFIX:
-# the app and the engine in $CONDA_PREFIX/opt/strata, the expert pack, the MTP draft layer
-# and the run config in $CONDA_PREFIX/strata-data.
+# Start Strata in the background, appending its output to strata.log in the current
+# directory. The first argument names one profile from strata.ini (a section or an alias);
+# only that model starts. Everything Strata writes stays inside $CONDA_PREFIX: the app and
+# the engine in $CONDA_PREFIX/opt/strata, the expert pack, the MTP draft layer and the run
+# configs in $CONDA_PREFIX/strata-data.
 #
-# What it runs with is strata.ini in this repo's root; `pixi run strata-help` prints every
-# parameter Strata takes and what that file says right now.
+# What it runs with is that profile of strata.ini; `pixi run strata-help <profile>` prints
+# every parameter Strata takes and what that profile says right now.
 #
-# The first start downloads the model shards into the shared Hugging Face cache
+# The first start of a profile downloads the model shards into the shared Hugging Face cache
 # (~/.cache/huggingface/hub, the same blobs `llama-server -hf` uses), takes ~5 GB of MTP
 # tensors out of the Qwen checkpoint and prepares the pack. That is a couple of minutes, once;
 # later starts only load the model (~40 s) -- unless strata.ini changed something setup.py
@@ -21,6 +22,7 @@ set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT=""
+PROFILE="${STRATA_PROFILE:-}"
 ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -32,14 +34,27 @@ while [[ $# -gt 0 ]]; do
             PORT="${1#*=}"
             shift
             ;;
+        --profile)
+            PROFILE="$2"
+            shift 2
+            ;;
+        --profile=*)
+            PROFILE="${1#*=}"
+            shift
+            ;;
         *)
-            ARGS+=("$1")
+            if [[ -z "${PROFILE}" && "$1" != --* ]]; then
+                PROFILE="$1"
+            else
+                ARGS+=("$1")
+            fi
             shift
             ;;
     esac
 done
+export STRATA_PROFILE="${PROFILE}"
 
-# --port here, then STRATA_PORT, then strata.ini -- the same order scripts/strata-run.py
+# --port here, then STRATA_PORT, then the profile -- the same order scripts/strata-run.py
 # applies. The wrapper is asked rather than a number written here, so the health check below
 # polls the port Strata is about to listen on.
 if [[ -z "${PORT}" ]]; then

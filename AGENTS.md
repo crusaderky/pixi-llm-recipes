@@ -172,44 +172,76 @@ in `.agents/skills/`; `update-all` chains them and refreshes the lockfile.
 
 ## Strata (`strata` env, `strata.ini`)
 
-[Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next (125B MoE) on one
-GPU plus system RAM, serving OpenAI/Anthropic/Responses APIs on `127.0.0.1:<port from
-strata.ini>` (8082). It refuses a port someone else owns and distinguishes its own
-`/health` (carries `"loaded"`) from llama-server's. Whether it can run alongside
-llama-server is a VRAM question, not a port one.
+[Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next (125B MoE) and
+Inkling-2-Mini (26.4B MoE, looped) on one GPU plus system RAM, serving
+OpenAI/Anthropic/Responses APIs on `127.0.0.1:<port from strata.ini>` (8082). It refuses a
+port someone else owns and distinguishes its own `/health` (carries `"loaded"`) from
+llama-server's. Whether it can run alongside llama-server is a VRAM question, not a port
+one.
+
+The tasks take one profile argument: a section of `strata.ini` or one of its aliases.
+Several profiles share the one `strata` env; `stop-strata` needs no argument.
 
 ```bash
-pixi install -e strata     # solves + compiles the engine (~8 min on 32 cores, once)
-pixi run start-strata      # first run packs the model (~2 min), then serves
-pixi run strata-install    # prepare only, no server
-pixi run stop-strata       # SIGTERM, then SIGKILL
-pixi run restart-strata
-pixi r strata-help         # every setup.py parameter + current strata.ini value
+pixi install -e strata          # solves + compiles the engine (~8 min on 32 cores, once)
+pixi run start-strata QFN       # first start of a profile packs the model (~2 min), then serves
+pixi run strata-install QFN     # prepare only that profile, no server
+pixi run start-strata Inkling
+pixi run strata-install Inkling
+pixi run stop-strata            # SIGTERM, then SIGKILL
+pixi r strata-help QFN          # every setup.py parameter + that profile's value
 ```
 
 ### `strata.ini`
 
-Every key is a Strata `setup.py` argument; `scripts/strata-run.py` has no defaults for
-them and refuses to run without the file. Precedence: command line after `--`, then
-`STRATA_*` env vars (`STRATA_FAMILY`, `STRATA_MODEL`, `STRATA_VISION`, `STRATA_CONTEXT`,
-`STRATA_VRAM_RESERVE_MIB`, `STRATA_PORT`, `STRATA_DATA`, `STRATA_KEEP_MTP_INPUTS`), then
-the file. `key = value`, dashes or underscores, leading `--` optional; empty value is a
-flag, `off`/`no`/`false` drops one. `STRATA_INI` selects another file. `port`, `--port`
-and `STRATA_PORT` drive both the server and `start-strata.sh`'s health check (the script
-asks `strata-run.py --print port`).
+Each `[section]` is a model profile with `aliases = [QFN, ...]`; the first section is the
+default when a script has no argument, and `STRATA_PROFILE` names one (the tasks export it
+from their positional argument). Every other key is a Strata `setup.py` argument;
+`scripts/strata-run.py` has no defaults for them and refuses to run without the file.
+Precedence: command line after `--`, then `STRATA_*` env vars (`STRATA_FAMILY`,
+`STRATA_MODEL`, `STRATA_VISION`, `STRATA_CONTEXT`, `STRATA_VRAM_RESERVE_MIB`, `STRATA_PORT`,
+`STRATA_DATA`, `STRATA_KEEP_MTP_INPUTS`), then the profile. `key = value`, dashes or
+underscores, leading `--` optional; empty value is a flag, `off`/`no`/`false` drops one.
+`STRATA_INI` selects another file. `port`, `--port` and `STRATA_PORT` drive both the server
+and `start-strata.sh`'s health check (the script asks `strata-run.py --print port`).
 
 `family` and `model` are read live from setup.py's `FAMILIES`/`MODELS`; a `MODELS` entry
 may pin its own Hub `revision` and the `quant` its files actually carry. `OWN_PATH_FAMILIES`
 (old name `PREVIEW_FAMILIES`) such as `qwen36` keeps its own engine path and GGUF: no
 expert pack, profile or MTP fetch, and `vram-reserve-mib` is applied at prepare as
-`--expert-vram`. `nvfp4` (ready-made packs) and `MULTI_FILE_FAMILIES` (`deepseek41`) are
-not offered — the wrapper only implements GGUF shards into the Hub cache.
+`--expert-vram`. `nvfp4` (ready-made packs), `MULTI_FILE_FAMILIES` (`deepseek41`) and `hy4-flash`
+(`.strata` builds with their own installer) are not offered — the wrapper only implements
+GGUF shards into the Hub cache. `inkling-2-mini` is the exception: its `.strata` build and
+Vision shard are downloaded and SHA-256 checked by setup.py into
+`<data-dir>/models/inkling-2-mini/`; its DSpark drafter is part of the build, so the
+profile's `drafter = dspark` only pins the run config's `drafting` key (setup.py's
+`--drafter` does not accept it). Its KV dtype is FP16 (`--kv auto` means FP16 here, FP8 at
+16+ parallel slots, not Flash-Next's int8 default), with automatic host offload at long
+contexts (`--kv-offload auto`). The wrapper pins Inkling's `--kv` (from the profile or the
+command line) into the config; setup.py ignores the flag on that path, so changing it does
+not re-prepare. Qwen's setup has no `--kv auto`: it writes `--kv int8` above 8K context, and
+its own "auto" is `--kv-streaming auto` (placement: what stays in VRAM vs host RAM,
+recorded as `--kv-resident N` in the config). Inkling's `--kv-offload` is pinned like `--kv`. At 262144 context the engine splits the KV
+between VRAM and mapped host RAM at load (`Auto Host KV Offload ... max_ctx=262144`) and a
+full 262K-token request completes; at 131072 it instead grows KV elastically during prefill
+and OOMs around 90K tokens on a 24 GiB card with the profile's 2048 MiB reserve, so
+`--kv-offload on` is needed there (all global KV in host RAM: 4 GiB at fp16, 2 GiB at
+fp8/k8v8, decode ~1–2 tok/s). Neither engine streams KV to disk. The two host-KV paths
+are not equivalent: QFN's `engine/src/kernels/cuda/kv_stream.cu` resolves misses and copies
+KV blocks into a VRAM pool (`--kv-resident`), while Inkling's `ink_attn.cuh` reads mapped
+pinned host pointers directly from the attention kernel (`cudaHostAllocMapped` +
+`cudaHostGetDevicePointer`), so full-context decode is PCIe-bound (~130K host tokens × 8
+global visits ≈ 4 GiB per generated token). DSpark losing its VRAM near 245K is secondary:
+forcing all KV to host keeps DSpark alive yet decode falls to ~0.5 tok/s.
 
 A start applies run-config engine arguments verbatim, so a flag read only while preparing
-does nothing there. Preparation keys are recorded in `<data-dir>/strata-prepared.json`;
-changing one triggers one re-prepare (`~2 min`, no download) on the next start, and
-`strata-install` re-prepares whatever the file says. `--context` is the exception: it
-rewrites `--max-context` in the run config before every start. A pruned Hub cache makes
+does nothing there. Preparation keys are recorded per model in
+`<data-dir>/prepared/<tag>.json` (the old single `strata-prepared.json` is read as a
+fallback); changing one triggers one re-prepare (`~2 min`, no download) on the next start,
+and `strata-install <profile>` re-prepares only that profile. The wrapper hides all other
+run configs from setup.py's start path, so the newest config in the env is irrelevant.
+`--context` is the exception: it rewrites `--max-context` in the run config before every
+start. A pruned Hub cache makes
 the recorded `--gguf-dir` links dangle (vision then dies with `failed to open GGUF
 file`); the wrapper stats the folder and forces a re-link. `setup`, `no-start`,
 `update`, `check`, `calibrate` and `gguf-dir` are refused in the file — pass one-shot
@@ -224,7 +256,9 @@ was `systemd --user`, taking the whole session down. `scripts/install-oomd.sh` w
 drop-in setting `ManagedOOMMemoryPressure=auto` for that unit. Starting from inside the
 Pi sandbox unshares cgroups, so the engine cannot determine its RAM budget and streams
 experts from the page cache instead of RAM — correct answers, lower speed; start from
-the host when that matters.
+the host when that matters. On the same 3090, Inkling-2-Mini SQ-15 at 256K with vision
+and DSpark measured ~1,350 tok/s prefill (8K fresh prompt) and ~86 tok/s decode (128 output
+tokens), from the engine's `timings` in the API answer.
 
 | What                                                             | Where                                                         |
 | ---------------------------------------------------------------- | ------------------------------------------------------------- |
@@ -232,8 +266,9 @@ the host when that matters.
 | engine sources hashed into `BUILD.json`                          | `$CONDA_PREFIX/opt/strata/engine`                             |
 | expert pack, MTP layer, settings                                 | `$CONDA_PREFIX/strata-data`, `$CONDA_PREFIX/.config/strata`   |
 | model GGUF shards                                                | `~/.cache/huggingface/hub` (same blobs as `llama-server -hf`) |
+| Inkling `.strata` builds                                         | `$CONDA_PREFIX/strata-data/models/inkling-2-mini`             |
 | symlink folder passed as `--gguf-dir`                            | `$CONDA_PREFIX/strata-models/<tag>`                           |
-| last prepared `strata.ini` signature                             | `$CONDA_PREFIX/strata-data/strata-prepared.json`              |
+| last prepared signature of each model                            | `$CONDA_PREFIX/strata-data/prepared/<tag>.json`               |
 | server output                                                    | `strata.log` in the invoking directory                        |
 
 Strata publishes no Linux prebuilt, so the recipe runs upstream `setup.py`'s own

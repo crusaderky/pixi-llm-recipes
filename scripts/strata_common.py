@@ -5,11 +5,13 @@ prints every flag ``setup.py`` accepts) and ``llama-benchy-strata.py`` (which be
 whatever the server is serving), and read by ``start-strata.sh`` and
 ``inject-strata-model.sh`` through ``strata-run.py --print <key>``.
 
-``strata.ini`` in the project root is where this project says which model Strata serves and
-how it is sized: every key in it becomes an argument for ``setup.py``, exactly as
-``pixi run start-strata -- --<key> <value>`` would pass it.  Precedence, highest first: the
-command line, the ``STRATA_*`` environment, ``strata.ini``.  The file is required -- the
-settings live there and not in this code, so there is nothing here to keep in step with it.
+``strata.ini`` in the project root holds one section per model profile. Every key of the
+active section becomes an argument for ``setup.py``, exactly as
+``pixi run start-strata QFN -- --<key> <value>`` would pass it. A profile is named by its
+section or by one of its ``aliases``; ``STRATA_PROFILE`` selects it, and with no selection
+the first section wins. Precedence, highest first: the command line, the ``STRATA_*``
+environment, the profile's section in ``strata.ini``. The file is required -- the settings
+live there and not in this code, so there is nothing here to keep in step with it.
 
 The scripts that import this live in the same directory and are invoked as
 ``python scripts/<name>.py``, so ``sys.path[0]`` is ``scripts/`` and a plain
@@ -31,7 +33,12 @@ from types import ModuleType
 Pair = tuple[str, str | None]
 
 INI_NAME = "strata.ini"
-INI_SECTION = "strata"
+INI_SECTION = (
+    "strata"  # the old single-profile section, still read when nothing else is selected
+)
+PROFILE_ENV = "STRATA_PROFILE"
+#: a profile's description, not a setup.py flag
+PROFILE_META_KEYS = frozenset({"aliases"})
 #: what this wrapper records next to the model's data: the part of the command line
 #: setup.py only reads when it prepares a model (see ``prepare_signature``)
 PREPARED_NAME = "strata-prepared.json"
@@ -131,20 +138,12 @@ def ini_path() -> Path:
     return Path(os.environ.get("STRATA_INI") or repo_root() / INI_NAME)
 
 
-def flag_name(key: str) -> str:
-    """A strata.ini key as the flag it names: dashes or underscores, the `--` optional."""
-    key = key.strip().replace("_", "-")
-    return key if key.startswith("-") else f"--{key}"
+def selected_profile() -> str | None:
+    """The profile the tasks were called with, if any (they export STRATA_PROFILE)."""
+    return os.environ.get(PROFILE_ENV) or None
 
 
-def read_ini(path: Path | None = None) -> list[Pair]:
-    """strata.ini as `(flag, value)` pairs, in the order it was written.
-
-    `key = value`; a key with no value is a valueless flag, and a value of `off`/`no`/
-    `false` drops one.  Inline comments need the whitespace before them, so a value that
-    contains a `#` (an api key) keeps it.
-    """
-    path = path or ini_path()
+def _ini_parser(path: Path) -> configparser.ConfigParser:
     if not path.is_file():
         sys.exit(
             f"{path} is missing, and it is where Strata's settings live: restore it from "
@@ -161,18 +160,72 @@ def read_ini(path: Path | None = None) -> list[Pair]:
         parser.read(path, encoding="utf-8")
     except (configparser.Error, OSError) as exc:
         sys.exit(f"{path}: {exc}")
-    if not parser.has_section(INI_SECTION):
-        sys.exit(f"{path}: no [{INI_SECTION}] section")
+    return parser
 
+
+def parse_aliases(value: str | None) -> list[str]:
+    """`aliases = [QFN, flash]` as the two names it declares."""
+    return [
+        a.strip() for a in (value or "").strip().strip("[]").split(",") if a.strip()
+    ]
+
+
+def profiles(path: Path | None = None) -> list[tuple[str, list[str]]]:
+    """Every profile in strata.ini: its section name and its aliases."""
+    parser = _ini_parser(path or ini_path())
+    return [
+        (name, parse_aliases(parser[name].get("aliases"))) for name in parser.sections()
+    ]
+
+
+def select_profile(name: str | None, path: Path | None = None) -> str:
+    """The section a profile name or alias picks. With no name, the old [strata] section
+    still wins; otherwise it is the first section written in the file."""
+    parser = _ini_parser(path or ini_path())
+    found = profiles(path or ini_path())
+    if not found:
+        sys.exit(f"{path or ini_path()}: no model profile sections")
+    if name:
+        for section, aliases in found:
+            if name.lower() in [section.lower(), *(a.lower() for a in aliases)]:
+                return section
+        known = ", ".join(
+            f"{section}" + (f" ({', '.join(aliases)})" if aliases else "")
+            for section, aliases in found
+        )
+        sys.exit(f"{path or ini_path()}: no profile {name!r}; it knows {known}")
+    if parser.has_section(INI_SECTION):
+        return INI_SECTION
+    return found[0][0]
+
+
+def flag_name(key: str) -> str:
+    """A strata.ini key as the flag it names: dashes or underscores, the `--` optional."""
+    key = key.strip().replace("_", "-")
+    return key if key.startswith("-") else f"--{key}"
+
+
+def read_ini(path: Path | None = None, profile: str | None = None) -> list[Pair]:
+    """One profile of strata.ini as `(flag, value)` pairs, in the order it was written.
+
+    `key = value`; a key with no value is a valueless flag, and a value of `off`/`no`/
+    `false` drops one.  Inline comments need the whitespace before them, so a value that
+    contains a `#` (an api key) keeps it.
+    """
+    path = path or ini_path()
+    section = select_profile(profile, path)
+    parser = _ini_parser(path)
     pairs: list[Pair] = []
-    for key, value in parser[INI_SECTION].items():
+    for key, value in parser[section].items():
         flag = flag_name(key)
+        if flag in {flag_name(name) for name in PROFILE_META_KEYS}:
+            continue
         value = None if value is None else value.strip()
         if flag in COMMAND_FLAGS:
             sys.exit(
                 f"{path}: {flag} is a one-shot command, not a setting -- it would run on "
                 f"every start. Pass it on the command line instead: "
-                f"pixi run strata-install -- --{flag.lstrip('-')}"
+                f"pixi run strata-install <profile> -- --{flag.lstrip('-')}"
             )
         if flag == GGUF_DIR_FLAG:
             sys.exit(
@@ -248,11 +301,13 @@ def dedupe(pairs: Sequence[Pair]) -> list[Pair]:
     return [(flag, values[flag]) for flag in order]
 
 
-def strata_args(cli: Sequence[str] = ()) -> list[Pair]:
-    """The command line Strata gets: strata.ini, then the STRATA_* overrides, then the
-    caller's own arguments -- so a command line beats the file and the file beats the
-    environment."""
-    return dedupe(read_ini() + env_args() + parse_args(cli))
+def strata_args(cli: Sequence[str] = (), profile: str | None = None) -> list[Pair]:
+    """The command line Strata gets: the selected profile, then the STRATA_* overrides,
+    then the caller's own arguments -- so a command line beats the file and the file beats
+    the environment."""
+    return dedupe(
+        read_ini(profile=profile or selected_profile()) + env_args() + parse_args(cli)
+    )
 
 
 def render(pairs: Sequence[Pair]) -> list[str]:
@@ -311,20 +366,30 @@ def signature_diff(old: Sequence[Sequence[str]], new: Sequence[Sequence[str]]) -
     return ", ".join(moved)
 
 
-def prepared_args(data: Path) -> list[list[str]] | None:
-    """What this wrapper last prepared this data folder with, or None when nothing records
-    it (a model prepared before this check existed, or a data folder moved in)."""
-    try:
-        record = json.loads((data / PREPARED_NAME).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    args = record.get("args") if isinstance(record, dict) else None
-    return args if isinstance(args, list) else None
+def prepared_path(data: Path, tag: str) -> Path:
+    """One model's preparation record. Several models share a data dir, so the record is
+    per model: the single `strata-prepared.json` of the first profile is only a fallback."""
+    return data / "prepared" / f"{tag}.json"
+
+
+def prepared_args(data: Path, tag: str) -> list[list[str]] | None:
+    """What this wrapper last prepared this model with, or None when nothing records it
+    (a model prepared before per-model records existed, or a data folder moved in)."""
+    for path in (prepared_path(data, tag), data / PREPARED_NAME):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(record, dict) or (tag and record.get("tag") != tag):
+            continue
+        args = record.get("args")
+        return args if isinstance(args, list) else None
+    return None
 
 
 def record_prepared(data: Path, tag: str, signature: Sequence[Sequence[str]]) -> None:
-    data.mkdir(parents=True, exist_ok=True)
-    path = data / PREPARED_NAME
+    path = prepared_path(data, tag)
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(
         json.dumps({"tag": tag, "args": list(signature)}, indent=1), encoding="utf-8"
@@ -391,9 +456,58 @@ def model_configs(root: Path) -> list[Path]:
     )
 
 
-def installed_ports() -> list[str]:
-    """The ports the installed run configs were prepared with, newest first."""
+def family_table(setup: ModuleType) -> dict:
+    """Every family setup.py can prepare, as one `{name: entry}` table.
+
+    The pack families share one engine; `OWN_PATH_FAMILIES` (Qwen3.6), `HY4_FAMILIES` and
+    `INKLING_FAMILIES` bring their own files and engines. `PREVIEW_FAMILIES` is upstream's
+    older name for the first of those.
+    """
+    return {
+        **setup.FAMILIES,
+        **(getattr(setup, "OWN_PATH_FAMILIES", None) or {}),
+        **(getattr(setup, "PREVIEW_FAMILIES", None) or {}),
+        **(getattr(setup, "HY4_FAMILIES", None) or {}),
+        **(getattr(setup, "INKLING_FAMILIES", None) or {}),
+    }
+
+
+def model_tag(setup: ModuleType, pairs: Sequence[Pair]) -> str | None:
+    """The suffix setup.py gives this model's run config (`strata-<tag>.json`)."""
+    family = flag_value(pairs, "--family")
+    model = flag_value(pairs, "--model")
+    if not family or not model:
+        return None
+    fam = family_table(setup).get(family) or {}
+    return (fam.get("tag", family + "-") + model).lower()
+
+
+def config_path(root: Path, pairs: Sequence[Pair], setup: ModuleType) -> Path | None:
+    """The run config this profile names, whether or not it has been prepared yet."""
+    tag = model_tag(setup, pairs)
+    if not tag:
+        return None
+    folder = root / "terminal" if (root / "terminal").is_dir() else root
+    return folder / f"strata-{tag}.json"
+
+
+def active_config(pairs: Sequence[Pair]) -> Path | None:
+    """The selected profile's run config, when it is installed."""
+    root = app_dir()
+    path = config_path(root, pairs, load_setup(root))
+    return path if path and path.is_file() else None
+
+
+def installed_ports(pairs: Sequence[Pair] | None = None) -> list[str]:
+    """The ports the installed run configs were prepared with, newest first. The selected
+    profile's config comes first when there is one."""
     out: list[str] = []
+    if pairs is not None:
+        config = active_config(pairs)
+        cfg = read_config(config) if config else None
+        port = cfg.get("port") if cfg else None
+        if port:
+            out.append(str(port))
     for root in app_dirs():
         for path in model_configs(root):
             port = (read_config(path) or {}).get("port")
@@ -408,12 +522,18 @@ def resolve_port(pairs: Sequence[Pair]) -> str | None:
     port = flag_value(pairs, "--port")
     if port:
         return port
-    found = installed_ports()
+    found = installed_ports(pairs)
     return found[0] if found else None
 
 
-def installed_context() -> str | None:
-    """The context the newest installed run config serves, newest first."""
+def installed_context(pairs: Sequence[Pair] | None = None) -> str | None:
+    """The context the selected profile's installed config serves, else the newest one's."""
+    if pairs is not None:
+        config = active_config(pairs)
+        if config:
+            ctx = config_flag(config, "--max-context")
+            if ctx:
+                return ctx
     for root in app_dirs():
         for path in model_configs(root):
             ctx = config_flag(path, "--max-context")
@@ -425,7 +545,15 @@ def installed_context() -> str | None:
 def resolve_context(pairs: Sequence[Pair]) -> str | None:
     """The context this run serves: strata.ini / STRATA_CONTEXT / --context, else what the
     installed model was prepared with.  None when nothing says."""
-    return flag_value(pairs, "--context") or installed_context()
+    return flag_value(pairs, "--context") or installed_context(pairs)
+
+
+def resolve_model_name(pairs: Sequence[Pair]) -> str | None:
+    """The model name pi should use for this profile, from its installed run config."""
+    config = active_config(pairs)
+    cfg = read_config(config) if config else None
+    name = cfg.get("model_name") if cfg else None
+    return str(name) if name else None
 
 
 def write_config(config: Path, cfg: dict) -> None:
@@ -454,6 +582,7 @@ def config_flag(config: Path, flag: str) -> str | None:
 PRINT_RESOLVERS = {
     "--port": resolve_port,
     "--context": resolve_context,
+    "--model-name": resolve_model_name,
 }
 
 
@@ -486,10 +615,53 @@ def pin_context(config: Path, ctx: str) -> bool:
     return True
 
 
+def _replace_engine_arg(config: Path, flag: str, value: str) -> bool:
+    """Set one engine flag in a run config's args; True when it had to change."""
+    cfg = read_config(config)
+    if cfg is None:
+        return False
+    args = cfg.get("args", [])
+    if not isinstance(args, list):
+        args = []
+    if flag in args:
+        i = args.index(flag) + 1
+        if i < len(args) and args[i] == str(value):
+            return False
+        if i < len(args):
+            args[i] = str(value)
+        else:
+            args.append(str(value))
+    else:
+        args += [flag, str(value)]
+    cfg["args"] = args
+    write_config(config, cfg)
+    return True
+
+
+def pin_kv(config: Path, kv: str) -> bool:
+    """Rewrite ``--kv`` in a run config; True when it had to change.
+
+    Inkling's engine takes ``--kv auto|fp16|fp8|k8v8|k8v4``; its setup path never writes the
+    flag, so the wrapper owns it just as it owns ``--max-context`` for every model.
+    """
+    return _replace_engine_arg(config, "--kv", kv)
+
+
+def pin_kv_offload(config: Path, mode: str) -> bool:
+    """Rewrite ``--kv-offload`` in an Inkling run config; True when it had to change.
+
+    Like ``--kv``, the flag belongs to the engine and setup.py does not accept it.
+    ``on`` maps all global KV to host RAM, which is the only way a full 128K context fits
+    this 24 GiB card: the automatic growth path runs out of VRAM at ~90K tokens.
+    """
+    return _replace_engine_arg(config, "--kv-offload", mode)
+
+
 def pin_drafting(config: Path, choice: str) -> bool:
     """Rewrite a run config's ``drafting`` key; True when it had to change.
 
-    ``drafting`` is serve/server.py's own key (``auto`` | ``mtp`` | ``dflash2`` | ``off``);
+    ``drafting`` is serve/server.py's own key (``auto`` | ``mtp`` | ``dflash2`` |
+    ``dspark`` | ``off``);
     setup.py never writes it -- its ``--drafter`` only decides whether the MTP layer is
     fetched -- so a config setup.py prepared runs ``auto``, which is DFlash2 while the start
     serves one request and the MTP as soon as ``parallel`` gives it more than one slot

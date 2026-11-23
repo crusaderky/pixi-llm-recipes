@@ -4,11 +4,13 @@
 The upstream installer (setup.py) assumes a plain ``./setup.sh`` checkout; several of the
 things it does there are replaced here:
 
-* **Its command line.** What Strata runs with is ``strata.ini`` in the project root -- every
-  key of it is an argument for setup.py, and ``pixi run strata-help`` prints the whole flag
-  list. A command line after ``--`` and the ``STRATA_*`` variables override the file, in that
-  order. Nothing here has an opinion about a model, a context or a VRAM reserve: the file
-  does.
+* **Its command line.** What Strata runs with is the selected profile of ``strata.ini`` in
+  the project root -- every key of it is an argument for setup.py, and ``pixi run
+  strata-help <profile>`` prints the whole flag list. A task names the profile positionally
+  (``pixi run strata-install QFN``); ``STRATA_PROFILE`` does the same for scripts that have
+  no argument. A command line after ``--`` and the ``STRATA_*`` variables override the
+  profile, in that order. Nothing here has an opinion about a model, a context or a VRAM
+  reserve: the file does.
 * **Dependencies.** Its step 3, and ``pip_cuda_libs()`` for a ready-made engine, run
   ``python -m pip install <pinned wheels>`` into whichever interpreter is running -- a
   ``.venv`` upstream, the conda prefix here. Installing into a conda prefix is the one
@@ -45,7 +47,7 @@ What it writes is all inside ``$CONDA_PREFIX`` -- the pack, the MTP layer and th
 under ``$CONDA_PREFIX/strata-data`` and ``$CONDA_PREFIX/opt/strata/terminal`` (0.2.16's
 app tree), its per-user settings redirected there with ``XDG_CONFIG_HOME`` too.
 
-    python scripts/strata-run.py               # prepare if needed, then start
+    python scripts/strata-run.py               # prepare if needed, then start the profile
     python scripts/strata-run.py --no-start    # prepare only, do not start
     python scripts/strata-run.py --print port         # the port strata.ini says, nothing else
     pixi run start-strata -- --calibrate       # anything unknown is forwarded to setup.py
@@ -82,6 +84,7 @@ from strata_common import (
     WRAPPER_FLAGS,
     app_dir,
     config_flag,
+    family_table,
     flag_name,
     flag_value,
     has_flag,
@@ -90,6 +93,8 @@ from strata_common import (
     parse_args,
     pin_context,
     pin_drafting,
+    pin_kv,
+    pin_kv_offload,
     prepare_signature,
     prepared_args,
     record_prepared,
@@ -184,25 +189,17 @@ def own_path_table(setup: ModuleType) -> dict:
     )
 
 
-def family_table(setup: ModuleType) -> dict:
-    """Every family setup.py can prepare, as one `{name: entry}` table.
-
-    ``FAMILIES`` is Qwen3.8-Flash-Next's releases: the same architecture, weights packed into
-    ``<data-dir>/packs/<tag>``. ``OWN_PATH_FAMILIES`` (0.1.44's Qwen3.6-35B-A3B) is the family
-    with an engine path of its own: no pack, no expert profile, no separate MTP draft layer --
-    the engine reads the GGUF as it is and drafts with the file's own MTP block. setup.py
-    routes it to its own ``install_own_path``, whose ``--family`` choices are
-    ``list(FAMILIES) + list(PREVIEW_FAMILIES)``, so both tables are read.
-    """
-    return {**setup.FAMILIES, **own_path_table(setup)}
-
-
 def resolve_family(setup: ModuleType, family: str) -> str:
     """The family as setup.py spells it, or the choices it would have offered."""
     known = {name.lower(): name for name in family_table(setup)}
     if family.lower() not in known:
         sys.exit(f"family {family!r}: setup.py knows {', '.join(family_table(setup))}")
     family = known[family.lower()]
+    if family in getattr(setup, "HY4_FAMILIES", {}):
+        sys.exit(
+            f"family {family!r} ships .strata builds with its own installer: this wrapper "
+            "has no preparation path for it; use upstream Strata's own CLI"
+        )
     if family_table(setup)[family].get("ready"):
         # `nvfp4` (0.2.x): ready-made Strata packs from a third-party repository, not GGUF
         # shards -- there is no <hf> or <file> to walk. This wrapper fetches the model files
@@ -351,6 +348,36 @@ def gguf_dir(setup: ModuleType, family: str, model: str, vision: str) -> Path:
         link.symlink_to(source)
         print(f"  {link.name} -> {source}", flush=True)
     return where
+
+
+def native_folder(data: Path, family: str) -> Path:
+    """Where setup.py's own installer puts a family's .strata files (its `inkling_folder`).
+
+    These builds are not GGUF shards in the Hub cache; setup.py downloads them, checks their
+    SHA-256 and leaves them beside the pack in the data dir, so the wrapper must not hand it
+    --gguf-dir (that would make it treat the model as someone else's local files).
+    """
+    return data / "models" / family
+
+
+def native_files(setup: ModuleType, family: str, model: str, vision: str) -> list[str]:
+    """The .strata files setup.py downloads for this family, build and vision choice."""
+    infos = getattr(setup, "inkling_family", None)
+    if infos is None or family not in getattr(setup, "INKLING_FAMILIES", {}):
+        return []
+    return infos.files_of(model, vision not in ("no", "none", "off"))
+
+
+def missing_native_files(
+    setup: ModuleType, data: Path, family: str, model: str, vision: str
+) -> list[str]:
+    """Native build files gone from the data dir, so a start has to re-prepare."""
+    folder = native_folder(data, family)
+    return [
+        n
+        for n in native_files(setup, family, model, vision)
+        if not (folder / n).is_file()
+    ]
 
 
 def dir_bytes(path: Path) -> int:
@@ -532,9 +559,9 @@ def main() -> int:
     model = flag_value(pairs, "--model")
     if not family or not model:
         sys.exit(
-            f"{ini_path()} sets no family and model. This wrapper prepares the model files "
-            "itself, so it has to know which model it is preparing; `pixi run strata-help` "
-            "lists what setup.py offers."
+            f"{ini_path()}'s selected profile sets no family and model. This wrapper prepares "
+            "the model files itself, so it has to know which model it is preparing; `pixi run "
+            "strata-help <profile>` lists what setup.py offers."
         )
     family = resolve_family(setup, family)
     model = resolve_model(setup, family, model)
@@ -546,6 +573,7 @@ def main() -> int:
     data_dir = ["--data-dir", str(data)]
     fam = family_table(setup)[family]
     own = family in own_path_table(setup)
+    inkling = family in getattr(setup, "INKLING_FAMILIES", {})
     tag = (fam["tag"] + model).lower()
     # setup.py writes its run configs in home(), which is ROOT outside Control mode.
     # Since 0.2.16 ROOT is the packaged terminal/ folder, not the app tree's top level.
@@ -564,6 +592,20 @@ def main() -> int:
             f"images: {fam['title']} has no image encoder yet ({ini_path()}'s vision ignored)"
         )
 
+    # Inkling drafts with DSpark, which setup.py writes into the config itself and does not
+    # accept as a --drafter choice (mtp / dflash2 / dfly2 are Qwen's). Keep the profile's value
+    # for pin_drafting below, but never hand it to setup.py.
+    drafter = flag_value(pairs, "--drafter")
+    if inkling and drafter:
+        pairs = without(pairs, {"--drafter"})
+    # Inkling's setup path ignores --kv too: the engine reads it from the run config.
+    kv = flag_value(pairs, "--kv")
+    if inkling and kv:
+        pairs = without(pairs, {"--kv"})
+    kv_offload = flag_value(pairs, "--kv-offload")
+    if inkling and kv_offload:
+        pairs = without(pairs, {"--kv-offload"})
+
     signature = prepare_signature(pairs)
     if own and has_flag(pairs, "--vram-reserve-mib"):
         # For a Flash-Next model the reserve is a start-path flag (setup.py rewrites it in the
@@ -573,7 +615,7 @@ def main() -> int:
             signature
             + [["--vram-reserve-mib", flag_value(pairs, "--vram-reserve-mib") or ""]]
         )
-    prepared = prepared_args(data)  # what this data folder was last prepared with
+    prepared = prepared_args(data, tag)  # what this model was last prepared with
     reason = None
     if not config.is_file():
         reason = f"{config.name} is not installed"
@@ -585,35 +627,35 @@ def main() -> int:
         reason = "nothing records how this model was prepared"
     elif prepared != signature:
         reason = f"strata.ini changed: {signature_diff(prepared, signature)}"
-    elif lost := missing_model_files(setup, family, model, vision):
-        # the run config points the engine at this folder, so a file pruned from the Hub cache
-        # behind these symlinks breaks the start (the vision encoder, if it is the mmproj)
-        reason = f"its model files are gone: {', '.join(lost)}"
+    else:
+        lost = (
+            missing_native_files(setup, data, family, model, vision)
+            if inkling
+            else missing_model_files(setup, family, model, vision)
+        )
+        if lost:
+            # The run config points the engine at these files. A pruned Hub cache leaves the
+            # symlinks dangling; a deleted .strata build breaks the native path the same way.
+            reason = f"its model files are gone: {', '.join(lost)}"
 
     if reason:
         print(f"  preparing the model: {reason}", flush=True)
-        farm = gguf_dir(setup, family, model, vision)
-        argv = [
-            *data_dir,
-            *render(without(pairs, {"--no-start"})),
-            "--no-start",
-            "--gguf-dir",
-            str(farm),
-        ]
+        argv = [*data_dir, *render(without(pairs, {"--no-start"})), "--no-start"]
+        if not inkling:
+            # A pack family reads GGUFs from the shared Hub cache. Inkling's .strata files
+            # are downloaded and verified by setup.py itself into the data dir.
+            argv += ["--gguf-dir", str(gguf_dir(setup, family, model, vision))]
         code = run_setup(setup, argv)
         if code:
             return code
         record_prepared(data, tag, signature)
-        if not keep_mtp:
+        if not keep_mtp and not inkling:
             trim_mtp_inputs(setup, data)
 
     # The drafter setup.py does not fetch, on both paths (`strata-install` as well as a
     # start): a model prepared by an earlier run has to get its pack too (fetch_dflash2).
+    # Inkling's DSpark is in its own build, so the call returns without a download.
     fetch_dflash2(setup, pairs, data, config, family)
-    # Several models can be installed at once and setup.py starts the newest run config, so
-    # the one strata.ini names has to be the newest by the time it looks.
-    if config.is_file():
-        config.touch()
 
     # setup.py's start path ignores --context (it reads the config verbatim), so the context
     # strata.ini asks for is applied to the config itself.  Before the `--no-start` return as
@@ -623,12 +665,16 @@ def main() -> int:
     if ctx and pin_context(config, ctx):
         setup.ok(f"context: {ctx} tokens ({config.name})")
 
+    if inkling and kv and pin_kv(config, kv.lower()):
+        setup.ok(f"kv: {kv} ({config.name})")
+    if inkling and kv_offload and pin_kv_offload(config, kv_offload.lower()):
+        setup.ok(f"kv offload: {kv_offload} ({config.name})")
+
     # The drafter the same way: setup.py's `--drafter` only says whether the MTP layer is
     # fetched, and the server reads the choice from the config's own `drafting` key.  `auto`
     # (what a config without the key means) is DFlash2 for a single request and the MTP once
     # `parallel` asks for more than one slot, so a `drafter = dflash2` that was never written
     # down would stop meaning DFlash2 at the second request slot.
-    drafter = flag_value(pairs, "--drafter")
     if drafter and pin_drafting(config, drafter.lower()):
         setup.ok(f"drafter: {drafter} ({config.name})")
 
@@ -648,11 +694,24 @@ def main() -> int:
         # carries one. `install_own_path` already turned the reserve into that `--expert-vram`.
         start = without(start, {"--vram-reserve-mib"})
 
+    if not config.is_file():
+        sys.exit(
+            f"{config.name} is not installed: run `pixi run strata-install <profile>` first "
+            f"(there is no preparation for this profile in {ini_path()})"
+        )
+
+    # setup.py's plain start picks the newest of all installed run configs. Several profiles
+    # live in this one env, so show it only this profile's config instead of touching files
+    # to make one newest: installing another model can never change which one starts.
+    installed_configs = setup.installed_configs
+    setup.installed_configs = lambda: [config]
     # Let the server replace this process: the pid start-strata.sh records is then the
     # server's own, and SIGTERM lands in the code that answers the engine with QUIT --
     # the same reason upstream sets this for docker stop.
     os.environ["STRATA_EXECV"] = "1"
-    return run_setup(setup, [*data_dir, *render(start)])
+    code = run_setup(setup, [*data_dir, *render(start)])
+    setup.installed_configs = installed_configs
+    return code
 
 
 if __name__ == "__main__":

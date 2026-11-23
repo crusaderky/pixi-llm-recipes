@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """Every command-line parameter Strata accepts, and where this project sets them.
 
-    pixi run strata-help
-    pixi run strata-help -- --kv q4_0 --context 131072   # what a run would look like
+    pixi run strata-help                 # the first profile in strata.ini
+    pixi run strata-help QFN             # one named profile or alias
+    pixi run strata-help QFN -- --kv q4_0 --context 131072   # what a run would look like
 
-The first half is ``strata.ini``: where it is, how it is written, and what it says right now.
+The first half is ``strata.ini``: where it is, which profile is active, how it is written,
+and what it says right now.
 The second half is Strata's own ``setup.py --help``, printed by setup.py itself, so the flag
 list cannot drift from the version this project packages.
 """
 
 from __future__ import annotations
 
+import os
 import sys
 
 from strata_common import (
     COMMAND_FLAGS,
     ENV_FLAGS,
     GGUF_DIR_FLAG,
+    PROFILE_ENV,
     START_FLAGS,
     VALUELESS_FLAGS,
     WRAPPER_FLAGS,
@@ -24,8 +28,10 @@ from strata_common import (
     ini_path,
     load_setup,
     prepare_flags,
+    profiles,
     render,
     run_setup,
+    select_profile,
     setup_file,
     strata_args,
 )
@@ -33,11 +39,24 @@ from strata_common import (
 
 def main() -> int:
     cli = [a for a in sys.argv[1:] if a != "--"]
+    profile = os.environ.get(PROFILE_ENV)
+    if cli and not cli[0].startswith("--"):
+        profile = cli.pop(0)
+    if profile:
+        os.environ[PROFILE_ENV] = profile
     pairs = strata_args(cli)
     path = ini_path()
     setup = load_setup(app_dir())
 
     print(f"strata.ini: {path}")
+    print(
+        "  profiles: "
+        + ", ".join(
+            name + (f" ({', '.join(aliases)})" if aliases else "")
+            for name, aliases in profiles(path)
+        )
+    )
+    print(f"  active profile: {select_profile(profile, path)}")
     print(
         "  every key is an argument for Strata's setup.py: `key = value`, dashes or "
         "underscores,\n  the leading `--` optional. A key with no value is a flag on its own "
@@ -46,7 +65,10 @@ def main() -> int:
         + "); `off`/`no`/`false` drops one."
     )
     print(
-        "  precedence: command line > " + ", ".join(sorted(ENV_FLAGS)) + " > strata.ini"
+        "  profile: task argument > STRATA_PROFILE > the first section of strata.ini\n"
+        "  key precedence: command line > "
+        + ", ".join(sorted(ENV_FLAGS))
+        + " > the profile"
     )
     print(
         "  applied to every start: " + ", ".join(sorted(START_FLAGS)) + "\n"

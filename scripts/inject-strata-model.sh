@@ -8,7 +8,8 @@
 # sandbox, so a file edited here is what the sandboxed pi reads too.
 #
 # An existing `strata` provider is left untouched -- hand edits win -- but a provider still
-# pointing at a port the installed config no longer serves is called out.
+# pointing at a port the active profile no longer serves is called out. Set STRATA_PROFILE
+# to point pi at a profile other than the first one in strata.ini.
 
 set -o errexit
 set -o nounset
@@ -22,60 +23,15 @@ if [ ! -f "${MODELS}" ]; then
     echo '{"providers": {}}' > "${MODELS}"
 fi
 
-# The installed app tree: this env, a sibling env of it (the pixi layout of an agents env),
-# $STRATA_ROOT, or this script's own repo. Its newest run config carries the port, the model
-# name and the context size the model was prepared with.
-APP=""
-for candidate in "${STRATA_ROOT:-}" "${CONDA_PREFIX:-}/opt/strata" "${CONDA_PREFIX:-}/../strata/opt/strata" "$(dirname "$0")/../.pixi/envs/strata/opt/strata"; do
-    if [ -n "${candidate}" ] && { [ -f "${candidate}/setup.py" ] || [ -f "${candidate}/terminal/setup.py" ]; }; then
-        APP="${candidate}"
-        break
-    fi
-done
-
-# Defaults for a machine with nothing installed yet: the port and the context strata.ini says
-# (asked from scripts/strata-run.py, which is what start-strata.sh starts on -- and STRATA_PORT
-# wins over it), and a model name Strata accepts for anything (Strata ignores the field). Once
-# a model is prepared, its run config supplies whatever the file left unset.
+# The active profile defines these. The port and context come from strata.ini (STRATA_PORT
+# wins), the model name from that profile's run config once it is installed. Several profiles
+# share this env, so "the newest run config" would be the wrong answer after a second install.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT="${STRATA_PORT:-$(python "${SCRIPT_DIR}/strata-run.py" --print port 2> /dev/null || true)}"
 CONTEXT="$(python "${SCRIPT_DIR}/strata-run.py" --print context 2> /dev/null || true)"
-MODEL="strata"
-
-CONFIG=""
-if [ -n "${APP}" ]; then
-    # setup.py writes configs in its ROOT: the app tree before 0.2.16, terminal/ since then.
-    CONFIG_DIR="${APP}"
-    if [ -d "${APP}/terminal" ]; then
-        CONFIG_DIR="${APP}/terminal"
-    fi
-    # the newest run config: a machine may have prepared several models, and each has its own
-    for candidate in "${CONFIG_DIR}"/strata-*.json; do
-        [ -f "${candidate}" ] || continue
-        if [ -z "${CONFIG}" ] || [ "${candidate}" -nt "${CONFIG}" ]; then
-            CONFIG="${candidate}"
-        fi
-    done
-fi
-if [ -n "${CONFIG}" ] && [ -f "${CONFIG}" ]; then
-    # one line: port model_name max-context (empty for whatever that config does not record)
-    CONFIG_KEYS="$(node -e '
-const fs = require("fs");
-const cfg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-const args = Array.isArray(cfg.args) ? cfg.args : [];
-const flag = (name) => (args.indexOf(name) >= 0 ? String(args[args.indexOf(name) + 1] || "") : "");
-process.stdout.write([cfg.port ? String(cfg.port) : "", cfg.model_name || "", flag("--max-context")].join(" "));
-' "${CONFIG}")"
-    read -r cfg_port cfg_model cfg_context <<< "${CONFIG_KEYS}"
-    if [ -z "${PORT}" ] && [ -n "${cfg_port}" ]; then
-        PORT="${cfg_port}"
-    fi
-    if [ -n "${cfg_model}" ]; then
-        MODEL="${cfg_model}"
-    fi
-    if [ -n "${cfg_context}" ] && [ -z "${CONTEXT}" ]; then
-        CONTEXT="${cfg_context}"
-    fi
+MODEL="$(python "${SCRIPT_DIR}/strata-run.py" --print model-name 2> /dev/null || true)"
+if [ -z "${MODEL}" ]; then
+    MODEL="strata"
 fi
 
 if [ -z "${PORT}" ] || [ -z "${CONTEXT}" ]; then

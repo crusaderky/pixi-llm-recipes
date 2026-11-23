@@ -205,9 +205,10 @@ platforms = ["linux-64-glibc234"]
 
 [feature.strata.dependencies]
 strata = { path = "pixi-recipes/strata" }
-# The model shards come from ~/.cache/huggingface/hub -- the same blobs `llama-server -hf`
-# downloads -- through scripts/strata-run.py, which replaces setup.py's own downloader
-# with huggingface_hub and hands setup.py a folder of symlinks (--gguf-dir).
+# Qwen's GGUF shards come from ~/.cache/huggingface/hub -- the same blobs `llama-server
+# -hf` downloads -- through scripts/strata-run.py, which replaces setup.py's own downloader
+# with huggingface_hub and hands setup.py a folder of symlinks (--gguf-dir). Inkling's
+# native `.strata` files are downloaded and verified by setup.py inside the env instead.
 huggingface_hub = "*"
 # start-strata.sh polls Strata's /health with it (the host's curl would usually do, but
 # the task should not depend on one being installed)

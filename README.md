@@ -94,22 +94,24 @@ pixi r -e llamacpp-source-cuda start-llamacpp
 
 ## Strata
 
-[Strata](https://github.com/Niko1221/Strata) runs Qwen3.8-Flash-Next on one consumer GPU
-plus system RAM, and serves it with OpenAI-, Anthropic- and Responses-compatible APIs,
-vision included. Strata is configured by `strata.ini` and runs by default on port
-**8082**, so that it does not collide with llama-server (9931).
+[Strata](https://github.com/Niko1221/Strata) serves various models with OpenAI-,
+Anthropic- and Responses-compatible APIs. Strata is configured by profiles in
+`strata.ini` and runs by default on port **8082**, so that it does not collide with
+llama-server (9931).
 
 ```bash
-pixi install -e strata    # solve the environment and compile the engine
-pixi r strata-install     # (optional) prepare only: model files, pack, MTP layer
-pixi r start-strata       # first run calls strata-install
-pixi r stop-strata
-pixi r restart-strata
-pixi r strata-help        # everything you can put in strata.ini
+pixi install -e strata         # (optional) solve the environment and compile the engine
+pixi r strata-install QFN      # (optional) prepare Qwen3.8-Flash-Next
+pixi r strata-install Inkling  # (optional) prepare Inkling-2-Mini in the same env
+pixi r start-strata QFN        # Start server for Qwen3.8-Flash-Next
+pixi r start-strata Inkling    # Start server for Inkling-2-Mini
+pixi r stop-strata             # Stops whichever profile is running
+pixi r strata-help QFN         # everything you can put in that profile
+pixi r strata-help Inkling
 ```
 
-Model files are downloaded into the Hugging Face cache (`~/.cache/huggingface/hub`),
-which is shared with llama-server.
+Qwen's GGUFs are downloaded into the Hugging Face cache (`~/.cache/huggingface/hub`),
+shared with llama-server; Inkling's `.strata` files live inside the Strata env.
 
 The server's output goes to `strata.log` in the project root directory.
 
@@ -123,14 +125,18 @@ server. They are prevented by tweaking `systemd-oomd` through `pixi r install-oo
 
 ## Models
 
-Strata is set up to run Qwen3.8-Flash. It is configured in `strata.ini`.
+All models were carefully cherry-picked and tuned.
 
-Llama.cpp models are defined in `models.ini` (llama-server's native preset format) and are
-served on demand. All models were carefully cherry-picked and tuned.
+Strata models are defined in `strata.ini`. You need to explicitly run `pixi r
+start-strata <model>` to start serving a model.
+
+Llama.cpp models are defined in `models.ini` (llama-server's native preset format).
+They are served on demand after starting the router `pixi r start-llamacpp`.
 
 | Engine    | Model            | bpw  | Disk size | Context        | VRAM<sup>1</sup>     | Prefill<sup>2</sup> | Decode<sup>2</sup> | Vision |
 | --------- | ---------------- | ---- | --------- | -------------- | -------------------- | ------------------- | ------------------ | ------ |
-| Strata    | Qwen3.8-Flash    | 3.49 | 79 GiB    | 256k int8/int8 | 20.6 GiB<sup>3</sup> | 1,600 tok/s         | 75 tok/s           | ✅     |
+| Strata    | Qwen3.8-Flash    | 3.49 | 79 GiB    | 256k int8/int8 | 20.0 GiB<sup>3</sup> | 1,550 tok/s         | 63 tok/s           | ✅     |
+| Strata    | Inkling-2-Mini   | 4.35 | 14 GiB    | 192k int8/int4 | 19.1 GiB             | 1,390 tok/s         | 75 tok/s           | ✅     |
 | llama.cpp | Qwen3.8-Flash    | 3.49 | 79 GiB    | 256k q5/q4     | 22.0 GiB<sup>3</sup> | 200 tok/s           | 35 tok/s           | ✅     |
 | llama.cpp | Inkling-2-Mini   | 4.82 | 15 GiB    | 32k f16/f16    | 21.9 GiB             | 800 tok/s           | 48 tok/s           | ✅     |
 | llama.cpp | Qwen3.8-27B      | 3.84 | 14 GiB    | 256k q5/q5     | 22.3 GiB             | 1,300 tok/s         | 64 tok/s           | ✅     |
