@@ -112,9 +112,8 @@ pixi r strata-help Inkling
 
 Qwen's GGUFs are downloaded into the Hugging Face cache (`~/.cache/huggingface/hub`),
 shared with llama-server; Qwen's drafter and Inkling's `.strata` files live in
-`~/.cache/strata-data`.
-
-The server's output goes to `strata.log` in the project root directory.
+`~/.cache/strata-data`. Strata's other user files stay within the Pixi environment.
+The server's log goes to `strata.log` in the project root directory.
 
 Both pi launchers (`pi` and the unsandboxed `pi-unsafe`) add it to
 `~/.pi/agent/models.json` as the **`strata` provider**. An existing `strata` provider is

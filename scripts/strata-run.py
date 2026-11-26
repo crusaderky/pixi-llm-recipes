@@ -45,8 +45,9 @@ things it does there are replaced here:
 Everything else stays setup.py's: the expert pack, the MTP draft layer, the run config.
 The data -- the pack, the MTP layer, the preparation records -- lives under
 ``~/.cache/strata-data``, shared by every Strata env; only the run configs stay under
-``$CONDA_PREFIX/opt/strata/terminal`` (0.2.16's app tree). Per-user settings stay redirected
-under the prefix with ``XDG_CONFIG_HOME``.
+``$CONDA_PREFIX/opt/strata/terminal`` (0.2.16's app tree). Strata's other per-user
+folders are redirected under the prefix: settings (``XDG_CONFIG_HOME``), engine
+components (``XDG_DATA_HOME``) and runtime records (``XDG_STATE_HOME``).
 
     python scripts/strata-run.py               # prepare if needed, then start the profile
     python scripts/strata-run.py --no-start    # prepare only, do not start
@@ -118,6 +119,22 @@ RESOLVE_URL = re.compile(
 #: the raw tensors anyway. `verify` makes the raw tensors worth their keep (#327: a mirror
 #: that ignores Range returns the shard's start, and nothing else would catch it).
 MTP_INPUTS = ("tensors", "mtp-q2_0.gguf")
+
+
+def redirect_writes(prefix: Path) -> None:
+    """Keep the folders Strata derives from the environment inside this env's prefix.
+
+    setup.py and the server resolve the XDG variables when they use them: settings in
+    ``~/.config/strata``, engine components in ``~/.local/share/strata/components`` and
+    launch/runtime records in ``~/.local/state/strata``. Model files, packs and the Hub
+    cache stay in ``~/.cache``, where ``--data-dir`` and huggingface_hub already put them.
+    """
+    for name, folder in (
+        ("XDG_CONFIG_HOME", ".config"),
+        ("XDG_DATA_HOME", ".local/share"),
+        ("XDG_STATE_HOME", ".local/state"),
+    ):
+        os.environ[name] = str(prefix / folder)
 
 
 def applies(line: str) -> bool:
@@ -381,6 +398,31 @@ def missing_native_files(
     ]
 
 
+def missing_shape_engine(setup: ModuleType, family: str) -> str | None:
+    """Why this family's own engine component has to be fetched again.
+
+    setup.py fetches a shape engine (Inkling's ``strata-inkling``, a feed model's own
+    engine) only on its prepare path; the server never downloads one at start. The
+    component folder follows XDG_DATA_HOME, so a profile prepared in an env that kept
+    components in ~/.local/share has no engine in this env's redirected folder.
+    """
+    from strata_control import engine_component, shape_engine
+
+    shape = (
+        setup.inkling_family.SHAPE
+        if family in getattr(setup, "INKLING_FAMILIES", {})
+        else family_table(setup)[family].get("shape")
+    )
+    if not shape:
+        return None
+    components = engine_component.components_dir()
+    return (
+        None
+        if shape_engine.installed(shape, components)
+        else f"{shape}'s engine is not in {components}"
+    )
+
+
 def dir_bytes(path: Path) -> int:
     if path.is_file():
         return path.stat().st_size
@@ -549,9 +591,7 @@ def main() -> int:
             "(pixi run start-strata / strata-install)"
         )
     prefix = Path(prefix)
-    # setup.py remembers the data folder in ~/.config/strata/settings.json; this env keeps
-    # everything it writes under its own prefix
-    os.environ.setdefault("XDG_CONFIG_HOME", str(prefix / ".config"))
+    redirect_writes(prefix)
     setup = load_setup(root)
     replace_pip(setup)
     replace_build_tools(setup)
@@ -642,6 +682,8 @@ def main() -> int:
             # The run config points the engine at these files. A pruned Hub cache leaves the
             # symlinks dangling; a deleted .strata build breaks the native path the same way.
             reason = f"its model files are gone: {', '.join(lost)}"
+        else:
+            reason = missing_shape_engine(setup, family)
 
     if reason:
         print(f"  preparing the model: {reason}", flush=True)

@@ -260,17 +260,23 @@ the host when that matters. On the same 3090, Inkling-2-Mini SQ-15 at 256K with 
 and DSpark measured ~1,350 tok/s prefill (8K fresh prompt) and ~86 tok/s decode (128 output
 tokens), from the engine's `timings` in the API answer.
 
-| What                                                             | Where                                                         |
-| ---------------------------------------------------------------- | ------------------------------------------------------------- |
-| app + run configs (in `terminal/`), built engine + image encoder | `$CONDA_PREFIX/opt/strata/terminal`                           |
-| engine sources hashed into `BUILD.json`                          | `$CONDA_PREFIX/opt/strata/engine`                             |
-| expert pack, MTP layer                                           | `~/.cache/strata-data`                                        |
-| settings                                                         | `$CONDA_PREFIX/.config/strata`                                |
-| model GGUF shards                                                | `~/.cache/huggingface/hub` (same blobs as `llama-server -hf`) |
-| Inkling `.strata` builds                                         | `~/.cache/strata-data/models/inkling-2-mini`                  |
-| symlink folder passed as `--gguf-dir`                            | `$CONDA_PREFIX/strata-models/<tag>`                           |
-| last prepared signature of each model                            | `~/.cache/strata-data/prepared/<tag>.json`                    |
-| server output                                                    | `strata.log` in the invoking directory                        |
+| What                                                             | Where                                                                    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| app + run configs (in `terminal/`), built engine + image encoder | `$CONDA_PREFIX/opt/strata/terminal`                                      |
+| engine sources hashed into `BUILD.json`                          | `$CONDA_PREFIX/opt/strata/engine`                                        |
+| expert pack, MTP layer                                           | `~/.cache/strata-data`                                                   |
+| settings                                                         | `$CONDA_PREFIX/.config/strata`                                           |
+| engine components, runtime records                               | `$CONDA_PREFIX/.local/share/strata`, `$CONDA_PREFIX/.local/state/strata` |
+| model GGUF shards                                                | `~/.cache/huggingface/hub` (same blobs as `llama-server -hf`)            |
+| Inkling `.strata` builds                                         | `~/.cache/strata-data/models/inkling-2-mini`                             |
+| symlink folder passed as `--gguf-dir`                            | `$CONDA_PREFIX/strata-models/<tag>`                                      |
+| last prepared signature of each model                            | `~/.cache/strata-data/prepared/<tag>.json`                               |
+| server output                                                    | `strata.log` in the invoking directory                                   |
+
+`strata-run.py` redirects `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `XDG_STATE_HOME` under the
+prefix; older runs may have left component/state files in `~/.local/share/strata` and
+`~/.local/state/strata`. A family whose shape engine is missing from the prefixed component
+folder is re-prepared on the next start.
 
 Strata publishes no Linux prebuilt, so the recipe runs upstream `setup.py`'s own
 `cmake_build` plus its definition helpers (`host_compiler_defs`, `engine_defs`), excluding
