@@ -23,6 +23,7 @@ import sys
 import urllib.error
 import urllib.request
 
+from llama_benchy_book import seed_book_cache
 from strata_common import flag_value, installed_ports, resolve_port, strata_args
 
 #: what this project asks llama-benchy for: no prefix cache to hit, 7 runs, 128 generated
@@ -128,6 +129,7 @@ def main() -> int:
     if api_key:
         argv += ["--api-key", api_key]
     argv += extra
+    print(f"llama-benchy corpus: {seed_book_cache()}", flush=True)
     argv = ["python", "-m", "llama_benchy", *argv]
     print(" ".join(argv))
     return subprocess.run(argv, check=False).returncode

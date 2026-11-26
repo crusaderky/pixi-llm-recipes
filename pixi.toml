@@ -243,7 +243,7 @@ tomli-w = "*"
 llama-benchy = ">=0.4.0"
 
 [feature.pytools.tasks]
-llama-benchy = "python -m llama_benchy --base-url http://localhost:9931/v1 --no-cache --runs 7 --pp 8192 --tg 128"
+llama-benchy = "python scripts/llama-benchy.py --base-url http://localhost:9931/v1 --no-cache --runs 7 --pp 8192 --tg 128"
 llama-benchy-strata = "python scripts/llama-benchy-strata.py"
 hf = "hf"
 context-bench = "python sample-data/context-bench/run_benchmark.py"
