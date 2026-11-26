@@ -134,18 +134,18 @@ start-strata <model>` to start serving a model.
 Llama.cpp models are defined in `models.ini` (llama-server's native preset format).
 They are served on demand after starting the router `pixi r start-llamacpp`.
 
-| Engine    | Model            | bpw  | Disk size | Context        | VRAM<sup>1</sup>     | Prefill<sup>2</sup> | Decode<sup>2</sup> | Vision |
-| --------- | ---------------- | ---- | --------- | -------------- | -------------------- | ------------------- | ------------------ | ------ |
-| Strata    | Qwen3.8-Flash    | 3.49 | 79 GiB    | 256k int8/int8 | 20.0 GiB<sup>3</sup> | 1,550 tok/s         | 63 tok/s           | ✅     |
-| Strata    | Inkling-2-Mini   | 4.35 | 14 GiB    | 192k int8/int4 | 19.1 GiB             | 1,390 tok/s         | 75 tok/s           | ✅     |
-| llama.cpp | Qwen3.8-Flash    | 3.49 | 79 GiB    | 256k q5/q4     | 22.0 GiB<sup>3</sup> | 200 tok/s           | 35 tok/s           | ✅     |
-| llama.cpp | Inkling-2-Mini   | 4.82 | 15 GiB    | 32k f16/f16    | 21.9 GiB             | 800 tok/s           | 48 tok/s           | ✅     |
-| llama.cpp | Qwen3.8-27B      | 3.84 | 14 GiB    | 256k q5/q5     | 22.3 GiB             | 1,300 tok/s         | 64 tok/s           | ✅     |
-| llama.cpp | Ternary-Bonsai-2 | 2.26 | 7.7 GiB   | 256k q5/q4     | 14.7 GiB             | 1,350 tok/s         | 62 tok/s           | ✅     |
-| llama.cpp | K2-Horizon-7B    | 5.74 | 6.1 GiB   | 128k q5/q4     | 12.2 GiB             | 3,600 tok/s         | 76 tok/s           | 🔴     |
-| llama.cpp | LFM3-1.7B        | 6.56 | 1.5 GiB   | 256k q8/q5     | 3.8 GiB              | 15,600 tok/s        | 237 tok/s          | 🔴     |
-| llama.cpp | LFM3-VL-2B       | 6.57 | 1.6 GiB   | 128k q8/q5     | 3.3 GiB              | 15,000 tok/s        | 236 tok/s          | ✅     |
-| llama.cpp | LFM2.5-230M      | 5.26 | 147 MiB   | 32k q8/q5      | 724 MiB              | 55,200 tok/s        | 607 tok/s          | 🔴     |
+| Engine    | Model              | bpw  | Disk size | Context        | VRAM<sup>1</sup>     | Prefill<sup>2</sup> | Decode<sup>2</sup> | Vision |
+| --------- | ------------------ | ---- | --------- | -------------- | -------------------- | ------------------- | ------------------ | ------ |
+| Strata    | Qwen3.8-Flash      | 3.49 | 79 GiB    | 256k int8/int8 | 20.2 GiB<sup>3</sup> | 1,596 tok/s         | 65 tok/s           | ✅     |
+| Strata    | Inkling-2-Mini     | 4.35 | 14 GiB    | 192k int8/int4 | 20.2 GiB             | 2,640 tok/s         | 78 tok/s           | ✅     |
+| llama.cpp | Qwen3.8-Flash      | 3.49 | 79 GiB    | 256k q5/q4     | 22.0 GiB<sup>3</sup> | 185 tok/s           | 32 tok/s           | ✅     |
+| llama.cpp | Inkling-2-Mini     | 4.82 | 15 GiB    | 32k f16/f16    | 21.4 GiB             | 827 tok/s           | 55 tok/s           | ✅     |
+| llama.cpp | Qwen3.8-27B        | 3.84 | 14 GiB    | 256k q5/q5     | 21.8 GiB             | 1,300 tok/s         | 69 tok/s           | ✅     |
+| llama.cpp | Ternary-Bonsai-2.5 | 2.31 | 7.4 GiB   | 256k q5/q4     | 16.5 GiB             | 1,294 tok/s         | 79 tok/s           | ✅     |
+| llama.cpp | K2-Horizon-7B      | 5.74 | 6.1 GiB   | 128k q5/q4     | 12.2 GiB             | 3,670 tok/s         | 76 tok/s           | 🔴     |
+| llama.cpp | LFM3-1.7B          | 6.56 | 1.5 GiB   | 256k q8/q5     | 3.8 GiB              | 15,860 tok/s        | 236 tok/s          | 🔴     |
+| llama.cpp | LFM3-VL-2B         | 6.57 | 1.6 GiB   | 128k q8/q5     | 3.3 GiB              | 15,800 tok/s        | 238 tok/s          | ✅     |
+| llama.cpp | LFM2.5-230M        | 5.26 | 144 MiB   | 32k q8/q5      | 724 MiB              | 57,000 tok/s        | 593 tok/s          | 🔴     |
 
 **Notes:**
 
