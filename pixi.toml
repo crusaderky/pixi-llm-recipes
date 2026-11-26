@@ -2,8 +2,8 @@
 channels = ["https://prefix.dev/conda-forge"]
 preview = ["pixi-build"]
 platforms = [
-  { name = "linux-64-glibc234", platform = "linux-64", glibc = "2.34" },
-  { name = "linux-aarch64-glibc234", platform = "linux-aarch64", glibc = "2.34" },
+  { name = "linux-64-glibc234", subdir = "linux-64", glibc = "2.34" },
+  { name = "linux-aarch64-glibc234", subdir = "linux-aarch64", glibc = "2.34" },
   "win-64",
 ]
 
