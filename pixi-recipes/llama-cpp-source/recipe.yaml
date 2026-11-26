@@ -1,7 +1,7 @@
 context:
   # Main branch (upstream llama.cpp)
   fork: ggml-org/llama.cpp
-  version: b12635
+  version: b12752
 
   # beellama.cpp — KVarN / KV-cache-precision fork of llama.cpp
   # https://github.com/Anbeeld/beellama.cpp
@@ -156,7 +156,10 @@ requirements:
     - ${{ compiler('c') }}
     - ${{ compiler('cxx') }}
     - ccache
-    - cmake
+    # llama.cpp's CMakeLists requires >=3.14, and build.sh uses `cmake -S . -B
+    # build` (needs >=3.13). An unpinned `cmake` let pixi update pick 3.5.0,
+    # which cannot create the build directory.
+    - cmake >=3.14
     - ninja
     - pkg-config
     - if: backend == "cuda"
