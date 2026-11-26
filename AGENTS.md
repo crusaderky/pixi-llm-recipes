@@ -179,8 +179,9 @@ port someone else owns and distinguishes its own `/health` (carries `"loaded"`) 
 llama-server's. Whether it can run alongside llama-server is a VRAM question, not a port
 one.
 
-The tasks take one profile argument: a section of `strata.ini` or one of its aliases.
-Several profiles share the one `strata` env; `stop-strata` needs no argument.
+The tasks take one profile argument: a section of `strata.ini` or one of its aliases, matched
+case-insensitively. `start-strata` and `restart-strata` require it; `stop-strata` needs no
+argument. Several profiles share the one `strata` env.
 
 ```bash
 pixi install -e strata          # solves + compiles the engine (~8 min on 32 cores, once)
@@ -188,15 +189,18 @@ pixi run start-strata QFN       # first start of a profile packs the model (~2 m
 pixi run strata-install QFN     # prepare only that profile, no server
 pixi run start-strata Inkling
 pixi run strata-install Inkling
+pixi run restart-strata qfn     # case-insensitive profile/alias
 pixi run stop-strata            # SIGTERM, then SIGKILL
 pixi r strata-help QFN          # every setup.py parameter + that profile's value
 ```
 
 ### `strata.ini`
 
-Each `[section]` is a model profile with `aliases = [QFN, ...]`; the first section is the
-default when a script has no argument, and `STRATA_PROFILE` names one (the tasks export it
-from their positional argument). Every other key is a Strata `setup.py` argument;
+Each `[section]` is a model profile with `aliases = [QFN, ...]`; names and aliases match
+case-insensitively. The first section is the default only for scripts that allow no argument
+(`strata-install`, `strata-help`, the Pi launcher); `start-strata` and `restart-strata` refuse
+to fall back to it. `STRATA_PROFILE` names a profile too (the tasks export it from their
+positional argument). Every other key is a Strata `setup.py` argument;
 `scripts/strata-run.py` has no defaults for them and refuses to run without the file.
 Precedence: command line after `--`, then `STRATA_*` env vars (`STRATA_FAMILY`,
 `STRATA_MODEL`, `STRATA_VISION`, `STRATA_CONTEXT`, `STRATA_VRAM_RESERVE_MIB`, `STRATA_PORT`,

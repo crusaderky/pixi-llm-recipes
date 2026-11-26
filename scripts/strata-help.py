@@ -66,6 +66,8 @@ def main() -> int:
     )
     print(
         "  profile: task argument > STRATA_PROFILE > the first section of strata.ini\n"
+        "  names and aliases match case-insensitively; start-strata/restart-strata\n"
+        "  require one, the other scripts may fall back to the first section\n"
         "  key precedence: command line > "
         + ", ".join(sorted(ENV_FLAGS))
         + " > the profile"

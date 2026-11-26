@@ -52,7 +52,7 @@ components (``XDG_DATA_HOME``) and runtime records (``XDG_STATE_HOME``).
     python scripts/strata-run.py               # prepare if needed, then start the profile
     python scripts/strata-run.py --no-start    # prepare only, do not start
     python scripts/strata-run.py --print port         # the port strata.ini says, nothing else
-    pixi run start-strata -- --calibrate       # anything unknown is forwarded to setup.py
+    pixi run start-strata QFN -- --calibrate   # anything unknown is forwarded to setup.py
     pixi run strata-install -- --keep-mtp-inputs
 
 setup.py's start path hands its run config's engine arguments to the engine verbatim, so a

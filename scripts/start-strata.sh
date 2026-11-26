@@ -3,10 +3,10 @@ set -o errexit
 set -o pipefail
 
 # Start Strata in the background, appending its output to strata.log in the current
-# directory. The first argument names one profile from strata.ini (a section or an alias);
-# only that model starts. The app, engine and run configs stay in $CONDA_PREFIX/opt/strata;
-# the expert pack, MTP draft layer and preparation records live in ~/.cache/strata-data, so
-# they survive a recreated env.
+# directory. A model name is required: one profile from strata.ini (a section or an alias),
+# matched case-insensitively; only that model starts. The app, engine and run configs stay
+# in $CONDA_PREFIX/opt/strata; the expert pack, MTP draft layer and preparation records live
+# in ~/.cache/strata-data, so they survive a recreated env.
 #
 # What it runs with is that profile of strata.ini; `pixi run strata-help <profile>` prints
 # every parameter Strata takes and what that profile says right now.
@@ -20,12 +20,19 @@ set -o pipefail
 # Strata listens on the port strata.ini says (`port`): llama-server owns 9931, so these
 # do not collide. A port someone else owns is refused rather than taken over.
 
+# --check-profile is internal to restart-strata.sh; everything else is either this script's
+# model/port selector or an argument for setup.py.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT=""
 PROFILE="${STRATA_PROFILE:-}"
+CHECK_ONLY=0
 ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --check-profile)
+            CHECK_ONLY=1
+            shift
+            ;;
         --port)
             PORT="$2"
             shift 2
@@ -53,6 +60,18 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 export STRATA_PROFILE="${PROFILE}"
+
+if [[ -z "${PROFILE}" ]]; then
+    echo "A model name is required: pixi run start-strata <profile> (or restart-strata <profile>)." >&2
+    echo "Use a strata.ini section or alias, e.g. QFN or Inkling; matching ignores case." >&2
+    exit 2
+fi
+# Resolve the name/alias before a restart stops anything or a port check starts a server.
+# select_profile() matches case-insensitively and lists the known names on a miss.
+python "${SCRIPT_DIR}/strata-run.py" --print family > /dev/null
+if [[ "${CHECK_ONLY}" == 1 ]]; then
+    exit 0
+fi
 
 # --port here, then STRATA_PORT, then the profile -- the same order scripts/strata-run.py
 # applies. The wrapper is asked rather than a number written here, so the health check below

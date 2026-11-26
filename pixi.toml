@@ -219,7 +219,7 @@ curl = "*"
 # it is lossy (KLD ~0.011). It is an environment entry read by the engine at start.
 start-strata = { cmd = "bash scripts/start-strata.sh", env = { STRATA_PREFILL_CPU_SHARE = "0" } }
 stop-strata = "bash scripts/stop-strata.sh"
-restart-strata = { depends-on = ["stop-strata", "start-strata"] }
+restart-strata = { cmd = "bash scripts/restart-strata.sh", env = { STRATA_PREFILL_CPU_SHARE = "0" } }
 strata-install = "bash scripts/strata-install.sh"
 strata-help = "python scripts/strata-help.py"
 

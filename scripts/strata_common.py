@@ -8,10 +8,11 @@ whatever the server is serving), and read by ``start-strata.sh`` and
 ``strata.ini`` in the project root holds one section per model profile. Every key of the
 active section becomes an argument for ``setup.py``, exactly as
 ``pixi run start-strata QFN -- --<key> <value>`` would pass it. A profile is named by its
-section or by one of its ``aliases``; ``STRATA_PROFILE`` selects it, and with no selection
-the first section wins. Precedence, highest first: the command line, the ``STRATA_*``
-environment, the profile's section in ``strata.ini``. The file is required -- the settings
-live there and not in this code, so there is nothing here to keep in step with it.
+section or by one of its ``aliases``, case-insensitively; ``STRATA_PROFILE`` selects it, and
+with no selection the first section wins. Precedence, highest first: the command line, the
+``STRATA_*`` environment, the profile's section in ``strata.ini``. The file is required --
+the settings live there and not in this code, so there is nothing here to keep in step with
+it.
 
 The scripts that import this live in the same directory and are invoked as
 ``python scripts/<name>.py``, so ``sys.path[0]`` is ``scripts/`` and a plain
@@ -179,15 +180,16 @@ def profiles(path: Path | None = None) -> list[tuple[str, list[str]]]:
 
 
 def select_profile(name: str | None, path: Path | None = None) -> str:
-    """The section a profile name or alias picks. With no name, the old [strata] section
-    still wins; otherwise it is the first section written in the file."""
+    """The section a profile name or alias picks, ignoring case. With no name, the old
+    [strata] section still wins; otherwise it is the first section written in the file."""
     parser = _ini_parser(path or ini_path())
     found = profiles(path or ini_path())
     if not found:
         sys.exit(f"{path or ini_path()}: no model profile sections")
     if name:
+        wanted = name.casefold()
         for section, aliases in found:
-            if name.lower() in [section.lower(), *(a.lower() for a in aliases)]:
+            if wanted in {s.casefold() for s in (section, *aliases)}:
                 return section
         known = ", ".join(
             f"{section}" + (f" ({', '.join(aliases)})" if aliases else "")

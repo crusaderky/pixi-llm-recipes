@@ -101,10 +101,11 @@ llama-server (9931).
 
 ```bash
 pixi install -e strata         # (optional) solve the environment and compile the engine
-pixi r strata-install QFN      # (optional) prepare Qwen3.8-Flash-Next
+pixi r strata-install QFN      # (optional) prepare Qwen3.8-Flash-Next (case insensitive)
 pixi r strata-install Inkling  # (optional) prepare Inkling-2-Mini in the same env
 pixi r start-strata QFN        # Start server for Qwen3.8-Flash-Next
 pixi r start-strata Inkling    # Start server for Inkling-2-Mini
+pixi r restart-strata QFN      # Restart a named model
 pixi r stop-strata             # Stops whichever profile is running
 pixi r strata-help QFN         # everything you can put in that profile
 pixi r strata-help Inkling
