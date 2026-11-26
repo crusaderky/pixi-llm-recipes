@@ -409,6 +409,12 @@ Pi-specific behavior: mounts `$CONDA_PREFIX/home/.pi` as `~/.pi`, binds host
 the main repo's common `.git` read-write. On exit, `skills`, `AGENTS.md` and
 `keybindings.json` are rsynced back into `pixi-recipes/pi-home/` (`--no-times` to avoid
 needless recipe rebuilds). All `PIXI_*`/`CONDA_*` and `HERDR_*` control vars are unset.
+`WAYLAND_DISPLAY`/`DISPLAY` are unset too and `PI_CLIPBOARD_OSC52=1` is set: the
+sandbox cannot reach the compositor, so Pi's `wl-copy`/`xclip`/`xsel` writes fail and
+it would report "Clipboard unavailable" for every copy-on-select. With the display
+variables gone Pi treats the session as headless and emits OSC 52 instead, which
+herdr's host-side client turns into a real clipboard write. Copy works; pasting the
+host clipboard into Pi (and clipboard image paste) still does not.
 `pi-unsafe.sh` grants full host access, symlinks the packaged `agent/npm` into
 `~/.pi/agent`, and refuses `--no-git` rather than pretending to enforce it.
 

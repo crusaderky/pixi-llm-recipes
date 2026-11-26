@@ -31,6 +31,10 @@
 #   Herdr's control channel is host-only (its socket is under ~/.config/herdr, and
 #   /home is a tmpfs here), so the HERDR_* control variables are unset and
 #   pi-subagents' `machine: "local"` fails before it can try to open a tab.
+#   There is no display either (/run and /tmp are tmpfs, so the compositor's
+#   socket is unreachable), so WAYLAND_DISPLAY/DISPLAY are dropped and Pi is
+#   pointed at OSC 52: herdr's client runs on the host and writes the real
+#   clipboard from that escape sequence.
 #   Managed worktrees (PI_SUBAGENTS_WORKTREE_DIR) are pointed at the per-project
 #   ~/.herdr/worktrees dir bound here — the same place the git-worktree skill uses.
 #   Every path here may contain spaces (the workspace, $HOME, the conda prefix,
@@ -316,6 +320,18 @@ unset INIT_CWD XML_CATALOG_FILES GSETTINGS_SCHEMA_DIR
 # send-keys`/`pane read` would be arbitrary control of every host pane.
 unset HERDR_ENV HERDR_PANE_ID HERDR_WORKSPACE_ID HERDR_TAB_ID \
       HERDR_SOCKET_PATH HERDR_CLIENT_SOCKET_PATH
+
+# Clipboard: no display is reachable here (/run and /tmp are tmpfs), yet an
+# inherited WAYLAND_DISPLAY/DISPLAY would make Pi believe otherwise. It would
+# then spawn wl-copy/xclip/xsel — all of which fail to connect — and report
+# "Clipboard unavailable" instead of falling back to OSC 52, which it only emits
+# for headless or remote sessions. Dropping the display variables makes the
+# sandbox honestly headless, and PI_CLIPBOARD_OSC52 pins the fallback even if a
+# future Pi changes that heuristic. Herdr's client (host side) captures the OSC
+# 52 write and puts it on the real clipboard; a plain terminal would do the same
+# or ignore it, never worse than the failure.
+unset WAYLAND_DISPLAY DISPLAY
+export PI_CLIPBOARD_OSC52=1
 
 # pi-intercom setup note:
 # ~/.pi/agent/intercom is a fresh tmpfs per sandbox: the pi-intercom broker, its unix
