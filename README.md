@@ -141,7 +141,7 @@ They are served on demand after starting the router `pixi r start-llamacpp`.
 | Strata    | Inkling-2-Mini     | —    | 14 GiB    | 192k int8/int4 | 20.2 GiB             | 2,640 tok/s         | 78 tok/s           | ✅     |
 | Strata    | Hy4-Flash          | —    | 139 GB    | 256k int8/int8 | 21.1 GiB<sup>3</sup> | 459 tok/s           | 10 tok/s           | ✅     |
 | llama.cpp | Qwen3.8-Flash      | 3.49 | 79 GiB    | 256k q5/q4     | 22.0 GiB<sup>3</sup> | 185 tok/s           | 32 tok/s           | ✅     |
-| llama.cpp | Inkling-2-Mini     | 4.82 | 15 GiB    | 32k f16/f16    | 21.4 GiB             | 827 tok/s           | 55 tok/s           | ✅     |
+| llama.cpp | Inkling-2-Mini     | 4.82 | 15 GiB    | 192k q5/q4     | 21.2 GiB             | 1,643 tok/s         | 80 tok/s           | ✅     |
 | llama.cpp | Qwen3.8-27B        | 3.84 | 14 GiB    | 256k q5/q5     | 21.8 GiB             | 1,300 tok/s         | 66 tok/s           | ✅     |
 | llama.cpp | Ternary-Bonsai-2.5 | 2.31 | 7.4 GiB   | 256k q5/q4     | 16.5 GiB             | 1,300 tok/s         | 90 tok/s           | ✅     |
 | llama.cpp | K2-Horizon-7B      | 5.74 | 6.1 GiB   | 128k q5/q4     | 12.2 GiB             | 3,750 tok/s         | 76 tok/s           | 🔴     |
