@@ -27,7 +27,7 @@ from llama_benchy_book import seed_book_cache
 from strata_common import flag_value, installed_ports, resolve_port, strata_args
 
 #: what this project asks llama-benchy for: no prefix cache to hit, 7 runs, 128 generated
-#: tokens. Everything else is llama-benchy's own default.
+#: tokens. Everything else is llama-benchy's own default. The tokenizer is added per model.
 BASE_ARGS = [
     "--no-cache",
     "--runs",
@@ -36,9 +36,25 @@ BASE_ARGS = [
     "8192",
     "--tg",
     "128",
-    "--tokenizer",
-    "Qwen/Qwen3.8-Flash-Next",
 ]
+
+#: llama-benchy cuts the corpus into token counts with a local tokenizer, but Strata's
+#: /v1/models has no tokenizer field. Most families here share Qwen3.8-Flash-Next's;
+#: these two do not. A `--tokenizer` after `--` still wins over whichever one is picked.
+DEFAULT_TOKENIZER = "Qwen/Qwen3.8-Flash-Next"
+TOKENIZERS = (
+    ("hy4-flash", "tencent/Hy4-flash"),
+    ("inkling-2-mini", "thinkingmachines/Inkling-2-Mini"),
+)
+
+
+def tokenizer_for(model_id: str) -> str:
+    """The local tokenizer matching the model the live server says it serves."""
+    name = model_id.casefold()
+    return next(
+        (tokenizer for marker, tokenizer in TOKENIZERS if marker in name),
+        DEFAULT_TOKENIZER,
+    )
 
 
 def models_at(base: str) -> list[dict]:
@@ -124,7 +140,15 @@ def main() -> int:
     n_ctx = (model.get("meta") or {}).get("n_ctx")
     print(f"Strata at {base}: {model_id}" + (f", {n_ctx} tokens" if n_ctx else ""))
 
-    argv = [*BASE_ARGS, "--base-url", base, "--model", model_id]
+    argv = [
+        "--tokenizer",
+        tokenizer_for(model_id),
+        *BASE_ARGS,
+        "--base-url",
+        base,
+        "--model",
+        model_id,
+    ]
     api_key = flag_value(pairs, "--api-key")
     if api_key:
         argv += ["--api-key", api_key]

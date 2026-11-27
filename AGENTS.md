@@ -213,13 +213,17 @@ and `start-strata.sh`'s health check (the script asks `strata-run.py --print por
 may pin its own Hub `revision` and the `quant` its files actually carry. `OWN_PATH_FAMILIES`
 (old name `PREVIEW_FAMILIES`) such as `qwen36` keeps its own engine path and GGUF: no
 expert pack, profile or MTP fetch, and `vram-reserve-mib` is applied at prepare as
-`--expert-vram`. `nvfp4` (ready-made packs), `MULTI_FILE_FAMILIES` (`deepseek41`) and `hy4-flash`
-(`.strata` builds with their own installer) are not offered — the wrapper only implements
-GGUF shards into the Hub cache. `inkling-2-mini` is the exception: its `.strata` build and
-Vision shard are downloaded and SHA-256 checked by setup.py into
-`<data-dir>/models/inkling-2-mini/`; its DSpark drafter is part of the build, so the
-profile's `drafter = dspark` only pins the run config's `drafting` key (setup.py's
-`--drafter` does not accept it). Its KV dtype is FP16 (`--kv auto` means FP16 here, FP8 at
+`--expert-vram`. `nvfp4` (ready-made packs) and `MULTI_FILE_FAMILIES` (`deepseek41`) are not
+offered — the wrapper only implements GGUF shards into the Hub cache. `inkling-2-mini` is one
+exception: its `.strata` build and Vision shard are downloaded and SHA-256 checked by
+setup.py into `<data-dir>/models/inkling-2-mini/`; its DSpark drafter is part of the build, so
+the profile's `drafter = dspark` only pins the run config's `drafting` key (setup.py's
+`--drafter` does not accept it). `hy4-flash` is the other native family: the wrapper lets
+setup.py download its build, shared Engram and Vision shard into
+`<data-dir>/models/hy4-flash/`, fetch its own `hy4` shape engine and write `drafting: dfly2`;
+no `--gguf-dir` is passed. Both families' files and shape engines are watched on start, so
+deleting one re-prepares it.
+Inkling's KV dtype is FP16 (`--kv auto` means FP16 here, FP8 at
 16+ parallel slots, not Flash-Next's int8 default), with automatic host offload at long
 contexts (`--kv-offload auto`). The wrapper pins Inkling's `--kv` (from the profile or the
 command line) into the config; setup.py ignores the flag on that path, so changing it does

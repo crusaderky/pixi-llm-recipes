@@ -102,17 +102,18 @@ llama-server (9931).
 ```bash
 pixi install -e strata         # (optional) solve the environment and compile the engine
 pixi r strata-install QFN      # (optional) prepare Qwen3.8-Flash-Next (case insensitive)
-pixi r strata-install Inkling  # (optional) prepare Inkling-2-Mini in the same env
+pixi r strata-install Inkling  # (optional) prepare Inkling-2-Mini
+pixi r strata-install Hy4      # (optional) prepare Hy4-Flash
 pixi r start-strata QFN        # Start server for Qwen3.8-Flash-Next
 pixi r start-strata Inkling    # Start server for Inkling-2-Mini
+pixi r start-strata Hy4        # Start server for Hy4-Flash
 pixi r restart-strata QFN      # Restart a named model
 pixi r stop-strata             # Stops whichever profile is running
 pixi r strata-help QFN         # everything you can put in that profile
-pixi r strata-help Inkling
 ```
 
-Qwen's GGUFs are downloaded into the Hugging Face cache (`~/.cache/huggingface/hub`),
-shared with llama-server; Qwen's drafter and Inkling's `.strata` files live in
+GGUFs are downloaded into the Hugging Face cache (`~/.cache/huggingface/hub`),
+shared with llama-server; downloaded `.strata` files live in
 `~/.cache/strata-data`. Strata's other user files stay within the Pixi environment.
 The server's log goes to `strata.log` in the project root directory.
 
@@ -137,7 +138,8 @@ They are served on demand after starting the router `pixi r start-llamacpp`.
 | Engine    | Model              | bpw  | Disk size | Context        | VRAM<sup>1</sup>     | Prefill<sup>2</sup> | Decode<sup>2</sup> | Vision |
 | --------- | ------------------ | ---- | --------- | -------------- | -------------------- | ------------------- | ------------------ | ------ |
 | Strata    | Qwen3.8-Flash      | 3.49 | 79 GiB    | 256k int8/int8 | 20.2 GiB<sup>3</sup> | 1,696 tok/s         | 59 tok/s           | ✅     |
-| Strata    | Inkling-2-Mini     | 4.35 | 14 GiB    | 192k int8/int4 | 20.2 GiB             | 2,640 tok/s         | 78 tok/s           | ✅     |
+| Strata    | Inkling-2-Mini     | —    | 14 GiB    | 192k int8/int4 | 20.2 GiB             | 2,640 tok/s         | 78 tok/s           | ✅     |
+| Strata    | Hy4-Flash          | —    | 139 GB    | 256k int8/int8 | 21.1 GiB<sup>3</sup> | 459 tok/s           | 10 tok/s           | ✅     |
 | llama.cpp | Qwen3.8-Flash      | 3.49 | 79 GiB    | 256k q5/q4     | 22.0 GiB<sup>3</sup> | 185 tok/s           | 32 tok/s           | ✅     |
 | llama.cpp | Inkling-2-Mini     | 4.82 | 15 GiB    | 32k f16/f16    | 21.4 GiB             | 827 tok/s           | 55 tok/s           | ✅     |
 | llama.cpp | Qwen3.8-27B        | 3.84 | 14 GiB    | 256k q5/q5     | 21.8 GiB             | 1,300 tok/s         | 66 tok/s           | ✅     |
@@ -150,7 +152,8 @@ They are served on demand after starting the router `pixi r start-llamacpp`.
 **Notes:**
 
 - <sup>1</sup>Process total measured by nvidia-smi on RTX 3090
-- <sup>2</sup> Measured with `pixi r llama-benchy` on RTX 3090 with [gpu-unlock](https://github.com/Zagitta/gpu-unlock)
+- <sup>2</sup> Measured with `pixi r llama-benchy` on RTX 3090 with [gpu-unlock](https://github.com/Zagitta/gpu-unlock).
+  Strata rows use llama-benchy-strata, which selects the tokenizer for the served model.
 - <sup>3</sup> Experts offloaded to host RAM; frequently used ones are cached on GPU
 
 ### Estimating model size and VRAM
@@ -447,7 +450,8 @@ pixi r llama-benchy
 
 `llama-benchy-strata` does the same for Strata: it reads the model name off the live
 server's `/v1/models` and the port off `strata.ini`, so it always measures whatever is
-actually loaded.
+actually loaded. It also picks the tokenizer that matches that model; pass `--tokenizer`
+after `--` to override it.
 
 ```bash
 pixi r llama-benchy-strata

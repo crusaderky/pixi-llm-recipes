@@ -22,6 +22,12 @@ things it does there are replaced here:
   keeps in the Hub cache. They are fetched into ``~/.cache/huggingface/hub`` instead
   (huggingface_hub, at the revision setup.py pins) and handed over through ``--gguf-dir``
   as a folder of symlinks, so llamacpp and Strata read the same blobs.
+* **Native .strata builds.** Inkling-2-Mini and Hy4-Flash ship complete builds and, for
+  Inkling's vision, extra `.strata` files; setup.py downloads, checks and places them itself
+  under `<data-dir>/models`, with a shape engine of their own. This wrapper must not hand
+  those families `--gguf-dir` (that would make setup.py treat the build as somebody else's
+  local GGUFs), and watches their files and engine component so a deleted build or an env
+  that kept components elsewhere re-prepares once.
 * **The MTP draft layer's build inputs.** setup.py keeps the ~5 GB of checkpoint tensors it
   range-reads (its own ``tensors`` folder) and the GGUF packed from them, beside the ``rt/``
   folder the engine actually loads. Neither is read again -- ``rt/experts.bin`` going missing
@@ -214,10 +220,9 @@ def resolve_family(setup: ModuleType, family: str) -> str:
         sys.exit(f"family {family!r}: setup.py knows {', '.join(family_table(setup))}")
     family = known[family.lower()]
     if family in getattr(setup, "HY4_FAMILIES", {}):
-        sys.exit(
-            f"family {family!r} ships .strata builds with its own installer: this wrapper "
-            "has no preparation path for it; use upstream Strata's own CLI"
-        )
+        # Like Inkling, Hy4-Flash ships .strata builds setup.py downloads and verifies itself;
+        # the wrapper only has to keep --gguf-dir away from its install path.
+        return family
     if family_table(setup)[family].get("ready"):
         # `nvfp4` (0.2.x): ready-made Strata packs from a third-party repository, not GGUF
         # shards -- there is no <hf> or <file> to walk. This wrapper fetches the model files
@@ -368,8 +373,23 @@ def gguf_dir(setup: ModuleType, family: str, model: str, vision: str) -> Path:
     return where
 
 
+def native_family(setup: ModuleType, family: str) -> ModuleType | None:
+    """The setup.py helper of a family that installs its own .strata files, if any.
+
+    Inkling-2-Mini and Hy4-Flash both carry their own model/engine tables and a `files_of`
+    that names the build, the shared files and (when images are wanted) the vision shard.
+    """
+    for attr, table in (
+        ("inkling_family", "INKLING_FAMILIES"),
+        ("hy4_family", "HY4_FAMILIES"),
+    ):
+        if family in getattr(setup, table, {}):
+            return getattr(setup, attr, None)
+    return None
+
+
 def native_folder(data: Path, family: str) -> Path:
-    """Where setup.py's own installer puts a family's .strata files (its `inkling_folder`).
+    """Where setup.py's own installer puts a family's .strata files.
 
     These builds are not GGUF shards in the Hub cache; setup.py downloads them, checks their
     SHA-256 and leaves them beside the pack in the data dir, so the wrapper must not hand it
@@ -380,8 +400,8 @@ def native_folder(data: Path, family: str) -> Path:
 
 def native_files(setup: ModuleType, family: str, model: str, vision: str) -> list[str]:
     """The .strata files setup.py downloads for this family, build and vision choice."""
-    infos = getattr(setup, "inkling_family", None)
-    if infos is None or family not in getattr(setup, "INKLING_FAMILIES", {}):
+    infos = native_family(setup, family)
+    if infos is None:
         return []
     return infos.files_of(model, vision not in ("no", "none", "off"))
 
@@ -408,10 +428,9 @@ def missing_shape_engine(setup: ModuleType, family: str) -> str | None:
     """
     from strata_control import engine_component, shape_engine
 
+    infos = native_family(setup, family)
     shape = (
-        setup.inkling_family.SHAPE
-        if family in getattr(setup, "INKLING_FAMILIES", {})
-        else family_table(setup)[family].get("shape")
+        infos.SHAPE if infos is not None else family_table(setup)[family].get("shape")
     )
     if not shape:
         return None
@@ -619,6 +638,8 @@ def main() -> int:
     fam = family_table(setup)[family]
     own = family in own_path_table(setup)
     inkling = family in getattr(setup, "INKLING_FAMILIES", {})
+    hy4 = family in getattr(setup, "HY4_FAMILIES", {})
+    native = native_family(setup, family) is not None
     tag = (fam["tag"] + model).lower()
     # setup.py writes its run configs in home(), which is ROOT outside Control mode.
     # Since 0.2.16 ROOT is the packaged terminal/ folder, not the app tree's top level.
@@ -637,16 +658,23 @@ def main() -> int:
             f"images: {fam['title']} has no image encoder yet ({ini_path()}'s vision ignored)"
         )
 
-    # Inkling drafts with DSpark, which setup.py writes into the config itself and does not
-    # accept as a --drafter choice (mtp / dflash2 / dfly2 are Qwen's). Keep the profile's value
-    # for pin_drafting below, but never hand it to setup.py.
+    # Inkling drafts with DSpark and Hy4-Flash with DFly2; setup.py writes both into the
+    # config itself and neither is a --drafter choice this install path reads. Keep the
+    # profile's value for pin_drafting when it applies, but never hand it to setup.py.
     drafter = flag_value(pairs, "--drafter")
     if inkling and drafter:
         pairs = without(pairs, {"--drafter"})
-    # Inkling's setup path ignores --kv too: the engine reads it from the run config.
+    elif hy4 and drafter:
+        pairs = without(pairs, {"--drafter"})
+        drafter = None
+    # Their setup paths ignore --kv (and Inkling's --kv-offload) too: their engines read
+    # those from the run config.
     kv = flag_value(pairs, "--kv")
     if inkling and kv:
         pairs = without(pairs, {"--kv"})
+    elif hy4 and kv:
+        pairs = without(pairs, {"--kv"})
+        kv = None
     kv_offload = flag_value(pairs, "--kv-offload")
     if inkling and kv_offload:
         pairs = without(pairs, {"--kv-offload"})
@@ -675,7 +703,7 @@ def main() -> int:
     else:
         lost = (
             missing_native_files(setup, data, family, model, vision)
-            if inkling
+            if native
             else missing_model_files(setup, family, model, vision)
         )
         if lost:
@@ -688,20 +716,21 @@ def main() -> int:
     if reason:
         print(f"  preparing the model: {reason}", flush=True)
         argv = [*data_dir, *render(without(pairs, {"--no-start"})), "--no-start"]
-        if not inkling:
-            # A pack family reads GGUFs from the shared Hub cache. Inkling's .strata files
-            # are downloaded and verified by setup.py itself into the data dir.
+        if not native:
+            # A pack family reads GGUFs from the shared Hub cache. The native families'
+            # .strata files are downloaded and verified by setup.py into the data dir.
             argv += ["--gguf-dir", str(gguf_dir(setup, family, model, vision))]
         code = run_setup(setup, argv)
         if code:
             return code
         record_prepared(data, tag, signature)
-        if not keep_mtp and not inkling:
+        if not keep_mtp and not native:
             trim_mtp_inputs(setup, data)
 
     # The drafter setup.py does not fetch, on both paths (`strata-install` as well as a
     # start): a model prepared by an earlier run has to get its pack too (fetch_dflash2).
-    # Inkling's DSpark is in its own build, so the call returns without a download.
+    # Inkling's DSpark and Hy4-Flash's DFly2 are in their own builds, so the call returns
+    # without a download.
     fetch_dflash2(setup, pairs, data, config, family)
 
     # setup.py's start path ignores --context (it reads the config verbatim), so the context
@@ -722,7 +751,7 @@ def main() -> int:
     # (what a config without the key means) is DFlash2 for a single request and the MTP once
     # `parallel` asks for more than one slot, so a `drafter = dflash2` that was never written
     # down would stop meaning DFlash2 at the second request slot.
-    if drafter and pin_drafting(config, drafter.lower()):
+    if drafter and not hy4 and pin_drafting(config, drafter.lower()):
         setup.ok(f"drafter: {drafter} ({config.name})")
 
     if no_start:
